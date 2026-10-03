@@ -1,0 +1,22 @@
+[Unit]
+Description=YouYuan Minecraft Toolbox
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=youyuan
+Group=youyuan
+WorkingDirectory=/opt/youyuan
+ExecStart=/opt/youyuan/youyuan
+Environment=YY_DATA_DIR=/var/lib/youyuan
+Environment=YY_PORT=19429
+Environment=YY_TIMEZONE=Asia/Shanghai
+Environment=YY_PYTHON=/usr/bin/python3
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

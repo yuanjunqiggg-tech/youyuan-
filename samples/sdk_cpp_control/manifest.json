@@ -1,0 +1,12 @@
+{
+  "id": "yy_sdk_cpp_demo",
+  "name": "游园 SDK native_cpp 控制示例",
+  "language": "native_cpp",
+  "entry": "plugin.so",
+  "events": [
+    "chat",
+    "join",
+    "leave",
+    "ready"
+  ]
+}

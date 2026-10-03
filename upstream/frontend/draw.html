@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Prism 画板</title>
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/layout.css">
+<link rel="stylesheet" href="/css/components.css">
+<style>
+  html,body{margin:0;padding:0;background:transparent !important;color:#e2e8f0;font-family:'Noto Sans SC','PingFang SC',system-ui,sans-serif;height:100%;overflow:hidden;display:flex;flex-direction:column}
+  [data-theme] body,body{background:transparent !important}
+  .card{margin:0;border-radius:0;border:0;height:100%;box-sizing:border-box;background:transparent !important}
+  input,select,button{font-family:inherit}
+  /* 三层布局：上工具条 / 中画布(弹性,竖直居中) / 下调色板；背景镂空透出游戏 */
+  #fbar{display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(17,24,39,.72);border-bottom:1px solid rgba(51,65,85,.6);flex-shrink:1;min-height:0;flex-wrap:nowrap;overflow-x:auto}
+  #fbar .fsep,#fbar .fsp{flex-shrink:0;width:1px;height:20px;background:rgba(148,163,184,.35);margin:0 2px}
+  #fbar .fop{flex-shrink:0;font-size:11px;color:#cbd5e1}
+  #app{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;background:transparent}
+  #dr-create-section{display:none}
+  #dr-editor-section{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;background:transparent}
+  /* 工具按钮已上移到顶栏，隐藏 RdrawHTML 渲染的三排按钮 */
+  #dr-editor-section .row{display:none}
+  #dr-floatbtn,#dr-closecanvas{display:none}
+  #dr-busy,#dr-editor-section .dim{display:none}
+  /* 画布：占主要操作区、竖直居中；四边留透明边距，让游戏从四周透出、不遮视野 */
+  #dr-canvas-wrap{flex:1;min-height:0;height:auto !important;margin:6px 10px;background:rgba(15,23,32,.5);border:1px solid rgba(51,65,85,.6)}
+  /* 调色板：压成与顶栏等高的一条，保证画布竖直居中 */
+  #dr-palette-section{flex-shrink:1;min-height:0;margin:0 10px 6px;max-height:48px;overflow-y:auto;background:rgba(17,24,39,.55);border-radius:8px;padding:6px 8px}
+  #dr-palette-section label{display:none}
+  #dr-cats{flex-wrap:nowrap;overflow-x:auto}
+  #dr-current{display:none}
+  #fbar .fbt{flex-shrink:0;padding:6px 10px;border-radius:6px;border:none;font-size:12px;cursor:pointer;background:#1e293b;color:#e2e8f0;white-space:nowrap}
+  #fbar .fbt:hover{background:#334155}
+  #fbar #fc-close{margin-left:auto;background:#dc2626;color:#fff;font-weight:700;font-size:14px;padding:6px 14px}
+  #fopacity{flex-shrink:0;width:70px;accent-color:#d48a0e}
+  /* 顶栏工具按钮实底可读，当前工具以不透明度高亮（沿用 drawUpdateToolButtons 逻辑） */
+  #fbar .fbt{background:#1e293b;color:#fff;border:1px solid #334155}
+</style>
+</head>
+<body>
+<div id="fbar">
+  <button class="fbt" id="dr-tool-brush" onclick="drawSetTool('brush')">画</button>
+  <button class="fbt" id="dr-tool-eraser" onclick="drawSetTool('eraser')">擦</button>
+  <button class="fbt" id="dr-tool-pick" onclick="drawSetTool('pick')">取色</button>
+  <button class="fbt" onclick="drawPickBrush()">选方块</button>
+  <span class="fsep"></span>
+  <button class="fbt" onclick="drawUndo()">撤销</button>
+  <button class="fbt" onclick="drawRedo()">重做</button>
+  <button class="fbt" onclick="drawApply()">应用</button>
+  <button class="fbt" onclick="drawSync()">同步平面</button>
+  <span class="fsp"></span>
+  <button class="fbt" id="fc-collapse" onclick="ftogglePalette()">调色板 ▴</button>
+  <span class="fop">透明</span>
+  <input type="range" id="fopacity" min="30" max="100" value="100" oninput="fopacity(this.value)" style="width:80px;flex-shrink:0;accent-color:#d48a0e">
+  <button class="fbt" id="fc-close" onclick="fclose()">关闭</button>
+</div>
+<div id="app"></div>
+
+<script src="/js/theme.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/features/drawing.js"></script>
+<script>
+  window.IN_FLOAT = true;
+  // 渲染画板编辑器
+  document.getElementById('app').innerHTML = RdrawHTML();
+  setTimeout(initDraw, 30);
+
+  // 关闭悬浮窗
+  function fclose() { try { window.floating.closeDraw(); } catch (e) {} }
+  // 透明度：调节整个画板窗的透明度（透出游戏）
+  function fopacity(v) { try { window.floating.setDrawOpacity(parseInt(v, 10) / 100); } catch (e) {} }
+  // 调色板折叠：默认隐藏，展开查看
+  var paletteShown = false;
+  function fsetPalette(show) {
+    if (paletteShown === show) return;
+    paletteShown = show;
+    var sec = document.getElementById('dr-palette-section');
+    if (sec) sec.style.display = show ? 'block' : 'none';
+    var btn = document.getElementById('fc-collapse');
+    if (btn) btn.textContent = show ? '调色板 ▴' : '调色板 ▾';
+    if (typeof onDrawPaletteToggled === 'function') onDrawPaletteToggled();
+  }
+  function ftogglePalette() { fsetPalette(!paletteShown); }
+  // 初始展开调色板（固定底部色点条始终可见；会话可能晚到，延迟重新断言）
+  setTimeout(function () { fsetPalette(true); }, 60);
+  setTimeout(function () { fsetPalette(true); }, 500);
+  // 调色板折叠后窗口尺寸变化 → 重渲染画布
+  function onDrawPaletteToggled() { setTimeout(function () { if (typeof renderDrawGrid === 'function') renderDrawGrid(); }, 120); }
+
+  // SSE
+  try {
+    var es = new EventSource('/stream');
+    es.addEventListener('draw_update', function (v) { var d = JSON.parse(v.data); if (typeof onDrawUpdate === 'function') onDrawUpdate(d); });
+    es.addEventListener('draw_plane', function (v) { var d = JSON.parse(v.data); if (typeof onDrawPlane === 'function') onDrawPlane(d); });
+    es.addEventListener('draw_busy', function (v) { var d = JSON.parse(v.data); if (typeof onDrawBusy === 'function') onDrawBusy(d); });
+    es.addEventListener('draw_error', function (v) { var d = JSON.parse(v.data); if (typeof onDrawError === 'function') onDrawError(d); });
+    es.addEventListener('draw_sync', function (v) { var d = JSON.parse(v.data); if (typeof onDrawSync === 'function') onDrawSync(d); });
+    es.onerror = function () {};
+  } catch (e) {}
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "id": "python_chat",
+  "name": "Python 常驻聊天助手",
+  "language": "python",
+  "entry": "main.py",
+  "events": [
+    "chat",
+    "ready",
+    "join",
+    "leave"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "yy_sdk_python_demo",
+  "name": "游园 SDK python 控制示例",
+  "language": "python",
+  "entry": "main.py",
+  "events": [
+    "chat",
+    "join",
+    "leave",
+    "ready"
+  ]
+}

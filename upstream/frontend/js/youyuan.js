@@ -1,0 +1,48 @@
+// 自建功能入口，直接使用内置真实 API。
+function yyEscape(value){return String(value||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+async function yyRemotePage(){
+ delete subPageCache['公网远控 · APK 内置 MCP'];
+ var r=await A('GET','/api/youyuan/remote');var cfg=r.config||{};var urls=r.public_urls||{};var publicHTML='<section class="card"><h3>公网访问地址</h3><p>'+yyEscape(r.relay_connected?'设备已连接云端中继':'设备尚未在线；以下为配置地址')+'</p>'+[['console','控制台'],['mcp','MCP'],['api','API 目录']].map(function(row){var value=urls[row[0]]||'';return '<label>'+row[1]+'</label><input readonly value="'+yyEscape(value)+'"><button class="btn-s" onclick="navigator.clipboard.writeText('+JSON.stringify(value).replace(/"/g,'&quot;')+')">复制地址</button>'}).join('')+'<p>公网访问使用平台账号的云端控制密钥（Bearer Token）；本机密钥仅用于本机 MCP。</p><button class="btn-s" onclick="yyPlatformPage()">查看自己的云端控制密钥</button></section>';
+ openSubPage('公网远控 · APK 内置 MCP','<div class="card"><p>内核与插件在 APK 中运行；前端和中继后端部署在 Cloudflare。</p><label>设备连接地址</label><input id="yy-url" value="'+yyEscape(cfg.url||'wss://toolbox.youyuanqi.dpdns.org/device/connect')+'" placeholder="wss://你的域名/device/connect"><label>设备密钥（留空保留）</label><input id="yy-device-key" type="password"><label><input id="yy-enabled" type="checkbox" '+(cfg.enabled?'checked':'')+'> 启用公网连接</label><button class="btn" onclick="yyRemoteSave()">保存并连接</button><p>状态：'+yyEscape(r.state)+'</p><p>本机 MCP 地址：'+yyEscape(r.local_mcp_url)+'</p><label>本机 MCP 密钥</label><textarea readonly>'+yyEscape(r.key)+'</textarea><button class="btn-s" onclick="navigator.clipboard.writeText('+JSON.stringify(r.key).replace(/"/g,'&quot;')+')">复制密钥</button></div>'+publicHTML);
+}
+async function yyRemoteSave(){var body={url:document.getElementById('yy-url').value,enabled:document.getElementById('yy-enabled').checked};var token=document.getElementById('yy-device-key').value;if(token)body.device_token=token;var r=await A('POST','/api/youyuan/remote',body);if(!r.ok){alert(r.error);return}yyRemotePage()}
+async function yyLanguagePage(){
+ delete subPageCache['多语言常驻插件'];
+ var r=await A('GET','/api/youyuan/runtime/list');
+ openSubPage('多语言常驻插件','<div class="card"><p>APK 内置 Python 3.12 和 C++；桌面 Python 使用 YY_PYTHON 指定解释器。Lua 兼容环境常驻。每账号独立状态，聊天、进服、离服事件顺序处理。</p><button class="btn" onclick="yyImportPython()">导入 Python 插件 ZIP</button><label>账号标识（main / 子机器人名或 UUID）</label><input id="yy-account" value="main"><label>插件标识</label><input id="yy-plugin-id" value="python_counter"><div class="row"><button class="btn" onclick="yyLanguageCall(\'start\')">启动</button><button class="btn-s" onclick="yyLanguageCall(\'event\')">触发一次</button><button class="btn-s" onclick="yyLanguageCall(\'stop\')">停止</button></div><p>内置示例：python_counter；APK 还支持 native_counter。ZIP 根目录放 manifest.json 和 main.py，可携带纯 Python 依赖。当前队列上限 256，慢插件不会阻塞收包。</p><pre id="yy-runtime-result" style="white-space:pre-wrap">'+yyEscape(JSON.stringify(r.instances,null,2))+'</pre></div>');
+}
+async function yyLanguageCall(action){var r=await A('POST','/api/youyuan/runtime/'+action,{id:document.getElementById('yy-plugin-id').value,account:document.getElementById('yy-account').value,event:{type:'manual'}});document.getElementById('yy-runtime-result').textContent=JSON.stringify(r,null,2)}
+async function yyQQPage(){
+ delete subPageCache['群服互通'];
+ var results=await Promise.all([A('GET','/api/qq/config'),A('GET','/api/qq/status')]);
+ var c=results[0].config||{},s=results[1],o=c.onebot||{},q=c.qqofficial||{},cmd=c.command||{},g=c.game_to_group||{};
+ openSubPage('群服互通',`<div class="card"><h3>群服互通</h3><p>状态：${yyEscape(s.state)} · ${yyEscape(s.detail)}</p>
+ <label class="lbl-cb"><input id="yy-qq-enabled" type="checkbox" ${c.enabled?'checked':''}><span class="tgl"></span> 启用</label>
+ <label>适配器</label><select id="yy-qq-adapter" onchange="yyQQAdapter()"><option value="onebot" ${c.adapter==='onebot'?'selected':''}>OneBot v11</option><option value="qqofficial" ${c.adapter==='qqofficial'?'selected':''}>QQ 官方机器人</option></select>
+ <div id="yy-qq-onebot"><label>WebSocket 地址</label><input id="yy-qq-ws" placeholder="wss://你的 OneBot 地址" value="${yyEscape(o.ws_url)}"><label>OneBot Token（留空保留）</label><input id="yy-qq-token" type="password" autocomplete="new-password"></div>
+ <div id="yy-qq-official"><label>AppID</label><input id="yy-qq-appid" value="${yyEscape(q.app_id)}"><label>AppSecret（留空保留）</label><input id="yy-qq-secret" type="password" autocomplete="new-password"><p>Webhook：<br><span id="yy-qq-callback">正在读取平台账号…</span></p><p>启用后，在 QQ 平台填写回调地址。群 openid 留空时绑定第一个通过签名验证的群回调。</p></div>
+ <label>OneBot 群号 / 官方群 openid</label><input id="yy-qq-group" value="${yyEscape(c.group_id)}">
+ <label>群指令权限</label><select id="yy-qq-permission">${['禁用','群主','管理员','指定用户','所有人'].map(v=>'<option '+(cmd.permission===v?'selected':'')+'>'+v+'</option>').join('')}</select>
+ <p>QQ 官方回调不提供管理员角色；可以选择“指定用户”，填写官方用户 openid。</p>
+ <label>允许执行指令的用户（每行一个 QQ 号 / 官方用户 openid）</label><textarea id="yy-qq-users">${yyEscape((cmd.users||[]).join('\n'))}</textarea><label>指令白名单（每行一个命令前缀，逐条校验；留空不限）</label><textarea id="yy-qq-whitelist">${yyEscape((cmd.whitelist||[]).join('\n'))}</textarea>
+ <label>游戏消息模板</label><input id="yy-qq-format" value="${yyEscape(g.format||'[{player}] {message}')}">
+ <label>游戏消息前缀（每行一个，留空全部转发）</label><textarea id="yy-qq-prefix">${yyEscape((g.only_prefixes||[]).join('\n'))}</textarea>
+ <button class="btn" onclick="yyQQSave()">保存配置</button><label>测试群消息</label><input id="yy-qq-message"><button class="btn-s" onclick="yyQQSend()">发送测试消息</button><pre id="yy-qq-result" style="white-space:pre-wrap"></pre></div>`);
+ yyQQAdapter();yyQQCallbackLabel();
+}
+function yyQQAdapter(){var official=document.getElementById('yy-qq-adapter').value==='qqofficial';document.getElementById('yy-qq-official').style.display=official?'':'none';document.getElementById('yy-qq-onebot').style.display=official?'none':''}
+function yyLines(id){return document.getElementById(id).value.split('\n').map(v=>v.trim()).filter(Boolean)}
+async function yyQQSave(){var v=id=>document.getElementById(id).value;var r=await A('POST','/api/qq/config',{enabled:document.getElementById('yy-qq-enabled').checked,adapter:v('yy-qq-adapter'),group_id:v('yy-qq-group'),onebot:{ws_url:v('yy-qq-ws'),token:v('yy-qq-token')},qqofficial:{app_id:v('yy-qq-appid'),app_secret:v('yy-qq-secret')},command:{permission:v('yy-qq-permission'),whitelist:yyLines('yy-qq-whitelist'),users:yyLines('yy-qq-users')},game_to_group:{format:v('yy-qq-format'),only_prefixes:yyLines('yy-qq-prefix')}});document.getElementById('yy-qq-result').textContent=JSON.stringify(r,null,2)}
+async function yyQQSend(){var r=await A('POST','/api/qq/send',{text:document.getElementById('yy-qq-message').value});document.getElementById('yy-qq-result').textContent=JSON.stringify(r,null,2)}
+async function yyCatalogPage(){delete subPageCache['全部 API'];var r=await A('GET','/api/youyuan/catalog');openSubPage('全部 API','<div class="card"><h3>已注册的全部 API</h3><p>外部 Agent 和内置 AI 可通过 api_call 调用。联网和游戏操作会返回实际结果。</p><pre style="white-space:pre-wrap">'+yyEscape(JSON.stringify(r,null,2))+'</pre></div>')}
+async function yyImportPython(){var input=document.createElement('input');input.type='file';input.accept='.zip';input.onchange=async function(){if(!input.files[0])return;var f=new FormData();f.append('file',input.files[0]);try{var r=await (await fetch('/api/youyuan/runtime/import',{method:'POST',body:f})).json();alert(r.ok?'已导入：'+r.id:r.error)}catch(e){alert(e.message)}};input.click()}
+// 自建后端无订阅门槛；图片卡片模块后续独立验收，当前只显示消息与指令配置。
+qbTier=function(){return {cmd:true,img:false}};
+var yyOriginalHome=Rhome;
+Rhome=async function(){await yyOriginalHome();var host=document.querySelector('#tab-home .content-inner')||document.getElementById('tab-home');if(host&&!document.getElementById('yy-entry-buttons')){var box=document.createElement('div');box.id='yy-entry-buttons';box.className='card';box.innerHTML='<h3>游园自建内核</h3><button class="btn" onclick="yyRemotePage()">公网远控 / MCP</button><button class="btn" onclick="yyLanguagePage()">多语言常驻插件</button><button class="btn" onclick="yyQQPage()">群服互通</button><button class="btn-s" onclick="yyCatalogPage()">全部 API</button><button class="btn" onclick="yyLibraryPage()">自建云端资料库</button><button class="btn-s" onclick="openSubPage(\'飞行控制\',RflyHTML())">飞行控制</button><button class="btn-s" onclick="openSubPage(\'长时指令执行器\',RmcfunctionHTML())">长时指令执行器</button><button class="btn-s" onclick="openSubPage(\'相机工具\',RcameraHTML())">相机工具</button><button class="btn-s" onclick="openSubPage(\'物品生成\',RitemmakerHTML())">物品生成</button><button class="btn-s" onclick="aiOpenManage()">AI 模型配置</button><p>导入速度填 -1：不加人为限速。不设 1000 方块数量上限。</p>';host.prepend(box)}};
+var yyOriginalPlugins=Rplg;
+Rplg=async function(){await yyOriginalPlugins();var host=document.querySelector('#tab-tasks .plg-section')||document.getElementById('tab-tasks');if(host&&!document.getElementById('yy-plugin-entry')){var box=document.createElement('button');box.id='yy-plugin-entry';box.className='btn';box.textContent='Python / C++ 常驻插件';box.onclick=yyLanguagePage;host.prepend(box)}};
+// 初始页面可能在脚本加载前开始绘制，完成后补挂入口。
+setTimeout(function(){if(document.getElementById('tab-home'))Rhome()},350);
+
+async function yyQQCallbackLabel(){try{var r=await yyIdentityRequest('me');var u=r.user||{};var base='https://toolbox.youyuanqi.dpdns.org/qq/webhook';if(u.id&&!u.legacy_owner)base+='/'+u.id+'/primary-device'+(yyActiveAccount!=='main'?'/'+yyActiveAccount:'');else if(yyActiveAccount!=='main'){document.getElementById('yy-qq-callback').textContent='子账号请登录独立平台账号后使用专属回调';return}var el=document.getElementById('yy-qq-callback');if(el)el.textContent=base}catch(e){var el=document.getElementById('yy-qq-callback');if(el)el.textContent='先在设置中登录平台账号'}}

@@ -1,0 +1,11 @@
+{
+ "name":"youyuan-game-auth",
+ "main":"worker.mjs",
+ "account_id":"7086578ad87b302bbc65bf198f21a75c",
+ "compatibility_date":"2026-09-28",
+ "workers_dev":true,
+ "assets":{"directory":"public","binding":"ASSETS","run_worker_first":["/api/*","/health"]},
+ "routes":[{"pattern":"auth.youyuanqi.dpdns.org","custom_domain":true}],
+ "durable_objects":{"bindings":[{"name":"AUTH","class_name":"AuthVault"},{"name":"RELAY","class_name":"YouYuanRelay","script_name":"youyuan-apk-v030"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["AuthVault"]}]
+}

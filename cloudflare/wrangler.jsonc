@@ -1,0 +1,42 @@
+{
+  "name": "youyuan-apk-v030",
+  "main": "worker.mjs",
+  "account_id": "7086578ad87b302bbc65bf198f21a75c",
+  "compatibility_date": "2026-09-28",
+  "workers_dev": true,
+  "services":[{"binding":"AUTH_SERVICE","service":"youyuan-game-auth"}],
+  "routes": [
+    {
+      "pattern": "toolbox.youyuanqi.dpdns.org",
+      "custom_domain": true
+    },
+    {
+      "pattern": "updates.youyuanqi.dpdns.org",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/", "/api/*", "/mcp", "/mcp/*", "/ai/*", "/device/*", "/qq/*", "/health", "/auth", "/auth/*", "/updates/android/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RELAY",
+        "class_name": "YouYuanRelay"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "YouYuanRelay"
+      ]
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}
