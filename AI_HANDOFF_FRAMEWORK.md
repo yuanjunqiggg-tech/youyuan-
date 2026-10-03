@@ -18,7 +18,7 @@ FUNCTION：youyuan_commands.go、youyuan_chain_buffered.go在保存时预解析�
 
 Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相对路径API已加入youyuan_resource.go；普通LuaZIP现在保留模块和资源，package.path搜索源码目录。ZIP须完整保留源码/资源/配置/数据；拒绝路径穿越。Storage：旧JSON磁盘state保持原语义，原子替换文件不是多键事务。Event bus已有chat/packet/sense/SDK事件与跨插件RPC，LState只在自己的锁/串行回调内访问。网络写有连接sendMu保护；插件错误边界不等于原生进程隔离。
 
-线程模型：Lua每(bot,id)互斥执行，native/Python实例mu串行；SDK的256项队列满时计dropped。跨插件同步RPC用TryLock避免循环等待。慢HTTP可能占当前插件，不能阻塞整个网络读取；新增Async经受控队列回调。Stop必须清理新增定时器、异步请求、监听和订阅。
+线程模型：Lua每(bot,id)互斥执行，native/Python实例mu串行；SDK的256项队列满时计dropped。跨插件同步RPC用TryLock避免循环等待。慢HTTP可能占当前插件，不能阻塞整个网络读取；未来Async确认应经受控队列回调。Stop必须清理新增定时器、异步请求、监听和订阅。
 
 已有证据：3000×60=180000全部计分核对60.965秒，2952.514是单条命令/秒，约0.984整链轮/秒。2026-10-02一次10000分数核对0.8075秒后断连；2026-10-03一次10000核对1.3363秒后断连，均不能称持续稳定。原版用户报告一轮10000可行，但原版同条件计时未测到。不要篡改失败样本。内核Go测试、布局360/420/1440此前通过；最终APK已构建；发布与Linux部署结果以任务状态为准。
 
@@ -33,3 +33,7 @@ Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相�
 示例旧兼容：Lua for i=1,10000 do game.sendCommand('scoreboard players add counter test 1') end。结果confirmed=false只表示已提交，必须独立游戏计分核验。条件链使用game.execute或executeBatch可确认路径，不用无等待返回值猜上一条成功。新增API及限制同步开发文档、当前语言Skill、外部MCP按需资源，正文不整库塞上下文。
 
 最新失败证据：outputs/0.10.7-APK框架真实验收.json与0.10.7-长链断线后计分核查.json。3000×60@40Hz宿主接受180000约12.86秒，重连分数17764，不能标成功或以180000计算服务器吞吐。短链25×60@20/40Hz计分正确。网络等锁后关闭检查与提交结果UI已修复，未因此宣称服务端大流量稳定。Async确认/Worker/监听/KV/事务/分级重载/新ABI为待办，不是已经实现。
+
+交付核查：最终签名APK覆盖后短链20Hz=3.1349秒、40Hz=1.6627秒，计分正确。Linux0.10.7 active并完成Python双账号异步/资源实测。公网APK完整下载hash通过，21项Skill及新版Python MCP文档通过；服务端连续大链失败保持待办。
+
+真实AI框架验收：实际Sensenova模型按需读取python-runtime Skill，生成async插件与资源文件，语法验证/发布/启动通过；manual事件返回与后台ticks增长、宿主资源读取实际核查通过。输入/输出Token记录可查，未配置单价所以费用只作未设置估算。临时插件、模型及工作区均清理，报告0.10.7-AI框架技能真实调用.json。

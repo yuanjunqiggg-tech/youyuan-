@@ -1,6 +1,6 @@
 {
   "framework_version": "0.10.7",
-  "public_version": "0.10.6",
+  "public_version": "0.10.7",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
@@ -14,7 +14,7 @@
     "command_buffer": "done_fast_array",
     "resource_api": "done_tests_passed",
     "timer_diagnostics": "done_tests_passed",
-    "python_asyncio": "done_local_and_android_verified",
+    "python_asyncio": "done_local_android_linux_two_accounts_verified",
     "cpp_stable_abi": "existing_v2_not_new_abi",
     "ai_handoff": "done",
     "git_rollback_points": "done",
@@ -27,7 +27,9 @@
     "worker_pool": "not_implemented",
     "file_watch": "not_implemented",
     "memory_kv": "not_implemented",
-    "transaction_storage": "not_implemented"
+    "transaction_storage": "not_implemented",
+    "release": "apk_linux_sdk_skill_public_verified",
+    "ai_new_framework_skill": "real_model_read_python_skill_created_validated_published_started_async_plugin_verified"
   },
   "known_issues": [
     "Repeated large fast traffic receives remote RakNet disconnect; 3000x60 submitted180000 but score17764 after reconnect; not verified stable",
@@ -91,7 +93,23 @@
       "score_after_reconnect": 17764,
       "verified": false,
       "remote_disconnected": true
-    }
+    },
+    "final_signed_apk_small_chains": [
+      {
+        "commands_per_round": 25,
+        "rounds_requested": 60,
+        "target_whole_chain_hz": 20,
+        "seconds": 3.1349,
+        "score_verified": true
+      },
+      {
+        "commands_per_round": 25,
+        "rounds_requested": 60,
+        "target_whole_chain_hz": 40,
+        "seconds": 1.6627,
+        "score_verified": true
+      }
+    ]
   },
   "deferred": [
     "Dedicated day/night API",
@@ -113,10 +131,15 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-03T11:30:10.422414+08:00",
+  "updated_at": "2026-10-03T11:44:17.709866+08:00",
   "current_branch": "main",
-  "current_commit": "85c21004ba950263b523e634f773567b6fb6403d",
+  "current_commit": "729c59caebb36b9062ffecc7121fc5f8aabe36a5",
   "recent_commits": [
+    {
+      "commit": "729c59caebb36b9062ffecc7121fc5f8aabe36a5",
+      "date": "2026-10-03T11:30:12+08:00",
+      "subject": "fix: reject writes after closure and distinguish fast submissions from game results"
+    },
     {
       "commit": "85c21004ba950263b523e634f773567b6fb6403d",
       "date": "2026-10-03T10:47:21+08:00",
@@ -147,5 +170,16 @@
       "date": "2026-10-03T09:33:57+08:00",
       "subject": "chore: preserve existing framework source baseline before staged repairs"
     }
-  ]
+  ],
+  "delivery": {
+    "signed_apk_sha256": "0551f31e095b52d12e2a6c88d49f7e0438eb1423c65d95dfd7e6a9ec551a8385",
+    "apk_public_hash_verified": true,
+    "linux_service": "active 0.10.7",
+    "linux_python_async_two_accounts_verified": true,
+    "cloudflare_version": "04b06b48-e176-4d74-a273-10af6cb6f72a",
+    "public_mcp_language_resources_verified": true,
+    "sustained_fast_stress_passed": false,
+    "ai_framework_test": "passed; temporary model/plugin/workspace removed"
+  },
+  "git_snapshot_rule": "Commit and recent_commits describe HEAD at file generation; the commit containing this file cannot include its own hash."
 }

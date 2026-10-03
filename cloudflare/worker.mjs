@@ -60,7 +60,7 @@ export default {
     const library = url.pathname.startsWith('/api/library/');
     const libraryDevice = library && env.DEVICE_TOKEN && supplied==='Bearer '+env.DEVICE_TOKEN;
     if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) return Response.json({error:'中继密钥不正确'},{status:401});
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.6',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'Android APK 主动连接并执行',user:identity?.user||null});
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.7',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'Android APK 主动连接并执行',user:identity?.user||null});
     const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || 'primary-device';
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     const deviceId = qqMatch?('tenant:'+qqMatch[1]+':'+qqMatch[2]):legacyAccount?'primary-device':(identity?.relay_prefix||'')+requestedDevice;
