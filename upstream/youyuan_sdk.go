@@ -330,7 +330,7 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	if closed {
 		return nil, fmt.Errorf("插件已停止")
 	}
-	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.execute" || method == "game.executeBatch" {
+	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.execute" || method == "game.executeBatch" {
 		return s.pluginCommandCall(method, args)
 	}
 	if _, ok := yyExtraMethods[method]; ok {

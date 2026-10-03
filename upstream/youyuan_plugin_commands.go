@@ -113,6 +113,47 @@ func yyMergeCommandOptions(base yyCommandOptions, override any) (yyCommandOption
 }
 
 func yyPluginCommandCall(bm *BotManager, method string, args []any, defaults yyCommandOptions) (any, error) {
+	if method == "game.sendCommandConfirmed" {
+		method = "game.execute"
+	}
+	if method == "game.sendCommandFast" {
+		method = "game.sendCommand"
+	}
+	if method == "game.sendCommandsFast" {
+		if len(args) < 1 {
+			return nil, fmt.Errorf("sendCommandsFast 需要命令数组")
+		}
+		items, ok := args[0].([]any)
+		if !ok {
+			return nil, fmt.Errorf("sendCommandsFast 需要命令数组")
+		}
+		commands := make([]string, len(items))
+		// Validate the complete buffer before submitting anything.
+		for i, item := range items {
+			command, ok := item.(string)
+			if !ok || strings.TrimSpace(command) == "" || strings.ContainsAny(command, "\r\n") {
+				return nil, fmt.Errorf("第%d条需要单条非空命令", i+1)
+			}
+			commands[i] = command
+		}
+		options := defaults
+		var err error
+		if len(args) > 1 {
+			options, err = yyMergeCommandOptions(defaults, args[1])
+			if err != nil {
+				return nil, err
+			}
+		}
+		if bm == nil || !bm.IsConnected() {
+			return nil, fmt.Errorf("游戏账号未连接")
+		}
+		for i, command := range commands {
+			if err = bm.SendCommandNoWaitRate(CommandChannel(options.Channel), command, options.RateCPS); err != nil {
+				return map[string]any{"submitted": i, "commands": len(commands), "confirmed": false}, err
+			}
+		}
+		return map[string]any{"submitted": len(commands), "commands": len(commands), "confirmed": false}, nil
+	}
 	if method == "game.executeBatch" {
 		return yyCommandBatchDefaults(bm, args, defaults)
 	}
@@ -214,7 +255,7 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 		L.Push(goToLua(L, yyCommandOptionsMap(options)))
 		return 1
 	}))
-	for _, method := range []string{"game.sendCommand", "game.execute", "game.executeBatch"} {
+	for _, method := range []string{"game.sendCommand", "game.sendCommandFast", "game.sendCommandsFast", "game.sendCommandConfirmed", "game.execute", "game.executeBatch"} {
 		method := method
 		L.SetField(game, strings.TrimPrefix(method, "game."), L.NewFunction(func(L *lua.LState) int {
 			args := []any{}

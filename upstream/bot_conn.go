@@ -1644,18 +1644,31 @@ func (bm *BotManager) SendWSCommand(cmd string) error {
 // per-command timer. The existing transport timer flushes a partial buffer.
 func (bm *BotManager) sendCommandBuffered(channel CommandChannel, cmd string) error {
 	bm.mu.Lock()
-	conn, connected, dim := bm.conn, bm.connected, bm.commandDimension
+	conn, connected, dim, name := bm.conn, bm.connected, bm.commandDimension, bm.display
 	bm.mu.Unlock()
 	if !connected || conn == nil {
 		return fmt.Errorf("未连接")
 	}
 	cmd = strings.TrimPrefix(bm.WrapCommandInDimensionWithDim(cmd, dim), "/")
+	if channel == ChannelAI {
+		// SettingsCommand has no CommandOutput flood. Preserve the bot's @s
+		// and relative-coordinate context, rather than using server origin.
+		return conn.WritePacket(yyFastSettingsPacket(cmd, name))
+	}
 	origin := uint32(protocol.CommandOriginAutomationPlayer)
 	if channel == ChannelPlayer {
 		origin = protocol.CommandOriginPlayer
 	}
 	return conn.WritePacketBounded(&packet.CommandRequest{CommandLine: cmd,
 		CommandOrigin: protocol.CommandOrigin{Origin: origin, UUID: uuid.New(), RequestID: uuid.NewString()}, Version: 44})
+}
+
+func yyFastSettingsPacket(cmd, name string) *packet.SettingsCommand {
+	if name != "" {
+		escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name)
+		cmd = fmt.Sprintf(`execute as @a[name="%s"] at @s run %s`, escaped, cmd)
+	}
+	return &packet.SettingsCommand{CommandLine: cmd, SuppressOutput: true}
 }
 
 // SendPlayerCommand 以玩家身份发送命令（CommandOriginPlayer），如同真实玩家在聊天栏输入。

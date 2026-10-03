@@ -6,3 +6,7 @@
 - 合理采纳任务说明：兼容优先、分阶段提交、常驻复用、资源接口、调度诊断、按需AI文档、真实验收和交接。
 - 不把建议中“每事件重建VM”当成当前事实；源码已经常驻。分类/风险/下一步见框架改造实施核对.md。
 - 基线扫描排除构建、运行数据、私有配置，已知私有凭据未匹配源码；Git仅本地保存，未上传。
+
+## Fast path and chain dispatch
+
+Default no-wait ai uses SettingsCommand with bot context and original timer batching. Fast/Confirmed aliases and complete-array Fast host call added. TXT fast mode waits only at true condition barriers. Default CPS remains zero. Go tests pass; real 100/1000/10000 counters verified, repeated trials still disconnected. RakNet timeout margin and disconnect diagnostics added; sustained stability pending. No stable release claim.

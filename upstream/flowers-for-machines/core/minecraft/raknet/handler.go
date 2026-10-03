@@ -170,6 +170,7 @@ func (h listenerConnectionHandler) handle(conn *Conn, b []byte) (handled bool, e
 	case message.IDConnectedPong:
 		return true, handleConnectedPong(b[1:])
 	case message.IDDisconnectNotification:
+		h.log().Warn("RakNet remote disconnect notification")
 		conn.closeImmediately()
 		return true, nil
 	case message.IDDetectLostConnections:
@@ -235,6 +236,7 @@ func (h dialerConnectionHandler) handle(conn *Conn, b []byte) (handled bool, err
 	case message.IDConnectedPong:
 		return true, handleConnectedPong(b[1:])
 	case message.IDDisconnectNotification:
+		h.log().Warn("RakNet remote disconnect notification")
 		conn.closeImmediately()
 		return true, nil
 	case message.IDDetectLostConnections:

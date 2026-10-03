@@ -29,7 +29,7 @@
     "Multi-account long-run pressure pending"
   ],
   "next_tasks": [
-    "Restore original PyRPC no-wait semantics and repeat real tests",
+    "Retest SettingsCommand original timer batching; preserve failure reports",
     "Add resource API and tested bounded scheduler diagnostics",
     "Add persistent Python awaitable support",
     "Sync SDK/Skill/MCP and release APK/Linux after checks"
@@ -50,6 +50,15 @@
     "10000_command_request_20261003": {
       "verified": true,
       "seconds": 1.3363,
+      "next_trial_disconnected": true
+    },
+    "pyrpc_100": {
+      "verified": false,
+      "counter": 0
+    },
+    "settings_bounded_10000": {
+      "verified": true,
+      "seconds": 0.8689,
       "next_trial_disconnected": true
     }
   },

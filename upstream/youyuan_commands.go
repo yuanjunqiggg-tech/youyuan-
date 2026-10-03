@@ -447,6 +447,23 @@ func (in *yyChainInstance) run(ctx context.Context) {
 				}
 				return row["success"] == true, nil
 			}, func(callCtx context.Context, nodes []yyChainNode, callCfg yyChainConfig) ([]map[string]any, error) {
+				if callCfg.Mode == "fast" {
+					rows := make([]map[string]any, len(nodes))
+					for i, n := range nodes {
+						if e := callCtx.Err(); e != nil {
+							return rows[:i], e
+						}
+						e := bm.SendCommandNoWaitRate(CommandChannel(yyChainNodeChannel(n, callCfg)), n.Command, callCfg.RateCPS)
+						rows[i] = map[string]any{"submitted": e == nil, "confirmed": false}
+						if e != nil {
+							return rows[:i+1], e
+						}
+						in.Lock()
+						in.Submitted++
+						in.Unlock()
+					}
+					return rows, nil
+				}
 				values := make([]any, len(nodes))
 				for i, n := range nodes {
 					values[i] = n.Command

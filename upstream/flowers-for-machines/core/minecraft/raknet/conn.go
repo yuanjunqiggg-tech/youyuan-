@@ -173,8 +173,9 @@ func (conn *Conn) startTicking() {
 			// Netease: change to 5 seconds per ping
 			if i%5 == 0 {
 				conn.mu.Lock()
-				if t.Sub(*conn.lastActivity.Load()) > time.Second*5 {
+				if t.Sub(*conn.lastActivity.Load()) > time.Second*30 {
 					// No activity for too long: Start timeout.
+					conn.handler.log().Warn("RakNet idle timeout", "idle", t.Sub(*conn.lastActivity.Load()))
 					_ = conn.Close()
 				}
 				conn.mu.Unlock()

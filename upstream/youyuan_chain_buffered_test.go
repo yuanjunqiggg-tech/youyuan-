@@ -6,6 +6,35 @@ import (
 	"testing"
 )
 
+func TestFastChainOnlyConfirmsTrueDependencies(t *testing.T) {
+	p, err := yyParseChains("say a\nsay b\n0,1,0\nsay c\n0,0,0\nsay d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fast, confirmed []string
+	skipped := 0
+	yyChainExecuteBuffered(context.Background(), p, yyChainConfig{Mode: "fast"}, 0,
+		func(n yyChainNode) (bool, error) { confirmed = append(confirmed, n.Command); return false, nil },
+		func(nodes []yyChainNode) ([]map[string]any, error) {
+			rows := []map[string]any{}
+			for _, n := range nodes {
+				fast = append(fast, n.Command)
+				rows = append(rows, map[string]any{"submitted": true, "confirmed": false})
+			}
+			return rows, nil
+		}, func(_, skip bool, e error) {
+			if e != nil {
+				t.Fatal(e)
+			}
+			if skip {
+				skipped++
+			}
+		})
+	if !reflect.DeepEqual(fast, []string{"say a", "say d"}) || !reflect.DeepEqual(confirmed, []string{"say b"}) || skipped != 1 {
+		t.Fatalf("dependency barrier lost: fast=%v confirmed=%v skipped=%d", fast, confirmed, skipped)
+	}
+}
+
 func TestBufferedChainBarriersAndFailure(t *testing.T) {
 	plan, e := yyParseChains("1,0,0\nsay first\nsay second\n0,1,0\nsay conditional\n0,0,0\nsay independent\n.\n0,1,0\nsay isolated\n")
 	if e != nil {

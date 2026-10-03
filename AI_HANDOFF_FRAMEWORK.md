@@ -10,7 +10,7 @@ Lua：youyuan_resident.go按(bot指针,plugin id)保存LState，初始化执行�
 
 Python：youyuan_plugins.py每实例模块与Host常驻，Go youyuan_runtime.go串行消费有界事件队列。Android解释器共进程/GIL，Linux每实例独立Python进程。当前awaitable回调尚待适配；不要声称asyncio已完整。C++：Android通过create_v2/event/destroy常驻实例，有C++异常边界；Linux适配器明确未接入，同进程SIGSEGV不能隔离。不要承诺1000倍性能。
 
-命令：原game.sendCommand无等待应走网易AICommand/PyRPC。0.10.7此前错误改成CommandRequest，单轮10000计分核对成功但后续断连；当前正在恢复原通道。Confirmed用AutomationPlayer/CommandRequest及UUID回包。sendCommandFast不能每条等待、记录日志或走JSON。Async的结果必须回到插件串行上下文。批次数量/字节分段是传输实现，不能变成整个TXT长度限制。
+命令：game.sendCommand及Fast默认ai无等待使用SettingsCommand并保持机器人@s/相对坐标；原网络层定时合并。旧源码PyRPC在当前测试服100条实际未执行，禁止默认恢复PyRPC或宣称原版APK就是该通道。Confirmed用AutomationPlayer/CommandRequest及UUID回包。sendCommandsFast完整数组一次宿主边界，无整数组行数限制。TXT fast模式仅条件节点及前条需要回包，普通命令不等待。提交不等于服务器成功。连续压测尚未完成，不能标稳定。
 
 Scheduler：旧util.schedule采用Go ticker并同步调用常驻handler，同任务不重入；不同任务共享VM锁。现有packet回调还有产生等待goroutine的风险。新增调度必须有界、统计missed和暂停恢复。scheduleTick如果使用本地50ms必须明确名义Tick，不保证服务器同Tick。CommandBuffer应一次边界提交整数组；游戏批处理不保证原子或同一服务器Tick。
 

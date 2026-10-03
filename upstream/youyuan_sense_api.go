@@ -18,31 +18,34 @@ import (
 )
 
 var yyExtraMethods = map[string]string{
-	"game.scene":               "无参数。当前账号的机器人和已观测实体快照；含 known、stale、数据时间和来源。AI 没有独立游戏实体，bot 是当前账号控制的机器人。",
-	"game.executeBatch":        "commands 字符串数组，options：channel=default/ai/player/console（或0/1/2字符串），mode=ordered/pipeline/submit/burst/stream，transport=command_request/settings/pyrpc（后两者仅submit，无逐条确认），window=1..16条在途命令；burst最多1024条整批协议发送，512KiB文本，保留冷却预算，不保证同Tick，timeout_ms=100..10000。支持每实例默认配置与单次覆盖。ordered 逐条等待；pipeline 仅用于互不依赖的命令，不保证服务端完成顺序；submit 不等待结果。结果逐项含 submitted/confirmed/success/error/channel，超时未知不自动重发。stream单段最多4096条/512KiB，动态在途窗口最多1024，rate_cps=0仅回包背压，失败停止补发；完整说明读 command-execution 技能。",
-	"player.health":            "target 为 self、玩家名或 runtime_id 字符串，默认 self。返回已观测信息含 health_known/health/max_health/health_time/stale，未知为 null，不推算其他玩家满血。仅能获取服务器给本机器人同步的属性。",
-	"player.position":          "target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。",
-	"player.nearby":            "radius=0..512，默认 32；按机器人已观测位置计算同维度、仍存在的玩家距离并排序。不包括客户端不可见或未知坐标的玩家，机器人坐标未知报错。",
-	"bot.self":                 "无参数。读取当前账号机器人的服务器观测状态，health/position/dead 可未知。AI Agent 使用此机器人，不自行拥有一个游戏位置。",
-	"bot.startMovement":        "dx,dy,dz 玩家输入方向，每轴 -1..1；以 50ms PlayerAuthInput 心跳交给服务器驱动运动。dx 左右，dz=-1 前进，dy 上下，不是世界坐标路径规划；返回 submitted=true,confirmed=false。",
-	"bot.stopMovement":         "无参数。清理当前机器人移动输入，仍需要服务器回包确认最终位置。",
-	"bot.lookAt":               "x,y,z 世界坐标。由已观测机器人位置计算 yaw/pitch，启用心跳发送视角；返回请求状态，无自动寻路/穿墙保证。",
-	"bot.teleport":             "x,y,z 世界坐标。执行服务器 tp @s 并等待真实命令结果，需要对应权限；没有权限时报错或 success=false。",
-	"world.breakBlock":         "x,y,z 整数坐标，mode=command 或 creative_action，默认 command。command 用 setblock ... air destroy 等待实际结果；creative_action 发创造模式破坏动作，要求游戏模式和六格范围，不代表服务器确认。生存挖掘的装备/耗时/交易流程尚不支持。",
-	"world.placeBlock":         "x,y,z 整数坐标，block 例如 minecraft:stone。用服务器 setblock 指令，返回真实结果，需要权限。",
-	"world.blockState":         "x,y,z 整数坐标。返回当前维度 layer=0 的最近 UpdateBlock 观测，未知 known=false；包含方块 runtime_id，不把任何更新都认定是玩家破坏。",
-	"events.onDeath":           "handler 回调接收一个事件对象，来源为 ActorEventDeath/InstantDeath 或 health<=0；同一已死亡状态去重，重生后可再触发。不推测死亡原因/攻击者。",
-	"events.onHealthChange":    "handler(event)，仅在观测血量初始值或变化时入队，含 previous/health/max_health/time/source。",
-	"events.onHurt":            "handler(event)，来源为血量下降或 ActorEventHurt，两种独立来源可能各触发一次；无法识别准确攻击者，不用编造 cause。",
-	"events.onMove":            "handler(event)，服务器实际位置初始值/变化时触发；含 previous_known/position/dimension/source。高频事件可用抓包抽样过滤减少负担。",
-	"events.onRespawn":         "handler(event)，只处理服务端 RespawnStateReadyToSpawn，清除旧血量等待新属性。",
-	"events.onBlockChange":     "handler(event)，UpdateBlock 导出 position/runtime_id/previous/cause_known=false；不能仅从方块更新认定破坏者。",
-	"events.subscribeFiltered": "packet_type 或 *，filter={fields:{字段路径:精确值},every_ms:0..60000}，handler。Python 回调接收包对象；C++/Lua 使用已注册函数名。* 接收当前账号订阅包，事件字段 _packet_type 表示真实类型，停止自动退订。",
-	"events.captureStart":      "config={types:[包名或*],exclude:[包名],filter:{fields:{...},every_ms:...},capacity:1..2048,max_bytes:512..65536}。开启账号级解码入站游戏抓包；默认血量/死亡/位置/方块包，认证握手不记录，* 默认不包含大区块包。",
-	"events.captureStop":       "停止记录，保留已抓数据。当前账号的多个插件共用账号级记录；使用时协调抓包开关。",
-	"events.captureRead":       "after_sequence=0,limit=256，返回记录/游标/覆盖和抽样统计。缓冲有界，单条超大小截为预览；不是手机所有 App 的网络抓包。",
-	"events.captureClear":      "清空当前账号抓包缓冲，保持抓包开关。",
-	"events.packetSchema":      "无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。",
+	"game.sendCommandFast":      "command, options?；无等待提交，魔法/ai 默认使用 SettingsCommand 并保持机器人 @s/相对坐标；其他通道保持来源。rate_cps 默认0，不逐条等回包。confirmed=false 不能当游戏成功。",
+	"game.sendCommandsFast":     "commands数组, options?；一次插件宿主边界按顺序提交完整数组，不限整数组行数，不等待逐条回包。先校验全部命令；中途网络失败报告已提交数量，不自动重发，不保证同一服务器Tick或原子执行。",
+	"game.sendCommandConfirmed": "command, options?；game.execute别名，等待真实CommandOutput，超时为未知，不自动重发。只在依赖前条结果时使用。",
+	"game.scene":                "无参数。当前账号的机器人和已观测实体快照；含 known、stale、数据时间和来源。AI 没有独立游戏实体，bot 是当前账号控制的机器人。",
+	"game.executeBatch":         "commands 字符串数组，options：channel=default/ai/player/console（或0/1/2字符串），mode=ordered/pipeline/submit/burst/stream，transport=command_request/settings/pyrpc（后两者仅submit，无逐条确认），window=1..16条在途命令；burst最多1024条整批协议发送，512KiB文本，默认无固定CPS等待，不保证同Tick，timeout_ms=100..10000。支持每实例默认配置与单次覆盖。ordered 逐条等待；pipeline 仅用于互不依赖的命令，不保证服务端完成顺序；submit 不等待结果。结果逐项含 submitted/confirmed/success/error/channel，超时未知不自动重发。stream单段最多4096条/512KiB，动态在途窗口最多1024，rate_cps=0无固定CPS，网络未知停止补发，正常无目标继续无条件后续；完整说明读 command-execution 技能。",
+	"player.health":             "target 为 self、玩家名或 runtime_id 字符串，默认 self。返回已观测信息含 health_known/health/max_health/health_time/stale，未知为 null，不推算其他玩家满血。仅能获取服务器给本机器人同步的属性。",
+	"player.position":           "target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。",
+	"player.nearby":             "radius=0..512，默认 32；按机器人已观测位置计算同维度、仍存在的玩家距离并排序。不包括客户端不可见或未知坐标的玩家，机器人坐标未知报错。",
+	"bot.self":                  "无参数。读取当前账号机器人的服务器观测状态，health/position/dead 可未知。AI Agent 使用此机器人，不自行拥有一个游戏位置。",
+	"bot.startMovement":         "dx,dy,dz 玩家输入方向，每轴 -1..1；以 50ms PlayerAuthInput 心跳交给服务器驱动运动。dx 左右，dz=-1 前进，dy 上下，不是世界坐标路径规划；返回 submitted=true,confirmed=false。",
+	"bot.stopMovement":          "无参数。清理当前机器人移动输入，仍需要服务器回包确认最终位置。",
+	"bot.lookAt":                "x,y,z 世界坐标。由已观测机器人位置计算 yaw/pitch，启用心跳发送视角；返回请求状态，无自动寻路/穿墙保证。",
+	"bot.teleport":              "x,y,z 世界坐标。执行服务器 tp @s 并等待真实命令结果，需要对应权限；没有权限时报错或 success=false。",
+	"world.breakBlock":          "x,y,z 整数坐标，mode=command 或 creative_action，默认 command。command 用 setblock ... air destroy 等待实际结果；creative_action 发创造模式破坏动作，要求游戏模式和六格范围，不代表服务器确认。生存挖掘的装备/耗时/交易流程尚不支持。",
+	"world.placeBlock":          "x,y,z 整数坐标，block 例如 minecraft:stone。用服务器 setblock 指令，返回真实结果，需要权限。",
+	"world.blockState":          "x,y,z 整数坐标。返回当前维度 layer=0 的最近 UpdateBlock 观测，未知 known=false；包含方块 runtime_id，不把任何更新都认定是玩家破坏。",
+	"events.onDeath":            "handler 回调接收一个事件对象，来源为 ActorEventDeath/InstantDeath 或 health<=0；同一已死亡状态去重，重生后可再触发。不推测死亡原因/攻击者。",
+	"events.onHealthChange":     "handler(event)，仅在观测血量初始值或变化时入队，含 previous/health/max_health/time/source。",
+	"events.onHurt":             "handler(event)，来源为血量下降或 ActorEventHurt，两种独立来源可能各触发一次；无法识别准确攻击者，不用编造 cause。",
+	"events.onMove":             "handler(event)，服务器实际位置初始值/变化时触发；含 previous_known/position/dimension/source。高频事件可用抓包抽样过滤减少负担。",
+	"events.onRespawn":          "handler(event)，只处理服务端 RespawnStateReadyToSpawn，清除旧血量等待新属性。",
+	"events.onBlockChange":      "handler(event)，UpdateBlock 导出 position/runtime_id/previous/cause_known=false；不能仅从方块更新认定破坏者。",
+	"events.subscribeFiltered":  "packet_type 或 *，filter={fields:{字段路径:精确值},every_ms:0..60000}，handler。Python 回调接收包对象；C++/Lua 使用已注册函数名。* 接收当前账号订阅包，事件字段 _packet_type 表示真实类型，停止自动退订。",
+	"events.captureStart":       "config={types:[包名或*],exclude:[包名],filter:{fields:{...},every_ms:...},capacity:1..2048,max_bytes:512..65536}。开启账号级解码入站游戏抓包；默认血量/死亡/位置/方块包，认证握手不记录，* 默认不包含大区块包。",
+	"events.captureStop":        "停止记录，保留已抓数据。当前账号的多个插件共用账号级记录；使用时协调抓包开关。",
+	"events.captureRead":        "after_sequence=0,limit=256，返回记录/游标/覆盖和抽样统计。缓冲有界，单条超大小截为预览；不是手机所有 App 的网络抓包。",
+	"events.captureClear":       "清空当前账号抓包缓冲，保持抓包开关。",
+	"events.packetSchema":       "无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。",
 }
 var yySenseEvents = map[string]string{"events.onDeath": "death", "events.onHealthChange": "health", "events.onHurt": "hurt", "events.onMove": "move", "events.onRespawn": "respawn", "events.onBlockChange": "block_change"}
 
@@ -99,7 +102,7 @@ func yySenseLuaEmit(bm *BotManager, e map[string]any) {
 func registerSenseAPI(L *lua.LState) {
 	L.SetGlobal("chains", L.NewTable())
 	for method := range yyExtraMethods {
-		if method == "game.executeBatch" {
+		if method == "game.executeBatch" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
 			continue
 		} // registered with instance command defaults
 		parts := strings.Split(method, ".")
@@ -226,6 +229,9 @@ func yySenseVec(args []any) (mgl32.Vec3, error) {
 	return p, nil
 }
 func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
+	if method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
+		return yyPluginCommandCall(bm, method, args, yyDefaultCommandOptions())
+	}
 	if strings.HasPrefix(method, "chains.") {
 		return yyChainPluginCall(bm, method, args)
 	}
