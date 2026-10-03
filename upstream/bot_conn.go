@@ -1293,7 +1293,7 @@ func (bm *BotManager) disconnectConnection(conn *minecraft.Conn) bool {
 func (bm *BotManager) IsConnected() bool {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
-	return bm.connected
+	return bm.connected && (bm.conn == nil || bm.conn.Context().Err() == nil)
 }
 
 // IsJoined 判断机器人是否"正式进入"服务器：不仅要已连接，还要 onReady 触发过
@@ -1640,8 +1640,8 @@ func (bm *BotManager) SendWSCommand(cmd string) error {
 	})
 }
 
-// Plugin fire-and-forget commands use bounded transport buffering, not a
-// per-command timer. The existing transport timer flushes a partial buffer.
+// Default AI fire-and-forget uses the original transport timer coalescing.
+// Player/console packets retain bounded coalescing; neither adds a per-command sleep.
 func (bm *BotManager) sendCommandBuffered(channel CommandChannel, cmd string) error {
 	bm.mu.Lock()
 	conn, connected, dim, name := bm.conn, bm.connected, bm.commandDimension, bm.display

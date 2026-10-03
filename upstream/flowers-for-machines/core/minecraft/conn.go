@@ -374,6 +374,13 @@ func (conn *Conn) WritePacketBounded(pk packet.Packet) error {
 }
 
 func (conn *Conn) writePacketLocked(pk packet.Packet) error {
+	// A flush can hold sendMu while the remote peer closes the connection.
+	// Recheck after acquiring the lock; never accept a packet into that dead buffer.
+	select {
+	case <-conn.ctx.Done():
+		return conn.closeErr("write packet")
+	default:
+	}
 	buf := internal.BufferPool.Get().(*bytes.Buffer)
 	defer func() {
 		// Reset the buffer, so we can return it to the buffer pool safely.

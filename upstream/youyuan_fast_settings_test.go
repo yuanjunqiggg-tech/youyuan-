@@ -1,6 +1,16 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestFastArrayDoesNotIgnoreExplicitTransport(t *testing.T) {
+	_, err := yyPluginCommandCall(nil, "game.sendCommandsFast", []any{[]any{"say test"}, map[string]any{"mode": "submit", "transport": "pyrpc"}}, yyDefaultCommandOptions())
+	if err == nil || !strings.Contains(err.Error(), "transport") {
+		t.Fatalf("explicit transport silently ignored: %v", err)
+	}
+}
 
 func TestFastSettingsPreservesBotContext(t *testing.T) {
 	p := yyFastSettingsPacket("scoreboard players add @s test 1", "机器人")

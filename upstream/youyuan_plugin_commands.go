@@ -144,6 +144,9 @@ func yyPluginCommandCall(bm *BotManager, method string, args []any, defaults yyC
 				return nil, err
 			}
 		}
+		if options.Transport != "" && options.Transport != "command_request" {
+			return nil, fmt.Errorf("sendCommandsFast 使用默认快速通道；显式 settings/pyrpc 请用 executeBatch submit，不忽略 transport 参数")
+		}
 		if bm == nil || !bm.IsConnected() {
 			return nil, fmt.Errorf("游戏账号未连接")
 		}

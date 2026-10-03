@@ -1,6 +1,6 @@
 # 游园框架 AI 交接
 
-更新：2026-10-03。本文件不含令牌、密码、模型Key或签名Key。公开版本当前0.10.6，开发0.10.7尚未通过最终持续发送验收。详细任务状态见AI_PROJECT_STATE.json及任务备忘录.md。
+更新：2026-10-03。本文件不含令牌、密码、模型Key或签名Key。0.10.7完成框架修复、短链和运行器验收；持续大链发送仍未通过。发布状态与准确Git提交见AI_PROJECT_STATE.json。详细任务状态见AI_PROJECT_STATE.json及任务备忘录.md。
 
 目标：保留原工具箱Lua插件能力、旧API语义和用户数据，增加统一三语言API、常驻执行、AI项目工作区、MCP、公网连接和机器人内命令链；不得默认限速让旧插件性能退化。
 
@@ -8,7 +8,7 @@
 
 Lua：youyuan_resident.go按(bot指针,plugin id)保存LState，初始化执行源码一次，事件调用已有函数，锁保护VM。api.require调用常驻目标。secondary账号初次加载使用兼容注册抑制，不每触发重建。停用取消定时/订阅并关闭VM。旧legacy rerun并未对外提供manifest模式，不能声称支持。
 
-Python：youyuan_plugins.py每实例模块与Host常驻，Go youyuan_runtime.go串行消费有界事件队列。Android解释器共进程/GIL，Linux每实例独立Python进程。已适配async on_init/on_event/on_stop、SDK回调与RPC，每Host专属常驻loop线程，停用取消后台Task并关闭线程。invoke_async/call_async卸载阻塞HTTP至executor；回调120秒超时。本机持久loop/账号隔离/背景任务/停止回归通过，最终Android实测结果见任务状态。C++：Android通过create_v2/event/destroy常驻实例，有C++异常边界；Linux适配器明确未接入，同进程SIGSEGV不能隔离。不要承诺1000倍性能。
+Python：youyuan_plugins.py每实例模块与Host常驻，Go youyuan_runtime.go串行消费有界事件队列。Android解释器共进程/GIL，Linux每实例独立Python进程。已适配async on_init/on_event/on_stop、SDK回调与RPC，每Host专属常驻loop线程，停用取消后台Task并关闭线程。invoke_async/call_async卸载阻塞HTTP至executor；回调120秒超时。本机持久loop/账号隔离/背景任务/停止回归通过，最终Android ZIP资源、异步回调、背景任务、停止存储导出已验收，结果见任务状态。C++：Android通过create_v2/event/destroy常驻实例，有C++异常边界；Linux适配器明确未接入，同进程SIGSEGV不能隔离。不要承诺1000倍性能。
 
 命令：game.sendCommand及Fast默认ai无等待使用SettingsCommand并保持机器人@s/相对坐标；原网络层定时合并。旧源码PyRPC在当前测试服100条实际未执行，禁止默认恢复PyRPC或宣称原版APK就是该通道。Confirmed用AutomationPlayer/CommandRequest及UUID回包。sendCommandsFast完整数组一次宿主边界，无整数组行数限制。TXT fast模式仅条件节点及前条需要回包，普通命令不等待。提交不等于服务器成功。连续压测尚未完成，不能标稳定。
 
@@ -20,7 +20,7 @@ Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相�
 
 线程模型：Lua每(bot,id)互斥执行，native/Python实例mu串行；SDK的256项队列满时计dropped。跨插件同步RPC用TryLock避免循环等待。慢HTTP可能占当前插件，不能阻塞整个网络读取；新增Async经受控队列回调。Stop必须清理新增定时器、异步请求、监听和订阅。
 
-已有证据：3000×60=180000全部计分核对60.965秒，2952.514是单条命令/秒，约0.984整链轮/秒。2026-10-02一次10000分数核对0.8075秒后断连；2026-10-03一次10000核对1.3363秒后断连，均不能称持续稳定。原版用户报告一轮10000可行，但原版同条件计时未测到。不要篡改失败样本。内核Go测试、布局360/420/1440此前通过；完整APK最终版本尚未公开。
+已有证据：3000×60=180000全部计分核对60.965秒，2952.514是单条命令/秒，约0.984整链轮/秒。2026-10-02一次10000分数核对0.8075秒后断连；2026-10-03一次10000核对1.3363秒后断连，均不能称持续稳定。原版用户报告一轮10000可行，但原版同条件计时未测到。不要篡改失败样本。内核Go测试、布局360/420/1440此前通过；最终APK已构建；发布与Linux部署结果以任务状态为准。
 
 已实现：Lua/Python/Android C++常驻、预解析链、动态窗口、批处理、跨链API、完整项目AI读取/搜索/编辑/Diff/回滚/附件ZIP/会话/按需Skill、MCP、QQ真实互通、独立认证及自有令牌进服。未验收：可靠死亡/血量、多账号长稳、实际联机房间、群陪聊、设备出口节点、B站实时画面声音。暂缓：昼夜API、完整Entity对象、大规模ABI/进程沙箱、长期1h/6h压力。不要预置QA插件或测试Key给普通用户。
 
@@ -28,6 +28,8 @@ Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相�
 
 推荐基线：9f90893c0e2085f1e6c22b6095593e83fcdec6e7，标签framework-existing-baseline-20261003。这是既有源码保护点，含未发布修改，不是已验收稳定基线。近期提交见AI_PROJECT_STATE.json；不存在的20个历史提交不得编造。
 
-回滚：git status；提交/保存工作后，git worktree add ../framework-review <commit>，在独立目录编译核对；APK必须同原签名证书覆盖安装，Linux更换程序保留/var/lib/youyuan数据。数据库/config回滚需单独备份。禁止硬重置、卸载APK、删除用户数据。构建脚本../work/rebuild_v0107.ps1；Go test . ./building ./config ./media ./state；压力脚本../work/snowball_10000.py仅私有测试计分，不影响玩家；不要直接运行测试ZIP中的@a、kill、tp、replaceitem。
+回滚：git status；提交/保存工作后，git worktree add ../framework-review <commit>，在独立目录编译核对；APK必须同原签名证书覆盖安装，Linux更换程序保留/var/lib/youyuan数据。数据库/config回滚需单独备份。禁止硬重置、卸载APK、删除用户数据。构建脚本../work/rebuild_v0107.ps1；Go test . ./building ./config ./media ./state；压力脚本../work/framework_live_test.py仅私有测试计分，不影响玩家；不要直接运行测试ZIP中的@a、kill、tp、replaceitem。
 
 示例旧兼容：Lua for i=1,10000 do game.sendCommand('scoreboard players add counter test 1') end。结果confirmed=false只表示已提交，必须独立游戏计分核验。条件链使用game.execute或executeBatch可确认路径，不用无等待返回值猜上一条成功。新增API及限制同步开发文档、当前语言Skill、外部MCP按需资源，正文不整库塞上下文。
+
+最新失败证据：outputs/0.10.7-APK框架真实验收.json与0.10.7-长链断线后计分核查.json。3000×60@40Hz宿主接受180000约12.86秒，重连分数17764，不能标成功或以180000计算服务器吞吐。短链25×60@20/40Hz计分正确。网络等锁后关闭检查与提交结果UI已修复，未因此宣称服务端大流量稳定。Async确认/Worker/监听/KV/事务/分级重载/新ABI为待办，不是已经实现。

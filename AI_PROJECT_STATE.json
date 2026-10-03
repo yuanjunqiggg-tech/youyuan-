@@ -1,5 +1,5 @@
 {
-  "framework_version": "0.10.7-dev",
+  "framework_version": "0.10.7",
   "public_version": "0.10.6",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
@@ -9,22 +9,28 @@
   },
   "features": {
     "persistent_runtime": "done",
-    "fast_command": "in_progress",
+    "fast_command": "implemented_single_and_small_chain_verified_sustained_large_chain_failed",
     "tick_scheduler": "done_tests_passed",
     "command_buffer": "done_fast_array",
     "resource_api": "done_tests_passed",
     "timer_diagnostics": "done_tests_passed",
-    "python_asyncio": "done_regression_apk_validation_pending",
-    "cpp_stable_abi": "planned",
+    "python_asyncio": "done_local_and_android_verified",
+    "cpp_stable_abi": "existing_v2_not_new_abi",
     "ai_handoff": "done",
     "git_rollback_points": "done",
     "bounded_packet_events": "done_tests_passed",
     "profiler": "wall_clock_and_queue_metrics_done",
     "capability_query": "done",
-    "lua_rpc_no_json": "done"
+    "lua_rpc_no_json": "done",
+    "ui_layout": "done_screenshot_verified",
+    "async_confirmation": "not_implemented",
+    "worker_pool": "not_implemented",
+    "file_watch": "not_implemented",
+    "memory_kv": "not_implemented",
+    "transaction_storage": "not_implemented"
   },
   "known_issues": [
-    "Single 10000 score verified; repeated >20000 traffic receives server RakNet disconnect, not local idle timeout",
+    "Repeated large fast traffic receives remote RakNet disconnect; 3000x60 submitted180000 but score17764 after reconnect; not verified stable",
     "Android same-process C++ native crash isolation unavailable",
     "Reliable health/death real-event validation pending",
     "Device exit node not implemented",
@@ -33,10 +39,9 @@
     "Multi-account long-run pressure pending"
   ],
   "next_tasks": [
-    "Validate APK real fast chains and Python async APIs",
-    "Investigate server disconnect under repeated >20000-command bursts without inventing CPS claims",
-    "Deploy signed APK/Linux and publish SDK/Skill/handoff",
-    "QQ companion and multi-account/room/1h6h tests remain"
+    "Investigate large fast-traffic remote disconnect; compare original APK under the same account/realm and validate game score, not only host submissions",
+    "Implement optional bounded Async/Future confirmation and lifecycle-scoped watchers/KV only with compatibility tests",
+    "Linux C++ adapter/native isolation, reliable health/death, actual room_id, QQ companion, device exits and 1h/6h tests remain"
   ],
   "benchmarks": {
     "3000x60_stream_window256": {
@@ -67,6 +72,25 @@
     },
     "idle_90_seconds": {
       "connected_all_samples": true
+    },
+    "25x60_fast_20hz": {
+      "commands_per_round": 25,
+      "rounds": 60,
+      "seconds": 3.0817,
+      "server_verified": true
+    },
+    "25x60_fast_40hz": {
+      "commands_per_round": 25,
+      "rounds": 60,
+      "seconds": 1.5538,
+      "server_verified": true
+    },
+    "3000x60_fast_40hz_failed": {
+      "submitted": 180000,
+      "submit_seconds": 12.8641,
+      "score_after_reconnect": 17764,
+      "verified": false,
+      "remote_disconnected": true
     }
   },
   "deferred": [
@@ -89,10 +113,15 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-03T10:47:20.285350+08:00",
+  "updated_at": "2026-10-03T11:30:10.422414+08:00",
   "current_branch": "main",
-  "current_commit": "5e29748e99fbd923bb31045b1124181bb10821f8",
+  "current_commit": "85c21004ba950263b523e634f773567b6fb6403d",
   "recent_commits": [
+    {
+      "commit": "85c21004ba950263b523e634f773567b6fb6403d",
+      "date": "2026-10-03T10:47:21+08:00",
+      "subject": "feat: keep a persistent asyncio loop per Python plugin instance"
+    },
     {
       "commit": "5e29748e99fbd923bb31045b1124181bb10821f8",
       "date": "2026-10-03T10:45:14+08:00",

@@ -129,3 +129,10 @@ AI工作区附件入口在对话输入区，ZIP保留目录结构，长粘贴保
 `game.executeBatch(commands, {mode="stream", channel="ai", window=512, rate_cps=0, timeout_ms=8000})`。Python/C++使用相同SDK options对象。stream单段1..4096条、文本512KiB，最大在途window=1..1024（默认128）。从16条起，成功回包累计达到当前窗口后倍增到上限；任何回包都释放槽位，不等待最早请求，也不等整窗全部回复。新补位命令立即按小批发送，不等待底层50ms刷新。`rate_cps=0`仅由在途窗口与回包背压约束；正数20..20000启用自定义共享账号发送预算。网络错误、超时、断开停止新发送，已发送回包仍收集，未知不自动重发。
 
 命令链config同样支持`mode="stream",window=512,rate_cps=0`。有条件节点、通道变化、延迟、@call/@wait/@pause形成回包屏障。保持提交顺序；不保证独立命令的服务端完成顺序或同一游戏Tick。窗口仅服务于无真实依赖片段。整轮执行耗时算在周期内，仅等待剩余时间，不会堆积40Hz的未完成轮次。输出results逐条submitted/confirmed/success，peak_inflight是实测最大在途，network_batches是实际发送批数。
+
+
+## 0.10.7 实测与快速结果语义
+
+快速接口无默认CPS等待，不逐条等待回包。`sendCommandsFast` 的 options 使用 channel/rate_cps；显式settings/pyrpc transport须用executeBatch的submit，不会静默忽略。新建TXT编辑页默认fast，已有文件保留原执行方式。fast窗口参数不控制TXT总长，界面隐藏无效窗口设置。fast统计的submitted是宿主接收量，executed是尝试节点量，cycles是已处理文件轮次，`results_confirmed=false`，不是服务器执行证明；管理页显示提交结束而非保证游戏成功。断线停止新发送，不自动重发。
+
+最终APK实际25条有顺序依赖命令×60轮，20Hz约3.08秒、40Hz约1.55秒，计分正确。3000×60@40Hz提交约12.86秒但服务端断线，重连仅确认17764分，不算通过，不用18万提交数计算执行吞吐。单次一万条通过不代表连续大链稳定，也不保证同一服务器Tick。

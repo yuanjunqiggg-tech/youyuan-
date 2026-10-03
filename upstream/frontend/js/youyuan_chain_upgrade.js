@@ -15,8 +15,8 @@
     hint.insertAdjacentHTML('beforebegin','<label for="yy-chain-channel">默认命令通道</label><select id="yy-chain-channel"><option value="ai">魔法指令 · 自动化</option><option value="console">控制台 · 自动化</option><option value="player">玩家 · 玩家身份</option></select><p class="yy-hint">#组 可覆盖通道、速率、前缀与次数；#测试 和 #执行 可展开参数模板。组与链都在保存时预解析，运行时不重复解析文件。</p>');
     document.getElementById('yy-chain-channel').value=cfg.channel||'ai';
     hint.insertAdjacentHTML('beforebegin','<label for="yy-chain-mode">机器人执行方式</label><select id="yy-chain-mode"><option value="fast">快速提交 · 仅真实条件等待结果</option><option value="remote">严格顺序 · 每条确认后继续</option><option value="pipeline">有界流水线 · 无依赖命令批量提交</option><option value="stream">动态滑动窗口 · 回包立即补位</option><option value="burst">整批确认 · 分段提交</option></select><label for="yy-chain-window">每批条数 · 流水线1～16 / 整批1～1024</label><input id="yy-chain-window" type="number" min="1" max="1024"><p class="yy-hint">快速提交不逐条等回包；魔法通道保留机器人身份与相对坐标。有条件命令及它的前一条用真实回包判断。全部在机器人内运行，不放置命令方块。窗口和内部传输分段不限制整个TXT行数；默认无CPS等待。不保证同一服务器Tick，快速模式计数表示提交，游戏结果需核验。</p>');
-    document.getElementById('yy-chain-mode').value=['fast','pipeline','burst','stream'].includes(cfg.mode)?cfg.mode:'remote';
-    document.getElementById('yy-chain-window').value=cfg.window||(cfg.mode==='burst'?1024:cfg.mode==='stream'?128:8);document.getElementById('yy-chain-mode').onchange=function(){document.getElementById('yy-chain-window').value=this.value==='burst'?1024:this.value==='stream'?128:8};
+    document.getElementById('yy-chain-mode').value=['fast','pipeline','burst','stream'].includes(cfg.mode)?cfg.mode:(row?'remote':'fast');
+    document.getElementById('yy-chain-window').value=cfg.window||(cfg.mode==='burst'?1024:cfg.mode==='stream'?128:8);document.getElementById('yy-chain-mode').onchange=function(){document.getElementById('yy-chain-window').value=this.value==='burst'?1024:this.value==='stream'?128:8;document.getElementById('yy-chain-window').style.display=this.value==='fast'?'none':'';document.querySelector('label[for="yy-chain-window"]').style.display=this.value==='fast'?'none':''};document.getElementById('yy-chain-window').style.display=document.getElementById('yy-chain-mode').value==='fast'?'none':'';document.querySelector('label[for="yy-chain-window"]').style.display=document.getElementById('yy-chain-mode').value==='fast'?'none':'';
     hint.insertAdjacentHTML('beforebegin','<label for="yy-chain-rate">可选发送上限 · 0 不限速</label><input id="yy-chain-rate" type="number" min="0" max="20000" value="0"><p class="yy-hint">默认0，不加人为CPS等待；只有主动设置正数时限速。窗口只控制未确认请求的数量，不限制整个文件的行数。短链最多32条可同批发出，长链动态补位；未匹配到目标不会中断后续无条件命令。断线、超时停止新发送；有条件、控制点与延迟才等待结果。频率按整轮启动计算，轮次不重叠。</p>');
     var modeSelect=document.getElementById('yy-chain-mode'), oldChange=modeSelect.onchange;modeSelect.onchange=function(){oldChange.call(this);document.getElementById('yy-chain-rate').value=0};
     document.getElementById('yy-chain-rate').value=cfg.rate_cps||0;
@@ -46,7 +46,7 @@
   };
   window.yyChainExecutionConfig=function(){
     var mode=document.getElementById('yy-chain-mode').value,windowSize=Number(document.getElementById('yy-chain-window').value);
-    if(!Number.isInteger(windowSize)||windowSize<1||windowSize>(['burst','stream'].includes(mode)?1024:16))throw Error('流水线1～16条；整批1～1024条');
+    if(!Number.isInteger(windowSize)||windowSize<1||windowSize>(['fast','burst','stream'].includes(mode)?1024:16))throw Error('流水线1～16条；整批1～1024条');
     var rate=Number(document.getElementById('yy-chain-rate').value);if(!Number.isInteger(rate)||(rate!==0&&rate<20)||rate>20000)throw Error('发送预算0或20～20000；滑动窗口0表示只按回包背压');
     return {account:document.getElementById('yy-chain-account').value,interval_ms:Number(document.getElementById('yy-chain-interval').value),delay_ms:Number(document.getElementById('yy-chain-delay').value),run_count:Number(document.getElementById('yy-chain-run-count').value),channel:document.getElementById('yy-chain-channel').value,mode:mode,window:windowSize,rate_cps:rate};
   };

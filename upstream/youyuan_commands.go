@@ -529,6 +529,13 @@ func (in *yyChainInstance) run(ctx context.Context) {
 				failures = 3
 				stopRound()
 			}
+			if !bm.IsConnected() && ctx.Err() == nil {
+				in.Lock()
+				in.LastError = "网络连接已关闭；已提交命令的游戏结果未知，没有自动重发"
+				in.Unlock()
+				failures = 3
+				stopRound()
+			}
 			interrupted := roundCtx.Err() != nil
 			stopRound()
 			in.Lock()
@@ -631,7 +638,7 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 				if in.ElapsedMS > 0 {
 					hz = float64(in.Cycles) * 1000 / float64(in.ElapsedMS)
 				}
-				list = append(list, map[string]any{"config": in.Config, "state": in.State, "cycles": in.Cycles, "executed": in.Executed, "submitted": in.Submitted, "skipped": in.Skipped, "error": in.LastError, "commands": in.Plan.Commands, "redstone": in.Redstone, "elapsed_ms": in.ElapsedMS, "last_round_ms": in.LastRoundMS, "actual_hz": hz})
+				list = append(list, map[string]any{"config": in.Config, "state": in.State, "cycles": in.Cycles, "executed": in.Executed, "submitted": in.Submitted, "skipped": in.Skipped, "error": in.LastError, "commands": in.Plan.Commands, "redstone": in.Redstone, "elapsed_ms": in.ElapsedMS, "last_round_ms": in.LastRoundMS, "actual_hz": hz, "results_confirmed": in.Config.Mode != "fast", "counter_semantics": "executed=attempted nodes; submitted=host accepted; cycles=processed file rounds, not proof of server execution"})
 				in.Unlock()
 			}
 			yyChains.Unlock()

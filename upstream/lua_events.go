@@ -53,7 +53,7 @@ func (bm *BotManager) startPlayerEventLoop() {
 	}()
 }
 
-// luaEventH 事件处理器：plugin 用于重跑源码，handler 是 Lua 函数名。
+// luaEventH 事件处理器：plugin 定位常驻VM，handler 是已有Lua函数名。
 type luaEventH struct {
 	plugin  string
 	handler string

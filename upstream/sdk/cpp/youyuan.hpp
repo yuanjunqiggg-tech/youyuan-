@@ -1,4 +1,4 @@
-// YouYuan SDK 1.7; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
+// YouYuan SDK 1.11; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
 #pragma once
 #include "third_party/json.hpp"
 #include <cstdlib>

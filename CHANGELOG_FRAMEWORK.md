@@ -22,3 +22,7 @@ Added whole-callback Hz/seconds/nominalTick scheduling, owner-scoped job lists/p
 ## Python persistent asyncio
 
 One resident loop/thread per Host. Await async lifecycle/event/SDK callback/RPC results, background tasks run between events, optional async host HTTP wrappers, stop cancels tasks and closes loop/thread. Local Python regression confirms persistent loop, isolated accounts, async host invocation and complete stop. Android live validation follows in release checks.
+
+## Final APK verification and result honesty
+
+25x60 ordered fast chains verified at whole-chain20/40Hz; Android persistent async lifecycle/resources/ZIP state export and mobile AI/plugin layouts verified. 3000x60 fast stress disconnected and score17764, not passed. Added closed-connection recheck under send lock and explicit submission-only UI. Sustained large-burst stability and proposed Async/KV/watch/ABI remain open.

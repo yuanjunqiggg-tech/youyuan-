@@ -9,7 +9,7 @@ Lua: `game.sendCommandsFast({"scoreboard players add counter test 1", "scoreboar
 
 ## 0.10.7 连续发送与整链频率
 默认 rate_cps=0 表示不加人为 CPS 等待。game.sendCommand 不再逐条睡眠20ms；pipeline、submit、burst不再默认限制200条/秒。只有主动配置正数 rate_cps 时才启用发送上限。Lua、Python、C++共用这条分发路径。
-发送缓冲按256包或256KiB刷新，部分缓冲由原有传输定时器刷新；不是每256条停一个周期。sendCommand返回submitted仅表示提交，最终效果用回包或计分板核对。无限循环仍应让出定时调度，不能把网络提交率当服务器执行率。
+默认ai无等待使用SettingsCommand和原网络定时合并；可确认及其他通道保留内部有界传输，不限制整个TXT行数。sendCommand返回submitted仅表示提交，最终效果用回包或计分板核对。无限循环仍应让出定时调度，不能把网络提交率当服务器执行率。
 stream中正常回包success=false（如空选择器）不会中断后续无条件命令；有条件节点仍根据上一条真实结果跳过。断线、超时与未知结果不自动重发。32条以内且可装入用户窗口的短链一次提交；更长的连续段按4096条和512KiB拆段，整份TXT可超过这些分段数量。
 整链Hz=1000/interval_ms。每轮包含整个文件，运行耗时算在周期内；完成后只等待本周期剩余时间，超过周期则不增加等待，不积压新轮次。每条的delay_ms独立且默认0。状态actual_hz显示真实完成轮/秒，last_round_ms是上一整轮耗时。
 Lua批量结果results是可ipairs遍历的table，output是字符串table，success_count是数字。事件回调复用常驻Lua状态。
@@ -108,3 +108,10 @@ AI工作区附件入口在对话输入区，ZIP保留目录结构，长粘贴保
 `game.executeBatch(commands, {mode="stream", channel="ai", window=512, rate_cps=0, timeout_ms=8000})`。Python/C++使用相同SDK options对象。stream单段1..4096条、文本512KiB，最大在途window=1..1024（默认128）。从16条起，成功回包累计达到当前窗口后倍增到上限；任何回包都释放槽位，不等待最早请求，也不等整窗全部回复。新补位命令立即按小批发送，不等待底层50ms刷新。`rate_cps=0`仅由在途窗口与回包背压约束；正数20..20000启用自定义共享账号发送预算。网络错误、超时、断开停止新发送，已发送回包仍收集，未知不自动重发。
 
 命令链config同样支持`mode="stream",window=512,rate_cps=0`。有条件节点、通道变化、延迟、@call/@wait/@pause形成回包屏障。保持提交顺序；不保证独立命令的服务端完成顺序或同一游戏Tick。窗口仅服务于无真实依赖片段。整轮执行耗时算在周期内，仅等待剩余时间，不会堆积40Hz的未完成轮次。输出results逐条submitted/confirmed/success，peak_inflight是实测最大在途，network_batches是实际发送批数。
+
+
+## 0.10.7 实测与快速结果语义
+
+快速接口无默认CPS等待，不逐条等待回包。`sendCommandsFast` 的 options 使用 channel/rate_cps；显式settings/pyrpc transport须用executeBatch的submit，不会静默忽略。新建TXT编辑页默认fast，已有文件保留原执行方式。fast窗口参数不控制TXT总长，界面隐藏无效窗口设置。fast统计的submitted是宿主接收量，executed是尝试节点量，cycles是已处理文件轮次，`results_confirmed=false`，不是服务器执行证明；管理页显示提交结束而非保证游戏成功。断线停止新发送，不自动重发。
+
+最终APK实际25条有顺序依赖命令×60轮，20Hz约3.08秒、40Hz约1.55秒，计分正确。3000×60@40Hz提交约12.86秒但服务端断线，重连仅确认17764分，不算通过，不用18万提交数计算执行吞吐。单次一万条通过不代表连续大链稳定，也不保证同一服务器Tick。
