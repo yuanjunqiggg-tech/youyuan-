@@ -1,0 +1,86 @@
+{
+  "framework_version": "0.10.7-dev",
+  "public_version": "0.10.6",
+  "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
+  "runtime": {
+    "lua": "persistent per(bot,id); serialized callbacks",
+    "python": "persistent module; Linux process / Android Chaquopy; asyncio adaptation pending",
+    "cpp": "Android resident create_v2; Linux unsupported; native SIGSEGV not isolated"
+  },
+  "features": {
+    "persistent_runtime": "done",
+    "fast_command": "in_progress",
+    "tick_scheduler": "in_progress",
+    "command_buffer": "in_progress",
+    "resource_api": "planned",
+    "timer_diagnostics": "planned",
+    "python_asyncio": "planned",
+    "cpp_stable_abi": "planned",
+    "ai_handoff": "done",
+    "git_rollback_points": "done"
+  },
+  "known_issues": [
+    "10000-command single round verified but repeated CommandRequest trial disconnected",
+    "Android same-process C++ native crash isolation unavailable",
+    "Reliable health/death real-event validation pending",
+    "Device exit node not implemented",
+    "QQ companion real-user test pending",
+    "Actual room_id join pending",
+    "Multi-account long-run pressure pending"
+  ],
+  "next_tasks": [
+    "Restore original PyRPC no-wait semantics and repeat real tests",
+    "Add resource API and tested bounded scheduler diagnostics",
+    "Add persistent Python awaitable support",
+    "Sync SDK/Skill/MCP and release APK/Linux after checks"
+  ],
+  "benchmarks": {
+    "3000x60_stream_window256": {
+      "commands": 180000,
+      "verified": true,
+      "seconds": 60.965,
+      "commands_per_second": 2952.514,
+      "whole_chain_rounds_per_second": 0.9841712457967686
+    },
+    "10000_command_request_20261002": {
+      "verified": true,
+      "seconds": 0.8075,
+      "next_trial_disconnected": true
+    },
+    "10000_command_request_20261003": {
+      "verified": true,
+      "seconds": 1.3363,
+      "next_trial_disconnected": true
+    }
+  },
+  "deferred": [
+    "Dedicated day/night API",
+    "Complete entity object system",
+    "Permission sandbox retrofit",
+    "Same-process SIGSEGV recovery",
+    "1h/6h long-run benchmarks not yet run"
+  ],
+  "important_files": [
+    "upstream/youyuan_resident.go",
+    "upstream/bot_conn.go",
+    "upstream/youyuan_plugin_commands.go",
+    "upstream/lua_util.go",
+    "upstream/youyuan_runtime.go",
+    "upstream/youyuan_sdk.go",
+    "upstream/android/app/src/main/python/youyuan_plugins.py",
+    "upstream/sdk/cpp/youyuan.hpp",
+    "框架改造实施核对.md",
+    "AI_HANDOFF_FRAMEWORK.md",
+    "CHANGELOG_FRAMEWORK.md"
+  ],
+  "updated_at": "2026-10-03T09:44:10.746278+08:00",
+  "current_branch": "main",
+  "current_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
+  "recent_commits": [
+    {
+      "commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
+      "date": "2026-10-03T09:33:57+08:00",
+      "subject": "chore: preserve existing framework source baseline before staged repairs"
+    }
+  ]
+}
