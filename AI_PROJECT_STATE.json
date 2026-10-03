@@ -111,7 +111,18 @@
         "seconds": 1.6627,
         "score_verified": true
       }
-    ]
+    ],
+    "final_apk_legacy_10000_at_self": {
+      "ok": true,
+      "commands": 10000,
+      "legacy_api": "game.sendCommand",
+      "selector": "@s",
+      "bot_identity_preserved": true,
+      "submit_seconds": 0.1588,
+      "elapsed_with_score_verification_seconds": 0.7468,
+      "server_score_verified": true,
+      "continuous_large_traffic_still_not_passed": true
+    }
   },
   "deferred": [
     "Dedicated day/night API",
@@ -133,10 +144,15 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-03T11:54:04.699036+08:00",
+  "updated_at": "2026-10-03T12:00:42.450992+08:00",
   "current_branch": "main",
-  "current_commit": "3c4009949d89883e625c9ad0a6fb167870cb86b7",
+  "current_commit": "dc96030e99001645fc9f8248e585a8814ad7d2c9",
   "recent_commits": [
+    {
+      "commit": "dc96030e99001645fc9f8248e585a8814ad7d2c9",
+      "date": "2026-10-03T11:54:05+08:00",
+      "subject": "docs: retain native C++ and condition-chain real verification evidence"
+    },
     {
       "commit": "3c4009949d89883e625c9ad0a6fb167870cb86b7",
       "date": "2026-10-03T11:48:26+08:00",
