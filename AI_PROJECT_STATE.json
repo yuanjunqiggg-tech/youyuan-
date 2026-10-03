@@ -11,8 +11,8 @@
     "persistent_runtime": "done",
     "fast_command": "in_progress",
     "tick_scheduler": "in_progress",
-    "command_buffer": "in_progress",
-    "resource_api": "planned",
+    "command_buffer": "done_fast_array",
+    "resource_api": "done_tests_passed",
     "timer_diagnostics": "planned",
     "python_asyncio": "planned",
     "cpp_stable_abi": "planned",
@@ -82,10 +82,20 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-03T09:44:10.746278+08:00",
+  "updated_at": "2026-10-03T10:19:39.501593+08:00",
   "current_branch": "main",
-  "current_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
+  "current_commit": "9cd26f7e921f28d001163c92d8d32bc717bc13d0",
   "recent_commits": [
+    {
+      "commit": "9cd26f7e921f28d001163c92d8d32bc717bc13d0",
+      "date": "2026-10-03T10:14:31+08:00",
+      "subject": "fix: restore fast command submission and condition-only chain barriers"
+    },
+    {
+      "commit": "d8652b71cd47e236ca3a6b44769896b49965b855",
+      "date": "2026-10-03T09:44:11+08:00",
+      "subject": "docs: add framework audit, AI handoff and rollback state"
+    },
     {
       "commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
       "date": "2026-10-03T09:33:57+08:00",

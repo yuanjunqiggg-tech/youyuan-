@@ -17,6 +17,18 @@ class Namespace {
 public:
  Namespace(Client* client,const char* name):client_(client),namespace_(name){}
  json _send(const std::string& method,const json& args=json::array())const;
+ template<typename... A> json sendCommandFast(A&&... args)const{return _send("sendCommandFast",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json sendCommandsFast(A&&... args)const{return _send("sendCommandsFast",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json sendCommandConfirmed(A&&... args)const{return _send("sendCommandConfirmed",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json codeDir(A&&... args)const{return _send("codeDir",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json configDir(A&&... args)const{return _send("configDir",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json resourceDir(A&&... args)const{return _send("resourceDir",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json tempDir(A&&... args)const{return _send("tempDir",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json readResource(A&&... args)const{return _send("readResource",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json listResources(A&&... args)const{return _send("listResources",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json existsResource(A&&... args)const{return _send("existsResource",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json extractResource(A&&... args)const{return _send("extractResource",json::array({std::forward<A>(args)...}));}
+
  template<typename... A> json handleChat(A&&... args)const{return _send("handleChat",json::array({std::forward<A>(args)...}));}
  template<typename... A> json export_(A&&... args)const{return _send("export",json::array({std::forward<A>(args)...}));}
  template<typename... A> json validate(A&&... args)const{return _send("validate",json::array({std::forward<A>(args)...}));}

@@ -330,6 +330,9 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	if closed {
 		return nil, fmt.Errorf("插件已停止")
 	}
+	if _, ok := yyResourceDocs[method]; ok {
+		return yyResourceCall(yyResourceRoots{Code: filepath.Join(yyRuntimeRoot, s.Instance.Manifest.ID), Data: s.Dir, Config: filepath.Join(s.Dir, "config")}, method, args)
+	}
 	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.execute" || method == "game.executeBatch" {
 		return s.pluginCommandCall(method, args)
 	}

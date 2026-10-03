@@ -10,3 +10,7 @@
 ## Fast path and chain dispatch
 
 Default no-wait ai uses SettingsCommand with bot context and original timer batching. Fast/Confirmed aliases and complete-array Fast host call added. TXT fast mode waits only at true condition barriers. Default CPS remains zero. Go tests pass; real 100/1000/10000 counters verified, repeated trials still disconnected. RakNet timeout margin and disconnect diagnostics added; sustained stability pending. No stable release claim.
+
+## Resource and module preservation
+
+Added shared plugin resource directories/read/list/exists/copy API. Ordinary Lua ZIP import and market export retain nested modules and binary resources, reject escaping paths and symlinks. Lua require searches plugin code root and retains module state in resident VM. Real binary/module round-trip and path traversal tests pass.

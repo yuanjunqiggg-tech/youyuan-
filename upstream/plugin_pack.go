@@ -13,9 +13,14 @@ import (
 
 // zipSlipSafe 校验 zip 内路径不含 .. 段，防止路径穿越写出目录。
 func zipSlipSafe(name string) bool {
-	cleaned := filepath.Clean(name)
-	if strings.Contains(cleaned, "..") || strings.HasPrefix(cleaned, "/") {
+	name = strings.ReplaceAll(name, `\`, "/")
+	if name == "" || strings.HasPrefix(name, "/") || strings.ContainsAny(name, ":\x00") {
 		return false
+	}
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return false
+		}
 	}
 	return true
 }
@@ -57,12 +62,14 @@ func (pc *PluginController) ImportPackage(zipPath string) (string, error) {
 
 	// 收集所有条目（拒绝 zip-slip 路径；限制条目数与解压总量，防 zip 炸弹）
 	entries := map[string][]byte{}
+	directories := []string{}
 	var total int64
 	for _, f := range zr.File {
-		if !zipSlipSafe(f.Name) {
+		if !zipSlipSafe(f.Name) || f.Mode()&os.ModeSymlink != 0 {
 			return "", fmt.Errorf("插件包含非法路径: %s", f.Name)
 		}
 		if f.FileInfo().IsDir() {
+			directories = append(directories, strings.ReplaceAll(f.Name, `\`, "/"))
 			continue
 		}
 		if len(entries) >= maxPluginZipEntries {
@@ -85,7 +92,11 @@ func (pc *PluginController) ImportPackage(zipPath string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("读取条目 %s 失败: %v", f.Name, err)
 		}
-		entries[f.Name] = data
+		name := filepath.ToSlash(filepath.Clean(strings.ReplaceAll(f.Name, `\`, "/")))
+		if _, exists := entries[name]; exists {
+			return "", fmt.Errorf("插件包含重复路径: %s", name)
+		}
+		entries[name] = data
 	}
 
 	// 按键名排序保证兜底匹配确定性（map 迭代顺序随机）
@@ -188,6 +199,54 @@ func (pc *PluginController) ImportPackage(zipPath string) (string, error) {
 			return "", err
 		}
 	}
+	// Keep every module and resource. Older importers silently discarded all
+	// entries other than the legacy entry, manifest, docs and config.
+	prefix := ""
+	for _, key := range sortedKeys {
+		if filepath.Base(key) == "manifest.json" || filepath.Base(key) == "main.lua" {
+			prefix = filepath.ToSlash(filepath.Dir(key))
+			if prefix == "." {
+				prefix = ""
+			} else {
+				prefix += "/"
+			}
+			break
+		}
+	}
+	for _, key := range sortedKeys {
+		name := key
+		if prefix != "" && strings.HasPrefix(name, prefix) {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		if name == "config.json" {
+			continue
+		} // imported into the private config directory
+		target, e := yyProjectPath(plugDir, name)
+		if e != nil {
+			return "", e
+		}
+		if e = os.MkdirAll(filepath.Dir(target), 0755); e != nil {
+			return "", e
+		}
+		if e = os.WriteFile(target, entries[key], 0644); e != nil {
+			return "", e
+		}
+	}
+	for _, name := range directories {
+		if prefix != "" && strings.HasPrefix(name, prefix) {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		if name == "" {
+			continue
+		}
+		target, e := yyProjectPath(plugDir, name)
+		if e != nil {
+			return "", e
+		}
+		if e = os.MkdirAll(target, 0755); e != nil {
+			return "", e
+		}
+	}
 	debugLog("[插件] 导入完成 id=%s code=%s", id, codeName)
 	return id, nil
 }
@@ -233,6 +292,33 @@ func (pc *PluginController) ExportMarketPackage(id string) (string, error) {
 		if err := addZipFile(zw, "docs.md", docsPath); err != nil {
 			return "", err
 		}
+	}
+	if err := filepath.WalkDir(filesDir, func(path string, d os.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if path == filesDir {
+			return nil
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("发布包不允许符号链接: %s", path)
+		}
+		rel, e := filepath.Rel(filesDir, path)
+		if e != nil {
+			return e
+		}
+		if d.IsDir() {
+			if rel == "data" || rel == "config" || rel == ".tmp" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if path == codePath || rel == id+".manifest.json" || rel == id+".docs.md" || rel == "main.lua" || rel == "manifest.json" || rel == "docs.md" || rel == "config.json" {
+			return nil
+		}
+		return addZipFile(zw, filepath.ToSlash(rel), path)
+	}); err != nil {
+		return "", err
 	}
 	if err := zw.Close(); err != nil {
 		return "", err

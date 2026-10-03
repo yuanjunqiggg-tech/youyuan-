@@ -103,6 +103,7 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 	L := newLuaState(bm)
 	r.L = L
 	L.SetGlobal("__PLUGIN_ID__", lua.LString(id))
+	yyLuaModulePath(L)
 	if pluginController != nil {
 		if config, err := pluginController.ReadConfig(id); err == nil {
 			if raw, ok := config["command_options"]; ok {

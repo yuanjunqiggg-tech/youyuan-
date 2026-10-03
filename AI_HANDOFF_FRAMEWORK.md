@@ -16,7 +16,7 @@ Scheduler：旧util.schedule采用Go ticker并同步调用常驻handler，同任
 
 FUNCTION：youyuan_commands.go、youyuan_chain_buffered.go在保存时预解析，循环不重复解析文本。类型0连锁/1脉冲/2循环；条件依赖真实回包；红石位保留兼容但无意义门控已撤去。点结束独立链、!结束周期；@call目标文件行范围、次数、时限；@wait边沿；@pause及chains.trigger恢复。Hz按完整链轮次，period减本轮耗时，超期立即下一轮但不积压轮次。逐条delay_ms默认0。
 
-Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相对路径API计划在本轮加入。ZIP须完整保留源码/资源/配置/数据；拒绝路径穿越。Storage：旧JSON磁盘state保持原语义，原子替换文件不是多键事务。Event bus已有chat/packet/sense/SDK事件与跨插件RPC，LState只在自己的锁/串行回调内访问。网络写有连接sendMu保护；插件错误边界不等于原生进程隔离。
+Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相对路径API已加入youyuan_resource.go；普通LuaZIP现在保留模块和资源，package.path搜索源码目录。ZIP须完整保留源码/资源/配置/数据；拒绝路径穿越。Storage：旧JSON磁盘state保持原语义，原子替换文件不是多键事务。Event bus已有chat/packet/sense/SDK事件与跨插件RPC，LState只在自己的锁/串行回调内访问。网络写有连接sendMu保护；插件错误边界不等于原生进程隔离。
 
 线程模型：Lua每(bot,id)互斥执行，native/Python实例mu串行；SDK的256项队列满时计dropped。跨插件同步RPC用TryLock避免循环等待。慢HTTP可能占当前插件，不能阻塞整个网络读取；新增Async经受控队列回调。Stop必须清理新增定时器、异步请求、监听和订阅。
 

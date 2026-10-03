@@ -1,3 +1,11 @@
+## 插件资源与模块
+
+`plugin.codeDir()` 源码目录；`plugin.dataDir()` 持久数据目录；`plugin.configDir()` 配置目录；`plugin.resourceDir()` 优先resources子目录，旧包无该目录则使用源码根；`plugin.tempDir()` 数据目录下.tmp。`plugin.readResource(relative, "utf8")` 读取文本，二进制跨语言使用 `"base64"`；`plugin.existsResource(relative)` 检查存在；`plugin.listResources(".")` 递归返回path/dir/size；`plugin.extractResource(source, destination?)` 原字节复制到自己的数据目录并创建父目录，不是解压ZIP。
+
+相对路径不能逃出目录，不接受绝对路径、驱动器、..或符号链接。Lua默认配置/数据沿用旧目录以保兼容，旧game.dataDir不变；Python/C++ SDK数据和配置按账号目录隔离。普通Lua ZIP导入保留模块和资源，市场包保留源码及资源、排除私人数据/配置；完整备份ZIP含源码、资源、配置和数据，空目录也保留。ZIP防路径穿越与防解压炸弹的资源容量保护不影响命令发送频率。
+
+Lua `require("lib.helper")` 搜索插件源码根的lib/helper.lua或lib/helper/init.lua，package.loaded在常驻VM内缓存；只在停用/重载后重新加载。Python推荐包内相对导入 `from .lib import helper`，不依赖不同插件的同名全局模块。
+
 ## 0.10.7 框架执行路径
 
 `game.sendCommand(command)` 保持旧无等待调用方式；新增 `game.sendCommandFast(command, options?)` 与 `game.sendCommandsFast(commands, options?)`。后者一次宿主调用提交完整数组，没有整个数组的行数限制。魔法/ai 的无等待路径使用 SettingsCommand、保留机器人 `@s` 和相对坐标；提交按输入顺序，网络层按原定时周期合并，不逐条等回包、不默认CPS等待。`submitted` 只表示提交，`confirmed=false` 不代表游戏成功。用户主动给正数 `rate_cps` 才限速。
