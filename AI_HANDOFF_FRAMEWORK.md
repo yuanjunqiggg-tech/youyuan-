@@ -8,7 +8,7 @@
 
 Lua：youyuan_resident.go按(bot指针,plugin id)保存LState，初始化执行源码一次，事件调用已有函数，锁保护VM。api.require调用常驻目标。secondary账号初次加载使用兼容注册抑制，不每触发重建。停用取消定时/订阅并关闭VM。旧legacy rerun并未对外提供manifest模式，不能声称支持。
 
-Python：youyuan_plugins.py每实例模块与Host常驻，Go youyuan_runtime.go串行消费有界事件队列。Android解释器共进程/GIL，Linux每实例独立Python进程。当前awaitable回调尚待适配；不要声称asyncio已完整。C++：Android通过create_v2/event/destroy常驻实例，有C++异常边界；Linux适配器明确未接入，同进程SIGSEGV不能隔离。不要承诺1000倍性能。
+Python：youyuan_plugins.py每实例模块与Host常驻，Go youyuan_runtime.go串行消费有界事件队列。Android解释器共进程/GIL，Linux每实例独立Python进程。已适配async on_init/on_event/on_stop、SDK回调与RPC，每Host专属常驻loop线程，停用取消后台Task并关闭线程。invoke_async/call_async卸载阻塞HTTP至executor；回调120秒超时。本机持久loop/账号隔离/背景任务/停止回归通过，最终Android实测结果见任务状态。C++：Android通过create_v2/event/destroy常驻实例，有C++异常边界；Linux适配器明确未接入，同进程SIGSEGV不能隔离。不要承诺1000倍性能。
 
 命令：game.sendCommand及Fast默认ai无等待使用SettingsCommand并保持机器人@s/相对坐标；原网络层定时合并。旧源码PyRPC在当前测试服100条实际未执行，禁止默认恢复PyRPC或宣称原版APK就是该通道。Confirmed用AutomationPlayer/CommandRequest及UUID回包。sendCommandsFast完整数组一次宿主边界，无整数组行数限制。TXT fast模式仅条件节点及前条需要回包，普通命令不等待。提交不等于服务器成功。连续压测尚未完成，不能标稳定。
 

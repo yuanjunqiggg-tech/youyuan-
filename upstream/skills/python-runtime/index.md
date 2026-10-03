@@ -1,3 +1,19 @@
+## Python 常驻异步环境
+
+每个Host创建一个常驻asyncio事件循环线程，生命周期等于插件实例；不是每条事件asyncio.run。`async def on_init(host)`、`async def on_event(event, host)`、`async def on_stop(host)` 以及注册的async回调和plugin_api导出函数都会被实际await。事件仍由宿主串行处理；一次回调等待最多120秒，超时取消该协程。后台asyncio.create_task可以在事件之间继续执行；停用取消后台Task、异步生成器并关闭循环/线程。
+
+同步 `host.game.*` 会做宿主HTTP请求；在协程中需要避免阻塞循环时使用 `await host.invoke_async("game.sendCommandsFast", commands)` 或 `await host.call_async(path, body)`，它们把阻塞I/O放入该循环的executor。插件内自己的async函数按Python asyncio方式await。同步旧插件原写法兼容。Android仍有共享解释器/GIL，Linux每插件独立Python进程；不能称Python纯CPU代码并行无限扩展，也未声称比Lua快1000倍。
+
+```python
+import asyncio
+commands=["scoreboard players add counter test 1"]*25
+async def on_init(host):
+    await host.invoke_async("game.sendCommandsFast", commands)
+async def on_event(event, host):
+    await asyncio.sleep(0)  # 让出自己的事件循环，模块变量仍保留
+    return {"ok": True}
+```
+
 ## 常驻调度、诊断与能力查询
 
 旧 `util.schedule(seconds, handler)` / `setTimeout` / `cancel` 保留。新增 `scheduleSeconds(seconds, handler)`、`scheduleHz(hz, handler)`、`scheduleTick(ticks, handler)`。Tick是本地名义50ms，不是服务器时钟。频率针对整个回调/整条链；同任务不重入，不补无限积压。Python/C++一次定时回调未完成时不会继续往队列塞同任务。慢回调漏过的周期记missed，主动暂停期间也计入missed。

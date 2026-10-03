@@ -1,5 +1,7 @@
 """APK 内置 Python 3.12 常驻模块，每个账号使用独立命名空间和持久数据目录。"""
 import importlib.util
+import asyncio
+import inspect
 import hashlib
 import json
 import os
@@ -40,6 +42,21 @@ class Host:
         self.plugin_id=plugin_id
         self._module=module
         self._callbacks={}
+	
+        # One resident loop per Host, including the time between events. Do
+        # not create/reset an asyncio.run loop for each callback.
+        self._loop=asyncio.new_event_loop()
+        self._loop_ready=threading.Event()
+        def run_loop():
+            asyncio.set_event_loop(self._loop)
+            self._loop_ready.set()
+            try:self._loop.run_forever()
+            finally:
+                asyncio.set_event_loop(None)
+                self._loop.close()
+        self._loop_thread=threading.Thread(target=run_loop,name='yy-async-'+str(plugin_id),daemon=True)
+        self._loop_thread.start()
+        self._loop_ready.wait()
         for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains'):
             setattr(self,namespace,Namespace(self,namespace))
 
@@ -68,9 +85,38 @@ class Host:
                 callback=exports.get(name) if isinstance(exports,dict) else None
             else: callback=self._callbacks.get(name) or getattr(self._module,name,None)
             if not callable(callback): raise ValueError('未注册插件函数: '+str(name))
-            return {'ok':True,'result':callback(*args)}
+            return {'ok':True,'result':self._resolve(callback(*args))}
         callback=getattr(self._module,'on_event',None)
-        return callback(event,self) if callable(callback) else {'ok':True}
+        return self._resolve(callback(event,self)) if callable(callback) else {'ok':True}
+
+    def _resolve(self,result):
+        if not inspect.isawaitable(result):return result
+        async def await_result():return await result
+        future=asyncio.run_coroutine_threadsafe(await_result(),self._loop)
+        try:return future.result(timeout=120)
+        except BaseException:
+            future.cancel()
+            raise
+
+    async def invoke_async(self,method,*args):
+        """Offload synchronous host HTTP; keep the plugin loop responsive."""
+        return await asyncio.to_thread(self.invoke,method,*args)
+
+    async def call_async(self,path,body=None,method=None):
+        return await asyncio.to_thread(self.call,path,body,method)
+
+    def close_async(self):
+        if self._loop.is_closed():return
+        async def cleanup():
+            tasks=[t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+            for task in tasks:task.cancel()
+            await asyncio.gather(*tasks,return_exceptions=True)
+            await self._loop.shutdown_asyncgens()
+            await self._loop.shutdown_default_executor(timeout=5)
+        try:asyncio.run_coroutine_threadsafe(cleanup(),self._loop).result(timeout=10)
+        finally:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._loop_thread.join(timeout=10)
 
     def call(self,path,body=None,method=None):
         if not path.startswith('/api/'):
@@ -133,7 +179,7 @@ def dispatch(params_json):
                     if not hasattr(module,namespace): setattr(module,namespace,getattr(host,namespace))
                 module.host=host
                 spec.loader.exec_module(module)
-                if hasattr(module,'on_init'):module.on_init(host)
+                if hasattr(module,'on_init'):host._resolve(module.on_init(host))
                 _instances[key]=(module,host,threading.RLock())
             result={'ok':True}
         elif params['action']=='stop':
@@ -141,8 +187,9 @@ def dispatch(params_json):
             if item:
                 with item[2]:
                     try:
-                        if hasattr(item[0],'on_stop'):item[0].on_stop(item[1])
+                        if hasattr(item[0],'on_stop'):item[1]._resolve(item[0].on_stop(item[1]))
                     finally:
+                        item[1].close_async()
                         prefix=item[0].__package__
                         for name in list(sys.modules):
                             if name==prefix or name.startswith(prefix+'.'):sys.modules.pop(name,None)
@@ -164,6 +211,7 @@ def dispatch(params_json):
         return json.dumps(result,ensure_ascii=False)
     except Exception as error:
         if params['action']=='start' and 'package_name' in locals():
+            if 'host' in locals():host.close_async()
             for name in list(sys.modules):
                 if name==package_name or name.startswith(package_name+'.'):sys.modules.pop(name,None)
         return json.dumps({'ok':False,'error':str(error)},ensure_ascii=False)

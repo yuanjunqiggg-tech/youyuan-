@@ -18,3 +18,7 @@ Added shared plugin resource directories/read/list/exists/copy API. Ordinary Lua
 ## Scheduler and diagnostics
 
 Added whole-callback Hz/seconds/nominalTick scheduling, owner-scoped job lists/pause/resume, idempotent cancellation, SDK one outstanding timer callback, bounded Lua event delivery with secondary lazy-load compatibility. Added wall-clock/queue stats and platform capability discovery; unmapped CPU/memory/GC are null. Lua RPC avoids JSON; stack includes filename/handler/elapsed. Scheduler/queue/idempotent-cancel tests pass.
+
+## Python persistent asyncio
+
+One resident loop/thread per Host. Await async lifecycle/event/SDK callback/RPC results, background tasks run between events, optional async host HTTP wrappers, stop cancels tasks and closes loop/thread. Local Python regression confirms persistent loop, isolated accounts, async host invocation and complete stop. Android live validation follows in release checks.
