@@ -12,7 +12,7 @@ Python：youyuan_plugins.py每实例模块与Host常驻，Go youyuan_runtime.go�
 
 命令：game.sendCommand及Fast默认ai无等待使用SettingsCommand并保持机器人@s/相对坐标；原网络层定时合并。旧源码PyRPC在当前测试服100条实际未执行，禁止默认恢复PyRPC或宣称原版APK就是该通道。Confirmed用AutomationPlayer/CommandRequest及UUID回包。sendCommandsFast完整数组一次宿主边界，无整数组行数限制。TXT fast模式仅条件节点及前条需要回包，普通命令不等待。提交不等于服务器成功。连续压测尚未完成，不能标稳定。
 
-Scheduler：旧util.schedule采用Go ticker并同步调用常驻handler，同任务不重入；不同任务共享VM锁。现有packet回调还有产生等待goroutine的风险。新增调度必须有界、统计missed和暂停恢复。scheduleTick如果使用本地50ms必须明确名义Tick，不保证服务器同Tick。CommandBuffer应一次边界提交整数组；游戏批处理不保证原子或同一服务器Tick。
+Scheduler：旧util.schedule采用Go ticker并同步调用常驻handler，同任务不重入；不同任务共享VM锁。packet/普通事件已进入每VM128项串行队列，保留secondary首次懒加载。新增scheduleHz/Seconds/Tick及listJobs/pauseJob/resumeJob已实现。SDK定时器等待同任务回调完成才再投递；cancel使用sync.Once。plugin.stats/has/capabilities已加入；没有逐实例CPU/内存/GC测量，字段为null。scheduleTick如果使用本地50ms必须明确名义Tick，不保证服务器同Tick。CommandBuffer应一次边界提交整数组；游戏批处理不保证原子或同一服务器Tick。
 
 FUNCTION：youyuan_commands.go、youyuan_chain_buffered.go在保存时预解析，循环不重复解析文本。类型0连锁/1脉冲/2循环；条件依赖真实回包；红石位保留兼容但无意义门控已撤去。点结束独立链、!结束周期；@call目标文件行范围、次数、时限；@wait边沿；@pause及chains.trigger恢复。Hz按完整链轮次，period减本轮耗时，超期立即下一轮但不积压轮次。逐条delay_ms默认0。
 

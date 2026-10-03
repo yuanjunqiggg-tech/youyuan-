@@ -229,6 +229,25 @@ func yySenseVec(args []any) (mgl32.Vec3, error) {
 	return p, nil
 }
 func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
+	if method == "plugin.capabilities" {
+		return yyCapabilities(), nil
+	}
+	if method == "plugin.has" {
+		name, e := yyArgString(args, 0, "")
+		if e != nil {
+			return nil, e
+		}
+		return yyHasCapability(name), nil
+	}
+	if _, ok := yyResourceDocs[method]; ok {
+		return nil, fmt.Errorf("资源API需要插件上下文，请通过插件或 sdk/call 的 plugin_id/account 调用")
+	}
+	if _, ok := yySchedulerDocs[method]; ok {
+		return nil, fmt.Errorf("调度API需要插件上下文，请通过插件或 sdk/call 的 plugin_id/account 调用")
+	}
+	if method == "plugin.stats" {
+		return nil, fmt.Errorf("stats需要插件上下文")
+	}
 	if method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
 		return yyPluginCommandCall(bm, method, args, yyDefaultCommandOptions())
 	}

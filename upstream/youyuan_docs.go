@@ -19,7 +19,7 @@ func yyDocumentationRoutes(mux *http.ServeMux) {
 		}
 		if method := r.URL.Query().Get("method"); method != "" {
 			if doc, ok := yyExtraMethods[method]; ok {
-				writeJSON(w, map[string]any{"ok": true, "content": "### `" + method + "`\n\n" + doc + "\n\nLua 直接用命名空间函数；Python 相同方法接收 dict/list；C++ 用 client 的对应命名空间。MCP 可通过 POST /api/youyuan/game/call，JSON 为 {method,args,account} 调用；事件注册需要常驻插件。"})
+				writeJSON(w, map[string]any{"ok": true, "content": "### `" + method + "`\n\n" + doc + "\n\nLua 直接用命名空间函数；Python 相同方法接收 dict/list；C++ 用 client 的对应命名空间。外部MCP的全局游戏接口通过 POST /api/youyuan/game/call {method,args,account} 调用；plugin资源/调度/stats需要 POST /api/youyuan/sdk/call {plugin_id,account,method,args} 的常驻插件上下文。"})
 				return
 			}
 		}

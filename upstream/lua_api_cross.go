@@ -76,11 +76,21 @@ func newCrossPluginStub(L *lua.LState, bm *BotManager, pluginID, funcName string
 		for i := 1; i <= n; i++ {
 			args = append(args, luaToGo(L.Get(i)))
 		}
+		active := abot(L)
+		if yySDKPluginContext(active, pluginID) == nil {
+			result, e := yyCallResident(active, pluginID, funcName, args, true, true)
+			if e != nil {
+				L.RaiseError("api.require(%q).%s: %v", pluginID, funcName, e)
+				return 0
+			}
+			L.Push(goToLua(L, result))
+			return 1
+		}
 		argsJSON, err := json.Marshal(args)
 		if err != nil {
 			L.RaiseError("api 跨插件调用参数序列化失败: %v", err)
 		}
-		res, err := callPluginFunction(bm, pluginID, funcName, string(argsJSON))
+		res, err := callPluginFunction(active, pluginID, funcName, string(argsJSON))
 		if err != nil {
 			L.RaiseError("api.require(%q).%s: %v", pluginID, funcName, err)
 		}

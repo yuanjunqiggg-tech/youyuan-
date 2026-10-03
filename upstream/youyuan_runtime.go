@@ -301,6 +301,14 @@ func (instance *yyRuntimeInstance) runEvents() {
 		case <-instance.Done:
 			return
 		case event := <-instance.Queue:
+			completions := []chan struct{}{}
+			stripCompletion := func(e map[string]any) {
+				if done, ok := e["_timer_done"].(chan struct{}); ok {
+					delete(e, "_timer_done")
+					completions = append(completions, done)
+				}
+			}
+			stripCompletion(event)
 			var result string
 			var err error
 			if instance.Manifest.Language == "python" {
@@ -309,6 +317,7 @@ func (instance *yyRuntimeInstance) runEvents() {
 				for len(batch) < 16 {
 					select {
 					case next := <-instance.Queue:
+						stripCompletion(next)
 						batch = append(batch, next)
 					default:
 						break drain
@@ -340,6 +349,9 @@ func (instance *yyRuntimeInstance) runEvents() {
 			}
 			if err != nil {
 				yyEvent("plugin_error", map[string]any{"instance": instance.Key, "error": err.Error()})
+			}
+			for _, done := range completions {
+				close(done)
 			}
 		}
 	}

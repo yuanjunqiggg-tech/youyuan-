@@ -14,3 +14,7 @@ Default no-wait ai uses SettingsCommand with bot context and original timer batc
 ## Resource and module preservation
 
 Added shared plugin resource directories/read/list/exists/copy API. Ordinary Lua ZIP import and market export retain nested modules and binary resources, reject escaping paths and symlinks. Lua require searches plugin code root and retains module state in resident VM. Real binary/module round-trip and path traversal tests pass.
+
+## Scheduler and diagnostics
+
+Added whole-callback Hz/seconds/nominalTick scheduling, owner-scoped job lists/pause/resume, idempotent cancellation, SDK one outstanding timer callback, bounded Lua event delivery with secondary lazy-load compatibility. Added wall-clock/queue stats and platform capability discovery; unmapped CPU/memory/GC are null. Lua RPC avoids JSON; stack includes filename/handler/elapsed. Scheduler/queue/idempotent-cancel tests pass.

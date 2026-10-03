@@ -17,6 +17,16 @@ class Namespace {
 public:
  Namespace(Client* client,const char* name):client_(client),namespace_(name){}
  json _send(const std::string& method,const json& args=json::array())const;
+ template<typename... A> json scheduleHz(A&&... args)const{return _send("scheduleHz",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json scheduleSeconds(A&&... args)const{return _send("scheduleSeconds",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json scheduleTick(A&&... args)const{return _send("scheduleTick",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json listJobs(A&&... args)const{return _send("listJobs",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json pauseJob(A&&... args)const{return _send("pauseJob",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json resumeJob(A&&... args)const{return _send("resumeJob",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json stats(A&&... args)const{return _send("stats",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json has(A&&... args)const{return _send("has",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json capabilities(A&&... args)const{return _send("capabilities",json::array({std::forward<A>(args)...}));}
+
  template<typename... A> json sendCommandFast(A&&... args)const{return _send("sendCommandFast",json::array({std::forward<A>(args)...}));}
  template<typename... A> json sendCommandsFast(A&&... args)const{return _send("sendCommandsFast",json::array({std::forward<A>(args)...}));}
  template<typename... A> json sendCommandConfirmed(A&&... args)const{return _send("sendCommandConfirmed",json::array({std::forward<A>(args)...}));}

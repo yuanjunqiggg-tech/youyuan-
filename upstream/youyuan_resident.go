@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	lua "github.com/yuin/gopher-lua"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // 每个机器人、每个插件持有一个常驻状态。事件只调用已编译函数，不重跑源码。
@@ -13,15 +15,17 @@ type yyLuaKey struct {
 	id  string
 }
 type yyLuaResident struct {
-	mu           sync.Mutex
-	L            *lua.LState
-	closed       bool
-	ready        bool
-	err          error
-	senseQueue   chan yySenseDelivery
-	senseDone    chan struct{}
-	senseStop    sync.Once
-	senseDropped atomic.Uint64
+	mu                                             sync.Mutex
+	L                                              *lua.LState
+	closed                                         bool
+	ready                                          bool
+	err                                            error
+	senseQueue                                     chan yySenseDelivery
+	senseDone                                      chan struct{}
+	senseStop                                      sync.Once
+	senseDropped                                   atomic.Uint64
+	callbackCalls, callbackFailures                atomic.Uint64
+	callbackLastNS, callbackMaxNS, callbackTotalNS atomic.Int64
 }
 type yySenseDelivery struct {
 	Bot             *BotManager
@@ -123,7 +127,12 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 	} else {
 		L.SetGlobal("__PLUGIN_SRC__", lua.LString(src))
 	}
-	r.err = L.DoString(src)
+	fn, e := L.Load(strings.NewReader(src), id+".lua")
+	if e == nil {
+		L.Push(fn)
+		e = L.PCall(0, lua.MultRet, nil)
+	}
+	r.err = e
 	cancelLuaCtx(L)
 	r.ready = r.err == nil
 	if r.err != nil {
@@ -181,6 +190,15 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 		return nil, fmt.Errorf("插件 %s 已停止或加载失败", id)
 	}
 	L := r.L
+	started := time.Now()
+	defer func() {
+		ns := time.Since(started).Nanoseconds()
+		r.callbackCalls.Add(1)
+		r.callbackLastNS.Store(ns)
+		r.callbackTotalNS.Add(ns)
+		for old := r.callbackMaxNS.Load(); ns > old && !r.callbackMaxNS.CompareAndSwap(old, ns); old = r.callbackMaxNS.Load() {
+		}
+	}()
 	setLuaBotCtx(L, bm)
 	defer cancelLuaCtx(L)
 	top := L.GetTop()
@@ -203,7 +221,8 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 		values = append(values, goToLua(L, v))
 	}
 	if err := L.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}, values...); err != nil {
-		return nil, err
+		r.callbackFailures.Add(1)
+		return nil, fmt.Errorf("plugin=%s handler=%s elapsed_ms=%.3f: %w", id, fnName, float64(time.Since(started))/float64(time.Millisecond), err)
 	}
 	if L.Get(-1) == lua.LNil {
 		return nil, nil

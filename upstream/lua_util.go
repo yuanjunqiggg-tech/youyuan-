@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
@@ -17,12 +19,20 @@ import (
 
 // schedJob 一个后台定时任务（插件注册 util.schedule/setTimeout）。
 type schedJob struct {
-	plugin   string
-	handler  string
-	interval time.Duration // 重复间隔；0 = 一次性
-	oneshot  bool
-	bm       *BotManager
-	cancel   chan struct{}
+	plugin                  string
+	handler                 string
+	interval                time.Duration // 重复间隔；0 = 一次性
+	oneshot                 bool
+	bm                      *BotManager
+	cancel                  chan struct{}
+	cancelOnce              sync.Once
+	paused                  atomic.Bool
+	resume                  chan struct{}
+	calls, missed, failures atomic.Uint64
+	lastNS, maxNS, totalNS  atomic.Int64
+	lastError               atomic.Value
+	callback                func(<-chan struct{}) error
+	onExit                  func()
 }
 
 var (
@@ -36,10 +46,13 @@ const maxSchedIntervalSec = 365 * 24 * 3600
 
 // newSchedJob 注册并启动一个定时任务，返回 id。
 func newSchedJob(plugin, handler string, interval time.Duration, oneshot bool, bm *BotManager) int64 {
+	return newSchedJobWith(plugin, handler, interval, oneshot, bm, nil, nil)
+}
+func newSchedJobWith(plugin, handler string, interval time.Duration, oneshot bool, bm *BotManager, callback func(<-chan struct{}) error, onExit func()) int64 {
 	schedMu.Lock()
 	schedNext++
 	id := schedNext
-	schedJobs[id] = &schedJob{plugin: plugin, handler: handler, interval: interval, oneshot: oneshot, bm: bm, cancel: make(chan struct{})}
+	schedJobs[id] = &schedJob{plugin: plugin, handler: handler, interval: interval, oneshot: oneshot, bm: bm, cancel: make(chan struct{}), resume: make(chan struct{}, 1), callback: callback, onExit: onExit}
 	schedMu.Unlock()
 	go runSchedLoop(id)
 	return id
@@ -60,6 +73,9 @@ func runSchedLoop(id int64) {
 		schedMu.Lock()
 		delete(schedJobs, id)
 		schedMu.Unlock()
+		if job.onExit != nil {
+			job.onExit()
+		}
 	}()
 	if job.oneshot {
 		timer := time.NewTimer(job.interval)
@@ -67,26 +83,63 @@ func runSchedLoop(id int64) {
 		select {
 		case <-job.cancel:
 		case <-timer.C:
+			for job.paused.Load() {
+				select {
+				case <-job.cancel:
+					return
+				case <-job.resume:
+				}
+			}
 			runScheduledHandler(job)
 		}
 		return
 	}
 	ticker := time.NewTicker(job.interval)
 	defer ticker.Stop()
+	lastTick := time.Now()
 	for {
 		select {
 		case <-job.cancel:
 			return
-		case <-ticker.C:
+		case tick := <-ticker.C:
+			if lost := int64(tick.Sub(lastTick)/job.interval) - 1; lost > 0 {
+				job.missed.Add(uint64(lost))
+			}
+			lastTick = tick
+			if job.paused.Load() {
+				job.missed.Add(1)
+				continue
+			}
 			runScheduledHandler(job)
 		}
 	}
 }
 
-// runScheduledHandler 重跑插件源码并调用 handler（复用 callEventHandler）。
+// Same job never overlaps. Its resident VM serializes other callbacks too.
 func runScheduledHandler(job *schedJob) {
-	defer func() { recover() }()
-	callEventHandler(job.bm, &luaEventH{plugin: job.plugin, handler: job.handler})
+	start := time.Now()
+	var err error
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("panic: %v", p)
+		}
+		ns := time.Since(start).Nanoseconds()
+		job.calls.Add(1)
+		job.lastNS.Store(ns)
+		job.totalNS.Add(ns)
+		for old := job.maxNS.Load(); ns > old && !job.maxNS.CompareAndSwap(old, ns); old = job.maxNS.Load() {
+		}
+		if err != nil {
+			job.failures.Add(1)
+			job.lastError.Store(err.Error())
+			debugLog("[定时] %s.%s: %v", job.plugin, job.handler, err)
+		}
+	}()
+	if job.callback != nil {
+		err = job.callback(job.cancel)
+	} else {
+		_, err = yyCallResident(job.bm, job.plugin, job.handler, nil, false, false)
+	}
 }
 
 // cancelSchedJob 取消指定 id 的定时任务。
@@ -97,11 +150,7 @@ func cancelSchedJob(id int64) bool {
 	if job == nil {
 		return false
 	}
-	select {
-	case <-job.cancel:
-	default:
-		close(job.cancel)
-	}
+	job.cancelOnce.Do(func() { close(job.cancel) })
 	return true
 }
 
@@ -116,11 +165,7 @@ func RemovePluginSchedules(plugin string) {
 	}
 	schedMu.Unlock()
 	for _, job := range toCancel {
-		select {
-		case <-job.cancel:
-		default:
-			close(job.cancel)
-		}
+		job.cancelOnce.Do(func() { close(job.cancel) })
 	}
 }
 

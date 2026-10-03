@@ -1,3 +1,15 @@
+## 常驻调度、诊断与能力查询
+
+旧 `util.schedule(seconds, handler)` / `setTimeout` / `cancel` 保留。新增 `scheduleSeconds(seconds, handler)`、`scheduleHz(hz, handler)`、`scheduleTick(ticks, handler)`。Tick是本地名义50ms，不是服务器时钟。频率针对整个回调/整条链；同任务不重入，不补无限积压。Python/C++一次定时回调未完成时不会继续往队列塞同任务。慢回调漏过的周期记missed，主动暂停期间也计入missed。
+
+`util.listJobs()` 返回当前插件任务的id、handler、paused、calls、missed、failures、last_ms/max_ms/total_ms/last_error。`pauseJob(id)` / `resumeJob(id)` 只控制当前插件的任务；暂停不强杀已经执行或入队的回调。停用取消所有定时器及订阅。SDK每实例串行队列256项；Lua事件串行队列128项，满时记dropped而不新建无限goroutine。旧secondary机器人仍可按首次事件懒加载同插件VM；自己的变量不混入其他账号。
+
+`plugin.stats()` 查常驻回调次数、错误、墙钟耗时和队列信息；Lua耗时不含获取VM锁前的等待，定时任务耗时包含其VM/SDK队列等待。CPU、内存、GC没有可靠逐实例测量，字段为null。不要把这些墙钟数当CPU负载或声称1000倍。错误保留插件文件名、行号、handler和耗时。Lua到Lua跨插件调用不再JSON往返，Python/C++仍使用必要的跨语言边界。
+
+`plugin.has("game.sendCommandsFast")` 检查接口；`plugin.has("runtime.cpp")` 在Linux为false、Android为true。`plugin.capabilities()` 返回平台/方法列表/语言运行器能力。接口存在不等于服务端允许动作，也不等于已观测到其他玩家血量。方法文档按需读；外部MCP调用资源、任务、stats要走SDK的plugin_id/account上下文，不能当全局游戏调用。
+
+Lua: `timer=util.scheduleHz(20,"round"); function round() game.sendCommandsFast(commands) end`。Python: `timer=host.util.scheduleHz(20, round)`；C++: `client.util.scheduleHz(20,"round")`。参数20是每秒完整回调次数，不是每秒20条命令。
+
 ## 插件资源与模块
 
 `plugin.codeDir()` 源码目录；`plugin.dataDir()` 持久数据目录；`plugin.configDir()` 配置目录；`plugin.resourceDir()` 优先resources子目录，旧包无该目录则使用源码根；`plugin.tempDir()` 数据目录下.tmp。`plugin.readResource(relative, "utf8")` 读取文本，二进制跨语言使用 `"base64"`；`plugin.existsResource(relative)` 检查存在；`plugin.listResources(".")` 递归返回path/dir/size；`plugin.extractResource(source, destination?)` 原字节复制到自己的数据目录并创建父目录，不是解压ZIP。

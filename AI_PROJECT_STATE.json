@@ -10,17 +10,21 @@
   "features": {
     "persistent_runtime": "done",
     "fast_command": "in_progress",
-    "tick_scheduler": "in_progress",
+    "tick_scheduler": "done_tests_passed",
     "command_buffer": "done_fast_array",
     "resource_api": "done_tests_passed",
-    "timer_diagnostics": "planned",
+    "timer_diagnostics": "done_tests_passed",
     "python_asyncio": "planned",
     "cpp_stable_abi": "planned",
     "ai_handoff": "done",
-    "git_rollback_points": "done"
+    "git_rollback_points": "done",
+    "bounded_packet_events": "done_tests_passed",
+    "profiler": "wall_clock_and_queue_metrics_done",
+    "capability_query": "done",
+    "lua_rpc_no_json": "done"
   },
   "known_issues": [
-    "10000-command single round verified but repeated CommandRequest trial disconnected",
+    "Single 10000 score verified; repeated >20000 traffic receives server RakNet disconnect, not local idle timeout",
     "Android same-process C++ native crash isolation unavailable",
     "Reliable health/death real-event validation pending",
     "Device exit node not implemented",
@@ -60,6 +64,9 @@
       "verified": true,
       "seconds": 0.8689,
       "next_trial_disconnected": true
+    },
+    "idle_90_seconds": {
+      "connected_all_samples": true
     }
   },
   "deferred": [
@@ -82,10 +89,15 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-03T10:19:39.501593+08:00",
+  "updated_at": "2026-10-03T10:45:13.394694+08:00",
   "current_branch": "main",
-  "current_commit": "9cd26f7e921f28d001163c92d8d32bc717bc13d0",
+  "current_commit": "d45229054f4a3ea0973717f415c77317c90c3afe",
   "recent_commits": [
+    {
+      "commit": "d45229054f4a3ea0973717f415c77317c90c3afe",
+      "date": "2026-10-03T10:20:11+08:00",
+      "subject": "fix: preserve plugin resources and cache Lua modules in resident VM"
+    },
     {
       "commit": "9cd26f7e921f28d001163c92d8d32bc717bc13d0",
       "date": "2026-10-03T10:14:31+08:00",

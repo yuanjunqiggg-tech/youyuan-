@@ -1,7 +1,36 @@
+## 插件资源与模块
+
+`plugin.codeDir()` 源码目录；`plugin.dataDir()` 持久数据目录；`plugin.configDir()` 配置目录；`plugin.resourceDir()` 优先resources子目录，旧包无该目录则使用源码根；`plugin.tempDir()` 数据目录下.tmp。`plugin.readResource(relative, "utf8")` 读取文本，二进制跨语言使用 `"base64"`；`plugin.existsResource(relative)` 检查存在；`plugin.listResources(".")` 递归返回path/dir/size；`plugin.extractResource(source, destination?)` 原字节复制到自己的数据目录并创建父目录，不是解压ZIP。
+
+相对路径不能逃出目录，不接受绝对路径、驱动器、..或符号链接。Lua默认配置/数据沿用旧目录以保兼容，旧game.dataDir不变；Python/C++ SDK数据和配置按账号目录隔离。普通Lua ZIP导入保留模块和资源，市场包保留源码及资源、排除私人数据/配置；完整备份ZIP含源码、资源、配置和数据，空目录也保留。ZIP防路径穿越与防解压炸弹的资源容量保护不影响命令发送频率。
+
+Lua `require("lib.helper")` 搜索插件源码根的lib/helper.lua或lib/helper/init.lua，package.loaded在常驻VM内缓存；只在停用/重载后重新加载。Python推荐包内相对导入 `from .lib import helper`，不依赖不同插件的同名全局模块。
+
+## 0.10.7 框架执行路径
+
+`game.sendCommand(command)` 保持旧无等待调用方式；新增 `game.sendCommandFast(command, options?)` 与 `game.sendCommandsFast(commands, options?)`。后者一次宿主调用提交完整数组，没有整个数组的行数限制。魔法/ai 的无等待路径使用 SettingsCommand、保留机器人 `@s` 和相对坐标；提交按输入顺序，网络层按原定时周期合并，不逐条等回包、不默认CPS等待。`submitted` 只表示提交，`confirmed=false` 不代表游戏成功。用户主动给正数 `rate_cps` 才限速。
+
+`game.sendCommandConfirmed` 是 `game.execute` 的别名，等待 CommandOutput；超时是未知，不自动重发。`game.executeBatch` 的 ordered/pipeline/burst/stream 保留可确认路径；其中 window 是在途请求数量，不是整个文件长度。无条件链可选 `mode="fast"`；有条件节点及其直接前一条自动切到确认路径，`@wait/@call/@pause` 控制语义保留。Hz 是完整链的目标轮次/秒，超期不积压轮次。
+
+Lua: `game.sendCommandsFast({"scoreboard players add counter test 1", "scoreboard players add counter test 1"})`。Python: `host.game.sendCommandsFast(commands)`；C++: `client.call("game.sendCommandsFast", nlohmann::json::array({commands}))`。先校验整个数组；网络失败可能已有部分提交，不应盲目重试。Fast不保证原子或同一服务端Tick，也不能自动判断每条成功。显式 PyRPC 在当前测试服100条无执行，不能将旧源码的通道推断为当前所有服务器可用。
+
+
+## 常驻调度、诊断与能力查询
+
+旧 `util.schedule(seconds, handler)` / `setTimeout` / `cancel` 保留。新增 `scheduleSeconds(seconds, handler)`、`scheduleHz(hz, handler)`、`scheduleTick(ticks, handler)`。Tick是本地名义50ms，不是服务器时钟。频率针对整个回调/整条链；同任务不重入，不补无限积压。Python/C++一次定时回调未完成时不会继续往队列塞同任务。慢回调漏过的周期记missed，主动暂停期间也计入missed。
+
+`util.listJobs()` 返回当前插件任务的id、handler、paused、calls、missed、failures、last_ms/max_ms/total_ms/last_error。`pauseJob(id)` / `resumeJob(id)` 只控制当前插件的任务；暂停不强杀已经执行或入队的回调。停用取消所有定时器及订阅。SDK每实例串行队列256项；Lua事件串行队列128项，满时记dropped而不新建无限goroutine。旧secondary机器人仍可按首次事件懒加载同插件VM；自己的变量不混入其他账号。
+
+`plugin.stats()` 查常驻回调次数、错误、墙钟耗时和队列信息；Lua耗时不含获取VM锁前的等待，定时任务耗时包含其VM/SDK队列等待。CPU、内存、GC没有可靠逐实例测量，字段为null。不要把这些墙钟数当CPU负载或声称1000倍。错误保留插件文件名、行号、handler和耗时。Lua到Lua跨插件调用不再JSON往返，Python/C++仍使用必要的跨语言边界。
+
+`plugin.has("game.sendCommandsFast")` 检查接口；`plugin.has("runtime.cpp")` 在Linux为false、Android为true。`plugin.capabilities()` 返回平台/方法列表/语言运行器能力。接口存在不等于服务端允许动作，也不等于已观测到其他玩家血量。方法文档按需读；外部MCP调用资源、任务、stats要走SDK的plugin_id/account上下文，不能当全局游戏调用。
+
+Lua: `timer=util.scheduleHz(20,"round"); function round() game.sendCommandsFast(commands) end`。Python: `timer=host.util.scheduleHz(20, round)`；C++: `client.util.scheduleHz(20,"round")`。参数20是每秒完整回调次数，不是每秒20条命令。
+
 
 ## 0.10.7 连续发送与整链频率
 默认 rate_cps=0 表示不加人为 CPS 等待。game.sendCommand 不再逐条睡眠20ms；pipeline、submit、burst不再默认限制200条/秒。只有主动配置正数 rate_cps 时才启用发送上限。Lua、Python、C++共用这条分发路径。
-发送缓冲按256包或256KiB刷新，部分缓冲由原有传输定时器刷新；不是每256条停一个周期。sendCommand返回submitted仅表示提交，最终效果用回包或计分板核对。无限循环仍应让出定时调度，不能把网络提交率当服务器执行率。
+默认ai无等待用SettingsCommand并按原网络定时周期合并；可确认/其他通道仍有内部有界批次，不限制TXT总行数。sendCommand返回submitted仅表示提交，最终效果用回包或计分板核对。无限循环仍应让出定时调度，不能把网络提交率当服务器执行率。
 stream中正常回包success=false（如空选择器）不会中断后续无条件命令；有条件节点仍根据上一条真实结果跳过。断线、超时与未知结果不自动重发。32条以内且可装入用户窗口的短链一次提交；更长的连续段按4096条和512KiB拆段，整份TXT可超过这些分段数量。
 整链Hz=1000/interval_ms。每轮包含整个文件，运行耗时算在周期内；完成后只等待本周期剩余时间，超过周期则不增加等待，不积压新轮次。每条的delay_ms独立且默认0。状态actual_hz显示真实完成轮/秒，last_round_ms是上一整轮耗时。
 Lua批量结果results是可ipairs遍历的table，output是字符串table，success_count是数字。事件回调复用常驻Lua状态。

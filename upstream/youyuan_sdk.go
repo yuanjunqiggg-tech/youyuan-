@@ -80,8 +80,8 @@ func yySDKClose(key string) {
 	}
 	s.Mu.Lock()
 	s.Closed = true
-	for id, cancel := range s.Timers {
-		close(cancel)
+	for id := range s.Timers {
+		cancelSchedJob(id)
 		delete(s.Timers, id)
 	}
 	unsubs := s.Unsubs
@@ -112,8 +112,10 @@ func (s *yySDKContext) enqueue(handler string, args []any) {
 	case s.Instance.Queue <- event:
 	case <-s.Instance.Done:
 	default:
-		s.Instance.Dropped.Add(1)
-		yyEvent("plugin_error", map[string]any{"instance": s.Instance.Key, "error": "SDK callback queue full"})
+		n := s.Instance.Dropped.Add(1)
+		if n&(n-1) == 0 {
+			yyEvent("plugin_error", map[string]any{"instance": s.Instance.Key, "error": "SDK callback queue full", "dropped": n})
+		}
 	}
 }
 func yySDKEmit(bm *BotManager, event map[string]any) {
@@ -333,6 +335,36 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	if _, ok := yyResourceDocs[method]; ok {
 		return yyResourceCall(yyResourceRoots{Code: filepath.Join(yyRuntimeRoot, s.Instance.Manifest.ID), Data: s.Dir, Config: filepath.Join(s.Dir, "config")}, method, args)
 	}
+	if method == "plugin.stats" {
+		return map[string]any{"processed": s.Instance.Processed.Load(), "failures": s.Instance.Failures.Load(), "dropped": s.Instance.Dropped.Load(), "queue_depth": len(s.Instance.Queue), "queue_capacity": cap(s.Instance.Queue), "cpu_ms": nil, "memory_bytes": nil, "gc_ms": nil}, nil
+	}
+	if method == "plugin.capabilities" {
+		return yyCapabilities(), nil
+	}
+	if method == "plugin.has" {
+		name, e := yySDKString(args, 0)
+		if e != nil {
+			return nil, e
+		}
+		return yyHasCapability(name), nil
+	}
+	if _, ok := yySchedulerDocs[method]; ok {
+		if strings.HasPrefix(method, "util.schedule") {
+			if len(args) != 2 {
+				return nil, fmt.Errorf("需要间隔/频率和回调")
+			}
+			d, e := yyScheduleDuration(method, args[0])
+			if e != nil {
+				return nil, e
+			}
+			handler, e := yySDKString(args, 1)
+			if e != nil {
+				return nil, e
+			}
+			return s.schedule(d, false, handler), nil
+		}
+		return yySchedulerControl("sdk:"+s.Instance.Key, nil, method, args)
+	}
 	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.execute" || method == "game.executeBatch" {
 		return s.pluginCommandCall(method, args)
 	}
@@ -434,8 +466,8 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		if !ok || seconds < 0 || seconds > maxSchedIntervalSec || seconds != seconds {
 			return nil, fmt.Errorf("无效的定时秒数")
 		}
-		if method == "util.schedule" && seconds < 0.01 {
-			return nil, fmt.Errorf("重复任务最短 0.01 秒")
+		if method == "util.schedule" && seconds < 0.001 {
+			return nil, fmt.Errorf("重复任务最短 0.001 秒")
 		}
 		handler, e := yySDKString(args, 1)
 		if e != nil {
@@ -452,9 +484,9 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		}
 		s.Mu.Lock()
 		defer s.Mu.Unlock()
-		cancel, ok := s.Timers[int64(number)]
+		_, ok = s.Timers[int64(number)]
 		if ok {
-			close(cancel)
+			cancelSchedJob(int64(number))
 			delete(s.Timers, int64(number))
 		}
 		return ok, nil
@@ -645,29 +677,34 @@ func (s *yySDKContext) schedule(delay time.Duration, once bool, handler string) 
 	if s.Closed {
 		return 0
 	}
-	s.Next++
-	id := s.Next
-	cancel := make(chan struct{})
-	s.Timers[id] = cancel
-	go func() {
-		defer func() { s.Mu.Lock(); delete(s.Timers, id); s.Mu.Unlock() }()
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
-		for {
-			select {
-			case <-cancel:
-				return
-			case <-s.Instance.Done:
-				return
-			case <-timer.C:
-				s.enqueue(handler, []any{})
-				if once {
-					return
-				}
-				timer.Reset(delay)
-			}
+	var id int64
+	id = newSchedJobWith("sdk:"+s.Instance.Key, handler, delay, once, nil, func(cancel <-chan struct{}) error {
+		completion := make(chan struct{})
+		event := map[string]any{"type": "sdk_callback", "handler": handler, "args": []any{}, "_timer_done": completion}
+		select {
+		case s.Instance.Queue <- event:
+		case <-cancel:
+			return nil
+		case <-s.Instance.Done:
+			return nil
+		default:
+			s.Instance.Dropped.Add(1)
+			return fmt.Errorf("定时回调队列已满，跳过本次")
 		}
-	}()
+		// One outstanding invocation per timer. No 40Hz timer can enqueue
+		// hundreds of unfinished callbacks behind a slow Python/C++ handler.
+		select {
+		case <-completion:
+			return nil
+		case <-cancel:
+			return nil
+		case <-s.Instance.Done:
+			return nil
+		}
+	}, func() { s.Mu.Lock(); delete(s.Timers, id); s.Mu.Unlock() })
+	schedMu.Lock()
+	s.Timers[id] = schedJobs[id].cancel
+	schedMu.Unlock()
 	return id
 }
 func (s *yySDKContext) crossCall(args []any) (any, error) {

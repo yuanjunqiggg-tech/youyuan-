@@ -25,6 +25,9 @@ func registerAllLuaAPI(L *lua.LState, bm *BotManager) {
 	registerWebAPI(L)
 	registerSenseAPI(L)
 	registerResourceAPI(L)
+	registerSchedulerAPI(L)
+	registerProfilerAPI(L)
+	registerCapabilityAPI(L)
 }
 
 // newLuaState 创建一个已注册全部插件 API 的 Lua 状态。

@@ -120,6 +120,9 @@ func yyGetWorkspace(id string) (*yyWorkspace, error) {
 	return ws, nil
 }
 func yyProjectPath(root, raw string) (string, error) {
+	if st, e := os.Lstat(root); e == nil && st.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("项目根目录不允许符号链接")
+	}
 	raw = strings.ReplaceAll(raw, "\\", "/")
 	clean := filepath.Clean(filepath.FromSlash(raw))
 	if raw == "" || strings.HasPrefix(raw, "/") || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || strings.Contains(raw, ":") {

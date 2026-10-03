@@ -106,16 +106,7 @@ func registerPacketSub(L *lua.LState) {
 
 	// 订阅 packetHub；收到包时异步派发（不阻塞收包循环）。
 	unsub := packetHubSubscribe(pktType, func(bm *BotManager, data map[string]any) {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					debugLog("[事件] 数据包订阅崩溃 %s.%s: %v", plugin, handler, r)
-				}
-			}()
-			acquirePluginExec()
-			defer releasePluginExec()
-			callPacketSubscriber(bm, plugin, pktType, handler, data)
-		}()
+		yyQueueResidentEvent(bm, plugin, handler, []any{data})
 	})
 	evMu.Lock()
 	evPacketSubs = append(evPacketSubs, &packetLuaSub{plugin: plugin, pktType: pktType, handler: handler, unsub: unsub})
@@ -263,19 +254,65 @@ func runEventHandlers(bm *BotManager, list []*luaEventH, args ...any) {
 	if len(handlers) == 0 {
 		return
 	}
+	for _, h := range handlers {
+		yyQueueResidentEvent(bm, h.plugin, h.handler, args)
+	}
+}
+
+func yyQueueResidentEvent(bm *BotManager, id, handler string, args []any) {
+	key := yyLuaKey{bm, id}
+	yyLuaMu.Lock()
+	if pending := yyLazyEvents[key]; pending != nil {
+		select {
+		case pending <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args}:
+		default:
+		}
+		yyLuaMu.Unlock()
+		return
+	}
+	r := yyLuaStates[key]
+	if r != nil {
+		yyLuaMu.Unlock()
+		yyQueueSenseLua(r, bm, id, handler, args)
+		return
+	}
+	// Retain legacy secondary-bot lazy initialization, but create at most one
+	// initializer for this VM. Late events cannot resurrect a stopped plugin.
+	active := false
+	for k, state := range yyLuaStates {
+		if k.id == id && state != nil {
+			active = true
+			break
+		}
+	}
+	if !active {
+		yyLuaMu.Unlock()
+		return
+	}
+	queue := make(chan yySenseDelivery, 128)
+	queue <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args}
+	yyLazyEvents[key] = queue
+	yyLuaMu.Unlock()
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				debugLog("[事件] 事件派发崩溃: %v", r)
+		r, e := yyGetResident(bm, id)
+		for {
+			yyLuaMu.Lock()
+			select {
+			case d := <-queue:
+				yyLuaMu.Unlock()
+				if e == nil {
+					yyQueueSenseLua(r, d.Bot, d.Plugin, d.Handler, d.Args)
+				}
+			default:
+				delete(yyLazyEvents, key)
+				yyLuaMu.Unlock()
+				return
 			}
-		}()
-		acquirePluginExec()
-		defer releasePluginExec()
-		for _, h := range handlers {
-			callEventHandler(bm, h, args...)
 		}
 	}()
 }
+
+var yyLazyEvents = map[yyLuaKey]chan yySenseDelivery{}
 
 // callEventHandler 在临时 LState 重跑插件源码并调用 handler（事件归因到触发它的机器人 bm）。
 func callEventHandler(bm *BotManager, h *luaEventH, args ...any) {
