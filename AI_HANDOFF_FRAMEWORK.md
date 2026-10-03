@@ -37,3 +37,5 @@ Resource：当前旧game.dataDir及util文件API可用；正式plugin资源相�
 交付核查：最终签名APK覆盖后短链20Hz=3.1349秒、40Hz=1.6627秒，计分正确。Linux0.10.7 active并完成Python双账号异步/资源实测。公网APK完整下载hash通过，21项Skill及新版Python MCP文档通过；服务端连续大链失败保持待办。
 
 真实AI框架验收：实际Sensenova模型按需读取python-runtime Skill，生成async插件与资源文件，语法验证/发布/启动通过；manual事件返回与后台ticks增长、宿主资源读取实际核查通过。输入/输出Token记录可查，未配置单价所以费用只作未设置估算。临时插件、模型及工作区均清理，报告0.10.7-AI框架技能真实调用.json。
+
+补充验收：Android x86_64模拟器真实加载新版SDK编译的C++插件，常驻计数、scheduleHz20回调、资源读取、任务与stats、停止清理通过；不是Linux C++验收。fast有条件TXT实际游戏验证，前条失败跳过有条件节点，无条件尾继续，3轮计分3正确。对应报告0.10.7-Android原生C++真实验收.json与0.10.7-条件链游戏实测.json。
