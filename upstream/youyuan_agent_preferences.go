@@ -29,9 +29,6 @@ func yyAvailableAgentSkills(language string) []string {
 			result = append(result, sk.ID)
 		}
 	}
-	if language == "lua" {
-		result = append(result, "lua-runtime")
-	}
 	return result
 }
 func yyEffectiveAgentSkills(ws *yyWorkspace) []string {

@@ -27,7 +27,7 @@ func yyAgentContextTurns(turns []aiTurn) []aiTurn {
 func yyAgentSkillText(id, section string, offset, limit int) (string, error) {
 	sources := []string{}
 	full := ""
-	if id == "lua-runtime" {
+	if id == "lua-runtime" && section == "plugin_doc.md" {
 		if section != "" && section != "plugin_doc.md" {
 			return "", fmt.Errorf("章节不存在")
 		}
@@ -43,6 +43,14 @@ func yyAgentSkillText(id, section string, offset, limit int) (string, error) {
 		selected := sources[0]
 		if section != "" {
 			found := false
+			if id == "packet-reference" && !strings.Contains(section, ".") && !strings.Contains(section, "/") {
+				row, e := yyDocPacket(section)
+				if e != nil {
+					return "", e
+				}
+				full, _ = row["content"].(string)
+				found = true
+			}
 			for _, path := range sources {
 				if section == path || section == filepath.Base(path) {
 					selected = path
@@ -54,11 +62,13 @@ func yyAgentSkillText(id, section string, offset, limit int) (string, error) {
 				return "", fmt.Errorf("章节不存在；可选章节 %s", strings.Join(sources, ", "))
 			}
 		}
-		data, e := aiSkillsFS.ReadFile(selected)
-		if e != nil {
-			return "", e
+		if full == "" {
+			data, e := aiSkillsFS.ReadFile(selected)
+			if e != nil {
+				return "", e
+			}
+			full = string(data)
 		}
-		full = string(data)
 	}
 	runes := []rune(full)
 	if offset < 0 {

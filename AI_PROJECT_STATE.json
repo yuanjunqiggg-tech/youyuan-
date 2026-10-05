@@ -1,5 +1,5 @@
 {
-  "framework_version": "0.10.7",
+  "framework_version": "0.10.8",
   "public_version": "0.10.7",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
@@ -40,7 +40,8 @@
     "Device exit node not implemented",
     "QQ companion real-user test pending",
     "Actual room_id join pending",
-    "Multi-account long-run pressure pending"
+    "Multi-account long-run pressure pending",
+    "0.10.8 real structure export 1x1x1 failed; save command succeeded but no StructureTemplateDataResponse observed"
   ],
   "next_tasks": [
     "Investigate large fast-traffic remote disconnect; compare original APK under the same account/realm and validate game score, not only host submissions",
@@ -209,5 +210,32 @@
     "sustained_fast_stress_passed": false,
     "ai_framework_test": "passed; temporary model/plugin/workspace removed"
   },
-  "git_snapshot_rule": "Commit and recent_commits describe HEAD at file generation; the commit containing this file cannot include its own hash."
+  "git_snapshot_rule": "Commit and recent_commits describe HEAD at file generation; the commit containing this file cannot include its own hash.",
+  "reference_inventory": {
+    "lua_namespaces": 15,
+    "lua_public_methods": 194,
+    "original_document_methods_covered": 121,
+    "packet_types": 215,
+    "language_chapters": [
+      "lua",
+      "python",
+      "cpp"
+    ],
+    "packet_docs": "on demand by packet name"
+  },
+  "latest_change_scope": [
+    "packet compatibility",
+    "language and game documentation",
+    "building progress presentation"
+  ],
+  "verification_0108": {
+    "android_version": "0.10.8",
+    "connected_op": true,
+    "packet_roundtrip_python_callbacks": true,
+    "lua_10000_single_round_score_verified": true,
+    "lua_dispatch_seconds": 0.1038,
+    "lua_score_verification_seconds": 0.7421,
+    "building_structure_export": "failed_no_server_structure_response",
+    "continuous_large_chain": "not repeated; previous disconnect remains"
+  }
 }

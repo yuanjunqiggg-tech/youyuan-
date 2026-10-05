@@ -546,6 +546,7 @@ func (bm *BotManager) registerPacketHandlers() {
 		packet.IDSetPlayerGameType, packet.IDUpdatePlayerGameType,
 		packet.IDUpdateAttributes, packet.IDSetHealth, packet.IDActorEvent,
 		packet.IDAddActor, packet.IDRemoveActor, packet.IDMoveActorAbsolute, packet.IDMoveActorDelta, packet.IDUpdateBlock,
+		packet.IDAnimate, packet.IDAddItemActor, packet.IDTakeItemActor,
 	}
 	wanted := map[uint32]bool{}
 	for _, id := range ids {

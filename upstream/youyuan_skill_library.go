@@ -15,10 +15,6 @@ import (
 func yySkillCatalog(language string) []map[string]any {
 	out := []map[string]any{}
 	for _, id := range yyAvailableAgentSkills(language) {
-		if id == "lua-runtime" {
-			out = append(out, map[string]any{"id": id, "name": "Lua 常驻开发", "description": "Lua 宿主完整接口说明", "sections": []string{"plugin_doc.md"}})
-			continue
-		}
 		sk := skillByID(id)
 		sections := []string{}
 		for _, p := range sk.Sources {

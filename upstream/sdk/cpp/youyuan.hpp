@@ -1,4 +1,4 @@
-// YouYuan SDK 1.11; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
+// YouYuan SDK 1.12; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
 #pragma once
 #include "third_party/json.hpp"
 #include <cstdlib>
@@ -17,6 +17,17 @@ class Namespace {
 public:
  Namespace(Client* client,const char* name):client_(client),namespace_(name){}
  json _send(const std::string& method,const json& args=json::array())const;
+ template<typename... A> json sendPacket(A&&... args)const{return _send("sendPacket",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json subscribeAll(A&&... args)const{return _send("subscribeAll",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json send(A&&... args)const{return _send("send",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json on(A&&... args)const{return _send("on",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onAll(A&&... args)const{return _send("onAll",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json schema(A&&... args)const{return _send("schema",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json describe(A&&... args)const{return _send("describe",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onSwing(A&&... args)const{return _send("onSwing",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onEntitySpawn(A&&... args)const{return _send("onEntitySpawn",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onEntityRemove(A&&... args)const{return _send("onEntityRemove",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onItemPickup(A&&... args)const{return _send("onItemPickup",json::array({std::forward<A>(args)...}));}
  template<typename... A> json scheduleHz(A&&... args)const{return _send("scheduleHz",json::array({std::forward<A>(args)...}));}
  template<typename... A> json scheduleSeconds(A&&... args)const{return _send("scheduleSeconds",json::array({std::forward<A>(args)...}));}
  template<typename... A> json scheduleTick(A&&... args)const{return _send("scheduleTick",json::array({std::forward<A>(args)...}));}
@@ -209,9 +220,9 @@ public:explicit API(Client* c):Namespace(c,"api"),client_(c){}
 class Client {
  HostAPI host_;json context_;
 public:
- Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains;API api;
+ Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet;API api;
  Client(const char* context,HostAPI host):host_(host),context_(json::parse(context)),
- game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),api(this){}
+ game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),api(this){}
  std::string account()const{return context_.at("account").get<std::string>();}
  std::string id()const{return context_.at("plugin_id").get<std::string>();}
  json root(const std::string& path,const json& body=nullptr)const{

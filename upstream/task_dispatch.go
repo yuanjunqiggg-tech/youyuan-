@@ -207,7 +207,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 		"msg": fmt.Sprintf("建筑: %dx%dx%d, %d 实体方块, %d 种方块", data.SizeX, data.SizeY, data.SizeZ, stats.SolidBlocks, len(stats.BlockCountsList)),
 	}))
 	if bm != nil && bm.IsOP() {
-		bm.yyTaskNotice(fmt.Sprintf("§a§l▍建筑导入:§r§f%s §7尺寸:%dx%dx%d §7方块:%d §7速度:%d/s §7坐标:(%d,%d,%d)",
+		bm.yyTaskNotice(fmt.Sprintf("§b游园 · 建筑写入 §f%s §7| %dx%dx%d · %d方块 · 目标%d/秒 · (%d,%d,%d)",
 			shortName(path), data.SizeX, data.SizeY, data.SizeZ, stats.SolidBlocks, getInt(p, "speed", 9500), getInt(p, "x", 0), getInt(p, "y", 64), getInt(p, "z", 0)))
 	}
 
@@ -579,6 +579,8 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 				"chunk":        chunk,
 				"total":        total,
 				"blocks":       blocks,
+				"total_blocks": totalSolid,
+				"phase":        "建筑写入", "unit": "方块已提交", "location": "工具箱设备 → 当前游戏服务器",
 			}))
 			hub.Emit("progress", mustJSON(map[string]any{
 				"msg": fmt.Sprintf("区块 %d/%d, %d 方块", chunk, total, blocks),
@@ -736,7 +738,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 
 	// 完成提示：聊天栏 tellraw + 行动栏强调
 	if bm != nil && bm.IsOP() {
-		bm.yyTaskNotice(fmt.Sprintf("§a§l▍导入完成:§r§f%s §7共%d方块", shortName(path), totalSolid))
+		bm.yyTaskNotice(fmt.Sprintf("§b游园 · 建筑提交完成 §f%s §7| %d方块", shortName(path), totalSolid))
 	}
 
 	buildV5Actionbar(sendActionbar, shortName(path), data.SizeX, data.SizeY, data.SizeZ,
@@ -1076,11 +1078,11 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 	dz := ez - sz + 1
 
 	hub.Emit("progress", mustJSON(map[string]any{
-		"msg": fmt.Sprintf("导出: (%d,%d,%d)→(%d,%d,%d) %dx%dx%d", sx, sy, sz, ex, ey, ez, dx, dy, dz),
+		"msg": fmt.Sprintf("游园 · 从当前游戏服务器读取建筑，文件保存到工具箱所在设备: (%d,%d,%d)→(%d,%d,%d) %dx%dx%d", sx, sy, sz, ex, ey, ez, dx, dy, dz),
 	}))
 
 	if bm.IsOP() {
-		bm.yyTaskNotice(fmt.Sprintf("§a§l▍导出:§r§f格式:%s §7%dx%dx%d", format, dx, dy, dz))
+		bm.yyTaskNotice(fmt.Sprintf("§6游园 · 建筑读取 §f%s §7| %dx%dx%d · 文件保存在工具箱设备", format, dx, dy, dz))
 	}
 
 	// Create checkpoint
@@ -1133,7 +1135,10 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 			hub.Emit("progress", mustJSON(map[string]any{
 				"msg": fmt.Sprintf("区块 %d/%d: (%d,%d) %dx%d", chunkNum, totalChunks, csx, csz, csizex, csizez),
 			}))
-			hub.Emit("task_progress", mustJSON(map[string]any{"progress": float64(chunkNum-1) / float64(totalChunks)}))
+			hub.Emit("task_progress", mustJSON(map[string]any{"progress": float64(chunkNum-1) / float64(totalChunks), "completed": chunkNum - 1, "total": totalChunks, "phase": "建筑读取", "unit": "区块已检查", "location": "当前游戏服务器 → 工具箱设备"}))
+			if bm.IsOP() {
+				sendActionbar(yyTaskActionbar("建筑读取", filepath.Base(outputPath), "6", successChunks, totalChunks, 0, 0))
+			}
 
 			bm.TP(csx+csizex/2, sy+dy/2, csz+csizez/2)
 			time.Sleep(200 * time.Millisecond)
@@ -1223,15 +1228,25 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 
 	cp.Status = "done"
 	cp.Progress = 1.0
+	cp.Message = fmt.Sprintf("已保存 %d/%d 区块到工具箱设备: %s", successChunks, totalChunks, outputPath)
+	completion := "建筑导出完成"
+	if successChunks < totalChunks {
+		completion = "建筑部分导出（含缺失区块）"
+	}
+	if bm.IsOP() {
+		sendActionbar(yyTaskActionbar(completion, filepath.Base(outputPath), "6", successChunks, totalChunks, 0, 0))
+	}
+	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 1.0, "completed": successChunks, "total": totalChunks, "phase": completion, "unit": "区块已读取", "location": "文件已保存到工具箱设备"}))
 	state.SaveCheckpoint(cp)
 	recordHeartbeatIncrement(IncrementData{
 		BuildingsExported: 1,
 		ExportSessions:    1,
 	})
 	hub.Emit("task_done", mustJSON(map[string]any{
-		"msg":    fmt.Sprintf("导出完成: %d/%d 区块, %s", successChunks, totalChunks, outputPath),
-		"output": outputPath,
-		"format": format,
+		"msg":     fmt.Sprintf("游园 · %s: %d/%d 区块, 工具箱设备文件 %s", completion, successChunks, totalChunks, outputPath),
+		"output":  outputPath,
+		"partial": successChunks < totalChunks,
+		"format":  format,
 	}))
 }
 
@@ -1725,20 +1740,16 @@ func runMapArtTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			}
 
 			pct := float64(count) / float64(len(blocks))
-			const mapBarW = 14
-			bar := buildParBar(int(pct*100)*mapBarW/100, mapBarW, "d", "7")
-			sendActionbar(fmt.Sprintf("§r§d%s §fv%s §7|  §dMapArt\n§f §r{%s}\n§r%s\n§b%.0f%%  §7%d/%d", brandName,
-				shortVersion(), filepath.Base(path),
-				bar, pct*100, count, len(blocks)))
-			hub.Emit("task_progress", mustJSON(map[string]any{"progress": pct}))
-			hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("像素画: %d/%d (%.0f%%)", count, len(blocks), pct*100)}))
+			sendActionbar(yyTaskActionbar("地图画写入", filepath.Base(path), "3", count, len(blocks), 0, 0))
+			hub.Emit("task_progress", mustJSON(map[string]any{"progress": pct, "completed": count, "total": len(blocks), "unit": "方块已提交", "phase": "地图画写入"}))
+			hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("游园 · 地图画写入: %d/%d 方块已提交", count, len(blocks))}))
 
 			// 区域整块完成 → 更新断点并落盘
 			cpData.RegionsDone++
 			cpData.BlocksPlaced = count
 			cp.Data, _ = json.Marshal(cpData)
 			cp.Progress = pct
-			cp.Message = fmt.Sprintf("像素画 %d/%d (%.0f%%)", count, len(blocks), pct*100)
+			cp.Message = fmt.Sprintf("地图画 %d/%d 方块已提交", count, len(blocks))
 			state.SaveCheckpoint(cp)
 		}
 	}
@@ -1870,7 +1881,6 @@ func runSkinTask(tc *state.TaskController, p map[string]any) {
 	// 皮肤雕像 actionbar 定时刷新
 	var (
 		skinMu     sync.Mutex
-		skinPct    int
 		skinBlocks int
 	)
 	skinStopTicker := make(chan struct{})
@@ -1884,7 +1894,6 @@ func runSkinTask(tc *state.TaskController, p map[string]any) {
 			select {
 			case <-skinTicker.C:
 				skinMu.Lock()
-				pct := skinPct
 				blocks := skinBlocks
 				skinMu.Unlock()
 
@@ -1906,25 +1915,7 @@ func runSkinTask(tc *state.TaskController, p map[string]any) {
 					realSpeed = int(float64(blocks) / elapsed)
 				}
 
-				// 显示用百分比，最大值 99%
-				displayPct := pct
-				if displayPct > 99 {
-					displayPct = 99
-				}
-				// 旋转动画帧
-				frames := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-				frame := frames[time.Now().UnixMilli()/500%int64(len(frames))]
-				bar := buildParBar(displayPct*14/100, 14, "d", "7")
-				name := shortName(path)
-				if len([]rune(name)) > 6 {
-					name = string([]rune(name)[:6])
-				}
-				blockStr := formatCountV5(blocks)
-				speedStr := formatSpeedV5(float64(realSpeed))
-				eta := time.Since(importStartTime).Round(time.Second)
-				msg := fmt.Sprintf("§r%s  §dSkin  §7┃  §d%s §fv%s  §7┃  §f%s\n§r%s\n§d%d%% §7| §f(%s) §7| %s/s §7| %s",
-					frame, brandName, shortVersion(), name, bar, displayPct, blockStr, speedStr, eta)
-				sendActionbar(msg)
+				sendActionbar(yyTaskActionbar("雕像写入", shortName(path), "9", blocks, total, realSpeed, time.Since(importStartTime)))
 			case <-skinStopTicker:
 				return
 			}
@@ -1955,14 +1946,13 @@ func runSkinTask(tc *state.TaskController, p map[string]any) {
 
 			// 更新 actionbar 共享状态
 			skinMu.Lock()
-			skinPct = int(pct * 100)
 			skinBlocks = i + 1
 			skinMu.Unlock()
 
 			hub.Emit("task_progress", mustJSON(map[string]any{
 				"progress":     pct,
 				"sub_progress": 1.0,
-				"blocks":       i + 1,
+				"blocks":       i + 1, "total_blocks": total, "phase": "雕像写入", "unit": "方块已提交",
 			}))
 			hub.Emit("progress", mustJSON(map[string]any{
 				"msg": fmt.Sprintf("雕像: %d/%d", i+1, total),
@@ -1975,17 +1965,7 @@ func runSkinTask(tc *state.TaskController, p map[string]any) {
 	}
 	close(skinStopTicker)
 
-	// 最终进度条
-	bar := buildParBar(100, 14, "d", "7")
-	name := shortName(path)
-	if len([]rune(name)) > 6 {
-		name = string([]rune(name)[:6])
-	}
-	blockStr := formatCountV5(len(blocks))
-	eta := time.Since(importStartTime).Round(time.Second)
-	msg := fmt.Sprintf("§r⣾ §d%s §fv%s §7|  §dSkin\n§f §a§l{%s}\n§r%s\n§d100%% §7| §f(%s) §7| %s",
-		brandName, shortVersion(), name, bar, blockStr, eta)
-	sendActionbar(msg)
+	sendActionbar(yyTaskActionbar("雕像提交完成", shortName(path), "9", len(blocks), len(blocks), 0, time.Since(importStartTime)))
 
 	bm.cleanupNBTWorkspace()
 
@@ -2716,88 +2696,15 @@ func buildParBar(filled, width int, color, grayColor string) string {
 	return sb.String()
 }
 
-// buildClearActionbar 渲染清空区域进度条，使用统一的平行四边形样式。
+// Building tasks use Youyuan labels and actual counters, without percentage text.
 func buildClearActionbar(cleared, total int) string {
-	const barWidth = 32
-	pct := 0
-	if total > 0 {
-		pct = cleared * 100 / total
-	}
-	bar := buildParBar(pct*barWidth/100, barWidth, "6", "8")
-	countTxt := fmt.Sprintf("%d / %d", cleared, total)
-	if total >= 1000 {
-		countTxt = fmt.Sprintf("%.1fk/%.1fk", float64(cleared)/1000, float64(total)/1000)
-	}
-	return fmt.Sprintf("\u00a7c\u26cf \u6e05\u7a7a\u533a\u57df\n\u00a7r%s\n\u00a7c%d%%  \u00a7f%s", bar, pct, countTxt)
+	return yyTaskActionbar("区域准备", "清空选定区域", "6", cleared, total, 0, 0)
 }
 
-// buildV5Actionbar 渲染 v5 版式的 actionbar 进度条
-// 保留 Prism 布局结构，采用 NexusEgo 样式：▓/░ 进度字符、旋转动画、ETA 预估
 func buildV5Actionbar(sendFn func(string), name string, sx, sy, sz int,
 	regionMode, totalSolid, targetSpeed, realSpeed, blocks, totalPct, subPct int,
 	regionIdx, totalRegions int, startTime time.Time, brandName string) {
-
-	// 旋转动画帧
-	frames := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-	frame := frames[time.Now().UnixMilli()/500%int64(len(frames))]
-
-	// 速度格式化（参考 NexusEgo 精度）
-	speedStr := formatSpeedV5(float64(realSpeed))
-
-	barWidth := 14
-
-	// 显示用百分比，最大值 99%
-	displaySubPct := subPct
-	if displaySubPct > 99 {
-		displaySubPct = 99
-	}
-	displayTotalPct := totalPct
-	if displayTotalPct > 99 {
-		displayTotalPct = 99
-	}
-
-	sbw := (displaySubPct*barWidth + 99) / 100
-	if sbw > barWidth {
-		sbw = barWidth
-	}
-	subBar := buildParBar(sbw, barWidth, "e", "7")
-
-	tbw := (displayTotalPct*barWidth + 99) / 100
-	if tbw > barWidth {
-		tbw = barWidth
-	}
-	totalBar := buildParBar(tbw, barWidth, "a", "7")
-
-	// 方块数量格式化（k 后缀）
-	blockStr := formatCountV5(blocks)
-	totalStr := formatCountV5(totalSolid)
-
-	// 文件名：取 @ 前或 [ 前的内容，再截取前 6 个字符
-	if idx := strings.IndexAny(name, "@["); idx >= 0 {
-		name = name[:idx]
-	}
-	if len([]rune(name)) > 6 {
-		name = string([]rune(name)[:6])
-	}
-
-	// 耗时与 ETA
-	elapsed := time.Since(startTime).Round(time.Second)
-	etaStr := "--"
-	if blocks > 0 && totalPct > 0 {
-		remaining := time.Duration(float64(elapsed) * float64(100-totalPct) / float64(totalPct)).Round(time.Second)
-		etaStr = formatDurationV5(remaining)
-	}
-
-	msg := fmt.Sprintf("§r%s  §cImporter  §7┃  §d%s §fv%s  §7┃  §f§l{%s}\n"+
-		"§l§d> §7小区 %s  §e§l%d%%\n"+
-		"§l§d> §7总计 %s  §a§l%d%%\n"+
-		"§r§b%d%% §7| §f(%s/%s) §7| %s/s §7| %s",
-		frame, brandName, shortVersion(), name,
-		subBar, displaySubPct,
-		totalBar, displayTotalPct,
-		displayTotalPct, blockStr, totalStr, speedStr, etaStr)
-
-	sendFn(msg)
+	sendFn(yyTaskActionbar("建筑写入", name, "b", blocks, totalSolid, realSpeed, time.Since(startTime)))
 }
 
 func formatSpeedV5(speed float64) string {

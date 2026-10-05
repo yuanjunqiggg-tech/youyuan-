@@ -18,7 +18,7 @@ function showTaskDetail(id,name,prog,msg,st,path,isMc){
   var m=document.createElement('div');m.className='modal-overlay';
   m.innerHTML='<div class="modal-box">'+
     '<div style="font-weight:800;font-size:16px;margin-bottom:10px">'+name+'</div>'+
-    '<div class="dim" style="margin-bottom:2px">进度: '+Math.round(prog*100)+'%</div>'+
+    '<div class="yy-transfer-tag" style="margin-bottom:10px">游园 · 任务状态</div>'+ '<div class="pg yy-transfer-bar"><div style="width:'+Math.max(0,Math.min(100,prog*100))+'%"></div></div>'+
     '<div class="dim" style="margin-bottom:4px">'+msg+'</div>'+
     '<div style="font-size:12px;font-weight:700;margin-bottom:14px;color:'+(st==='running'?'var(--phx-success)':st==='failed'?'var(--phx-error)':st==='paused'?'var(--phx-warning)':'var(--phx-text-disabled)')+'">状态: '+st+'</div>'+
     (path?'<button class="btn" style="width:100%;margin-bottom:8px" onclick="closeModalOverlay(this);impPath=\''+path+'\';doAnalyze(\''+path+'\','+isMc+')">查看文件</button>':'')+

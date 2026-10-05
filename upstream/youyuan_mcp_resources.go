@@ -86,9 +86,7 @@ func yyMCPReadResource(uri string) (map[string]any, error) {
 		if strings.HasPrefix(uri, "youyuan://docs/") {
 			skill := strings.TrimPrefix(uri, "youyuan://docs/")
 			mime = "text/markdown"
-			if skill == "lua-runtime" {
-				content = string(pluginDevDoc)
-			} else if skill == "python-runtime" || skill == "cpp-runtime" || skill == "command-chain" {
+			if skill == "lua-runtime" || skill == "python-runtime" || skill == "cpp-runtime" || skill == "packet-reference" || skill == "command-chain" {
 				data, e := aiSkillsFS.ReadFile("skills/" + skill + "/index.md")
 				if e != nil {
 					return nil, e

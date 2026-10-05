@@ -24,6 +24,9 @@ type AISkill struct {
 
 // aiSkills 内置技能列表。内容来自 MiemieMethod/bedrock-docs（基岩版中文文档），打包在 skills/ 下。
 var aiSkills = []*AISkill{
+	{ID: "building-transfer", Name: "建筑导入导出与存储位置", Description: "宿主/游戏服务器/市场的职责、实际计数、部分导出与文件下载", Sources: []string{"skills/building-transfer/index.md"}},
+	{ID: "lua-runtime", Name: "Lua 常驻开发", Description: "原版兼容接口、游戏操作、常驻事件与资源调度，按功能章节读取", Sources: []string{"skills/lua-runtime/index.md"}},
+	{ID: "packet-reference", Name: "游戏协议包与玩法", Description: "当前内核215种协议包、字段、监听/发包与玩法边界，支持单包读取", Sources: []string{"skills/packet-reference/index.md", "skills/packet-reference/catalog.md"}},
 	{ID: "mcbe-commands", Name: "网易基岩版指令系统", Description: "execute、rawtext、状态机、战斗、地皮、网易差异与性能，按章节读取", Sources: []string{"skills/mcbe-commands/SKILL.md", "skills/mcbe-commands/references/01-execute.md", "skills/mcbe-commands/references/02-rawtext.md", "skills/mcbe-commands/references/03-菜单与状态机.md", "skills/mcbe-commands/references/04-实体与战斗.md", "skills/mcbe-commands/references/05-坐标与地皮.md", "skills/mcbe-commands/references/06-网易扩展与差异.md", "skills/mcbe-commands/references/07-性能与调试.md", "skills/mcbe-commands/references/08-速查表.md", "skills/mcbe-commands/references/09-粒子作图-分叉取样与大数圆规.md", "skills/mcbe-commands/references/10-官方文档摘录-execute与坐标.md"}},
 	{ID: "mcbe-execute", Name: "指令 · execute", Description: "两代语法、执行者与位置、条件、上下文继承与分叉", Sources: []string{"skills/mcbe-commands/references/01-execute.md", "skills/mcbe-commands/references/10-官方文档摘录-execute与坐标.md"}},
 	{ID: "mcbe-rawtext", Name: "指令 · rawtext", Description: "tellraw / titleraw、组件、占位符与条件显示", Sources: []string{"skills/mcbe-commands/references/02-rawtext.md"}},
@@ -62,6 +65,15 @@ var aiSkills = []*AISkill{
 			"skills/fmbe-display/display-entities.md",
 		},
 	},
+}
+
+func init() {
+	for _, id := range []string{"lua-runtime", "python-runtime", "cpp-runtime"} {
+		sk := skillByID(id)
+		for _, section := range []string{"game", "player", "world", "events", "packet", "bot", "chains", "building", "media", "plugin", "util", "api", "http", "system", "web"} {
+			sk.Sources = append(sk.Sources, "skills/"+id+"/"+section+".md")
+		}
+	}
 }
 
 // aiSkillStore 技能加载状态 + 内容缓存。

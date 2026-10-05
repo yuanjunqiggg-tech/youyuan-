@@ -57,7 +57,7 @@ class Host:
         self._loop_thread=threading.Thread(target=run_loop,name='yy-async-'+str(plugin_id),daemon=True)
         self._loop_thread.start()
         self._loop_ready.wait()
-        for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains'):
+        for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet'):
             setattr(self,namespace,Namespace(self,namespace))
 
     def _callback(self,callback):
@@ -175,7 +175,7 @@ def dispatch(params_json):
                 sys.modules[package_name+'.main']=module
                 host=Host(params['account'],params['data_dir'],params.get('port'),params.get('plugin_id'),module)
                 # Expose the familiar original API names before on_init runs.
-                for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains'):
+                for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet'):
                     if not hasattr(module,namespace): setattr(module,namespace,getattr(host,namespace))
                 module.host=host
                 spec.loader.exec_module(module)

@@ -18,6 +18,11 @@ import (
 )
 
 var yyExtraMethods = map[string]string{
+	"events.onSwing":            "handler(event)；服务器AnimateActionSwingArm下发时触发，含runtime_id/player/source。挥臂不证明命中了目标，服务器未广播则无法观测。",
+	"events.onEntitySpawn":      "handler(event)；AddPlayer/AddActor/AddItemActor下发时触发，含实体类型、位置和原始fields。服务器视距内的出现，不代表世界内首次出生；血量仅取真实同步属性。",
+	"events.onEntityRemove":     "handler(event)；RemoveActor下发时触发，含unique_id和已知runtime_id。消失不等于死亡，也可能是离开视距。",
+	"events.onItemPickup":       "handler(event)；TakeItemActor下发时触发，含拾取实体和掉落物runtime_id、已观测item/position。拾取者可为生物；不凭RemoveActor猜拾取。",
+	"game.sendPacket":           "typeNameOrId, fields?；当前账号发送完整协议包。字段名和类型通过packet.describe查询。支持嵌套对象、向量数组、hex字节、十进制字符串64位ID；联合接口类型需高级动作或完整payload_hex。submitted不代表服务器接受，登录生命周期不能重发。",
 	"game.sendCommandFast":      "command, options?；无等待提交，魔法/ai 默认使用 SettingsCommand 并保持机器人 @s/相对坐标；其他通道保持来源。rate_cps 默认0，不逐条等回包。confirmed=false 不能当游戏成功。",
 	"game.sendCommandsFast":     "commands数组, options?；一次插件宿主边界按顺序提交完整数组，不限整数组行数，不等待逐条回包。先校验全部命令；中途网络失败报告已提交数量，不自动重发，不保证同一服务器Tick或原子执行。",
 	"game.sendCommandConfirmed": "command, options?；game.execute别名，等待真实CommandOutput，超时为未知，不自动重发。只在依赖前条结果时使用。",
@@ -47,7 +52,7 @@ var yyExtraMethods = map[string]string{
 	"events.captureClear":       "清空当前账号抓包缓冲，保持抓包开关。",
 	"events.packetSchema":       "无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。",
 }
-var yySenseEvents = map[string]string{"events.onDeath": "death", "events.onHealthChange": "health", "events.onHurt": "hurt", "events.onMove": "move", "events.onRespawn": "respawn", "events.onBlockChange": "block_change"}
+var yySenseEvents = map[string]string{"events.onDeath": "death", "events.onHealthChange": "health", "events.onHurt": "hurt", "events.onMove": "move", "events.onRespawn": "respawn", "events.onBlockChange": "block_change", "events.onSwing": "swing", "events.onEntitySpawn": "entity_spawn", "events.onEntityRemove": "entity_remove", "events.onItemPickup": "item_pickup"}
 
 type yySenseLuaHook struct {
 	Bot                   *BotManager
@@ -258,6 +263,8 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		return yyPhysicalAction(bm, method, args)
 	}
 	switch method {
+	case "game.sendPacket":
+		return yySendPacket(bm, args)
 	case "game.scene":
 		return yySenseSnapshot(bm), nil
 	case "bot.self", "player.health", "player.position":

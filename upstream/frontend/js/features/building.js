@@ -188,11 +188,11 @@ function RimpHTML(){
     '</div>'+
     '<div class="row"><button class="btn gone" id="imp-go" onclick="doImp()">开始导入</button>'+
     '<button class="btn-d gone" id="imp-stop" onclick="doImpStop()">停止导入</button></div>'+
-    '<div class="pg gone" id="imp-pg"><div id="imp-bar"></div></div>'+
+    '<div class="yy-transfer-meta"><span class="yy-transfer-tag">游园 · 建筑写入</span><small>工具箱设备读取文件 → 当前游戏服务器</small></div><div class="pg gone yy-transfer-bar" id="imp-pg"><div id="imp-bar"></div></div>'+
     '<div class="gone" id="imp-multi-pg" style="margin-top:6px">'+
-    '<div class="mp-row"><span class="mp-label">普通</span><div class="mp-bar"><div id="mp-bar-normal" style="width:0%"></div></div><span class="mp-pct" id="mp-pct-normal">0%</span></div>'+
-    '<div class="mp-row"><span class="mp-label" style="color:#d473ff">NBT</span><div class="mp-bar"><div id="mp-bar-nbt" style="width:0%;background:#d473ff"></div></div><span class="mp-pct" id="mp-pct-nbt">0%</span></div>'+
-    '<div class="mp-row"><span class="mp-label" style="color:#63b3ed">告示牌</span><div class="mp-bar"><div id="mp-bar-sign" style="width:0%;background:#63b3ed"></div></div><span class="mp-pct" id="mp-pct-sign">0%</span></div>'+
+    '<div class="mp-row"><span class="mp-label">方块写入</span><div class="mp-bar"><div id="mp-bar-normal" style="width:0%"></div></div><span class="mp-pct" id="mp-pct-normal">等待开始</span></div>'+
+    '<div class="mp-row"><span class="mp-label" style="color:#dc9b40">实体数据</span><div class="mp-bar"><div id="mp-bar-nbt" style="width:0%;background:#dc9b40"></div></div><span class="mp-pct" id="mp-pct-nbt">等待开始</span></div>'+
+    '<div class="mp-row"><span class="mp-label" style="color:#5879d4">告示牌</span><div class="mp-bar"><div id="mp-bar-sign" style="width:0%;background:#5879d4"></div></div><span class="mp-pct" id="mp-pct-sign">等待开始</span></div>'+
     '</div>'+
     '<div class="pg gone" id="clear-pg"><div id="clear-bar" style="background:var(--phx-error)"></div></div>'+
     '<div class="dim gone" id="clear-stat"></div>'+
@@ -223,7 +223,7 @@ function RexpHTML(){
     '<div class="dim" id="exp-name-preview" style="font-size:11px;margin:4px 0;color:var(--phx-text-secondary)"></div>'+
     '<div class="row"><button class="btn" onclick="doExpGo()" id="exp-go">开始导出</button>'+
     '<button class="btn-d gone" id="exp-stop" onclick="doExpStop()">停止导出</button></div>'+
-    '<div class="pg gone" id="exp-pg"><div id="exp-bar"></div></div></div>'+
+    '<div class="yy-transfer-meta yy-transfer-export"><span class="yy-transfer-tag">游园 · 建筑读取</span><small>当前游戏服务器 → 工具箱设备文件</small></div><div class="yy-transfer-stat" id="exp-stat" aria-live="polite"></div><div class="pg gone yy-transfer-bar yy-transfer-export" id="exp-pg"><div id="exp-bar"></div></div></div>'+
     '<div class="card gone" id="exp-log-card"><div class="log" id="exp-log"></div></div>'
 }
 

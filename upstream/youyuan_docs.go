@@ -7,6 +7,9 @@ import (
 
 func yyDocumentationRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/youyuan/docs", func(w http.ResponseWriter, r *http.Request) {
+		if yyStructuredDoc(w, r) {
+			return
+		}
 		language := r.URL.Query().Get("language")
 		if language == "command-chain-api" || language == "physical-actions" || language == "block-media" || language == "self-auth" || language == "qq-assistant" || language == "public-tunnel" || language == "mcp-connection" {
 			data, e := aiSkillsFS.ReadFile("skills/" + language + "/index.md")

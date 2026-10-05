@@ -21,6 +21,7 @@ type yyActorObservation struct {
 	UniqueID       int64      `json:"unique_id"`
 	Name           string     `json:"name"`
 	EntityType     string     `json:"entity_type"`
+	Item           any        `json:"item,omitempty"`
 	Position       mgl32.Vec3 `json:"position"`
 	PositionKnown  bool       `json:"position_known"`
 	PositionTime   time.Time  `json:"position_time"`
@@ -179,6 +180,7 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		a.EntityType = "minecraft:player"
 		a.Dead = nil
 		move(a, p.Position)
+		emit("entity_spawn", a, map[string]any{"position": p.Position, "fields": packetToMap(p)})
 	case *packet.AddActor:
 		a := s.actor(p.EntityRuntimeID, now)
 		a.UniqueID = p.EntityUniqueID
@@ -190,6 +192,30 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 				health(a, v.Value, v.Max, true)
 			}
 		}
+		emit("entity_spawn", a, map[string]any{"position": p.Position, "fields": packetToMap(p)})
+	case *packet.AddItemActor:
+		a := s.actor(p.EntityRuntimeID, now)
+		a.UniqueID = p.EntityUniqueID
+		a.EntityType = "minecraft:item"
+		a.Item = packetToMap(p.Item)
+		move(a, p.Position)
+		emit("entity_spawn", a, map[string]any{"position": p.Position, "item": a.Item, "fields": packetToMap(p)})
+	case *packet.Animate:
+		if p.ActionType == packet.AnimateActionSwingArm {
+			emit("swing", s.actor(p.EntityRuntimeID, now), map[string]any{"action_type": p.ActionType})
+		}
+	case *packet.TakeItemActor:
+		extra := map[string]any{"item_runtime_id": strconv.FormatUint(p.ItemEntityRuntimeID, 10), "taker_runtime_id": strconv.FormatUint(p.TakerEntityRuntimeID, 10), "item_known": false}
+		if item := s.Actors[p.ItemEntityRuntimeID]; item != nil {
+			extra["item"] = item.Item
+			extra["item_known"] = item.Item != nil
+			extra["position_known"] = item.PositionKnown
+			if item.PositionKnown {
+				extra["position"] = item.Position
+			}
+			item.Present = false
+		}
+		emit("item_pickup", s.actor(p.TakerEntityRuntimeID, now), extra)
 	case *packet.UpdateAttributes:
 		a := s.actor(p.EntityRuntimeID, now)
 		if p.EntityRuntimeID == self {
@@ -255,6 +281,7 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		for _, a := range s.Actors {
 			if a.UniqueID == p.EntityUniqueID {
 				a.Present = false
+				emit("entity_remove", a, map[string]any{"unique_id": strconv.FormatInt(p.EntityUniqueID, 10), "death_confirmed": false})
 			}
 		}
 	case *packet.ChangeDimension:

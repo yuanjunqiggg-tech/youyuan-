@@ -17,7 +17,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains"}
+var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet"}
 
 func yySDKWebID(key string) string {
 	hash := sha256.Sum256([]byte(key))
@@ -167,7 +167,7 @@ func yySDKEmit(bm *BotManager, event map[string]any) {
 					s.enqueue(h.Handler, []any{event["packet_type"], event["data"]})
 				}
 			default:
-				if kind == h.Kind && (kind == "death" || kind == "health" || kind == "hurt" || kind == "move" || kind == "respawn" || kind == "block_change") {
+				if kind == h.Kind && (kind == "death" || kind == "health" || kind == "hurt" || kind == "move" || kind == "respawn" || kind == "block_change" || kind == "swing" || kind == "entity_spawn" || kind == "entity_remove" || kind == "item_pickup") {
 					s.enqueue(h.Handler, []any{event})
 				}
 			}
@@ -276,7 +276,7 @@ func yySDKRoutes(mux *http.ServeMux) {
 		out["game"] = append(out["game"], "execute")
 		out["web"] = append(out["web"], "invoke")
 		out["plugin"] = append(out["plugin"], "state", "save")
-		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.3", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
+		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.12", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
 	})
 	mux.HandleFunc("/api/youyuan/sdk/call", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -321,6 +321,7 @@ func yySDKString(args []any, index int) (string, error) {
 	return s, nil
 }
 func (s *yySDKContext) call(method string, args []any) (value any, err error) {
+	method = yySDKPacketAlias(method)
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%s: %v", method, r)
@@ -331,6 +332,9 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	s.Mu.Unlock()
 	if closed {
 		return nil, fmt.Errorf("插件已停止")
+	}
+	if method == "game.sendPacket" {
+		return yySendPacket(yyAccountBot(s.Instance.Account), args)
 	}
 	if _, ok := yyResourceDocs[method]; ok {
 		return yyResourceCall(yyResourceRoots{Code: filepath.Join(yyRuntimeRoot, s.Instance.Manifest.ID), Data: s.Dir, Config: filepath.Join(s.Dir, "config")}, method, args)
@@ -431,7 +435,31 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		kind := map[string]string{"events.onChat": "chat", "events.onJoin": "join", "events.onLeave": "leave", "events.onBotReady": "ready", "events.onPacket": "packet"}[method]
 		s.addListener(yySDKListener{Kind: kind, Handler: handler})
 		return true, nil
-	case "events.subscribe":
+	case "events.subscribe", "events.subscribeAll":
+		if method == "events.subscribeAll" {
+			h, e := yySDKString(args, 0)
+			if e != nil {
+				return nil, e
+			}
+			s.Mu.Lock()
+			defer s.Mu.Unlock()
+			if s.Closed {
+				return nil, fmt.Errorf("插件已停止")
+			}
+			for _, old := range s.Listeners {
+				if old.Kind == "subscribeAll" && old.Handler == h {
+					return true, nil
+				}
+			}
+			u := packetHubSubscribe("*", func(bm *BotManager, data map[string]any) {
+				if bm == yyAccountBot(s.Instance.Account) {
+					s.enqueue(h, []any{yyPacketEnvelope(bm, data)})
+				}
+			})
+			s.Unsubs = append(s.Unsubs, u)
+			s.Listeners = append(s.Listeners, yySDKListener{Kind: "subscribeAll", Handler: h})
+			return true, nil
+		}
 		packet, e := yySDKString(args, 0)
 		if e != nil {
 			return nil, e

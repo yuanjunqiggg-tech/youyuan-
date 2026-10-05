@@ -1,0 +1,2327 @@
+# Python 常驻插件开发手册
+
+游园 0.10.8 / SDK 1.12。Python逻辑在CPython运行，通过host调用当前账号的Go游戏功能；不是把Python翻译成Lua。Android内置Python，Linux使用Python子进程；第三方Android扩展必须匹配对应ABI。
+
+## 导入与入口
+
+ZIP根包括manifest.json、main.py；可包含lib/、resources/和说明。
+
+```json
+{"id":"my_python","name":"Python游戏插件","language":"python","entry":"main.py","version":"1.0.0","events":["chat"],"dependencies":{}}
+```
+
+```python
+count = 0
+
+def on_init(host):
+    host.game.registerTrigger([".你好"], hello)
+
+def hello(name, args):
+    global count
+    count += 1
+    host.game.sendTargeted(name, "§a常驻计数：%d" % count)
+
+def on_stop(host):
+    host.save({"count": count})
+```
+
+宿主在执行main.py前注入host及game/player/world等命名空间；推荐显式host.game。Python没有`import game`这个安装包。支持on_init(host)、on_event(event,host)、on_stop(host)及async版本。显式回调只收规定参数，不额外加host。数据是dict/list，列表索引0起；promptChoice返回的选项序号为兼容API仍从1起。错误为RuntimeError，可try/except；多返回值是list。
+
+每插件常驻asyncio循环，不每次asyncio.run；耗时HTTP可await host.invoke_async("game.execute",cmd)。后台任务停止时取消，自己创建的线程需自行结束。Android同一账号共享GIL；不宣称计算速度提高1000倍。使用from .lib import helper避免插件同名模块冲突。标准库json/pathlib/asyncio可以直接导入；SDK不是ToolDelta、NeOmega、Minecraft官方Script API的包兼容层。
+
+## 哪些功能可以组成原来的链
+
+| 游戏目的 | 已有入口 | 合适的链步骤 | 结果核对 |
+|---|---|---|---|
+| 雪球菜单、连续计分、CD、选择器检测 | game.sendCommand / sendCommandsFast | 预读TXT，整轮按序连续提交 | 分数或菜单实际变化 |
+| 上一条成功才继续 | game.execute / 有条件链 | 上一条和有条件节点设置确认点 | CommandOutput；超时未知 |
+| 命令链选择与启停 | chains.menu / handleChat / start / stop | 事件触发已有独立链 | chains.get/list的状态 |
+| 玩家挥臂或拾取物触发技能 | events.onSwing / onItemPickup | 收到真实事件后启动链 | source与runtime_id匹配 |
+| 查玩家位置、背包或血量后分支 | game.getPlayerPos / queryInventory / player.health | 先查询或读取观测，再选择链 | unknown/stale/权限与返回值 |
+| 建筑、声音、特效 | setblock/fill/playsound/particle指令 | 转成TXT命令再交同一执行器 | 区块、游戏声音和输出 |
+| 真实挖掘、攻击、移动 | world.mineBlock/useBlock、bot.attack/startMovement | 插件动作回调；不能伪装成同刻原子命令 | 服务端位置、UpdateBlock、伤害等 |
+
+TXT的0,0,0等是游园预解析语法，不发给游戏；第一位0连锁/1脉冲/2循环，第二位有无条件，第三位保留旧红石格式。`.`断开结果继承，`!`周期分界。具体控制语法读取command-chain/control-flow.md。Hz是**一整轮**目标频率；默认快速路径不逐条等回包、不每轮写文件、不重新解析TXT、不设置默认CPS等待。window是确认路径的在途数量，既不是一轮命令条数，也不是网络数据报个数。发送完成、服务端执行、同一个游戏Tick是三个不同指标；没有服务器批处理协议就不能承诺任意长链同Tick原子执行。
+
+## 游戏连接与可观测范围
+
+先连接对应服务器种类及其真实ID、room_id等，检查已连接与权限，再启用插件。原版游戏功能通过命令、服务器下发包、网易扩展和本地缓存组合实现，语言本身不会提高服务器权限。OP可用网易codebuilder_actorinfo查询背包，不能因此默认看到所有玩家的血量或输入。PlayerAuthInput通常是自己→服务器；旁观机器人不自动收到其他玩家的输入。RemoveActor是离开视野/移除，不足以确定死亡；Animate挥臂不能确定攻击命中或击杀者；UpdateBlock不能单独确定破坏者。没有真实数据时保留未知。
+
+## 配置、资源、重载与完整导出
+
+plugin.codeDir/dataDir/configDir/resourceDir/tempDir区分目录；Lua旧数据和配置路径保持兼容，SDK Python/C++数据按账号隔离。plugin.readResource读取原包resources，extractResource原字节复制到持久目录，**不是ZIP解压**。完整备份导出整个目录包含资源、配置和数据；发布到市场时排除私有数据。修改代码后先校验，再发布、热重载；重载不保留RAM，自己持久化所需状态。
+
+## 文档与工具不是权限
+
+本手册和每命名空间章节为离线Skill；AI按当前语言与需要的包/函数读取小节，不加载全体包正文。工具是否允许调用由工作区配置决定；知道函数不代表自动获准执行。原始协议目录单独加载packet-reference，包含当前编译内核所有真实已注册包和字段；每包发送能否成功仍由服务器判断。当前血量/死亡及部分物理动作尚未完成所有真人场景验收；文档不将未测能力标成实测。
+
+## API章节目录
+
+- [game · 游戏命令与交互](game.md)：发送指令、定向消息、记分板、背包查询、NBT、聊天菜单与机器人动作。
+- [player · 玩家资料与感知](player.md)：缓存、XUID、权限、背包、位置与已同步血量。未知血量不是20。
+- [world · 方块与物理操作](world.md)：查询、setblock、真实挖掘和手持物品点击。权限替换方块与生存挖掘是两种机制。
+- [events · 事件与抓包](events.md)：聊天、进退服、死亡、挥臂、实体出现与拾取，以及原始协议订阅。
+- [packet · 原始协议包](packet.md)：schema/describe查询字段，on/onAll监听，send请求服务器执行；不会取得服务器未下发的数据。
+- [bot · 机器人控制与路由](bot.md)：选择舰队机器人、状态、输入移动、看向坐标、近战攻击。无自动寻路保证。
+- [chains · 命令链管理](chains.md)：同一套TXT预解析、整链频率、启停、跨链与聊天菜单，可供插件调用。
+- [building · 建筑与颜色](building.md)：结构格式检测、解析和方块颜色匹配。这些解析函数不等于放置整个建筑。
+- [media · 图片与音乐](media.md)：图片字符画、MIDI解析、音高换算；解析函数本身不自动向游戏播放。
+- [plugin · 实例资源与诊断](plugin.md)：目录、资源、能力与统计；代码、配置、持久数据分开管理。
+- [util · 文件、时间与调度](util.md)：JSON文件、文本、数学、时间与整个回调的定时任务。
+- [api · 跨插件调用](api.md)：通过plugin_api导出函数；Lua、Python、C++可相互调用已启动实例。
+- [http · 网络与JSON](http.md)：返回status/body/headers，非2xx响应也可检查，不把远端错误吞掉。
+- [system · Android设备](system.md)：系统桥、通知、震动、Shizuku；桌面支持范围与Android不同。
+- [web · 插件控制页面](web.md)：声明式页面、HTML资源、动作回调与事件推送，重载清理旧注册。
+
+语法块是参数顺序参考；下方游戏用例为完整工作流。章节包含当前真实注册方法，不用内部Go函数名冒充插件API。
+
+# game · 游戏命令与交互
+
+发送指令、定向消息、记分板、背包查询、NBT、聊天菜单与机器人动作。
+
+
+### `game.dataDir`
+
+```python
+host.game.dataDir()
+```
+
+- 作用：返回本插件数据目录的完整路径，即 `插件数据文件/<id>/`。
+- 参数：无。
+- 返回：string。`__PLUGIN_ID__` 为空时返回空串。
+- 报错：无。
+- 底层：`pluginController.DataDir(id)`。
+
+### `game.execute`
+
+```python
+host.game.execute(command, options)
+```
+
+- 作用：发送命令并等待真实CommandOutput。
+- 参数：`command, options?`；按此顺序传入。
+- 返回：对象：submitted/confirmed/success/success_count/output/error等；超时为结果未知。
+- 底层与游戏效果：默认命令请求自动化来源，关联UUID回包。需要根据上一条成功决定下一条时使用；普通快速链避免逐条调用它。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `game.executeBatch`
+
+```python
+host.game.executeBatch(commands, options)
+```
+
+- 功能、参数、返回与约束：commands 字符串数组，options：channel=default/ai/player/console（或0/1/2字符串），mode=ordered/pipeline/submit/burst/stream，transport=command_request/settings/pyrpc（后两者仅submit，无逐条确认），window=1..16条在途命令；burst最多1024条整批协议发送，512KiB文本，默认无固定CPS等待，不保证同Tick，timeout_ms=100..10000。支持每实例默认配置与单次覆盖。ordered 逐条等待；pipeline 仅用于互不依赖的命令，不保证服务端完成顺序；submit 不等待结果。结果逐项含 submitted/confirmed/success/error/channel，超时未知不自动重发。stream单段最多4096条/512KiB，动态在途窗口最多1024，rate_cps=0无固定CPS，网络未知停止补发，正常无目标继续无条件后续；完整说明读 command-execution 技能。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `game.flyStart`
+
+```python
+host.game.flyStart()
+```
+
+- 作用：开始 / 停止飞行。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `flyStart/flyStop: <err>`。
+- 底层：把机器人切换为飞行/降落：优先走游戏接口的飞行控制（运动能力包），不可用时回退为发送带飞行标志的 `PlayerAuthInput` 包。
+
+### `game.flyStop`
+
+```python
+host.game.flyStop()
+```
+
+- 作用：开始 / 停止飞行。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `flyStart/flyStop: <err>`。
+- 底层：把机器人切换为飞行/降落：优先走游戏接口的飞行控制（运动能力包），不可用时回退为发送带飞行标志的 `PlayerAuthInput` 包。
+
+### `game.getBlockData`
+
+```python
+host.game.getBlockData(x, y, z)
+```
+
+- 作用：读某坐标方块的完整数据（名称 + 方块状态 + 方块实体 NBT）。读取命令方块指令、箱子物品、告示牌文字、旗帜图案等都从这里入手。会先把机器人传送过去加载区块（有移动副作用）。
+- 参数：`x`/`y`/`z` number 必填。
+- 返回：对象或数组 `{name = 方块名, states = {状态键 = 值, ...}, nbt = {NBT 键 = 值, ...}}`（无 NBT 时 `nbt` 省略）。
+- 报错：失败抛 `getBlockData: <err>`。
+- 底层：传送加载区块后，用游戏的**结构保存**机制读取：先通过 WS 自动化通道执行 `structure save "<随机名>" <区域>` 把该方块连同方块实体 NBT 存成一个临时结构，再发 `StructureTemplateDataRequest`（ExportFromSave）把结构数据拉回来，解析 `block_palette`（名称+状态）与 `block_position_data`（NBT）得到完整数据。有移动副作用。
+
+### `game.getBlockNBT`
+
+```python
+host.game.getBlockNBT(x, y, z)
+```
+
+- 作用：只读方块实体 NBT。命令方块指令在 `nbt.Command`，箱子物品在 `nbt.Items`，告示牌文字在 `nbt.FrontText.Text`。
+- 参数：`x`/`y`/`z` number 必填。
+- 返回：对象或数组，无 NBT 时返回 `nil`。
+- 报错：失败抛 `getBlockNBT: <err>`。
+- 底层：同 `getBlockData` 的结构保存机制（传送 + `structure save` + `StructureTemplateDataRequest`），只保留解析出的 NBT 部分。有移动副作用。
+
+### `game.getBlockState`
+
+```python
+host.game.getBlockState(x, y, z)
+```
+
+- 作用：读方块名称与方块状态（朝向/是否点亮/开关等），不含 NBT。
+- 参数：`x`/`y`/`z` number 必填。
+- 返回：对象或数组 `{name = 方块名, states = {...}}`。
+- 报错：失败抛 `getBlockState: <err>`。
+- 底层：同 `getBlockData` 的结构保存机制，只保留名称与方块状态，丢弃 NBT。有移动副作用。
+
+### `game.getBlockTile`
+
+```python
+host.game.getBlockTile(x, y, z)
+```
+
+- 作用：读某坐标的方块名。用安全版：可能先把机器人传送过去加载区块再查，避免远处区块"未加载"报错，因此有移动副作用。
+- 参数：`x`/`y`/`z` number 必填。
+- 返回：string（方块名/方块 ID）。
+- 报错：失败抛 `getBlockTile: <err>`。
+- 底层：**有移动副作用**：机器人先 `tp` 到目标上方高空（y=150）把该 x,z 的区块加载出来（`testforblock` 只对已加载区块有效，远处直接查会返回 `outOfWorld`），等游戏刻 + 约 400ms 区块就绪后查询，最后传送回原位。查询本身通过 WS 自动化通道执行 `testforblock <x> <y> <z> air`：`SuccessCount > 0` → 该坐标是空气；否则从命令失败输出里解析实际方块名（兼容网易版的参数偏移）。应在独立后台协程中调用（会传送并等待）。
+
+### `game.getBlockTileRaw`
+
+```python
+host.game.getBlockTileRaw(x, y, z)
+```
+
+- 作用：直接查询方块，不做传送加载（更快，但区块未加载可能报错）。
+- 参数：`x`/`y`/`z` number 必填。
+- 返回：string（方块名）。
+- 报错：失败抛 `getBlockTileRaw: <err>`。
+- 底层：通过 WS 自动化通道执行 `testforblock <x> <y> <z> air`：`SuccessCount > 0` → 空气；否则从失败输出解析实际方块名。**不做传送**，远区块可能因未加载返回 `outOfWorld` 报错。
+
+### `game.getBotPos`
+
+```python
+host.game.getBotPos()
+```
+
+- 作用：读取当前活跃机器人自身坐标。
+- 参数：无。
+- 返回：对象或数组 `{x, y, z}`。
+- 报错：无。
+- 底层：通过 WS 自动化通道执行只读命令 `querytarget @s` 并解析坐标、朝向、维度；pitch 与飞行/疾跑状态取本地缓存。
+
+### `game.getCommandOptions`
+
+```python
+host.game.getCommandOptions()
+```
+
+- 作用：查看本实例默认命令参数。
+- 参数：`无`；按此顺序传入。
+- 返回：channel/mode/window/timeout_ms/rate_cps/transport对象。
+- 底层与游戏效果：来自项目command-options.json或本实例setCommandOptions，不代表服务器实测速率。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `game.getConfig`
+
+```python
+host.game.getConfig(key, default)
+```
+
+- 作用：读本插件配置文件里某个键，缺失返回 `default`。
+- 参数：`key` string 必填；`default` 任意类型可选。
+- 返回：配置值（或 `default`）。
+- 报错：无（读失败回退默认）。
+- 底层：读取本插件配置文件 `插件配置文件/<id>/<id>.json`，命中则把值转成 Lua 返回，否则返回 `default`。依赖 `__PLUGIN_ID__`。
+
+### `game.getMultiScore`
+
+```python
+host.game.getMultiScore(target)
+```
+
+- 作用：读某目标在所有记分板上的分数。
+- 参数：`target` string 必填。
+- 返回：对象或数组，结构 `{player = {记分板名 = 分数, ...}}`。
+- 报错：失败抛 `getMultiScore: <err>`。
+- 底层：通过 **WS 自动化通道**执行 `scoreboard players list <目标>` 并等待 CommandOutput，把响应里逐条输出的"玩家·记分板·分数"（`commands.scoreboard.players.list.player.entry` 行）解析成 `{玩家 = {记分板 = 分数}}`。
+
+### `game.getPlayerItem`
+
+```python
+host.game.getPlayerItem(target, item, specialID)
+```
+
+- 作用：统计玩家背包里某种物品的数量，可带特殊数据 ID。
+- 参数：`target` string、`item` string 必填；`specialID` number 可选，默认 0。
+- 返回：number（数量）。
+- 报错：失败抛 `getPlayerItem: <err>`。
+- 底层：通过 **WS 自动化通道**执行游戏指令 `clear <目标> <物品> <特殊值> 0` 并等待 CommandOutput。**第 4 个参数 `0` 是游戏的"只统计不清除"技巧**——`clear` 的数量参数为 0 时不会真的清空物品，只报告玩家拥有多少这种物品（标准做法，可放心用于查数量）。响应为 `commands.clear.success` 时从输出的数量参数得到该物品数量；`commands.clear.failure.no.items`（玩家根本没有这种物品）返回 0；`commands.generic.syntax`（物品 ID 非法）报错。
+
+### `game.getPlayerPos`
+
+```python
+host.game.getPlayerPos(target)
+```
+
+- 作用：读玩家坐标与所在维度。
+- 参数：`target` string 必填（可为玩家名或 `@a`/`@p` 选择器）。
+- 返回：对象或数组 `{x, y, z, dimension}`。
+- 报错：失败抛 `getPlayerPos: <err>`。
+- 底层：通过 **WS 自动化通道**执行只读命令 `querytarget <目标>` 并等待响应，解析返回的坐标（玩家脚部位置）并修正成可读值：正数向下取整到两位小数、负数先减 1、Y 再减 1.62（眼睛高度）；俯仰角 pitch 从工具箱维护的玩家缓存补取。`querytarget` 无副作用。
+
+### `game.getPlayerPosXYZ`
+
+```python
+host.game.getPlayerPosXYZ(target)
+```
+
+- 作用：读玩家坐标，直接返回三个数字。
+- 参数：`target` string 必填。
+- 返回：三个 number，依次 x、y、z。
+- 报错：失败抛 `getPlayerPosXYZ: <err>`。
+- 底层：同 `getPlayerPos`——执行 `querytarget` 后只取返回坐标的 x、y、z 三个数。
+
+### `game.getRegionBlockData`
+
+```python
+host.game.getRegionBlockData(x, y, z, sx, sy, sz)
+```
+
+- 作用：读一块区域（起点 `x,y,z`，尺寸 `sx×sy×sz`）所有方块的名称+状态+NBT，一次结构保存返回，适合整片区域/区块探查。
+- 参数：6 个 number 均必填，尺寸需为正。
+- 返回：对象或数组，键为 `"x,y,z"` 绝对坐标，值为 `{name, states, nbt}`。
+- 报错：失败抛 `getRegionBlockData: <err>`。
+- 底层：机器人先传送到区域中心上方加载区块，再**一次结构保存**（`structure save` + `StructureTemplateDataRequest`）把整片区域拉回，按 `block_indices` 线性索引还原成 `"x,y,z"` → 方块数据的映射。有移动副作用。
+
+### `game.getScore`
+
+```python
+host.game.getScore(scoreboard, target)
+```
+
+- 作用：读某记分板里某个目标（玩家名）的分数。
+- 参数：`scoreboard` string 必填；`target` string 必填。
+- 返回：number（分数）。
+- 报错：失败抛 `getScore: <err>`。
+- 底层：通过 **WS 自动化通道**执行 `scoreboard players test <目标> <记分板> 0 0`（借用"分数是否在 0~0 之间"的判断把分数值带出来）并等待 CommandOutput，从响应的 `Parameters[0]` 读出分数。响应是 `commands.scoreboard.objectiveNotFound`（计分板不存在）、`...players.list.player.empty`（目标不存在）或 `...players.score.notFound`（目标在该记分板无分数）时，分别报对应错误。
+
+### `game.getTarget`
+
+```python
+host.game.getTarget(selector)
+```
+
+- 作用：解析选择器，返回匹配的玩家名数组。
+- 参数：`selector` string 必填。
+- 返回：对象或数组（玩家名字符串数组，1 起索引）。
+- 报错：失败抛 `getTarget: <err>`。
+- 底层：通过 **WS 自动化通道**执行 `testfor <选择器>` 并等待响应，把输出参数里逗号分隔的玩家名列表解析成数组。选择器语法错误（`commands.generic.syntax`）时报错；无匹配返回空表。
+
+### `game.getTickingAreaList`
+
+```python
+host.game.getTickingAreaList()
+```
+
+- 作用：读当前加载的常驻区域（ticking area）列表。
+- 参数：无。
+- 返回：对象或数组 `{区域名 = {dimension, start_x, start_z, end_x, end_z}}`。
+- 报错：失败抛 `getTickingAreaList: <err>`。
+- 底层：通过 **WS 自动化通道**执行 `tickingarea list all-dimensions` 并等待响应，把命令返回的多行文本输出（每维度一组，每组里 `- 名称: (startX, startZ) to (endX, endZ)`）解析成结构化表。
+
+### `game.httpGet`
+
+```python
+host.game.httpGet(url)
+```
+
+- 作用：发起 HTTP GET 请求，返回响应体文本。
+- 参数：`url` string 必填。
+- 返回：string（响应体）。
+- 报错：失败抛 `httpGet: <err>`。
+- 底层：发起一次真实的 HTTP GET 请求，把响应体按 UTF-8 文本返回；网络错误或非 2xx 状态码都会抛错。
+
+### `game.httpPost`
+
+```python
+host.game.httpPost(url, body, headers)
+```
+
+- 作用：发起 HTTP POST 请求，可带自定义请求头。
+- 参数：`url` string 必填；`body` string 可选，默认 `""`；`headers` 对象或数组（键值均为 string）可选。
+- 返回：string（响应体）。
+- 报错：失败抛 `httpPost: <err>`。
+- 底层：发起一次真实的 HTTP POST 请求（可带请求头与请求体），把响应体按 UTF-8 文本返回；网络错误或非 2xx 状态码都会抛错。
+
+### `game.isCmdSuccess`
+
+```python
+host.game.isCmdSuccess(cmd)
+```
+
+- 作用：执行一条指令并判断是否成功，返回布尔。
+- 参数：`cmd` string 必填。
+- 返回：boolean（是否成功）。
+- 报错：失败抛 `isCmdSuccess: <err>`。
+- 底层：通过 **WS 自动化通道**执行指令并**等待 CommandOutput**，命令响应的 `SuccessCount > 0` 即视为成功。无 OP 或语法错误的指令，服务器返回失败输出，此函数返回 `false`。
+
+### `game.jsonDecode`
+
+```python
+host.game.jsonDecode(s)
+```
+
+- 作用：把 JSON 字符串解析成 JSON兼容值。
+- 参数：`s` string 必填。
+- 返回：任意 JSON兼容值（表/数字/字符串/布尔）。
+- 报错：解析失败抛 `jsonDecode: <err>`。
+- 底层：把 JSON 解析成对应 Lua 类型（对象→表、数组→1 起索引的表、数字/字符串/布尔原样返回）。
+
+> 这几个是挂在 `game` 上的轻量便捷方法；需要完整请求控制（超时、多种方法、错误码）时用 4.12 节的 `http` 模块。
+
+### `game.jsonEncode`
+
+```python
+host.game.jsonEncode(v)
+```
+
+- 作用：把任意 JSON兼容值编码成 JSON 字符串。
+- 参数：`v` 任意类型。
+- 返回：string（JSON）。
+- 报错：序列化失败抛 `jsonEncode: <err>`。
+- 底层：把 JSON兼容值映射成对应的 JSON 类型（表→对象/数组、数字/字符串/布尔原样）后编码成字符串。
+
+### `game.jump`
+
+```python
+host.game.jump()
+```
+
+- 作用：让机器人跳一下。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `jump: <err>`。
+- 底层：模拟按一次跳跃键：置位跳跃标志让心跳携带跳跃输入，约 200ms 后自动松开。
+
+### `game.move`
+
+```python
+host.game.move(dx, dy, dz)
+```
+
+- 作用：让机器人相对当前位置移动。
+- 参数：`dx`/`dy`/`dz` number 必填。
+- 返回：无。
+- 报错：失败抛 `move: <err>`。
+- 底层：在当前坐标上累加位移后发一个 `MovePlayer` 包（`MoveModeTeleport`），瞬间完成相对移动。
+
+### `game.placeNBTBlock`
+
+```python
+host.game.placeNBTBlock(x, y, z, name, states, nbtTable)
+```
+
+- 作用：放置一个带 NBT 的特殊方块（命令方块/结构方块/告示牌/箱子/旗帜等），自动按方块类型选择最快可靠的放置方式：
+  - 命令方块：`{Command = "say hi", Conditional = 1, TickDelay = 0}`；
+  - 告示牌：`{FrontText = {Text = "你好", Color = "black"}, ...}`；
+  - 箱子：`{Items = {{Count = 1, Name = "minecraft:diamond", Slot = 0}, ...}}`。
+- 参数：`name` string 必填；`states` string 可选；`nbtTable` 对象或数组 可选。
+- 返回：无。
+- 报错：失败抛 `placeNBTBlock: <err>`。
+- 底层：按 `building.ClassifyBlock` 对方块分类后选择不同游戏机制：命令方块/结构方块 → **直接发 NBT 包**（快）；告示牌 → 直接发 `PlaceSign` 包（快）；重 NBT 方块（箱子/旗帜等）→ 机器人**放到远程工作台 + 结构复制**（慢，需要结构权限）；普通方块 → `setblock` 指令。
+
+### `game.promptChoice`
+
+```python
+host.game.promptChoice(player, title, options, timeoutSec)
+```
+
+- 作用：显示菜单并**阻塞等待玩家选择**，返回所选选项下标。
+- 参数：`player`/`title` string、`options` 对象或数组 必填；`timeoutSec` number 可选，默认 30。
+- 返回：number 或 nil。成功返回 **1 起** 下标（第一个是 1）；超时/取消/无效输入返回 `nil`。
+- 报错：失败抛 `promptChoice: <err>`。
+- 底层：先用 `showMenu` 把菜单发给玩家，再用 `waitMsg` 的机制**阻塞等待该玩家的下一条聊天消息**，把它解析成序号（支持 `1`、`1.`、`1、` 等写法）。超时或输入无效返回 `nil`。
+
+### `game.queryInventory`
+
+```python
+host.game.queryInventory(selector)
+```
+
+- 作用：查询玩家背包物品清单。
+- 参数：`selector` string 必填。
+- 返回：对象或数组 `{items = {{name, count, slot, damage}, ...}}`。
+- 报错：失败抛 `queryInventory: <err>`。
+- 底层：通过 WS 自动化通道执行网易特有的 `codebuilder_actorinfo inventory <选择器>` 并等待响应，从命令响应的 DataSet（JSON）里解析出 `{name, count, slot, damage}` 物品清单。需要机器人具备网易 AI/指令权限。
+
+### `game.registerTrigger`
+
+```python
+host.game.registerTrigger(wordsTable, handlerName)
+```
+
+- 作用：注册聊天触发词，常驻实例调用handler(player,args)。
+- 参数：`wordsTable, handlerName`；按此顺序传入。
+- 返回：Lua无返回；SDK注册成功为true。
+- 底层与游戏效果：源码只加载一次；玩家发“触发词 参数”后在该插件常驻状态中调用函数。args为参数数组，不重置全局变量。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `game.rotate`
+
+```python
+host.game.rotate(pitch, yaw, seconds)
+```
+
+- 作用：设置机器人朝向。
+- 参数：`pitch`/`yaw` number 必填；`seconds` number 可选——省略或 `0` 时**立即转到**目标角度，`>0` 时在 seconds 秒内**平滑转动**过去（yaw 走最短路径，如从 350° 转到 10° 只转 20°）。
+- 返回：无。
+- 报错：失败抛 `rotate: <err>`。
+- 底层：只更新机器人本地视角状态，心跳（50ms）通过 `PlayerAuthInput` 包把新视角发送到服务器。秒数 `>0` 时先在本地逐帧插值，再由心跳带出中间帧。
+
+### `game.scene`
+
+```python
+host.game.scene()
+```
+
+- 功能、参数、返回与约束：无参数。当前账号的机器人和已观测实体快照；含 known、stale、数据时间和来源。AI 没有独立游戏实体，bot 是当前账号控制的机器人。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `game.sendActionbar`
+
+```python
+host.game.sendActionbar(target, text)
+```
+
+- 作用：给玩家显示动作栏消息（物品栏上方那行）。
+- 参数：`target`/`text` string 必填。
+- 返回：无。
+- 报错：失败抛 `sendActionbar: <err>`。
+- 底层：通过当前账号命令发送通道发 `titleraw <target> actionbar {"rawtext":[{"text":"..."}]}`。
+
+### `game.sendChat`
+
+```python
+host.game.sendChat(target, message)
+```
+
+- 作用：给指定玩家或选择器（如 `@a`）发一条聊天消息。
+- 参数：`target` string 必填；`message` string 必填。
+- 返回：无。
+- 报错：失败抛 `sendChat: <err>`。
+- 底层：通过当前账号命令发送通道发 `tellraw <target> {"rawtext":[{"text":"..."}]}`（target 为 `@a` 或玩家名），文本里的 `"` 会自动转义。
+
+### `game.sendCommand`
+
+```python
+host.game.sendCommand(cmd, options)
+```
+
+- 作用：无等待按顺序提交命令；没有默认逐条CPS等待。
+- 参数：`cmd, options?`；按此顺序传入。
+- 返回：Lua旧单参数写法保持无返回值；Python/C++返回提交信息（submitted/confirmed）。
+- 底层与游戏效果：当前默认魔法/ai使用SettingsCommand，套execute as机器人 at @s保留执行者与相对坐标；player/console为相应CommandRequest。不会逐条等待CommandOutput。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `game.sendCommandConfirmed`
+
+```python
+host.game.sendCommandConfirmed(command, options)
+```
+
+- 功能、参数、返回与约束：command, options?；game.execute别名，等待真实CommandOutput，超时为未知，不自动重发。只在依赖前条结果时使用。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `game.sendCommandFast`
+
+```python
+host.game.sendCommandFast(command, options)
+```
+
+- 功能、参数、返回与约束：command, options?；无等待提交，魔法/ai 默认使用 SettingsCommand 并保持机器人 @s/相对坐标；其他通道保持来源。rate_cps 默认0，不逐条等回包。confirmed=false 不能当游戏成功。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `game.sendCommandsFast`
+
+```python
+host.game.sendCommandsFast(commands, options)
+```
+
+- 功能、参数、返回与约束：commands数组, options?；一次插件宿主边界按顺序提交完整数组，不限整数组行数，不等待逐条回包。先校验全部命令；中途网络失败报告已提交数量，不自动重发，不保证同一服务器Tick或原子执行。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `game.sendLines`
+
+```python
+host.game.sendLines(player, text, maxLines)
+```
+
+- 作用：把长文本**按换行逐条发送**，避免单条超长被截断、或某行含敏感词整段被拦。超行数时先提示"仅显示前 N 行"。空行跳过。
+- 参数：`player` string 必填；`text` string 必填；`maxLines` number 可选，默认 50。
+- 返回：无。
+- 报错：无。
+- 底层：把长文本按 `\n` 切分，逐行用 `sendTargeted` 的定向 tellraw 机制发送；超过 `maxLines` 先提示"仅显示前 N 行"，空行跳过。
+
+### `game.sendPacket`
+
+```python
+host.game.sendPacket(typeNameOrId, fieldsTable)
+```
+
+- 作用：发送一个已校验的协议包，支持包名或协议ID。
+- 参数：`typeNameOrId, fieldsTable?`；按此顺序传入。
+- 返回：submitted=true, confirmed=false；校验、编码或网络错误抛异常。
+- 底层与游戏效果：反射填充当前内核真实类型后conn.WritePacket；字段用snake_case；bytes/UUID为hex，Vec为数组，64位ID建议十进制字符串。联合接口类型不猜测，使用高级动作API或payload_hex完整包体。登录生命周期不可重发。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `game.sendRichTellraw`
+
+```python
+host.game.sendRichTellraw(msg)
+```
+
+- 作用：发送原生 tellraw 富文本（支持 JSON 样式），常用于公告。
+- 参数：`msg` string 必填。
+- 返回：无。
+- 报错：失败抛 `sendRichTellraw: <err>`。
+- 底层：通过当前账号命令发送通道发 `tellraw @a {"rawtext":[{"text":"..."}]}`，`msg` 里的 `"` 自动转义后嵌入 JSON。
+
+### `game.sendTargeted`
+
+```python
+host.game.sendTargeted(player, text)
+```
+
+- 作用：只给指定玩家发一条消息，不广播给其他人。`§` 前缀可带颜色（如 `"§a成功！"`）。
+- 参数：`player` string 必填；`text` string 必填。
+- 返回：无。
+- 报错：无（底层错误被忽略）。
+- 底层：通过**当前账号命令发送通道**（无等待默认SettingsCommand，保留机器人执行上下文）发定向 tellraw：`tellraw @a[name="<玩家>"] {"rawtext":[{"text":"..."}]}`。只发给该玩家、绝不广播；用 `@a[name=...]` 选择器是为了兼容网易服（普通通道在网易不执行）。
+
+### `game.sendTitle`
+
+```python
+host.game.sendTitle(target, title, subtitle)
+```
+
+- 作用：给玩家显示大标题 + 副标题。
+- 参数：`target`/`title`/`subtitle` 均 string 必填。
+- 返回：无。
+- 报错：失败抛 `sendTitle: <err>`。
+- 底层：通过当前账号命令发送通道发 `titleraw <target> title {"rawtext":[{"text":"..."}]}`；副标题非空时再追加一条 `titleraw <target> subtitle {"rawtext":[...]}`。
+
+### `game.setBlock`
+
+```python
+host.game.setBlock(x, y, z, name, states)
+```
+
+- 作用：放置一个普通方块，可带方块状态字符串。
+- 参数：`name` string 必填；`states` string 可选（如 `["facing_direction"=3]`，默认空）。
+- 返回：无。
+- 报错：失败抛 `setBlock: <err>`。
+- 底层：通过**当前账号命令发送通道**发 `setblock <x> <y> <z> <方块> <states>`（PyRpc `ExecuteCommandEvent`，权限比普通命令通道高，在网易租赁服更可靠），发完稍等片刻返回。
+
+### `game.setBlockState`
+
+```python
+host.game.setBlockState(x, y, z, statesTable)
+```
+
+- 作用：修改某方块的方块状态并保留原 NBT（如把命令方块设为条件模式、把方块朝向改朝北）。会先读当前方块，合并新状态后重新放置。
+- 参数：`statesTable` 对象或数组 必填，键 = 状态名，值 = 数值/布尔（如 `{conditional_bit = 1, facing_direction = 3}`）。
+- 返回：无。
+- 报错：失败抛 `setBlockState: <err>`。
+- 底层：先按 `getBlockData` 的结构保存机制读回当前方块的名称、状态与 NBT，把新状态合并进去后，再按 `placeNBTBlock` 的方式**重新放置**该方块（保留原 NBT）。有移动副作用（需要传送读取）。
+
+> **注意**：箱子/旗帜这类"重 NBT 方块"写入在网易下走远程工作台 + 结构复制，较慢且需要结构权限；命令方块/告示牌直接发包，快。读取和写入都会传送机器人加载区块，属正常副作用。
+
+### `game.setCommandOptions`
+
+```python
+host.game.setCommandOptions(options)
+```
+
+- 作用：更新本实例默认命令参数，不修改其他插件。
+- 参数：`options`；按此顺序传入。
+- 返回：合并后的options对象。
+- 底层与游戏效果：channel=ai/player/console/default，mode=ordered/pipeline/submit/burst/stream，window、timeout_ms、rate_cps；rate_cps=0不加人为CPS等待。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `game.setConfigDefault`
+
+```python
+host.game.setConfigDefault(table)
+```
+
+- 作用：把配置文件中**缺失的键**写入默认值（已有的键不覆盖）。
+- 参数：`对象或数组` 必填（键值任意类型）。
+- 返回：无。
+- 报错：无（写失败忽略）。
+- 底层：先读 `插件配置文件/<id>/<id>.json`，把其中缺失的键补写进去（已存在的键不动）。依赖 `__PLUGIN_ID__`。
+
+### `game.setEffect`
+
+```python
+host.game.setEffect(player, effect, duration, level, particles)
+```
+
+- 作用：给玩家施加药水效果。
+- 参数：`player` string、`effect` string、`duration` number、`level` number 必填；`particles` boolean 可选，默认 `true`。
+- 返回：无。
+- 报错：失败抛 `setEffect: <err>`。
+- 底层：通过 **WS 自动化通道**执行 `effect <玩家> <效果> <时长秒> <等级> <是否显示粒子>` 并等待响应，响应 `commands.effect.success` 才算成功。`commands.generic.noTargetMatch`（没有匹配目标）时报错；等级上限 255、时长上限 1000000 秒，超出直接报错。
+
+### `game.setScore`
+
+```python
+host.game.setScore(board, target, score)
+```
+
+- 作用：写入记分板，执行 `scoreboard players set`。
+- 参数：`board` string、`target` string、`score` number 均必填。
+- 返回：无。
+- 报错：失败抛 `setScore: <err>`。
+- 底层：拼指令 `scoreboard players set <target> <board> <score>`，通过**当前账号命令发送通道**发出，不等响应。
+
+### `game.showMenu`
+
+```python
+host.game.showMenu(player, title, options)
+```
+
+- 作用：给玩家显示一个聊天栏菜单（标题 + 若干选项），只展示不等待。
+- 参数：`player` string、`title` string 必填；`options` 对象或数组（字符串数组）必填。
+- 返回：无。
+- 报错：无。
+- 底层：通过当前账号命令发送通道给该玩家发**多条定向 tellraw**（绝不广播）：标题一条，每个选项一条 `§e序号. 选项文字`。
+
+### `game.sneakStart`
+
+```python
+host.game.sneakStart()
+```
+
+- 作用：开始 / 停止潜行。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `sneakStart/sneakStop: <err>`。
+- 底层：设置潜行标志，心跳持续携带潜行输入；`sneakStop` 额外发一个带 `StopSneaking` 标志的 `PlayerAuthInput` 包。
+
+### `game.sneakStop`
+
+```python
+host.game.sneakStop()
+```
+
+- 作用：开始 / 停止潜行。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `sneakStart/sneakStop: <err>`。
+- 底层：设置潜行标志，心跳持续携带潜行输入；`sneakStop` 额外发一个带 `StopSneaking` 标志的 `PlayerAuthInput` 包。
+
+### `game.sprintStart`
+
+```python
+host.game.sprintStart()
+```
+
+- 作用：开始 / 停止疾跑。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `sprintStart/sprintStop: <err>`。
+- 底层：设置奔跑标志，心跳持续携带奔跑输入。
+
+### `game.sprintStop`
+
+```python
+host.game.sprintStop()
+```
+
+- 作用：开始 / 停止疾跑。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `sprintStart/sprintStop: <err>`。
+- 底层：设置奔跑标志，心跳持续携带奔跑输入。
+
+### `game.stopMove`
+
+```python
+host.game.stopMove()
+```
+
+- 作用：停止机器人当前移动。
+- 参数：无。
+- 返回：无。
+- 报错：失败抛 `stopMove: <err>`。
+- 底层：关闭持续移动的本地循环并清空移动输入标志，心跳随之不再携带方向输入。
+
+### `game.teleport`
+
+```python
+host.game.teleport(x, y, z)
+```
+
+- 作用：传送机器人到绝对坐标。
+- 参数：`x`/`y`/`z` number 必填。
+- 返回：无。
+- 报错：失败抛 `teleport: <err>`。
+- 底层：发一个 `MovePlayer` 包（`MoveModeTeleport`）把机器人瞬间传送到目标坐标——**不是 `/tp` 指令**，是客户端传送包，服务器按传送处理。
+
+### `game.waitMsg`
+
+```python
+host.game.waitMsg(player, timeoutSec)
+```
+
+- 作用：**阻塞等待玩家在聊天栏发一条消息**，返回内容。用于要输入（领地、数量等）。
+- 参数：`player` string 必填；`timeoutSec` number 可选，默认 30。
+- 返回：string（收到的消息）。超时返回 `nil`。
+- 报错：失败抛 `waitMsg: <err>`。
+- 底层：在机器人**收包循环**里为该玩家注册一个"等待通道"，玩家下一条聊天消息到达时投递给等待者。它**独占**该玩家的消息——同一玩家已有活跃等待会话时，新消息会被它消费掉，`onChat` 等其它 handler 收不到。
+
+# player · 玩家资料与感知
+
+缓存、XUID、权限、背包、位置与已同步血量。未知血量不是20。
+
+
+### `player.count`
+
+```python
+host.player.count()
+```
+
+- 作用：返回在线玩家数量。
+- 参数：无。
+- 返回：number。
+- 报错：无。
+- 底层：玩家缓存表当前条数。
+
+### `player.get`
+
+```python
+host.player.get(name)
+```
+
+- 作用：按名字查玩家信息。
+- 参数：`name` string 必填。
+- 返回：对象或数组 `{name, xuid, unique_id, is_op, online, dimension, x, y, z, held_item?}`（`held_item` 仅非空时出现，为网络 ID）。玩家不存在返回**空表**（不是 nil）。
+- 报错：`name` 非 string 抛类型错误。
+- 底层：直接查玩家缓存表，不向游戏发指令。
+
+### `player.getInventory`
+
+```python
+host.player.getInventory(name)
+```
+
+- 作用：走当前活跃机器人查询某玩家背包物品清单。
+- 参数：`name` string 必填。
+- 返回：对象或数组 `{items = {{name, count, slot, damage}, ...}}`。
+- 报错：失败抛 `player.getInventory: <err>`。
+- 底层：同 `game.queryInventory`——通过 WS 自动化通道执行网易特有命令 `codebuilder_actorinfo inventory <玩家名>`，从响应 DataSet（JSON）解析物品清单。
+
+### `player.getUniqueID`
+
+```python
+host.player.getUniqueID(name)
+```
+
+- 作用：查玩家实体唯一 ID。
+- 参数：`name` string 必填。
+- 返回：number；玩家不存在返回 **0**。
+- 报错：`name` 非 string 抛类型错误。
+- 底层：直接查玩家缓存表的实体唯一 ID 字段。
+
+### `player.getXUID`
+
+```python
+host.player.getXUID(name)
+```
+
+- 作用：查玩家 XUID。
+- 参数：`name` string 必填。
+- 返回：string；玩家不存在返回**空串**。
+- 报错：`name` 非 string 抛类型错误。
+- 底层：直接查玩家缓存表的 XUID 字段。
+
+### `player.health`
+
+```python
+host.player.health(target)
+```
+
+- 功能、参数、返回与约束：target 为 self、玩家名或 runtime_id 字符串，默认 self。返回已观测信息含 health_known/health/max_health/health_time/stale，未知为 null，不推算其他玩家满血。仅能获取服务器给本机器人同步的属性。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `player.isOP`
+
+```python
+host.player.isOP(name)
+```
+
+- 作用：判断玩家是否 OP。
+- 参数：`name` string 必填。
+- 返回：boolean（玩家存在且为 OP 才为 true，含不存在时返回 false）。
+- 报错：`name` 非 string 抛类型错误。
+- 底层：直接查玩家缓存表（`IsOP` 由 `UpdateAbilities`/`AddPlayer` 等数据包维护）。
+
+### `player.list`
+
+```python
+host.player.list()
+```
+
+- 作用：列出全部在线玩家信息表。
+- 参数：无。
+- 返回：对象或数组（1 起索引，每个元素是 `player.get` 同款信息表）。
+- 报错：无。
+- 底层：遍历玩家缓存表。
+
+### `player.nearby`
+
+```python
+host.player.nearby(radius)
+```
+
+- 功能、参数、返回与约束：radius=0..512，默认 32；按机器人已观测位置计算同维度、仍存在的玩家距离并排序。不包括客户端不可见或未知坐标的玩家，机器人坐标未知报错。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `player.position`
+
+```python
+host.player.position(target)
+```
+
+- 功能、参数、返回与约束：target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+# world · 方块与物理操作
+
+查询、setblock、真实挖掘和手持物品点击。权限替换方块与生存挖掘是两种机制。
+
+
+### `world.block`
+
+```python
+host.world.block(x, y, z)
+```
+
+- 作用：查询世界某坐标的方块名（需要机器人连接，目标为当前活跃机器人）。
+- 参数：`x`/`y`/`z` number 必填（整数坐标）。
+- 返回：string（方块名）。
+- 报错：查询失败抛 `world.block: <err>`；参数非整数抛类型错误。
+- 底层：同 `game.getBlockTile`——机器人先传送加载区块，再执行 `testforblock <x> <y> <z> air` 判断方块名。**有移动副作用**（会把当前活跃机器人传送过去再传回）。
+
+### `world.blockState`
+
+```python
+host.world.blockState(x, y, z)
+```
+
+- 功能、参数、返回与约束：x,y,z 整数坐标。返回当前维度 layer=0 的最近 UpdateBlock 观测，未知 known=false；包含方块 runtime_id，不把任何更新都认定是玩家破坏。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `world.breakBlock`
+
+```python
+host.world.breakBlock(x, y, z, mode)
+```
+
+- 功能、参数、返回与约束：x,y,z 整数坐标，mode=command 或 creative_action，默认 command。command 用 setblock ... air destroy 等待实际结果；creative_action 发创造模式破坏动作，要求游戏模式和六格范围，不代表服务器确认。生存挖掘的装备/耗时/交易流程尚不支持。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `world.mineBlock`
+
+```python
+host.world.mineBlock(x, y, z, duration_ms, slot, face)
+```
+
+- 功能、参数、返回与约束：x,y,z,duration_ms=1000,slot=0,face=1；生存挖掘尝试，真实开始/持续/结束动作与手持库存交易，按 100ms 发送。需要最近方块观测；服务端可拒绝，返回 submitted/confirmed。硬度、工具正确与否由服务器判断。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `world.placeBlock`
+
+```python
+host.world.placeBlock(x, y, z, block)
+```
+
+- 功能、参数、返回与约束：x,y,z 整数坐标，block 例如 minecraft:stone。用服务器 setblock 指令，返回真实结果，需要权限。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `world.useBlock`
+
+```python
+host.world.useBlock(x, y, z, face, slot)
+```
+
+- 功能、参数、返回与约束：x,y,z,face=1,slot=0；真实手持物品点击指定方块面（可放置、开容器），需要已观测目标方块和六格范围。不是 setblock；返回提交状态，消耗与放置观察服务器。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+# events · 事件与抓包
+
+聊天、进退服、死亡、挥臂、实体出现与拾取，以及原始协议订阅。
+
+
+### `events.captureClear`
+
+```python
+host.events.captureClear()
+```
+
+- 功能、参数、返回与约束：清空当前账号抓包缓冲，保持抓包开关。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.captureRead`
+
+```python
+host.events.captureRead(after_sequence, limit)
+```
+
+- 功能、参数、返回与约束：after_sequence=0,limit=256，返回记录/游标/覆盖和抽样统计。缓冲有界，单条超大小截为预览；不是手机所有 App 的网络抓包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.captureStart`
+
+```python
+host.events.captureStart(config)
+```
+
+- 功能、参数、返回与约束：config={types:[包名或*],exclude:[包名],filter:{fields:{...},every_ms:...},capacity:1..2048,max_bytes:512..65536}。开启账号级解码入站游戏抓包；默认血量/死亡/位置/方块包，认证握手不记录，* 默认不包含大区块包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.captureStop`
+
+```python
+host.events.captureStop()
+```
+
+- 功能、参数、返回与约束：停止记录，保留已抓数据。当前账号的多个插件共用账号级记录；使用时协调抓包开关。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onBlockChange`
+
+```python
+host.events.onBlockChange(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)，UpdateBlock 导出 position/runtime_id/previous/cause_known=false；不能仅从方块更新认定破坏者。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onBotReady`
+
+```python
+host.events.onBotReady(handlerName)
+```
+
+- 作用：注册机器人就绪事件处理器。
+- 参数：`handlerName` string 必填，回调签名 `onBotReady()`——0 参。
+- 返回：无。
+- 报错：`handlerName` 非 string 抛类型错误。
+- 底层：`registerEvent(&evBotReady, L)`。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onChat`
+
+```python
+host.events.onChat(handlerName)
+```
+
+- 作用：注册聊天事件处理器。
+- 参数：`handlerName` string 必填，回调签名 `onChat(player, msg)`——触发传 2 参：`player` string（玩家名）、`msg` string（聊天内容）。
+- 返回：无。
+- 报错：`handlerName` 非 string 抛类型错误。
+- 底层：`registerEvent(&evChat, L)`；触发 `fireChatEvent` → `runEventHandlers`。实时。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onDeath`
+
+```python
+host.events.onDeath(handler)
+```
+
+- 功能、参数、返回与约束：handler 回调接收一个事件对象，来源为 ActorEventDeath/InstantDeath 或 health<=0；同一已死亡状态去重，重生后可再触发。不推测死亡原因/攻击者。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onEntityRemove`
+
+```python
+host.events.onEntityRemove(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；RemoveActor下发时触发，含unique_id和已知runtime_id。消失不等于死亡，也可能是离开视距。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onEntitySpawn`
+
+```python
+host.events.onEntitySpawn(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；AddPlayer/AddActor/AddItemActor下发时触发，含实体类型、位置和原始fields。服务器视距内的出现，不代表世界内首次出生；血量仅取真实同步属性。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onHealthChange`
+
+```python
+host.events.onHealthChange(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)，仅在观测血量初始值或变化时入队，含 previous/health/max_health/time/source。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onHurt`
+
+```python
+host.events.onHurt(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)，来源为血量下降或 ActorEventHurt，两种独立来源可能各触发一次；无法识别准确攻击者，不用编造 cause。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onItemPickup`
+
+```python
+host.events.onItemPickup(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；TakeItemActor下发时触发，含拾取实体和掉落物runtime_id、已观测item/position。拾取者可为生物；不凭RemoveActor猜拾取。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onJoin`
+
+```python
+host.events.onJoin(handlerName)
+```
+
+- 作用：注册玩家加入事件处理器。
+- 参数：`handlerName` string 必填，回调签名 `onJoin(player)`——1 参 `player` string。
+- 返回：无。
+- 报错：`handlerName` 非 string 抛类型错误。
+- 底层：`registerEvent(&evJoin, L)`；由后台 5 秒玩家列表轮询差量触发（有约几秒延迟）。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onLeave`
+
+```python
+host.events.onLeave(handlerName)
+```
+
+- 作用：注册玩家离开事件处理器。
+- 参数：`handlerName` string 必填，回调签名 `onLeave(player)`——1 参 `player` string。
+- 返回：无。
+- 报错：`handlerName` 非 string 抛类型错误。
+- 底层：`registerEvent(&evLeave, L)`；由 5 秒轮询差量触发。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onMove`
+
+```python
+host.events.onMove(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)，服务器实际位置初始值/变化时触发；含 previous_known/position/dimension/source。高频事件可用抓包抽样过滤减少负担。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onPacket`
+
+```python
+host.events.onPacket(handlerName)
+```
+
+- 作用：注册数据包事件处理器。
+- 参数：`handlerName` string 必填，回调签名 `onPacket(type, dataTable)`——2 参：`type` string（包类型）、`dataTable` 对象或数组（数据）。
+- 返回：无。
+- 报错：`handlerName` 非 string 抛类型错误。
+- 底层：`registerEvent(&evPacket, L)`；触发 `firePacketEvent`，数据经 `goToLua` 转表。实时。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onRespawn`
+
+```python
+host.events.onRespawn(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)，只处理服务端 RespawnStateReadyToSpawn，清除旧血量等待新属性。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.onSwing`
+
+```python
+host.events.onSwing(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；服务器AnimateActionSwingArm下发时触发，含runtime_id/player/source。挥臂不证明命中了目标，服务器未广播则无法观测。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.packetSchema`
+
+```python
+host.events.packetSchema()
+```
+
+- 功能、参数、返回与约束：无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.subscribe`
+
+```python
+host.events.subscribe(packetType, handlerName)
+```
+
+- 作用：**通用数据包订阅**。订阅任意一个数据包类型（按 Go 类型名，如 `"MovePlayer"`/`"SetTime"`/`"PlayerList"`/`"Text"`）。订阅后机器人只监听你订阅的包类型，收到就把**完整**数据包广播给该 handler。
+- 参数：`packetType` string 必填（包类型名）；`handlerName` string 必填，回调签名 `onData(dataTable)`——1 参：`dataTable` 对象或数组（包数据，字段名 snake_case；`[]byte` 给**完整 hex**，不截断）。
+- 返回：无。同插件同类型同 handler 自动去重；重跑上下文跳过注册。
+- 报错：参数非 string 抛类型错误；不在插件上下文调用报错。
+- 底层：`registerPacketSub` → `packetHubSubscribe`（packet_hub.go）。想查有哪些包类型可订阅，可用 AI 的 `list_packets` 工具。清理：插件停止时 `RemovePluginEvents` 一并退订。
+- 示例：
+
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.subscribeAll`
+
+```python
+host.events.subscribeAll(handlerName)
+```
+
+- 作用：全量入站包订阅，回调接收一个包信封。
+- 参数：`handlerName`；按此顺序传入。
+- 返回：Lua无返回；SDK注册成功true；停止自动退订。
+- 底层与游戏效果：信封含seq/at/direction/bot/packet_type/packet_id/fields。只序列化有订阅的包；全包模式会含高频及大区块数据，正式插件优先subscribe或subscribeFiltered；队列有界，dropped可查。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `events.subscribeFiltered`
+
+```python
+host.events.subscribeFiltered(packet_type, filter, handler)
+```
+
+- 功能、参数、返回与约束：packet_type 或 *，filter={fields:{字段路径:精确值},every_ms:0..60000}，handler。Python 回调接收包对象；C++/Lua 使用已注册函数名。* 接收当前账号订阅包，事件字段 _packet_type 表示真实类型，停止自动退订。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+# packet · 原始协议包
+
+schema/describe查询字段，on/onAll监听，send请求服务器执行；不会取得服务器未下发的数据。
+
+
+### `packet.describe`
+
+```python
+host.packet.describe(typeNameOrId)
+```
+
+- 作用：查询一个包的实际ID和字段类型。
+- 参数：`typeNameOrId`；按此顺序传入。
+- 返回：name/id/fields对象；未知包抛错。
+- 底层与游戏效果：可离线查询。联合类型的具体分支不能仅靠顶层schema构造，请读对应协议章节。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `packet.on`
+
+```python
+host.packet.on(packetType, handlerName)
+```
+
+- 作用：events.subscribe的别名，回调接收字段对象。
+- 参数：`packetType, handlerName`；按此顺序传入。
+- 返回：注册结果。
+- 底层与游戏效果：精确类型订阅，fields里_packet_type为真实类型。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `packet.onAll`
+
+```python
+host.packet.onAll(handlerName)
+```
+
+- 作用：events.subscribeAll的别名。
+- 参数：`handlerName`；按此顺序传入。
+- 返回：注册结果。
+- 底层与游戏效果：回调接收包信封，fields包含实际包字段。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `packet.schema`
+
+```python
+host.packet.schema()
+```
+
+- 作用：查询当前编译内核的全部已注册协议包。
+- 参数：`无`；按此顺序传入。
+- 返回：包数组，每项name/id/fields。
+- 底层与游戏效果：从真实packet.ListAllPackets枚举，不根据网上版本猜包ID。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+### `packet.send`
+
+```python
+host.packet.send(typeNameOrId, fieldsTable)
+```
+
+- 作用：game.sendPacket的原始协议入口别名。
+- 参数：`typeNameOrId, fieldsTable?`；按此顺序传入。
+- 返回：提交状态，未确认。
+- 底层与游戏效果：同game.sendPacket。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+# bot · 机器人控制与路由
+
+选择舰队机器人、状态、输入移动、看向坐标、近战攻击。无自动寻路保证。
+
+
+### `bot.attack`
+
+```python
+host.bot.attack(runtime_id, slot)
+```
+
+- 功能、参数、返回与约束：runtime_id 字符串,slot=0；真实近战库存交易，只允许当前服务器观测的六格内实体；slot 为 0..8。返回 submitted，伤害必须由服务器事件确认。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `bot.count`
+
+```python
+host.bot.count()
+```
+
+- 作用：返回在线机器人数量。
+- 参数：无。
+- 返回：number。
+- 报错：无。
+- 底层：`GetFleetBots()`。
+
+### `bot.current`
+
+```python
+host.bot.current()
+```
+
+- 作用：返回当前活跃机器人的名字与坐标。
+- 参数：无。
+- 返回：对象或数组 `{name, x, y, z}`；无活跃机器人返回空表；坐标查询失败省略 x/y/z。
+- 报错：无。
+- 底层：从舰队管理器读当前选中的机器人名，再通过 WS 自动化通道执行 `querytarget @s` 取该机器人的坐标。
+
+### `bot.list`
+
+```python
+host.bot.list()
+```
+
+- 作用：列出在线机器人及坐标。
+- 参数：无。
+- 返回：对象或数组，1 起索引，每个元素 `{name, x, y, z}`（坐标查询失败省略坐标字段）。
+- 报错：无。
+- 底层：`GetFleetBots()` 遍历 + `QueryPosition()`。
+
+### `bot.lookAt`
+
+```python
+host.bot.lookAt(x, y, z)
+```
+
+- 功能、参数、返回与约束：x,y,z 世界坐标。由已观测机器人位置计算 yaw/pitch，启用心跳发送视角；返回请求状态，无自动寻路/穿墙保证。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `bot.select`
+
+```python
+host.bot.select(nameOrIndex)
+```
+
+- 作用：切换后续 `game.*` / `world.*` 调用的目标机器人。
+- 参数：`nameOrIndex` string 必填（机器人名或索引的字符串形式）。
+- 返回：boolean `true`。
+- 报错：未找到机器人抛 `bot.select: 未找到机器人 <名称>`。
+- 底层：`selectBot(L, sel)`。
+
+### `bot.self`
+
+```python
+host.bot.self()
+```
+
+- 功能、参数、返回与约束：无参数。读取当前账号机器人的服务器观测状态，health/position/dead 可未知。AI Agent 使用此机器人，不自行拥有一个游戏位置。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `bot.startMovement`
+
+```python
+host.bot.startMovement(dx, dy, dz)
+```
+
+- 功能、参数、返回与约束：dx,dy,dz 玩家输入方向，每轴 -1..1；以 50ms PlayerAuthInput 心跳交给服务器驱动运动。dx 左右，dz=-1 前进，dy 上下，不是世界坐标路径规划；返回 submitted=true,confirmed=false。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `bot.status`
+
+```python
+host.bot.status()
+```
+
+- 作用：返回每个机器人的连接状态、是否 OP、错误信息。
+- 参数：无。
+- 返回：对象或数组，1 起索引，每个元素 `{index, name, connected, is_op, error?}`（error 仅非空时存在）。
+- 报错：无。
+- 底层：`FleetStatus()`。
+
+### `bot.stopMovement`
+
+```python
+host.bot.stopMovement()
+```
+
+- 功能、参数、返回与约束：无参数。清理当前机器人移动输入，仍需要服务器回包确认最终位置。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `bot.teleport`
+
+```python
+host.bot.teleport(x, y, z)
+```
+
+- 功能、参数、返回与约束：x,y,z 世界坐标。执行服务器 tp @s 并等待真实命令结果，需要对应权限；没有权限时报错或 success=false。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+# chains · 命令链管理
+
+同一套TXT预解析、整链频率、启停、跨链与聊天菜单，可供插件调用。
+
+
+### `chains.configure`
+
+```python
+host.chains.configure(name, patch)
+```
+
+- 功能、参数、返回与约束：name,patch，合并并校验配置，保留 TXT；运行中会停止并按 enabled 重启。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.delete`
+
+```python
+host.chains.delete(name)
+```
+
+- 功能、参数、返回与约束：name，先停止再删除 TXT 与配置。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.export`
+
+```python
+host.chains.export(name)
+```
+
+- 功能、参数、返回与约束：name，返回完整 TXT 与配置，插件可自行写入导出目录。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.get`
+
+```python
+host.chains.get(name)
+```
+
+- 功能、参数、返回与约束：name，读取完整 TXT、配置和状态。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.handleChat`
+
+```python
+host.chains.handleChat(player, text)
+```
+
+- 功能、参数、返回与约束：player,text；处理 .命令选择 与 .链 列表/启动/停止/次数/频率/通道/源码/删除。修改要求玩家 OP，返回 handled。配合 events.onChat。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.list`
+
+```python
+host.chains.list()
+```
+
+- 功能、参数、返回与约束：无参数，列出当前账号的链、配置、计数、错误和状态。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.menu`
+
+```python
+host.chains.menu(player, page)
+```
+
+- 功能、参数、返回与约束：player,page=1，仅向该玩家发分页聊天菜单；不会阻塞等待消息。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.save`
+
+```python
+host.chains.save(name, content, config)
+```
+
+- 功能、参数、返回与约束：name,content,config；config 支持 interval_ms(至少1，整链周期)/delay_ms/run_count/channel/enabled/mode/window/rate_cps。mode=fast无等待提交（条件及其前条确认）、remote严格顺序、pipeline有界流水线、burst整批最多1024、stream动态滑动窗口1..1024（默认128，rate_cps=0不设固定CPS，回包立即补位，网络错误停止补发；正常无目标不丢弃无条件后续）；全部在机器人内运行。TXT支持 @call JSON 跨链源文件行号范围/次数/时限/持续，@wait JSON 条件边沿等待，@pause手动触发；读 command-chain 技能。账号固定为当前插件账号。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.start`
+
+```python
+host.chains.start(name)
+```
+
+- 功能、参数、返回与约束：name，启用独立常驻实例；已启用不重复启动。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.stop`
+
+```python
+host.chains.stop(name)
+```
+
+- 功能、参数、返回与约束：name，停止并等待当前实例退出。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.trigger`
+
+```python
+host.chains.trigger(name)
+```
+
+- 功能、参数、返回与约束：name，释放当前链的 @pause 等待点一次；没有等待点时不会自动重启已停止的链。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.validate`
+
+```python
+host.chains.validate(content)
+```
+
+- 功能、参数、返回与约束：content，预解析并返回命令/条件/通道/行号；失败含报错。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+# building · 建筑与颜色
+
+结构格式检测、解析和方块颜色匹配。这些解析函数不等于放置整个建筑。
+
+
+### `building.closestColor`
+
+```python
+host.building.closestColor(r, g, b)
+```
+
+- 作用：按 CIELAB 感知色差，匹配给定 RGB 最接近的颜色方块。
+- 参数：`r`/`g`/`b` number 必填（0-255）。
+- 返回：string（最接近的颜色方块名）。
+- 报错：非数值抛类型错误。
+- 底层：`media.ClosestBlockForColor(r, g, b)`。
+
+### `building.detect`
+
+```python
+host.building.detect(path)
+```
+
+- 作用：检测建筑文件的格式。
+- 参数：`path` string 必填。
+- 返回：string（格式名：`.mcstructure` / `.schematic` / `.mcworld` / `.bdx`）。
+- 报错：非字符串抛类型错误。
+- 底层：`building.DetectFormat(path)`。
+
+### `building.isAir`
+
+```python
+host.building.isAir(name)
+```
+
+- 作用：判断方块名是否为空气 / 水 / 岩浆 / 命令方块。
+- 参数：`name` string 必填（方块名）。
+- 返回：boolean。
+- 报错：无。
+- 底层：`building.IsAirBlock/IsWaterBlock/IsLavaBlock/IsCommandBlock(name)`。
+
+### `building.isCommandBlock`
+
+```python
+host.building.isCommandBlock(name)
+```
+
+- 作用：判断方块名是否为空气 / 水 / 岩浆 / 命令方块。
+- 参数：`name` string 必填（方块名）。
+- 返回：boolean。
+- 报错：无。
+- 底层：`building.IsAirBlock/IsWaterBlock/IsLavaBlock/IsCommandBlock(name)`。
+
+### `building.isLava`
+
+```python
+host.building.isLava(name)
+```
+
+- 作用：判断方块名是否为空气 / 水 / 岩浆 / 命令方块。
+- 参数：`name` string 必填（方块名）。
+- 返回：boolean。
+- 报错：无。
+- 底层：`building.IsAirBlock/IsWaterBlock/IsLavaBlock/IsCommandBlock(name)`。
+
+### `building.isWater`
+
+```python
+host.building.isWater(name)
+```
+
+- 作用：判断方块名是否为空气 / 水 / 岩浆 / 命令方块。
+- 参数：`name` string 必填（方块名）。
+- 返回：boolean。
+- 报错：无。
+- 底层：`building.IsAirBlock/IsWaterBlock/IsLavaBlock/IsCommandBlock(name)`。
+
+### `building.parse`
+
+```python
+host.building.parse(path)
+```
+
+- 作用：加载并解析建筑结构文件，返回尺寸、方块统计、NBT、是否含命令方块。
+- 参数：`path` string 必填。
+- 返回：对象或数组 `{size={x,y,z}, blocks=number, nbt=number, has_command=boolean}`（`blocks` 为非空气方块数，`nbt` 为 NBT 方块数）。
+- 报错：加载失败抛 `building.parse: <err>`。
+- 底层：`building.LoadStructureFile(path)`，遍历方块计数，读 `NBTBlocks`/`HasCommand`。
+
+# media · 图片与音乐
+
+图片字符画、MIDI解析、音高换算；解析函数本身不自动向游戏播放。
+
+
+### `media.imageToAscii`
+
+```python
+host.media.imageToAscii(path, maxW)
+```
+
+- 作用：把图片文件转成 ASCII 字符画行数组。
+- 参数：`path` string 必填；`maxW` number 可选，默认 60。
+- 返回：对象或数组（字符串数组，1 起索引，每行一个 ASCII 串）。
+- 报错：打开/解码/转换失败抛 `media.imageToAscii: <err>`。
+- 底层：`os.Open` + `image.Decode`（支持 gif/jpeg/png）→ `media.ImageToASCII(img, maxW)`。
+
+### `media.noteToPitch`
+
+```python
+host.media.noteToPitch(note)
+```
+
+- 作用：把 MIDI 音符号换算为频率（Hz）。
+- 参数：`note` number 必填（强转 `uint8`）。
+- 返回：number（音高频率）。
+- 报错：非数值抛类型错误。
+- 底层：`media.NoteToPitch(uint8(note))`。
+
+### `media.parseMidi`
+
+```python
+host.media.parseMidi(path)
+```
+
+- 作用：解析 MIDI 文件，返回格式/轨道/分辨率/速度及音符列表。
+- 参数：`path` string 必填。
+- 返回：对象或数组 `{format, tracks, division, tempo, notes={{tick, channel, note, velocity, duration, sound}}}`（`sound` 仅非空时出现）。
+- 报错：读文件/解析失败抛 `media.parseMidi: <err>`。
+- 底层：`os.ReadFile` → `media.ParseMIDIFile(data)`。
+
+# plugin · 实例资源与诊断
+
+目录、资源、能力与统计；代码、配置、持久数据分开管理。
+
+
+### `plugin.capabilities`
+
+```python
+host.plugin.capabilities()
+```
+
+- 功能、参数、返回与约束：无参数，当前平台可用API名称和语言运行器能力；按需读取，不自动整库塞AI上下文。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.codeDir`
+
+```python
+host.plugin.codeDir()
+```
+
+- 功能、参数、返回与约束：无参数，当前插件源码根目录。Lua模块可require，模块只在该常驻VM首次require时加载。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.configDir`
+
+```python
+host.plugin.configDir()
+```
+
+- 功能、参数、返回与约束：无参数，当前插件配置目录。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.dataDir`
+
+```python
+host.plugin.dataDir()
+```
+
+- 功能、参数、返回与约束：无参数，当前插件持久数据目录；SDK按账号隔离。旧game.dataDir保持兼容。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.dependencies`
+
+```python
+host.plugin.dependencies()
+```
+
+- 作用：返回当前插件的依赖声明（`pre_plugins`）。
+- 参数：无。
+- 返回：表（原样透传全局 `plugin_dependencies` 的值）。
+- 报错：无。
+- 底层：读全局 `plugin_dependencies`。
+
+### `plugin.existsResource`
+
+```python
+host.plugin.existsResource(relative)
+```
+
+- 功能、参数、返回与约束：relative_path，检查资源是否存在；非法路径报错。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.extractResource`
+
+```python
+host.plugin.extractResource(source, destination)
+```
+
+- 功能、参数、返回与约束：source_relative,destination_relative默认同源；将资源原字节复制至plugin.dataDir中的目标，创建父目录。不是解压ZIP，不写任意外部路径。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.has`
+
+```python
+host.plugin.has(method)
+```
+
+- 功能、参数、返回与约束：method或runtime.lua/runtime.python/runtime.cpp，查询宿主API是否提供；不代表服务器一定支持动作或已观测到血量。Linux C++当前false。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.id`
+
+```python
+host.plugin.id()
+```
+
+- 作用：返回当前插件的 id 字符串。
+- 参数：无。
+- 返回：string。
+- 报错：无。
+- 底层：读全局 `__PLUGIN_ID__`。
+
+### `plugin.listResources`
+
+```python
+host.plugin.listResources(relative)
+```
+
+- 功能、参数、返回与约束：relative_path默认.，递归列出目录和文件，含path/dir/size；不跟随符号链接。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.readResource`
+
+```python
+host.plugin.readResource(relative, encoding)
+```
+
+- 功能、参数、返回与约束：relative_path,encoding=utf8；读取资源字符串；二进制跨JSON使用encoding=base64。拒绝绝对路径、越界与符号链接。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.resourceDir`
+
+```python
+host.plugin.resourceDir()
+```
+
+- 功能、参数、返回与约束：无参数；有resources子目录则使用该目录，否则兼容使用代码目录。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.stats`
+
+```python
+host.plugin.stats()
+```
+
+- 功能、参数、返回与约束：无参数，当前常驻实例回调数、失败、墙钟耗时及队列深度/丢弃；CPU/内存/GC当前未逐实例测量，返回null，不虚构性能倍数。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.tempDir`
+
+```python
+host.plugin.tempDir()
+```
+
+- 功能、参数、返回与约束：无参数；插件数据目录下.tmp，可自行删除临时文件。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+# util · 文件、时间与调度
+
+JSON文件、文本、数学、时间与整个回调的定时任务。
+
+
+### `util.cancel`
+
+```python
+host.util.cancel(id)
+```
+
+- 作用：取消一个已注册的定时任务（schedule/setTimeout）。
+- 参数：`id` number 必填。
+- 返回：boolean——`true` 找到并取消，`false` 不存在。
+- 报错：无。
+- 底层：`cancelSchedJob(int64(id))`，关闭任务的 cancel channel。
+
+### `util.ceil`
+
+```python
+host.util.ceil(n)
+```
+
+- 作用：向下 / 向上 / 四舍五入取整。
+- 参数：`n` number 必填。
+- 返回：number。
+- 报错：非数值抛类型错误。
+- 底层：`math.Floor` / `math.Ceil` / `math.Round`（math.Round：正负0.5均远离0取整）。
+
+### `util.floor`
+
+```python
+host.util.floor(n)
+```
+
+- 作用：向下 / 向上 / 四舍五入取整。
+- 参数：`n` number 必填。
+- 返回：number。
+- 报错：非数值抛类型错误。
+- 底层：`math.Floor` / `math.Ceil` / `math.Round`（math.Round：正负0.5均远离0取整）。
+
+### `util.join`
+
+```python
+host.util.join(tbl, sep)
+```
+
+- 作用：把 对象或数组 的所有值转字符串后用分隔符拼接。注意：遍历整表，非数组顺序不一定与下标一致。
+- 参数：`tbl` 对象或数组、`sep` string 必填。
+- 返回：string。
+- 报错：无。
+- 底层：`t.ForEach` + `LVAsString` + `strings.Join`。
+
+### `util.json_load`
+
+```python
+host.util.json_load(path)
+```
+
+- 作用：读取文件并解析为 JSON 对象。
+- 参数：`path` string 必填。
+- 返回：任意 JSON兼容值（表/数字/字符串…）。数字用 `UseNumber()` 解码避免精度损失。
+- 报错：读文件失败或 JSON 解析失败抛 `json_load: <err>`。
+- 底层：`os.ReadFile` + `json.Decoder`（`UseNumber`）→ `goToLua`。
+
+### `util.json_write`
+
+```python
+host.util.json_write(path, data)
+```
+
+- 作用：把任意 JSON兼容值序列化为带缩进的 JSON 写入文件，自动建父目录。
+- 参数：`path` string 必填；`data` 任意类型必填。
+- 返回：boolean `true`。
+- 报错：建目录/序列化/写文件失败抛 `json_write: <err>`。
+- 底层：`os.MkdirAll` + `json.MarshalIndent(data,"","  ")` + `os.WriteFile`。
+
+### `util.listJobs`
+
+```python
+host.util.listJobs()
+```
+
+- 功能、参数、返回与约束：无参数，当前插件任务列表：id/handler/paused/calls/missed/failures/last_ms/max_ms/total_ms/last_error；耗时为墙钟含VM排队及回调，不是CPU时间。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `util.now`
+
+```python
+host.util.now()
+```
+
+- 作用：返回当前本地时间。
+- 参数：无。
+- 返回：string，格式固定 `"2006-01-02 15:04:05"`。
+- 报错：无。
+- 底层：`time.Now().Format("2006-01-02 15:04:05")`。
+
+### `util.pauseJob`
+
+```python
+host.util.pauseJob(id)
+```
+
+- 功能、参数、返回与约束：id，暂停该插件任务后续触发；已经执行/入队的一次不强制中断。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `util.pos`
+
+```python
+host.util.pos(str)
+```
+
+- 作用：把空格分隔的坐标字符串（如 `"100 64 200"`）解析成坐标表，最多取前 3 个 token，缺失项补 0。
+- 参数：`str` string 必填。
+- 返回：对象或数组 `{x=number, y=number, z=number}`。
+- 报错：无。
+- 底层：`strings.Fields` + `strconv.ParseFloat`。
+
+### `util.read_file`
+
+```python
+host.util.read_file(path)
+```
+
+- 作用：读取文件全部内容按字符串返回。
+- 参数：`path` string 必填。
+- 返回：string。
+- 报错：读取失败抛 `read_file: <err>`。
+- 底层：`os.ReadFile`。
+
+### `util.resumeJob`
+
+```python
+host.util.resumeJob(id)
+```
+
+- 功能、参数、返回与约束：id，恢复后续触发；不会补发暂停期间的积压轮次。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `util.round`
+
+```python
+host.util.round(n)
+```
+
+- 作用：向下 / 向上 / 四舍五入取整。
+- 参数：`n` number 必填。
+- 返回：number。
+- 报错：非数值抛类型错误。
+- 底层：`math.Floor` / `math.Ceil` / `math.Round`（math.Round：正负0.5均远离0取整）。
+
+### `util.schedule`
+
+```python
+host.util.schedule(intervalSec, handlerName)
+```
+
+- 作用：按秒调用整个回调，周期0.001秒至1年。
+- 参数：`intervalSec, handlerName`；按此顺序传入。
+- 返回：定时任务ID；util.cancel(id)取消。
+- 底层与游戏效果：源码与模块缓存复用；同任务不重入，不补无限积压。回调里整条链的所有命令连续提交，不是每次只发一条。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `util.scheduleHz`
+
+```python
+host.util.scheduleHz(hz, handler)
+```
+
+- 功能、参数、返回与约束：hz,handler；本地完整回调的频率，0<hz<=1000。慢回调不重入、不补积压轮次；查看listJobs的missed。不是服务端同步Tick。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `util.scheduleSeconds`
+
+```python
+host.util.scheduleSeconds(seconds, handler)
+```
+
+- 功能、参数、返回与约束：seconds,handler；schedule别名，0.001秒..一年。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `util.scheduleTick`
+
+```python
+host.util.scheduleTick(ticks, handler)
+```
+
+- 功能、参数、返回与约束：ticks,handler；ticks>=1，本地名义Tick=50ms，不宣称服务端同Tick同步。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `util.setTimeout`
+
+```python
+host.util.setTimeout(sec, handlerName)
+```
+
+- 作用：延时后调用一次回调，可设0秒。
+- 参数：`sec, handlerName`；按此顺序传入。
+- 返回：定时任务ID。
+- 底层与游戏效果：只调用已加载的函数，停用或重载自动取消所属定时任务。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `util.split`
+
+```python
+host.util.split(str, sep)
+```
+
+- 作用：按分隔符切分字符串为数组。
+- 参数：`str` string、`sep` string 必填。
+- 返回：对象或数组（字符串数组，1 起索引）。
+- 报错：无。
+- 底层：`strings.Split` + `RawSetInt`。
+
+### `util.strip_color`
+
+```python
+host.util.strip_color(text)
+```
+
+- 作用：去掉文本里的 Minecraft 颜色/格式码（`§` 与 `&` 及其后一个字符）。
+- 参数：`text` string 必填。
+- 返回：string。
+- 报错：无。
+- 底层：手写循环用 `strings.Builder` 逐字节过滤。
+
+### `util.time_fmt`
+
+```python
+host.util.time_fmt(ts)
+```
+
+- 作用：把 Unix 时间戳格式化为可读的本地时间。
+- 参数：`ts` number 可选，默认当前时间戳。
+- 返回：string。
+- 报错：无。
+- 底层：`time.Unix(ts,0).Format("2006-01-02 15:04:05")`。
+
+### `util.timestamp`
+
+```python
+host.util.timestamp()
+```
+
+- 作用：返回当前 Unix 秒级时间戳。
+- 参数：无。
+- 返回：number。
+- 报错：无。
+- 底层：`time.Now().Unix()`。
+
+### `util.trim`
+
+```python
+host.util.trim(str)
+```
+
+- 作用：去除字符串两端空白。
+- 参数：`str` string 必填。
+- 返回：string。
+- 报错：无。
+- 底层：`strings.TrimSpace`。
+
+### `util.write_file`
+
+```python
+host.util.write_file(path, content)
+```
+
+- 作用：把字符串写入文件，自动建父目录，权限 0644。
+- 参数：`path` string、`content` string 必填。
+- 返回：boolean `true`。
+- 报错：建目录/写文件失败抛 `write_file: <err>`。
+- 底层：`os.MkdirAll` + `os.WriteFile(path, []byte(content), 0644)`。
+
+# api · 跨插件调用
+
+通过plugin_api导出函数；Lua、Python、C++可相互调用已启动实例。
+
+
+### `api.require`
+
+```python
+host.api.require(id)
+```
+
+- 作用：获得跨插件调用代理；目标需已经加载并导出plugin_api。
+- 参数：`id`；按此顺序传入。
+- 返回：Lua代理表或nil；Python代理对象；C++yy::RemotePlugin。
+- 底层与游戏效果：Lua→Lua调用同一常驻实例，不重跑源码；跨语言通过序列化桥调用目标导出函数。API不是安装依赖的包管理器。
+- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+# http · 网络与JSON
+
+返回status/body/headers，非2xx响应也可检查，不把远端错误吞掉。
+
+
+### `http.delete`
+
+```python
+host.http.delete(url, opts)
+```
+
+- 作用：对应方法的 HTTP 请求。
+- 参数：同 `request`（get/delete 无 body）。
+- 返回：同 `request` 的响应表。
+- 报错：无（错误进 `error` 字段）。
+- 底层：`pushHTTPResult(L, "GET/POST/PUT/DELETE", ...)` → `httpRequestFull`。
+
+### `http.get`
+
+```python
+host.http.get(url, opts)
+```
+
+- 作用：对应方法的 HTTP 请求。
+- 参数：同 `request`（get/delete 无 body）。
+- 返回：同 `request` 的响应表。
+- 报错：无（错误进 `error` 字段）。
+- 底层：`pushHTTPResult(L, "GET/POST/PUT/DELETE", ...)` → `httpRequestFull`。
+
+### `http.json_decode`
+
+```python
+host.http.json_decode(s)
+```
+
+- 作用：把 JSON 字符串解析为 JSON兼容值。
+- 参数：`s` string 必填。
+- 返回：任意 JSON兼容值。
+- 报错：解析失败抛 `http.json_decode: <err>`。
+- 底层：同 `game.jsonDecode`——把 JSON 解析成对应 Lua 类型（对象→表、数组→1 起索引的表）。
+
+### `http.json_encode`
+
+```python
+host.http.json_encode(v)
+```
+
+- 作用：把 JSON兼容值转成 JSON 字符串。
+- 参数：`v` 任意 JSON兼容值。
+- 返回：string。
+- 报错：序列化失败抛 `http.json_encode: <err>`。
+- 底层：同 `game.jsonEncode`——把 JSON兼容值映射成 JSON 类型后编码成字符串。
+
+### `http.post`
+
+```python
+host.http.post(url, body, opts)
+```
+
+- 作用：对应方法的 HTTP 请求。
+- 参数：同 `request`（get/delete 无 body）。
+- 返回：同 `request` 的响应表。
+- 报错：无（错误进 `error` 字段）。
+- 底层：`pushHTTPResult(L, "GET/POST/PUT/DELETE", ...)` → `httpRequestFull`。
+
+### `http.put`
+
+```python
+host.http.put(url, body, opts)
+```
+
+- 作用：对应方法的 HTTP 请求。
+- 参数：同 `request`（get/delete 无 body）。
+- 返回：同 `request` 的响应表。
+- 报错：无（错误进 `error` 字段）。
+- 底层：`pushHTTPResult(L, "GET/POST/PUT/DELETE", ...)` → `httpRequestFull`。
+
+### `http.querify`
+
+```python
+host.http.querify(paramsTable)
+```
+
+- 作用：把参数表编码成 URL query 字符串。
+- 参数：`paramsTable` 对象或数组 必填（键值都转字符串）。
+- 返回：string，如 `"a=1&b=2"`（按键排序，同键累加）。
+- 报错：非 对象或数组 抛类型错误。
+- 底层：`url.Values` + `vals.Encode()`。
+
+> 与 `game.httpGet/httpPost` 的区别：`game.*` 返回纯文本、非 200 直接抛错，适合简单场景；`http.*` 返回完整响应对象、携带状态码与响应头、非 2xx 也能拿 body，适合需要细粒度控制的场景。
+
+### `http.request`
+
+```python
+host.http.request(method, url, body, opts)
+```
+
+- 作用：发送任意 method 的 HTTP 请求，返回完整响应对象。
+- 参数：`method` string 必填；`url` string 必填；`body` string 可选，默认 `""`；`opts` 对象或数组 可选（含 `headers` 表、`timeout` 秒）。
+- 返回：对象或数组。成功 `{ok=true, status=number, body=string, headers=对象或数组}`；传输错误 `{ok=false, error=string}`。
+- 报错：无（错误放进 `error` 字段，不抛异常）。
+- 底层：`httpRequestFull(method, u, body, headers, timeout)`。
+
+# system · Android设备
+
+系统桥、通知、震动、Shizuku；桌面支持范围与Android不同。
+
+
+### `system.call`
+
+```python
+host.system.call(method, paramsTable)
+```
+
+- 作用：通用底层透传——把 `method` 和参数表交给 Java 分发执行，返回任意结果。已支持的方法：`shell`、`shizukuStatus`、`shizukuRequest`、`vibrate`、`notify`、`launchApp`；未知方法返回 `{"ok":false,"error":"unknown method: ..."}`。
+- 参数：`method` string 必填；`paramsTable` 对象或数组 可选。
+- 返回：任意 JSON兼容值（Java 返回 JSON 解码结果）；无返回推 `nil`。
+- 报错：参数序列化失败或桥调用失败抛 `system.call: <err>`。
+- 底层：参数 `json.Marshal` → `callAndroidSystem` → JNI → Java `FloatingBridge.call` switch 分发。
+
+### `system.notify`
+
+```python
+host.system.notify(title, body)
+```
+
+- 作用：发系统状态栏通知（**不需要** Shizuku/ADB 权限）。
+- 参数：`title` string 必填；`body` string 可选，默认 `""`。
+- 返回：对象或数组 `{ok=true}`；异常时 `{ok=false, error=...}`。
+- 报错：桥调用失败抛 `system.notify: <err>`。
+- 底层：参数 `{"title","body"}` → JNI → Java `postDirectNotification`。
+
+### `system.platform`
+
+```python
+host.system.platform()
+```
+
+- 作用：返回当前运行平台。
+- 参数：无。
+- 返回：string——`"android"` 或 `"desktop"`。
+- 报错：无。
+- 底层：`getPlatformName()`（不经 JNI 桥）。
+
+### `system.shell`
+
+```python
+host.system.shell(cmd)
+```
+
+- 作用：以 Shizuku(ADB) 身份执行一条 shell 命令。
+- 参数：`cmd` string 必填。
+- 返回：对象或数组 `{ok=bool, exit=number, stdout=string, stderr=string, uid=number, error?=string}`。命令本身失败不抛异常，走 `ok=false`。
+- 报错：仅桥调用失败抛 `system.shell: <err>`。
+- 底层：参数 `{"command":cmd}` → JNI → Java `runShell`：空命令/Shizuku 未运行/未授权各有明确错误；否则经反射调 `Shizuku.newProcess` 执行 `/system/bin/sh -c <cmd>`，读 stdout/stderr、取退出码与 uid。
+
+### `system.shizukuRequest`
+
+```python
+host.system.shizukuRequest()
+```
+
+- 作用：弹出系统授权对话框，申请 Shizuku ADB 权限。
+- 参数：无。
+- 返回：对象或数组 `{ok=bool, requested=bool, error?=string}`。
+- 报错：桥调用失败抛 `system.shizukuRequest: <err>`。
+- 底层：JNI → Java `requestShizukuPermission`：pingBinder 失败返回未运行；否则 `Shizuku.requestPermission()` 弹授权框。
+
+### `system.shizukuStatus`
+
+```python
+host.system.shizukuStatus()
+```
+
+- 作用：查询 Shizuku 运行状态与授权情况。
+- 参数：无。
+- 返回：对象或数组 `{available=bool, granted=bool, uid=number}`（失败时 uid=-1）。
+- 报错：桥调用失败抛 `system.shizukuStatus: <err>`。
+- 底层：JNI → Java `shizukuStatusJson`：`Shizuku.pingBinder()`、`checkSelfPermission()==GRANTED`、`getUid()`。
+
+### `system.vibrate`
+
+```python
+host.system.vibrate(ms)
+```
+
+- 作用：触发手机震动（**不需要** Shizuku/ADB 权限）。
+- 参数：`ms` number 可选，默认 500（毫秒）。
+- 返回：对象或数组 `{ok=true}`；异常时 `{ok=false, error=...}`。
+- 报错：桥调用失败抛 `system.vibrate: <err>`。
+- 底层：参数 `{"ms":ms}` → JNI → Java `vibrate`（Vibrator）。
+
+# web · 插件控制页面
+
+声明式页面、HTML资源、动作回调与事件推送，重载清理旧注册。
+
+
+### `web.action`
+
+```python
+host.web.action(page, action, handler)
+```
+
+- 作用：绑定一个交互动作——浏览器对 `/web/api/<插件id>/<页面名>` 发请求时，调用常驻实例的 `handler` 处理。
+- 参数：`page` string、`action` string 必填；`handler` **string 必填**（全局**函数名字符串**，不是函数引用）。
+- 返回：无。
+- 报错：缺插件上下文/空名/重复注册抛异常。
+- 底层：`registerWebAction`；执行时新建 LState（2 分钟超时）进入常驻实例后 `CallByParam` 调 handler，返回值经 `luaToGo` 作为响应 `data` 回传。受独立并发信号量（容量 8）约束。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `web.emit`
+
+```python
+host.web.emit(page, event, data)
+```
+
+- 作用：把一条事件实时推送给该插件的全部 SSE 客户端。声明式页面内置 JS 按 key 更新控件；自定义页 JS 自行监听。用于后台状态/进度推送。
+- 参数：`page` string 必填（作为 SSE 事件名）；`event` string 必填（会写入数据 map 的 `__event` 键）；`data` 任意 JSON兼容值必填。
+- 返回：无。
+- 报错：数据无法 JSON 序列化抛 `web.emit: <err>`。
+- 底层：`pushWebEvent(plugin, page, dataJSON)`，构造 SSE 消息写入所有客户端通道（通道满则丢弃，不阻塞 Lua）。**此方法在重跑上下文不跳过**（供 handler 内推送用）。
+
+### `web.page`
+
+```python
+host.web.page(name, desc, controls)
+```
+
+- 作用：声明一个**声明式页面**，在门户 `/web/` 显示卡片，点进由内置模板渲染控件页。
+- 参数：`name` string 必填（插件内唯一，不含 `/ \ # ? %` 及控制字符）；`desc` string 可选，默认 `""`；`controls` 对象或数组 可选（控件表，可读字段 `type`=text|button|input|对象或数组|switch、`key`、`label`、`action`、`placeholder`、`columns`）。
+- 返回：无。
+- 报错：空名/非法字符/同插件页面名重复注册抛异常。
+- 底层：`registerWebPage(&webPage{Kind:"declarative",...})`，写入全局 `webPages` map。
+
+### `web.serve`
+
+```python
+host.web.serve(name, entry)
+```
+
+- 作用：声明一个**自定义 HTML 页面**，直接服务 `www/` 目录下对应入口文件。
+- 参数：`name` string 必填（规则同 `web.page`）；`entry` string 可选，默认 `"index.html"`（相对 `www/`）。
+- 返回：无。
+- 报错：同 `web.page`。
+- 底层：`registerWebPage(&webPage{Kind:"html", Entry:entry})`；静态根目录 `插件文件/<id>/www`，经 `webStaticSafe` 防路径逃逸 + `serveWebStatic` 提供。

@@ -26,3 +26,18 @@ One resident loop/thread per Host. Await async lifecycle/event/SDK callback/RPC 
 ## Final APK verification and result honesty
 
 25x60 ordered fast chains verified at whole-chain20/40Hz; Android persistent async lifecycle/resources/ZIP state export and mobile AI/plugin layouts verified. 3000x60 fast stress disconnected and score17764, not passed. Added closed-connection recheck under send lock and explicit submission-only UI. Sustained large-burst stability and proposed Async/KV/watch/ABI remain open.
+
+
+## 2026-10-05 · 0.10.8 本次改动
+- 已实现并通过程序测试：恢复原版 game.sendPacket/events.subscribeAll；packet别名与字段编码预校验；挥臂、实体出现/移除、拾取观察事件。移除不当作死亡，挥臂不当作命中。
+- 已完成文档对照：原版开发文档121个公共方法全部在真实Lua注册表中；当前15个命名空间194方法。Lua/Python/C++分章手册与215种实际协议包目录、常用字段中文说明；AI/MCP按章和单包读取，不全量注入。
+- 已实现：游园建筑写入/读取/区域准备/雕像/地图画标签与分色，进度显示真实计数，不沿用Importer/双层百分比版式。部分导出明确警告，文件保存位置说明接入离线技能。
+- 排版：手机390px与桌面浏览器预览检查，页面没有横向溢出；预览数值是样例，不是游戏吞吐实测。
+- 原sendCommand和整链Hz未改成逐条确认，没有添加新的默认CPS。真实APK连接、协议闭环与计分回归结果见0.10.8-APK接口文档与游戏复测.json；未测项目仍沿用原待办，不升级为完成。
+- 待办继续保留：长链连续大量提交的断线/长期稳定性、血量死亡真人场景、真实room_id联机、Linux C++宿主、出口节点、QQ陪聊多人验收、实时视频声音。
+
+
+### 0.10.8 真实验收补充
+- 模拟器APK0.10.8实际连接山头服、OP通过；Python协议包指定订阅和全部订阅收到ChunkRadiusUpdated，服务器实际返回半径5。
+- 原Lua game.sendCommand循环一万条：提交0.1038秒；含游戏分数核对0.7421秒，真实计分一万。只是单轮，不扩大为180000连续稳定或固定同Tick。
+- 建筑导出实际失败：1x1x1结构读取8.65秒后超时；/structure save服务端成功，但三个请求类型均未观测到结构响应。尚未确定服务端拒绝原因，不能记为完整可用；APK会显示失败，不伪造导出文件。真实大区域导入/导出仍待验证。
