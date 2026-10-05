@@ -1,6 +1,6 @@
 {
   "framework_version": "0.10.8",
-  "public_version": "0.10.7",
+  "public_version": "0.10.8",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
@@ -28,7 +28,7 @@
     "file_watch": "not_implemented",
     "memory_kv": "not_implemented",
     "transaction_storage": "not_implemented",
-    "release": "apk_linux_sdk_skill_public_verified",
+    "release": "0.10.8_apk_linux_public_verified_with_known_export_failure",
     "ai_new_framework_skill": "real_model_read_python_skill_created_validated_published_started_async_plugin_verified",
     "android_cpp_sdk": "x86_64_emulator_actual_native_v2_resource_scheduler_stats_stop_verified",
     "conditional_chain": "actual_game_failed_predecessor_skips_conditional_tail_continues_verified"
@@ -145,10 +145,20 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-03T12:00:42.450992+08:00",
+  "updated_at": "2026-10-05T17:27:05.744926+08:00",
   "current_branch": "main",
-  "current_commit": "dc96030e99001645fc9f8248e585a8814ad7d2c9",
+  "current_commit": "ee21d219e4df425b4dac8eaa42b897fb89cced9c",
   "recent_commits": [
+    {
+      "commit": "ee21d219e4df425b4dac8eaa42b897fb89cced9c",
+      "date": "2026-10-05T17:24:16+08:00",
+      "subject": "feat: restore packet APIs and add chapter skills and independent building progress"
+    },
+    {
+      "commit": "17ec312631ab9f3324f2c4739f4a4caacd8a79a3",
+      "date": "2026-10-03T12:00:43+08:00",
+      "subject": "docs: verify original Lua one-round 10000 commands with bot context"
+    },
     {
       "commit": "dc96030e99001645fc9f8248e585a8814ad7d2c9",
       "date": "2026-10-03T11:54:05+08:00",
@@ -201,11 +211,11 @@
     }
   ],
   "delivery": {
-    "signed_apk_sha256": "0551f31e095b52d12e2a6c88d49f7e0438eb1423c65d95dfd7e6a9ec551a8385",
+    "signed_apk_sha256": "6f99ad9ffb88f70470687271a0b438e6f73ecd7f4e9cb737199378ca150f9687",
     "apk_public_hash_verified": true,
-    "linux_service": "active 0.10.7",
+    "linux_service": "active 0.10.8",
     "linux_python_async_two_accounts_verified": true,
-    "cloudflare_version": "04b06b48-e176-4d74-a273-10af6cb6f72a",
+    "cloudflare_version": "294a0061-44f4-4498-beab-e01af717c1de",
     "public_mcp_language_resources_verified": true,
     "sustained_fast_stress_passed": false,
     "ai_framework_test": "passed; temporary model/plugin/workspace removed"
