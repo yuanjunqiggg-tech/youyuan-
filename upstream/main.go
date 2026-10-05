@@ -569,6 +569,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "config": cfg})
 	case "POST":
 		var cfg config.AppConfig
+		previousCreative := config.LoadConfig().AutoCreative
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
 			return
@@ -593,6 +594,17 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		if err := config.SaveConfig(&cfg); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
+		}
+		if cfg.AutoCreative && !previousCreative {
+			if bm := getBotManagerLocked(); bm != nil && bm.IsConnected() {
+				go func() {
+					if gi, e := bm.getGameInterface(); e == nil {
+						if maintainer := gi.Maintainer(); maintainer != nil {
+							_ = maintainer.TouchMaintainer(gi)
+						}
+					}
+				}()
+			}
 		}
 		// 保存配置后刷新工具箱信息（异步）
 		if cfg.Token != "" {

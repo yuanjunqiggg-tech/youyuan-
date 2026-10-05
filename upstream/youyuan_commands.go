@@ -113,9 +113,10 @@ type yyChainPlan struct {
 	Chains   []yyChain `json:"chains"`
 	Periods  int       `json:"periods"`
 	Commands int       `json:"commands"`
+	Hz       float64   `json:"hz,omitempty"`
 }
 
-var yyChainHeader = regexp.MustCompile(`^([012])\s*,\s*([01])\s*,\s*([01])$`)
+var yyChainHeader = regexp.MustCompile(`^([012])\s*,\s*([01])\s*,\s*([01])(?:\s+([0-9]+(?:\.[0-9]+)?))?$`)
 
 func yyParseChains(text string) (yyChainPlan, error) {
 	plan := yyChainPlan{}
@@ -224,6 +225,16 @@ func yyParseChains(text string) (yyChainPlan, error) {
 			continue
 		}
 		if m := yyChainHeader.FindStringSubmatch(line); m != nil {
+			if m[4] != "" {
+				hz, err := strconv.ParseFloat(m[4], 64)
+				if err != nil || hz <= 0 || hz > 1000 || m[1] != "2" {
+					return plan, fmt.Errorf("第%d行：循环头Hz需0<hz<=1000", index+1)
+				}
+				if plan.Hz != 0 && plan.Hz != hz {
+					return plan, fmt.Errorf("第%d行：一个TXT实例只使用一个整轮Hz；不同频率请放入独立TXT", index+1)
+				}
+				plan.Hz = hz
+			}
 			state.Type, _ = strconv.Atoi(m[1])
 			state.Conditional = m[2] == "1"
 			state.Redstone = m[3] == "1"
@@ -398,6 +409,9 @@ func (in *yyChainInstance) run(ctx context.Context) {
 		roundStarted := time.Now()
 		in.Lock()
 		cfg := in.Config
+		if in.Plan.Hz > 0 {
+			cfg.IntervalMS = int(1000 / in.Plan.Hz)
+		}
 		in.Trigger = false
 		plan := in.Plan
 		in.Unlock()
@@ -449,18 +463,22 @@ func (in *yyChainInstance) run(ctx context.Context) {
 			}, func(callCtx context.Context, nodes []yyChainNode, callCfg yyChainConfig) ([]map[string]any, error) {
 				if callCfg.Mode == "fast" {
 					rows := make([]map[string]any, len(nodes))
+					accepted := map[string]any{"submitted": true, "confirmed": false}
+					var submitted uint64
+					defer func() { in.Lock(); in.Submitted += submitted; in.Unlock() }()
 					for i, n := range nodes {
 						if e := callCtx.Err(); e != nil {
 							return rows[:i], e
 						}
 						e := bm.SendCommandNoWaitRate(CommandChannel(yyChainNodeChannel(n, callCfg)), n.Command, callCfg.RateCPS)
-						rows[i] = map[string]any{"submitted": e == nil, "confirmed": false}
 						if e != nil {
+							rows[i] = map[string]any{"submitted": false, "confirmed": false, "error": e.Error()}
 							return rows[:i+1], e
 						}
-						in.Lock()
-						in.Submitted++
-						in.Unlock()
+						// Read-only shared dispatch status avoids a map allocation and
+						// statistics lock for every command in a large Fast segment.
+						rows[i] = accepted
+						submitted++
 					}
 					return rows, nil
 				}
@@ -615,6 +633,7 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 			_ = yyChainStart(in)
 		}
 	}
+	yyStartChainWatcher()
 	mux.HandleFunc("/api/youyuan/chains", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			if name := r.URL.Query().Get("name"); name != "" {
@@ -742,7 +761,7 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 			}
 			writeJSON(w, map[string]any{"ok": true, "plan": plan})
 			return
-		case "start", "stop", "trigger", "redstone", "delete":
+		case "start", "stop", "trigger", "redstone", "delete", "reload":
 			if in == nil {
 				fail(fmt.Errorf("文件不存在"))
 				return
@@ -763,6 +782,8 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 				}
 				in.Redstone = p.Redstone
 				in.Unlock()
+			case "reload":
+				e = yyReloadChainResource(in)
 			case "delete":
 				if e = yyChainStop(in); e == nil {
 					e = os.Remove(filepath.Join(yyChainRoot, name))

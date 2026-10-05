@@ -1,3 +1,16 @@
+# 游园0.10.9 AI交接
+
+先读AI_PROJECT_STATE.json与框架改造实施核对.md的最新表；下面历史交接不能覆盖最新事实。已实现统一宿主TickLoop、Async票据、CommandBuffer、Storage内存多键事务、TXT变更重编译、死亡RPC、三语言完整文档和按需技能、多选保存、AI真实读写热重载、真实SubChunk建筑导出、公网Linux上传。尚未实现单插件三语言混合、稳定新ABI、LinuxC++、native进程隔离、逐实例CPU/内存GC、文件以外全面分级热重载、可选carry预算。
+
+新文件：upstream/youyuan_tick_loop.go、youyuan_command_async.go、youyuan_storage_cache.go、youyuan_chain_watch.go、youyuan_death_rpc.go、youyuan_region_read.go、youyuan_host_files.go、youyuan_linux_library.go。Lua停止先取消定时器与执行生命周期再等待VM锁；不可读写LState时破坏线程安全。Fast设置包不等回包，无条件连续段整段提交；Confirmed受服务器sendcommandfeedback影响，超时不可盲重发。
+
+实测与模拟必须分开。10000单轮游戏计分成功不是持续40Hz，也不是所有游戏功能通过。215 schemas/204方法/110原文接口覆盖不代表所有包真实收到。模型429、原版大链断线、未知血量保留。公开包禁止默认测试账号/QA插件/模型密钥。Git回滚用独立worktree重建，同签名覆盖APK、替换Linux程序保留数据。
+
+Linux实际管理站：https://toolbox.youyuanqi.dpdns.org/?device=linux-server；MCP：https://toolbox.youyuanqi.dpdns.org/mcp/?device=linux-server；数据/var/lib/youyuan，不是任意root网页shell。密钥只在外部私有配置。
+
+---
+历史交接：
+
 # 游园框架 AI 交接
 
 更新：2026-10-03。本文件不含令牌、密码、模型Key或签名Key。0.10.7完成框架修复、短链和运行器验收；持续大链发送仍未通过。发布状态与准确Git提交见AI_PROJECT_STATE.json。详细任务状态见AI_PROJECT_STATE.json及任务备忘录.md。

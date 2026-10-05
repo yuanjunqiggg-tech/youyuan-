@@ -26,7 +26,10 @@ type luaBotCtx struct {
 
 // setLuaBotCtx 在 LState 上记录主机器人并置 active=main，同时挂上执行超时。
 func setLuaBotCtx(L *lua.LState, main *BotManager) {
-	ctx, cancel := context.WithTimeout(context.Background(), luaExecTimeout)
+	setLuaBotCtxParent(L, main, context.Background())
+}
+func setLuaBotCtxParent(L *lua.LState, main *BotManager, parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, luaExecTimeout)
 	L.SetContext(context.WithValue(ctx, luaBotCtxKey{}, &luaBotCtx{main: main, active: main, cancel: cancel}))
 }
 

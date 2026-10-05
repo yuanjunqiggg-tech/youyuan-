@@ -24,6 +24,8 @@ type AISkill struct {
 
 // aiSkills 内置技能列表。内容来自 MiemieMethod/bedrock-docs（基岩版中文文档），打包在 skills/ 下。
 var aiSkills = []*AISkill{
+	{ID: "runtime-kernel", Name: "常驻内核与缓冲执行", Description: "统一调度、三种命令路径、CommandBuffer、Storage事务和TXT资源重载", Sources: []string{"skills/runtime-kernel/index.md"}},
+	{ID: "gameplay-events", Name: "协议到玩法与AI操作", Description: "挥臂、死亡RPC、血量位置、拾取和跨语言事件例子，工具到真实游戏的闭环", Sources: []string{"skills/gameplay-events/index.md"}},
 	{ID: "building-transfer", Name: "建筑导入导出与存储位置", Description: "宿主/游戏服务器/市场的职责、实际计数、部分导出与文件下载", Sources: []string{"skills/building-transfer/index.md"}},
 	{ID: "lua-runtime", Name: "Lua 常驻开发", Description: "原版兼容接口、游戏操作、常驻事件与资源调度，按功能章节读取", Sources: []string{"skills/lua-runtime/index.md"}},
 	{ID: "packet-reference", Name: "游戏协议包与玩法", Description: "当前内核215种协议包、字段、监听/发包与玩法边界，支持单包读取", Sources: []string{"skills/packet-reference/index.md", "skills/packet-reference/catalog.md"}},
@@ -70,7 +72,7 @@ var aiSkills = []*AISkill{
 func init() {
 	for _, id := range []string{"lua-runtime", "python-runtime", "cpp-runtime"} {
 		sk := skillByID(id)
-		for _, section := range []string{"game", "player", "world", "events", "packet", "bot", "chains", "building", "media", "plugin", "util", "api", "http", "system", "web"} {
+		for _, section := range []string{"game", "player", "world", "events", "packet", "bot", "chains", "building", "media", "plugin", "util", "api", "http", "system", "web", "storage"} {
 			sk.Sources = append(sk.Sources, "skills/"+id+"/"+section+".md")
 		}
 	}

@@ -1,5 +1,5 @@
 {
-  "version": "0.10.8",
+  "version": "0.10.9",
   "packets": [
     {
       "fields": [
@@ -10640,7 +10640,7 @@
       "title": "网易MsgPack远程事件",
       "category": "网易与扩展",
       "direction": "双向，Value结构由具体事件约定",
-      "usage": "Value为真实MsgPack结构，OperationType依当前内核常量。ModEventC2S/S2C含什么由服务端实现；不是万能BDS权限，也不能凭空订阅未实现事件。",
+      "usage": "Value为真实MsgPack结构，OperationType依当前内核常量。ModEventC2S/S2C含什么由服务端实现；不是万能BDS权限，也不能凭空订阅未实现事件。 游园0.10.9精确封装ModEventS2C/OnPlayerDie的pid/die，死亡与重生关联已观测玩家；未知事件仍保留原始值。",
       "description": "",
       "source": "flowers-for-machines/core/minecraft/protocol/packet/py_rpc.go",
       "content": "## 200 · PyRpc · 网易MsgPack远程事件\n\n- 分组：网易与扩展\n- 方向：双向，Value结构由具体事件约定\n- 用法与边界：Value为真实MsgPack结构，OperationType依当前内核常量。ModEventC2S/S2C含什么由服务端实现；不是万能BDS权限，也不能凭空订阅未实现事件。\n- 本内核原始说明：\n\n| 字段 | 当前类型 | 语义与约束 |\n|---|---|---|\n| `value` | `interface {}` | Value from/to msgpack format |\n| `operation_type` | `uint32` | OperationType is a fixed number |\n"

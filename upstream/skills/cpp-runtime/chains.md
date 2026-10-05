@@ -24,7 +24,7 @@ client.chains.delete_(name);
 ### `chains.export`
 
 ```cpp
-client.chains.export(name);
+client.chains.exportPlugin(name);
 ```
 
 - 功能、参数、返回与约束：name，返回完整 TXT 与配置，插件可自行写入导出目录。
@@ -64,6 +64,15 @@ client.chains.menu(player, page);
 ```
 
 - 功能、参数、返回与约束：player,page=1，仅向该玩家发分页聊天菜单；不会阻塞等待消息。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `chains.reload`
+
+```cpp
+client.chains.reload(name);
+```
+
+- 功能、参数、返回与约束：name；只重新读取/编译TXT资源，当前轮使用原IR，下轮用新IR；不重启插件、保留启停与统计；无效修改保留原链。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 
 ### `chains.save`

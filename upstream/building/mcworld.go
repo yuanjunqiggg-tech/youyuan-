@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -56,16 +57,46 @@ func ParseMCWorldWithRegion(path string, region [6]int) (*StructureData, error) 
 
 	for _, f := range zr.File {
 		dst := filepath.Join(tmpDir, f.Name)
+		rel, e := filepath.Rel(tmpDir, dst)
+		if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(f.Name) {
+			return nil, fmt.Errorf("ParseMCWorld: archive path outside world: %s", f.Name)
+		}
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(dst, 0755)
 			continue
 		}
 		os.MkdirAll(filepath.Dir(dst), 0755)
-		rc, _ := f.Open()
-		out, _ := os.Create(dst)
-		io.Copy(out, rc)
+		rc, e := f.Open()
+		if e != nil {
+			return nil, e
+		}
+		out, e := os.Create(dst)
+		if e != nil {
+			rc.Close()
+			return nil, e
+		}
+		_, e = io.Copy(out, rc)
 		rc.Close()
-		out.Close()
+		closeErr := out.Close()
+		if e != nil {
+			return nil, e
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+	}
+	haveRegion := region != [6]int{}
+	if !haveRegion {
+		if raw, e := os.ReadFile(filepath.Join(tmpDir, "youyuan-region.json")); e == nil {
+			var metadata struct {
+				Region [6]int `json:"region"`
+			}
+			if e = json.Unmarshal(raw, &metadata); e != nil {
+				return nil, fmt.Errorf("ParseMCWorld: region metadata: %w", e)
+			}
+			region = metadata.Region
+			haveRegion = true
+		}
 	}
 
 	dbPath := filepath.Join(tmpDir, "db")
@@ -79,7 +110,7 @@ func ParseMCWorldWithRegion(path string, region [6]int) (*StructureData, error) 
 
 	sx, sy, sz := region[0], region[1], region[2]
 	ex, ey, ez := region[3], region[4], region[5]
-	if sx == 0 && ex == 0 {
+	if !haveRegion {
 		sx, sy, sz = -128, -64, -128
 		ex, ey, ez = 128, 256, 128
 	}
@@ -93,12 +124,6 @@ func ParseMCWorldWithRegion(path string, region [6]int) (*StructureData, error) 
 		sz, ez = ez, sz
 	}
 	dx, dy, dz := ex-sx+1, ey-sy+1, ez-sz+1
-	if dx > 1024 {
-		dx = 1024
-	}
-	if dz > 1024 {
-		dz = 1024
-	}
 	if err := checkVolume(dx, dy, dz); err != nil {
 		return nil, fmt.Errorf("ParseMCWorld: %w", err)
 	}
@@ -126,18 +151,24 @@ func ParseMCWorldWithRegion(path string, region [6]int) (*StructureData, error) 
 
 				// 加载裸 subchunk 和 biome 数据（安全，不触发解码）
 				payload, exists, _ := w.LoadChunkPayloadOnly(define.DimensionIDOverworld, cpos)
-				if !exists { continue }
+				if !exists {
+					continue
+				}
 
 				// 校验 subchunk 数据
 				safe := true
 				for _, raw := range payload {
-					if len(raw) == 0 { continue }
+					if len(raw) == 0 {
+						continue
+					}
 					if !isValidSubchunkData(raw) {
 						safe = false
 						break
 					}
 				}
-				if !safe { continue }
+				if !safe {
+					continue
+				}
 
 				// 校验 biome 数据
 				biomes, _ := w.LoadBiomes(define.DimensionIDOverworld, cpos)
@@ -146,22 +177,32 @@ func ParseMCWorldWithRegion(path string, region [6]int) (*StructureData, error) 
 				}
 
 				chunk2, _, _ := w.LoadChunk(define.DimensionIDOverworld, cpos)
-				if chunk2 == nil { continue }
+				if chunk2 == nil {
+					continue
+				}
 				subs := chunk2.Sub()
 				rng := chunk2.Range()
 				baseSubY := int(rng[0]) >> 4
 				for si, sub := range subs {
-					if sub == nil || sub.Empty() { continue }
+					if sub == nil || sub.Empty() {
+						continue
+					}
 					subY := (baseSubY + si) << 4
 					for bx := 0; bx < 16; bx++ {
 						for bz := 0; bz < 16; bz++ {
 							for by := 0; by < 16; by++ {
 								wx, wy, wz := cx<<4+bx, subY+by, cz<<4+bz
-								if wx < sx || wx > ex || wy < sy || wy > ey || wz < sz || wz > ez { continue }
+								if wx < sx || wx > ex || wy < sy || wy > ey || wz < sz || wz > ez {
+									continue
+								}
 								rid := sub.Block(uint8(bx), uint8(by), uint8(bz), 0)
-								if rid == 0 { continue }
+								if rid == 0 {
+									continue
+								}
 								name, props, found := block.RuntimeIDToState(rid)
-								if name == "minecraft:air" || !found { continue }
+								if name == "minecraft:air" || !found {
+									continue
+								}
 								rx, ry, rz := wx-sx, wy-sy, wz-sz
 								if rx >= 0 && rx < dx && ry >= 0 && ry < dy && rz >= 0 && rz < dz {
 									pos := packPos(int32(rx), int32(ry), int32(rz))
@@ -794,56 +835,106 @@ func parseByRegex(filename string) [6]int {
 func blockNameFromNBT(nbt map[string]any) string {
 	id, _ := nbt["id"].(string)
 	switch id {
-	case "Chest": return "minecraft:chest"
-	case "EnderChest": return "minecraft:ender_chest"
-	case "ShulkerBox": return "minecraft:shulker_box"
-	case "CommandBlock": return "minecraft:command_block"
-	case "Furnace": return "minecraft:furnace"
-	case "BlastFurnace": return "minecraft:blast_furnace"
-	case "Smoker": return "minecraft:smoker"
-	case "Barrel": return "minecraft:barrel"
-	case "Dispenser": return "minecraft:dispenser"
-	case "Dropper": return "minecraft:dropper"
-	case "Hopper": return "minecraft:hopper"
-	case "BrewingStand": return "minecraft:brewing_stand"
-	case "Beacon": return "minecraft:beacon"
-	case "Sign": return "minecraft:standing_sign"
-	case "EnchantTable": return "minecraft:enchanting_table"
-	case "MobSpawner": return "minecraft:mob_spawner"
-	case "Music": return "minecraft:noteblock"
-	case "Jukebox": return "minecraft:jukebox"
-	case "Bed": return "minecraft:bed"
-	case "Cauldron": return "minecraft:cauldron"
-	case "Comparator": return "minecraft:comparator"
-	case "DaylightDetector": return "minecraft:daylight_detector"
-	case "FlowerPot": return "minecraft:flower_pot"
-	case "StructureBlock": return "minecraft:structure_block"
-	case "NetherReactor": return "minecraft:netherreactor"
-	case "Lodestone": return "minecraft:lodestone"
-	case "Beehive": return "minecraft:beehive"
-	case "BeeNest": return "minecraft:bee_nest"
-	case "Bell": return "minecraft:bell"
-	case "Campfire": return "minecraft:campfire"
-	case "SoulCampfire": return "minecraft:soul_campfire"
-	case "Lectern": return "minecraft:lectern"
-	case "MovingBlock": return "minecraft:moving_block"
-	case "Conduit": return "minecraft:conduit"
-	case "EndGateway": return "minecraft:end_gateway"
-	case "ItemFrame": return "minecraft:item_frame"
-	case "GlowItemFrame": return "minecraft:glow_item_frame"
-	case "PistonArm": return "minecraft:piston"
-	case "SuspiciousStew": return "minecraft:suspicious_stew"
-	case "ChiseledBookshelf": return "minecraft:chiseled_bookshelf"
-	case "DecoratedPot": return "minecraft:decorated_pot"
-	case "CalibratedSculkSensor": return "minecraft:calibrated_sculk_sensor"
-	case "SculkSensor": return "minecraft:sculk_sensor"
-	case "SculkShrieker": return "minecraft:sculk_shrieker"
-	case "SculkCatalyst": return "minecraft:sculk_catalyst"
-	case "BrushableBlock": return "minecraft:suspicious_sand"
-	case "Vault": return "minecraft:vault"
-	case "Crafter": return "minecraft:crafter"
-	case "TrialSpawner": return "minecraft:trial_spawner"
-	default: return ""
+	case "Chest":
+		return "minecraft:chest"
+	case "EnderChest":
+		return "minecraft:ender_chest"
+	case "ShulkerBox":
+		return "minecraft:shulker_box"
+	case "CommandBlock":
+		return "minecraft:command_block"
+	case "Furnace":
+		return "minecraft:furnace"
+	case "BlastFurnace":
+		return "minecraft:blast_furnace"
+	case "Smoker":
+		return "minecraft:smoker"
+	case "Barrel":
+		return "minecraft:barrel"
+	case "Dispenser":
+		return "minecraft:dispenser"
+	case "Dropper":
+		return "minecraft:dropper"
+	case "Hopper":
+		return "minecraft:hopper"
+	case "BrewingStand":
+		return "minecraft:brewing_stand"
+	case "Beacon":
+		return "minecraft:beacon"
+	case "Sign":
+		return "minecraft:standing_sign"
+	case "EnchantTable":
+		return "minecraft:enchanting_table"
+	case "MobSpawner":
+		return "minecraft:mob_spawner"
+	case "Music":
+		return "minecraft:noteblock"
+	case "Jukebox":
+		return "minecraft:jukebox"
+	case "Bed":
+		return "minecraft:bed"
+	case "Cauldron":
+		return "minecraft:cauldron"
+	case "Comparator":
+		return "minecraft:comparator"
+	case "DaylightDetector":
+		return "minecraft:daylight_detector"
+	case "FlowerPot":
+		return "minecraft:flower_pot"
+	case "StructureBlock":
+		return "minecraft:structure_block"
+	case "NetherReactor":
+		return "minecraft:netherreactor"
+	case "Lodestone":
+		return "minecraft:lodestone"
+	case "Beehive":
+		return "minecraft:beehive"
+	case "BeeNest":
+		return "minecraft:bee_nest"
+	case "Bell":
+		return "minecraft:bell"
+	case "Campfire":
+		return "minecraft:campfire"
+	case "SoulCampfire":
+		return "minecraft:soul_campfire"
+	case "Lectern":
+		return "minecraft:lectern"
+	case "MovingBlock":
+		return "minecraft:moving_block"
+	case "Conduit":
+		return "minecraft:conduit"
+	case "EndGateway":
+		return "minecraft:end_gateway"
+	case "ItemFrame":
+		return "minecraft:item_frame"
+	case "GlowItemFrame":
+		return "minecraft:glow_item_frame"
+	case "PistonArm":
+		return "minecraft:piston"
+	case "SuspiciousStew":
+		return "minecraft:suspicious_stew"
+	case "ChiseledBookshelf":
+		return "minecraft:chiseled_bookshelf"
+	case "DecoratedPot":
+		return "minecraft:decorated_pot"
+	case "CalibratedSculkSensor":
+		return "minecraft:calibrated_sculk_sensor"
+	case "SculkSensor":
+		return "minecraft:sculk_sensor"
+	case "SculkShrieker":
+		return "minecraft:sculk_shrieker"
+	case "SculkCatalyst":
+		return "minecraft:sculk_catalyst"
+	case "BrushableBlock":
+		return "minecraft:suspicious_sand"
+	case "Vault":
+		return "minecraft:vault"
+	case "Crafter":
+		return "minecraft:crafter"
+	case "TrialSpawner":
+		return "minecraft:trial_spawner"
+	default:
+		return ""
 	}
 }
 

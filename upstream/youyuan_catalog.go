@@ -1,6 +1,9 @@
 package main
 type yyAPIRoute struct { Name string `json:"name"`; Path string `json:"path"` }
 var yyAPIRoutes=[]yyAPIRoute{
+{"api_host_files","/api/youyuan/files"},
+{"api_host_files_upload","/api/youyuan/files/upload"},
+{"api_host_files_download","/api/youyuan/files/download"},
 {"api_ai_answer","/api/ai/answer"},
 {"api_ai_chat","/api/ai/chat"},
 {"api_ai_models","/api/ai/models"},

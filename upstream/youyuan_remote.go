@@ -147,6 +147,7 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 	yyRegisterQQ(mux, dataDir)
 	yyRuntimeRoutes(mux, dataDir)
 	yyCommandRoutes(mux, dataDir)
+	yyHostFilesRoutes(mux, dataDir)
 	yyBlockVideoRoutes(mux, dataDir)
 	yyConverterRoutes(mux)
 	yyAgentRoutes(mux, dataDir)
@@ -397,7 +398,8 @@ func yyStartRemote(port, dataDir string, mux *http.ServeMux) {
 					}
 					go func(p yyRelayPacket) {
 						defer func() { <-requests }()
-						if !(strings.HasPrefix(p.Path, "/api/") || strings.HasPrefix(p.Path, "/mcp") || p.Path == "/health") {
+						parsedPath, parseErr := url.ParseRequestURI(p.Path)
+						if parseErr != nil || !(strings.HasPrefix(parsedPath.Path, "/api/") || strings.HasPrefix(parsedPath.Path, "/mcp") || parsedPath.Path == "/health") {
 							return
 						}
 						content, e := base64.StdEncoding.DecodeString(p.Body)

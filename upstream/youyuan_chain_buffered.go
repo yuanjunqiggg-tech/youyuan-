@@ -52,7 +52,7 @@ func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainCo
 		window = 4096
 	}
 	if cfg.Mode == "fast" {
-		window = 1024
+		window = int(^uint(0) >> 1) // A whole uninterrupted chain segment; no artificial 1024-node chunking.
 	}
 	for _, chain := range plan.Chains {
 		repeat := chain.Repeat

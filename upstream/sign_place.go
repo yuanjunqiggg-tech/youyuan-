@@ -105,6 +105,15 @@ func (bm *BotManager) getGameInterface() (*game_interface.GameInterface, error) 
 	bm.mu.Lock()
 	bm.gameInterface = gi
 	bm.mu.Unlock()
+	// A reconnect may already be in survival and never send another mode-change
+	// packet. Apply the user's enabled maintenance policy once on initialization.
+	go func() {
+		if m := gi.Maintainer(); m != nil {
+			if err := m.TouchMaintainer(gi); err != nil {
+				debugLog("[模式维护] %v", err)
+			}
+		}
+	}()
 	return gi, nil
 }
 

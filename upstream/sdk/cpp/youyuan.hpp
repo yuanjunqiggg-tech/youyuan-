@@ -1,4 +1,4 @@
-// YouYuan SDK 1.12; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
+// YouYuan SDK 1.13; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
 #pragma once
 #include "third_party/json.hpp"
 #include <cstdlib>
@@ -38,6 +38,17 @@ public:
  template<typename... A> json has(A&&... args)const{return _send("has",json::array({std::forward<A>(args)...}));}
  template<typename... A> json capabilities(A&&... args)const{return _send("capabilities",json::array({std::forward<A>(args)...}));}
 
+ template<typename... A> json onPlayerDeath(A&&... args)const{return _send("onPlayerDeath",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json atomicAdd(A&&... args)const{return _send("atomicAdd",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json flush(A&&... args)const{return _send("flush",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json transaction(A&&... args)const{return _send("transaction",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json sendCommandAsync(A&&... args)const{return _send("sendCommandAsync",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json commandResult(A&&... args)const{return _send("commandResult",json::array({std::forward<A>(args)...}));}
+ // export is a C++ keyword; the wire API remains plugin.export.
+ template<typename... A> json exportPlugin(A&&... args)const{return _send("export",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json reload(A&&... args)const{return _send("reload",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json require(A&&... args)const{return _send("require",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json set(A&&... args)const{return _send("set",json::array({std::forward<A>(args)...}));}
  template<typename... A> json sendCommandFast(A&&... args)const{return _send("sendCommandFast",json::array({std::forward<A>(args)...}));}
  template<typename... A> json sendCommandsFast(A&&... args)const{return _send("sendCommandsFast",json::array({std::forward<A>(args)...}));}
  template<typename... A> json sendCommandConfirmed(A&&... args)const{return _send("sendCommandConfirmed",json::array({std::forward<A>(args)...}));}
@@ -220,9 +231,9 @@ public:explicit API(Client* c):Namespace(c,"api"),client_(c){}
 class Client {
  HostAPI host_;json context_;
 public:
- Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet;API api;
+ Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet,storage;API api;
  Client(const char* context,HostAPI host):host_(host),context_(json::parse(context)),
- game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),api(this){}
+ game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),storage(this,"storage"),api(this){}
  std::string account()const{return context_.at("account").get<std::string>();}
  std::string id()const{return context_.at("plugin_id").get<std::string>();}
  json root(const std::string& path,const json& body=nullptr)const{
@@ -241,6 +252,13 @@ public:
 };
 inline json Namespace::_send(const std::string& method,const json& args)const{return client_->invoke(namespace_+"."+method,args);}
 inline json RemotePlugin::call(const std::string& method,const json& args)const{return client_->invoke("api.call",json::array({id_,method,args}));}
+class CommandBuffer {
+ Client* client_;json commands_=json::array();
+public:explicit CommandBuffer(Client& c):client_(&c){}
+ CommandBuffer& add(const std::string& c){commands_.push_back(c);return *this;}
+ void clear(){commands_=json::array();}std::size_t size()const{return commands_.size();}
+ json submitFast(const json& options=json::object())const{return client_->game.sendCommandsFast(commands_,options);}
+};
 class Plugin {
  using Callback=std::function<json(const json&)>;
  std::map<std::string,Callback> callbacks_,exports_;

@@ -123,9 +123,10 @@ func yySkillLibraryRoutes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("/api/youyuan/agent/skills", func(w http.ResponseWriter, r *http.Request) {
 		var p struct {
-			ID      string `json:"id"`
-			Skill   string `json:"skill"`
-			Enabled bool   `json:"enabled"`
+			ID      string   `json:"id"`
+			Skill   string   `json:"skill"`
+			Enabled bool     `json:"enabled"`
+			Skills  []string `json:"skills"`
 		}
 		id := r.URL.Query().Get("id")
 		if r.Method == "POST" {
@@ -146,6 +147,30 @@ func yySkillLibraryRoutes(mux *http.ServeMux) {
 		ws.Lock()
 		defer ws.Unlock()
 		if r.Method == "POST" {
+			if p.Skills != nil {
+				available := map[string]bool{}
+				for _, skill := range yyAvailableAgentSkills(ws.Language) {
+					available[skill] = true
+				}
+				next := []string{}
+				for _, skill := range p.Skills {
+					if !available[skill] {
+						writeJSON(w, map[string]any{"ok": false, "error": "技能不适用于当前语言或重复: " + skill})
+						return
+					}
+					delete(available, skill)
+					next = append(next, skill)
+				}
+				old := ws.Skills
+				ws.Skills = next
+				if e = ws.saveLocked(); e != nil {
+					ws.Skills = old
+					writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+					return
+				}
+				writeJSON(w, map[string]any{"ok": true, "skills": yyEffectiveAgentSkills(ws), "catalog": yySkillCatalog(ws.Language), "language": ws.Language})
+				return
+			}
 			found := false
 			for _, sk := range yyAvailableAgentSkills(ws.Language) {
 				if sk == p.Skill {

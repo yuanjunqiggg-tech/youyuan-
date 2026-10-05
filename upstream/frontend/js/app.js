@@ -28,6 +28,7 @@ setTimeout(function(){A('POST','/api/version/check',{}).then(function(r){if(r.ok
 
 function openSubPage(title, htmlContent){
   var cacheKey = title;
+  activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
   var sp = document.getElementById('sub-page');
   document.body.classList.add('sp-open');   // 子页面打开时隐藏主页内容，避免透明背景透出主页
   document.getElementById('bottom-nav').classList.add('gone');
@@ -47,12 +48,15 @@ function openSubPage(title, htmlContent){
 
   sp.className = 'sub-page show';
   subPageOpen = true;
-  activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
   // 压入返回栈（同一页在栈顶则不重复压）
   if (subPageStack[subPageStack.length-1] !== cacheKey) subPageStack.push(cacheKey);
 }
 
 function closeSubPage(){
+  if(typeof yyWorkspaceOpenEpoch!=='undefined')yyWorkspaceOpenEpoch++;
+  document.getElementById('yy-agent-profile-modal')?.remove();
+  activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
+  try {
   // save form state + update cached HTML with current DOM state
   var titleEl=document.querySelector('.sp-title');
   if(titleEl){
@@ -72,6 +76,7 @@ function closeSubPage(){
       if(header)subPageCache[key]=header.outerHTML+clone.outerHTML
     }
   }
+  } catch(error) { console.warn('游园：保存页面状态失败，仍允许返回',error); }
   // 返回栈：关闭后回到上一级子页（如有），否则回主页
   if (subPageStack.length > 0) subPageStack.pop();
   if (subPageStack.length > 0) {
@@ -408,6 +413,7 @@ function tabTo(t){
 
 // Android back button
 window.__onBackPressed__=function(){
+  var modal=document.querySelector('.modal-overlay');if(modal){modal.remove();return'true'}
   if(subPageOpen){closeSubPage();return'true'}
   if(tabHistory.length>1){
     tabHistory.pop();

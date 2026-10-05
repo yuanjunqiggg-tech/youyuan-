@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,8 @@ type yyActorObservation struct {
 	Present        bool       `json:"present"`
 	Source         string     `json:"source"`
 	LastSeen       time.Time  `json:"last_seen"`
+	Killer         string     `json:"killer"`
+	KillerKnown    bool       `json:"killer_known"`
 }
 type yySenseState struct {
 	sync.Mutex
@@ -111,8 +114,9 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 	now := time.Now()
 	out := []map[string]any{}
 	source := yyPacketName(pk)
+	var deathDetails map[string]any
 	emit := func(kind string, a *yyActorObservation, extra map[string]any) {
-		e := map[string]any{"type": kind, "runtime_id": strconv.FormatUint(a.RuntimeID, 10), "player": a.Name, "entity_type": a.EntityType, "dimension": a.Dimension, "time": now.Format(time.RFC3339Nano), "source": source}
+		e := map[string]any{"type": kind, "runtime_id": strconv.FormatUint(a.RuntimeID, 10), "player": a.Name, "entity_type": a.EntityType, "dimension": a.Dimension, "time": now.Format(time.RFC3339Nano), "source": source, "timestamp": now.UnixMilli()}
 		for k, v := range extra {
 			e[k] = v
 		}
@@ -124,7 +128,17 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		}
 		v := true
 		a.Dead = &v
-		emit("death", a, map[string]any{"cause_known": false})
+		a.Killer = ""
+		a.KillerKnown = false
+		extra := map[string]any{"cause_known": false, "killer_known": false, "position_known": a.PositionKnown, "last_position": a.Position, "position_time": a.PositionTime.Format(time.RFC3339Nano)}
+		for k, v := range deathDetails {
+			extra[k] = v
+		}
+		if name, ok := extra["killer"].(string); ok {
+			a.Killer = name
+			a.KillerKnown = extra["killer_known"] == true
+		}
+		emit("death", a, extra)
 	}
 	health := func(a *yyActorObservation, h, max float32, hasMax bool) {
 		if math.IsNaN(float64(h)) || math.IsInf(float64(h), 0) {
@@ -173,6 +187,81 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		}
 	}
 	switch p := pk.(type) {
+	case *packet.Text:
+		// Translation packets, not arbitrary chat text, provide authoritative
+		// death causes. Only a known observed player may be named as the killer.
+		if p.TextType != packet.TextTypeTranslation || !strings.HasPrefix(p.Message, "death.attack.") || len(p.Parameters) < 1 {
+			break
+		}
+		var victim *yyActorObservation
+		for _, a := range s.Actors {
+			if a.EntityType == "minecraft:player" && a.Name == p.Parameters[0] {
+				victim = a
+				break
+			}
+		}
+		if victim == nil {
+			break
+		}
+		deathDetails = map[string]any{"cause_known": true, "cause_key": p.Message, "killer_known": false, "position_known": victim.PositionKnown, "last_position": victim.Position}
+		if len(p.Parameters) > 1 {
+			for _, a := range s.Actors {
+				if a.EntityType == "minecraft:player" && a.Name == p.Parameters[1] {
+					deathDetails["killer"] = a.Name
+					deathDetails["killer_runtime_id"] = strconv.FormatUint(a.RuntimeID, 10)
+					deathDetails["killer_known"] = true
+					break
+				}
+			}
+		}
+		if victim.Dead != nil && *victim.Dead {
+			if name, ok := deathDetails["killer"].(string); ok {
+				victim.Killer = name
+				victim.KillerKnown = true
+			}
+			// The earlier RPC may arrive before the translated death message.
+			// Enrich its queryable record, and emit a separate details event.
+			for i := len(s.Events) - 1; i >= 0; i-- {
+				e := s.Events[i]
+				if e["type"] == "death" && e["player"] == victim.Name {
+					if ts, ok := e["timestamp"].(int64); ok && now.UnixMilli()-ts <= 5000 {
+						for k, v := range deathDetails {
+							e[k] = v
+							if data, ok := e["data"].(map[string]any); ok {
+								data[k] = v
+							}
+						}
+					}
+					break
+				}
+			}
+			emit("death_details", victim, deathDetails)
+		} else {
+			dead(victim)
+		}
+	case *packet.PyRpc:
+		uid, isDead, ok := yyDeathRPC(p.Value)
+		if ok {
+			for _, a := range s.Actors {
+				if a.UniqueID != uid || a.EntityType != "minecraft:player" {
+					continue
+				}
+				if isDead {
+					dead(a)
+				} else {
+					wasDead := a.Dead != nil && *a.Dead
+					v := false
+					a.Dead = &v
+					a.Health = nil
+					a.MaxHealth = nil
+					a.HealthTime = time.Time{}
+					if wasDead {
+						emit("respawn", a, map[string]any{"position_known": a.PositionKnown, "position": a.Position})
+					}
+				}
+			}
+		}
+
 	case *packet.AddPlayer:
 		a := s.actor(p.EntityRuntimeID, now)
 		a.Name = p.Username
@@ -298,11 +387,19 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		if len(s.Blocks) >= 4096 && old == nil {
 			s.Blocks = map[string]map[string]any{}
 		}
-		v := map[string]any{"known": true, "dimension": dimension, "position": p.Position, "layer": p.Layer, "runtime_id": p.NewBlockRuntimeID, "time": now.Format(time.RFC3339Nano), "source": source}
+		v := map[string]any{"known": true, "dimension": dimension, "position": p.Position, "layer": p.Layer, "runtime_id": p.NewBlockRuntimeID, "time": now.Format(time.RFC3339Nano), "source": source, "timestamp": now.UnixMilli()}
 		s.Blocks[key] = v
 		out = append(out, map[string]any{"type": "block_change", "time": now.Format(time.RFC3339Nano), "source": source, "block": v, "previous": old, "cause_known": false})
 	}
 	for _, e := range out {
+		e["timestamp"] = now.UnixMilli()
+		data := map[string]any{}
+		for k, v := range e {
+			if k != "player" && k != "type" && k != "timestamp" {
+				data[k] = v
+			}
+		}
+		e["data"] = data
 		s.Seq++
 		e["sequence"] = s.Seq
 		s.Events = append(s.Events, e)

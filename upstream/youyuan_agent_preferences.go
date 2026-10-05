@@ -22,10 +22,9 @@ func yyDefaultAgentSkills(language string) []string {
 // Players choose knowledge per workspace. An explicit empty selection stays empty.
 func yyAvailableAgentSkills(language string) []string {
 	result := []string{}
-	current := yyDefaultAgentSkills(language)[1]
-	other := map[string]bool{"python-runtime": true, "cpp-runtime": true, "lua-runtime": true, "command-chain": true}
+
 	for _, sk := range aiSkills {
-		if !other[sk.ID] || sk.ID == current {
+		{
 			result = append(result, sk.ID)
 		}
 	}
@@ -50,7 +49,7 @@ func yyEffectiveAgentSkills(ws *yyWorkspace) []string {
 	return result
 }
 func yyDefaultAgentTools(language string) []string {
-	tools := []string{"project_list", "project_read", "project_search", "project_write", "project_patch", "project_history", "project_rollback", "project_validate", "project_publish", "load_skill", "mcp_list", "mcp_describe", "mcp_call", "mcp_read_resource"}
+	tools := []string{"project_list", "project_read", "project_search", "project_write", "project_patch", "project_history", "project_rollback", "project_validate", "project_publish", "load_skill", "skill_search", "mcp_list", "mcp_describe", "mcp_call", "mcp_read_resource"}
 	if language == "mcfunction" {
 		return tools
 	}

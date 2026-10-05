@@ -18,6 +18,7 @@ func init() {
 
 // Plugins use the same parser, persistence and runner as the command-chain UI.
 var yyChainMethods = map[string]string{
+	"chains.reload":     "name；只重新读取/编译TXT资源，当前轮使用原IR，下轮用新IR；不重启插件、保留启停与统计；无效修改保留原链。",
 	"chains.list":       "无参数，列出当前账号的链、配置、计数、错误和状态。",
 	"chains.get":        "name，读取完整 TXT、配置和状态。",
 	"chains.export":     "name，返回完整 TXT 与配置，插件可自行写入导出目录。",
@@ -170,7 +171,7 @@ func yyChainPluginCall(bm *BotManager, method string, args []any) (any, error) {
 			}
 			for k, v := range patch {
 				switch k {
-				case "interval_ms", "delay_ms", "run_count", "channel", "enabled", "mode", "window":
+				case "interval_ms", "delay_ms", "run_count", "channel", "enabled", "mode", "window", "rate_cps":
 					config[k] = v
 				default:
 					return nil, fmt.Errorf("不支持配置字段 %s", k)
@@ -178,7 +179,7 @@ func yyChainPluginCall(bm *BotManager, method string, args []any) (any, error) {
 			}
 		}
 		return yyChainResult("POST", map[string]any{"action": "save", "name": name, "content": content, "config": config}, nil)
-	case "chains.start", "chains.stop", "chains.delete", "chains.trigger":
+	case "chains.start", "chains.stop", "chains.delete", "chains.trigger", "chains.reload":
 		return yyChainResult("POST", map[string]any{"action": strings.TrimPrefix(method, "chains."), "name": name}, nil)
 	}
 	return nil, fmt.Errorf("未知命令链接口 %s", method)

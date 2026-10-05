@@ -398,11 +398,11 @@ func (pc *PluginController) Stop(bm *BotManager, id string) error {
 		return fmt.Errorf("插件 %s 未在运行", id)
 	}
 	pc.mu.Unlock()
-	yyStopResident(bm,id)
 	bm.RemovePluginTriggers(id)
 	RemovePluginEvents(id)
 	RemovePluginSchedules(id)
 	RemovePluginWeb(id)
+	yyStopResident(bm, id)
 	pc.mu.Lock()
 	pc.state[id] = "unloaded"
 	pc.running[id] = false

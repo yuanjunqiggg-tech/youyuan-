@@ -3,6 +3,15 @@
 发送指令、定向消息、记分板、背包查询、NBT、聊天菜单与机器人动作。
 
 
+### `game.commandResult`
+
+```cpp
+client.game.commandResult(ticket, wait_ms, consume);
+```
+
+- 功能、参数、返回与约束：ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
 ### `game.dataDir`
 
 ```cpp
@@ -447,6 +456,15 @@ client.game.sendCommand(cmd, options);
 - 底层与游戏效果：当前默认魔法/ai使用SettingsCommand，套execute as机器人 at @s保留执行者与相对坐标；player/console为相应CommandRequest。不会逐条等待CommandOutput。
 - 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
 
+### `game.sendCommandAsync`
+
+```cpp
+client.game.sendCommandAsync(command, options);
+```
+
+- 功能、参数、返回与约束：command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。最多128个未读取ticket/实例，满时明确报错；Fast路径不走该窗口。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
 ### `game.sendCommandConfirmed`
 
 ```cpp
@@ -703,3 +721,8 @@ client.game.waitMsg(player, timeoutSec);
 - 返回：string（收到的消息）。超时返回 `nil`。
 - 报错：失败抛 `waitMsg: <err>`。
 - 底层：在机器人**收包循环**里为该玩家注册一个"等待通道"，玩家下一条聊天消息到达时投递给等待者。它**独占**该玩家的消息——同一玩家已有活跃等待会话时，新消息会被它消费掉，`onChat` 等其它 handler 收不到。
+
+
+## 服务器关闭命令反馈时
+
+实服已验证：gamerule sendcommandfeedback false 会使 Confirmed/querytarget 等结果接口收不到回包，即使命令已经执行。Fast 不等待回包，模式维护也使用无等待创造命令和飞行输入。需要条件链、查询结果或确认时，要由服主确保服务器允许命令反馈；超时返回未知，不能把它当失败自动重发。高频无条件链不要为语法验证逐条增加确认。

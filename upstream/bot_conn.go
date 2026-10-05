@@ -104,7 +104,8 @@ type BotManager struct {
 	lastReportedPos mgl32.Vec3
 
 	// 服务器权威位置
-	dimension int32 // 当前维度（0=主世界, 1=下界, 2=末地）
+	structureExportUnavailable bool  // Reset on each connection; terrain fallback after a template timeout.
+	dimension                  int32 // 当前维度（0=主世界, 1=下界, 2=末地）
 
 	// 服务器 TPS 计算（SetTime 包的时间戳推算，用于悬浮窗显示）
 	tps            float64
@@ -251,6 +252,7 @@ func (bm *BotManager) Connect(token, server, auth, password string) error {
 	bm.connectTime = time.Now()
 	bm.stopCh = make(chan struct{})
 	bm.connected = true
+	bm.structureExportUnavailable = false
 	bm.mu.Unlock()
 
 	// 把自己注册到 players map
@@ -455,6 +457,7 @@ func (bm *BotManager) connectTanLobby(token, roomID, auth, password string) erro
 	bm.connectTime = time.Now()
 	bm.stopCh = make(chan struct{})
 	bm.connected = true
+	bm.structureExportUnavailable = false
 	bm.mu.Unlock()
 
 	// 把自己注册到 players map
@@ -1371,6 +1374,34 @@ func (bm *BotManager) SendCommand(cmd string) error {
 var structureCallbacks sync.Map
 
 func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time.Duration) (map[string]any, error) {
+	if err := yyValidateRegion(pos, size); err != nil {
+		return nil, err
+	}
+	bm.mu.Lock()
+	fallback := bm.structureExportUnavailable
+	bm.mu.Unlock()
+	if fallback {
+		return bm.yyReadRegionSubChunks(pos, size)
+	}
+	data, err := bm.requestStructureTemplate(pos, size, timeout)
+	if err == nil {
+		return data, nil
+	}
+	if !bm.IsConnected() {
+		return nil, err
+	}
+	bm.mu.Lock()
+	bm.structureExportUnavailable = true
+	bm.mu.Unlock()
+	bm.logCh <- "[导出] 结构模板未返回有效数据，改用服务器子区块读取；不会把缺失数据当空气"
+	data, fallbackErr := bm.yyReadRegionSubChunks(pos, size)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("结构通道: %v；子区块通道: %w", err, fallbackErr)
+	}
+	return data, nil
+}
+
+func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, timeout time.Duration) (map[string]any, error) {
 	bm.mu.Lock()
 	if !bm.connected || bm.conn == nil {
 		bm.mu.Unlock()
@@ -1381,6 +1412,7 @@ func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time
 	// /structure save must be called before ExportFromSave or the server won't return block NBT.
 	name := uuid.New().String()
 	safeName := strings.ReplaceAll(name, "-", "")
+	defer bm.cleanupStructure(safeName)
 	saveCmd := fmt.Sprintf(`structure save "%s" %d %d %d %d %d %d`,
 		safeName,
 		pos[0], pos[1], pos[2],
@@ -1390,17 +1422,25 @@ func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time
 
 	// Use WS command to save and wait for completion
 	if bm.gameInterface != nil {
-		bm.gameInterface.Commands().SendWSCommandWithTimeout(saveCmd, 8*time.Second)
+		resp, timedOut, saveErr := bm.gameInterface.Commands().SendWSCommandWithTimeout(saveCmd, 8*time.Second)
+		if saveErr != nil {
+			return nil, fmt.Errorf("结构保存失败: %w", saveErr)
+		}
+		if !timedOut && (resp == nil || resp.SuccessCount == 0) {
+			return nil, fmt.Errorf("服务器拒绝结构保存")
+		}
 		bm.gameInterface.Commands().AwaitChangesGeneral()
 	} else {
 		bm.mu.Lock()
 		conn := bm.conn
 		bm.mu.Unlock()
 		if conn != nil {
-			conn.WritePacket(&packet.SettingsCommand{
+			if e := conn.WritePacket(&packet.SettingsCommand{
 				CommandLine:    saveCmd,
 				SuppressOutput: true,
-			})
+			}); e != nil {
+				return nil, e
+			}
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -1408,12 +1448,15 @@ func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time
 	bm.mu.Lock()
 	respCh := make(chan map[string]any, 1)
 	structureCallbacks.Store(safeName, respCh)
+	structureCallbacks.Store("mystructure:"+safeName, respCh)
+	defer structureCallbacks.Delete(safeName)
+	defer structureCallbacks.Delete("mystructure:" + safeName)
 	conn := bm.conn
 	eid := bm.eid
 	bm.mu.Unlock()
 
 	if conn != nil {
-		conn.WritePacket(&packet.StructureTemplateDataRequest{
+		if e := conn.WritePacket(&packet.StructureTemplateDataRequest{
 			StructureName: safeName,
 			Position:      protocol.BlockPos{pos[0], pos[1], pos[2]},
 			Settings: protocol.StructureSettings{
@@ -1427,17 +1470,20 @@ func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time
 				AllowNonTickingChunks: false,
 			},
 			RequestType: packet.StructureTemplateRequestExportFromSave,
-		})
+		}); e != nil {
+			return nil, e
+		}
 	}
 
 	select {
 	case data := <-respCh:
+		if len(data) == 0 {
+			return nil, fmt.Errorf("服务器结构响应不含数据")
+		}
 		structureCallbacks.Delete(safeName)
-		bm.cleanupStructure(safeName)
 		return data, nil
 	case <-time.After(timeout):
 		structureCallbacks.Delete(safeName)
-		bm.cleanupStructure(safeName)
 		return nil, fmt.Errorf("等待结构数据超时")
 	}
 }

@@ -169,7 +169,7 @@ client.util.schedule(intervalSec, handlerName);
 client.util.scheduleHz(hz, handler);
 ```
 
-- 功能、参数、返回与约束：hz,handler；本地完整回调的频率，0<hz<=1000。慢回调不重入、不补积压轮次；查看listJobs的missed。不是服务端同步Tick。
+- 功能、参数、返回与约束：hz,handler；本地完整回调的频率，0<hz<=1000。慢回调不重入、不补积压轮次；统一时钟、skip策略；查看listJobs的missed。不是服务端同步Tick。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 - 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
 
@@ -189,7 +189,7 @@ client.util.scheduleSeconds(seconds, handler);
 client.util.scheduleTick(ticks, handler);
 ```
 
-- 功能、参数、返回与约束：ticks,handler；ticks>=1，本地名义Tick=50ms，不宣称服务端同Tick同步。
+- 功能、参数、返回与约束：ticks,handler；ticks>=1，统一宿主Tick Loop；本地名义Tick=50ms，不宣称服务端同Tick同步。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 - 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
 

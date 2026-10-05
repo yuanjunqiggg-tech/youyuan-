@@ -18,6 +18,7 @@ import (
 )
 
 var yyExtraMethods = map[string]string{
+	"events.onPlayerDeath":      "handler(event)；只接受玩家死亡；来自真实ActorEvent/血量归零/网易ModEventS2C OnPlayerDie，附已知最后位置、维度、timestamp；没有位置保持position_known=false。",
 	"events.onSwing":            "handler(event)；服务器AnimateActionSwingArm下发时触发，含runtime_id/player/source。挥臂不证明命中了目标，服务器未广播则无法观测。",
 	"events.onEntitySpawn":      "handler(event)；AddPlayer/AddActor/AddItemActor下发时触发，含实体类型、位置和原始fields。服务器视距内的出现，不代表世界内首次出生；血量仅取真实同步属性。",
 	"events.onEntityRemove":     "handler(event)；RemoveActor下发时触发，含unique_id和已知runtime_id。消失不等于死亡，也可能是离开视距。",
@@ -52,7 +53,7 @@ var yyExtraMethods = map[string]string{
 	"events.captureClear":       "清空当前账号抓包缓冲，保持抓包开关。",
 	"events.packetSchema":       "无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。",
 }
-var yySenseEvents = map[string]string{"events.onDeath": "death", "events.onHealthChange": "health", "events.onHurt": "hurt", "events.onMove": "move", "events.onRespawn": "respawn", "events.onBlockChange": "block_change", "events.onSwing": "swing", "events.onEntitySpawn": "entity_spawn", "events.onEntityRemove": "entity_remove", "events.onItemPickup": "item_pickup"}
+var yySenseEvents = map[string]string{"events.onDeath": "death", "events.onPlayerDeath": "player_death", "events.onHealthChange": "health", "events.onHurt": "hurt", "events.onMove": "move", "events.onRespawn": "respawn", "events.onBlockChange": "block_change", "events.onSwing": "swing", "events.onEntitySpawn": "entity_spawn", "events.onEntityRemove": "entity_remove", "events.onItemPickup": "item_pickup"}
 
 type yySenseLuaHook struct {
 	Bot                   *BotManager
@@ -92,7 +93,7 @@ func yySenseLuaEmit(bm *BotManager, e map[string]any) {
 	rows := append([]yySenseLuaHook{}, yySenseHooks.Items...)
 	yySenseHooks.Unlock()
 	for _, h := range rows {
-		if h.Bot != bm || h.Kind != e["type"] {
+		if h.Bot != bm || !yySenseEventMatches(h.Kind, e) {
 			continue
 		}
 		yyLuaMu.Lock()

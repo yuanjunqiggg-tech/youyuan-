@@ -29,6 +29,7 @@ func registerAllLuaAPI(L *lua.LState, bm *BotManager) {
 	registerProfilerAPI(L)
 	registerCapabilityAPI(L)
 	registerPacketAPI(L)
+	registerStorageAPI(L)
 }
 
 // newLuaState 创建一个已注册全部插件 API 的 Lua 状态。
@@ -70,8 +71,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		return 0
 	}))
 
-	// game.registerTrigger(wordsTable, handlerName)：注册触发词，触发时在临时 VM 里
-	// 重跑插件源码并调用名为 handlerName 的全局 Lua 函数 (player, args)。
+	// game.registerTrigger(wordsTable, handlerName)：注册触发词，触发时在常驻 VM 中
+	// 调用名为 handlerName 的全局 Lua 函数 (player, args)。
 	L.SetField(g, "registerTrigger", L.NewFunction(func(L *lua.LState) int {
 		wordsTbl := L.CheckTable(1)
 		handlerName := L.CheckString(2)

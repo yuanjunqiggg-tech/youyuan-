@@ -22,7 +22,10 @@ public class VerificationActivity extends Activity {
         TextView title=new TextView(this);title.setText("验证服务器");title.setPadding(16,0,0,0);bar.addView(title);
         close.setTextColor(android.graphics.Color.rgb(20,108,94));close.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.rgb(220,239,232)));title.setTextColor(android.graphics.Color.rgb(35,60,54));
         root.addView(bar);browser=new WebView(this);browser.getSettings().setJavaScriptEnabled(true);browser.getSettings().setDomStorageEnabled(true);
-        browser.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){Uri uri=request.getUrl();if("https".equals(uri.getScheme())||"http".equals(uri.getScheme()))return false;try{startActivity(new Intent(Intent.ACTION_VIEW,uri));}catch(Exception ignored){}return true;}});
+        browser.setWebViewClient(new WebViewClient(){
+            @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){return ExternalLinks.handle(VerificationActivity.this,request.getUrl().toString());}
+            @Override public boolean shouldOverrideUrlLoading(WebView view,String url){return ExternalLinks.handle(VerificationActivity.this,url);}
+        });
         root.addView(browser,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
         String address=getIntent().getStringExtra("url");if(address!=null&&address.startsWith("https://"))browser.loadUrl(address);
     }

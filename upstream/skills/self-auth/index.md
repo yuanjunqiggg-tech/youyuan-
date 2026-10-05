@@ -22,3 +22,5 @@ POST管理操作：`login_email {email,password,name}`、`register_guest {nickna
 认证协议：`GET /api/new`建立认证会话；`POST /api/phoenix/login`接收login_token/server_code/server_passcode/client_public_key；服务器认证成功后才能调用transfer_start_type和transfer_check_num。所有令牌撤销阻止新登录，不保证立即踢掉已经建立的游戏连接。暂未开放PC山头/PC大厅协议和本地联机认证入口，不能宣称全部服务器类型已验证。
 
 权限测试要核对未登录401、跨用户无法访问、列表无秘密、删除和重签后旧令牌失败。真实性验收还要用自己的令牌完成APK实际进服，不能只检查HTTP200。
+
+4399官方注册入口现已开放。它不能直接等同于网易Sauth/游戏令牌；自动4399注册与登录来源适配仍待实现，不能把“打开网页”声称为自动发放成功。

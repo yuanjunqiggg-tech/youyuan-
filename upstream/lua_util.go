@@ -26,6 +26,9 @@ type schedJob struct {
 	bm                      *BotManager
 	cancel                  chan struct{}
 	cancelOnce              sync.Once
+	exitOnce                sync.Once
+	nextDue                 time.Time
+	running, finished       bool
 	paused                  atomic.Bool
 	resume                  chan struct{}
 	calls, missed, failures atomic.Uint64
@@ -54,65 +57,8 @@ func newSchedJobWith(plugin, handler string, interval time.Duration, oneshot boo
 	id := schedNext
 	schedJobs[id] = &schedJob{plugin: plugin, handler: handler, interval: interval, oneshot: oneshot, bm: bm, cancel: make(chan struct{}), resume: make(chan struct{}, 1), callback: callback, onExit: onExit}
 	schedMu.Unlock()
-	go runSchedLoop(id)
+	yyWakeTickLoop()
 	return id
-}
-
-func runSchedLoop(id int64) {
-	schedMu.Lock()
-	job := schedJobs[id]
-	schedMu.Unlock()
-	if job == nil {
-		return
-	}
-	// 兜底 recover：任何 panic 都不能杀死整个进程（Go 中未恢复的 panic 会让 App 崩溃）。
-	defer func() {
-		if r := recover(); r != nil {
-			debugLog("[定时] 定时任务崩溃 id=%d err=%v", id, r)
-		}
-		schedMu.Lock()
-		delete(schedJobs, id)
-		schedMu.Unlock()
-		if job.onExit != nil {
-			job.onExit()
-		}
-	}()
-	if job.oneshot {
-		timer := time.NewTimer(job.interval)
-		defer timer.Stop()
-		select {
-		case <-job.cancel:
-		case <-timer.C:
-			for job.paused.Load() {
-				select {
-				case <-job.cancel:
-					return
-				case <-job.resume:
-				}
-			}
-			runScheduledHandler(job)
-		}
-		return
-	}
-	ticker := time.NewTicker(job.interval)
-	defer ticker.Stop()
-	lastTick := time.Now()
-	for {
-		select {
-		case <-job.cancel:
-			return
-		case tick := <-ticker.C:
-			if lost := int64(tick.Sub(lastTick)/job.interval) - 1; lost > 0 {
-				job.missed.Add(uint64(lost))
-			}
-			lastTick = tick
-			if job.paused.Load() {
-				job.missed.Add(1)
-				continue
-			}
-			runScheduledHandler(job)
-		}
-	}
 }
 
 // Same job never overlaps. Its resident VM serializes other callbacks too.
@@ -151,6 +97,7 @@ func cancelSchedJob(id int64) bool {
 		return false
 	}
 	job.cancelOnce.Do(func() { close(job.cancel) })
+	yyWakeTickLoop()
 	return true
 }
 
@@ -166,6 +113,7 @@ func RemovePluginSchedules(plugin string) {
 	schedMu.Unlock()
 	for _, job := range toCancel {
 		job.cancelOnce.Do(func() { close(job.cancel) })
+		yyWakeTickLoop()
 	}
 }
 

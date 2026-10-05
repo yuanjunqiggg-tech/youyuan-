@@ -1,8 +1,10 @@
 package building
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/TriM-Organization/bedrock-world-operator/block"
 	"github.com/TriM-Organization/bedrock-world-operator/chunk"
@@ -17,7 +19,7 @@ func WriteMergedStructureToMCWorld(mergedStructure map[string]any, totalW, total
 		return fmt.Errorf("没有结构数据可写入")
 	}
 
-	tmpDir, err := os.MkdirTemp("/data/data/org.youyuan.toolbox/files", "prism_export_")
+	tmpDir, err := os.MkdirTemp("", "youyuan_export_")
 	if err != nil {
 		return fmt.Errorf("导出世界失败：创建临时目录：%w", err)
 	}
@@ -92,8 +94,8 @@ func WriteMergedStructureToMCWorld(mergedStructure map[string]any, totalW, total
 	dimRange := dim.Range()
 
 	chunkSize := int32(16)
-	chunksX := (totalW + chunkSize - 1) / chunkSize
-	chunksZ := (totalL + chunkSize - 1) / chunkSize
+	chunksX := ((originX + totalW - 1) >> 4) - (originX >> 4) + 1
+	chunksZ := ((originZ + totalL - 1) >> 4) - (originZ >> 4) + 1
 	layer0 := toIntSliceLocal(blockIndicesRaw[0])
 
 	// 逐区块处理
@@ -106,14 +108,14 @@ func WriteMergedStructureToMCWorld(mergedStructure map[string]any, totalW, total
 			chunkStartZ := (originZ>>4 + cz) * 16
 			startX := chunkStartX - originX
 			startZ := chunkStartZ - originZ
+			endX := startX + chunkSize
+			endZ := startZ + chunkSize
 			if startX < 0 {
 				startX = 0
 			}
 			if startZ < 0 {
 				startZ = 0
 			}
-			endX := startX + 16
-			endZ := startZ + 16
 			if endX > totalW {
 				endX = totalW
 			}
@@ -212,6 +214,16 @@ func WriteMergedStructureToMCWorld(mergedStructure map[string]any, totalW, total
 
 	if err := w.CloseWorld(); err != nil {
 		return fmt.Errorf("导出世界失败：关闭世界：%w", err)
+	}
+	// Preserve the selected bounds independently of the filename. Otherwise
+	// importing a renamed small export silently expands to the default world.
+	region := [6]int32{originX, originY, originZ, originX + totalW - 1, originY + totalH - 1, originZ + totalL - 1}
+	metadata, err := json.Marshal(map[string]any{"format_version": 1, "region": region})
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(filepath.Join(tmpDir, "youyuan-region.json"), metadata, 0644); err != nil {
+		return err
 	}
 
 	return zipDir(tmpDir, worldPath)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	lua "github.com/yuin/gopher-lua"
 	"strings"
@@ -20,6 +21,8 @@ type yyLuaResident struct {
 	closed                                         bool
 	ready                                          bool
 	err                                            error
+	lifetime                                       context.Context
+	stop                                           context.CancelFunc
 	senseQueue                                     chan yySenseDelivery
 	senseDone                                      chan struct{}
 	senseStop                                      sync.Once
@@ -100,12 +103,14 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 		yyLuaMu.Lock()
 	}
 	r := &yyLuaResident{senseQueue: make(chan yySenseDelivery, 128), senseDone: make(chan struct{})}
+	r.lifetime, r.stop = context.WithCancel(context.Background())
 	r.mu.Lock()
 	yyLuaStates[key] = r
 	yyLuaMu.Unlock()
 	defer r.mu.Unlock()
 	L := newLuaState(bm)
 	r.L = L
+	setLuaBotCtxParent(L, bm, r.lifetime)
 	L.SetGlobal("__PLUGIN_ID__", lua.LString(id))
 	yyLuaModulePath(L)
 	if pluginController != nil {
@@ -147,6 +152,7 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 }
 
 func yyStopResident(bm *BotManager, id string) {
+	yyClearCommandTickets(yyAsyncCommandKey{bm, id})
 	yySenseLuaClear(bm, id)
 	key := yyLuaKey{bm, id}
 	yyLuaMu.Lock()
@@ -155,6 +161,9 @@ func yyStopResident(bm *BotManager, id string) {
 	yyLuaMu.Unlock()
 	if r == nil {
 		return
+	}
+	if r.stop != nil {
+		r.stop()
 	}
 	r.senseStop.Do(func() {
 		if r.senseDone != nil {
@@ -199,7 +208,11 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 		for old := r.callbackMaxNS.Load(); ns > old && !r.callbackMaxNS.CompareAndSwap(old, ns); old = r.callbackMaxNS.Load() {
 		}
 	}()
-	setLuaBotCtx(L, bm)
+	parent := r.lifetime
+	if parent == nil {
+		parent = context.Background()
+	}
+	setLuaBotCtxParent(L, bm, parent)
 	defer cancelLuaCtx(L)
 	top := L.GetTop()
 	defer L.SetTop(top)

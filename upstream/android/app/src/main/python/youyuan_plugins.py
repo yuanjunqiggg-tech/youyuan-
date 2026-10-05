@@ -33,6 +33,17 @@ class RemotePlugin:
         if name.startswith('_'): raise AttributeError(name)
         return lambda *args:self._host.invoke('api.call',self._plugin,name,list(args))
 
+class CommandBuffer:
+    """Build in Python, then submit one array across the host boundary."""
+    def __init__(self, host): self._host=host; self._commands=[]
+    def add(self, command):
+        if not isinstance(command,str): raise TypeError('command must be text')
+        self._commands.append(command); return self
+    def clear(self): self._commands.clear(); return self
+    def size(self): return len(self._commands)
+    def submitFast(self, options=None):
+        return self._host.game.sendCommandsFast(self._commands,options or {})
+
 class Host:
     def __init__(self,account,data_dir,port=None,plugin_id=None,module=None):
         self.account=account
@@ -57,8 +68,10 @@ class Host:
         self._loop_thread=threading.Thread(target=run_loop,name='yy-async-'+str(plugin_id),daemon=True)
         self._loop_thread.start()
         self._loop_ready.wait()
-        for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet'):
+        for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet','storage'):
             setattr(self,namespace,Namespace(self,namespace))
+
+    def command_buffer(self): return CommandBuffer(self)
 
     def _callback(self,callback):
         for name,old in self._callbacks.items():
@@ -175,7 +188,7 @@ def dispatch(params_json):
                 sys.modules[package_name+'.main']=module
                 host=Host(params['account'],params['data_dir'],params.get('port'),params.get('plugin_id'),module)
                 # Expose the familiar original API names before on_init runs.
-                for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet'):
+                for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet','storage'):
                     if not hasattr(module,namespace): setattr(module,namespace,getattr(host,namespace))
                 module.host=host
                 spec.loader.exec_module(module)

@@ -12,6 +12,10 @@ import (
 var yyLibraryHTTP = &http.Client{Timeout: 140 * time.Second}
 
 func yyLibraryProxy(w http.ResponseWriter, r *http.Request) {
+	if getPlatformName() == "linux" {
+		yyLocalLibrary(w, r)
+		return
+	}
 	yyRemoteMu.RLock()
 	cfg := yyRemote
 	yyRemoteMu.RUnlock()

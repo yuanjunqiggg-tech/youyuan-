@@ -1,10 +1,10 @@
 {
-  "version": "0.10.8",
+  "version": "0.10.9",
   "namespaces": {
     "game": {
       "title": "游戏命令与交互",
       "description": "发送指令、定向消息、记分板、背包查询、NBT、聊天菜单与机器人动作。",
-      "count": 59
+      "count": 61
     },
     "player": {
       "title": "玩家资料与感知",
@@ -19,7 +19,7 @@
     "events": {
       "title": "事件与抓包",
       "description": "聊天、进退服、死亡、挥臂、实体出现与拾取，以及原始协议订阅。",
-      "count": 23
+      "count": 24
     },
     "packet": {
       "title": "原始协议包",
@@ -34,7 +34,7 @@
     "chains": {
       "title": "命令链管理",
       "description": "同一套TXT预解析、整链频率、启停、跨链与聊天菜单，可供插件调用。",
-      "count": 12
+      "count": 13
     },
     "building": {
       "title": "建筑与颜色",
@@ -71,6 +71,11 @@
       "description": "系统桥、通知、震动、Shizuku；桌面支持范围与Android不同。",
       "count": 7
     },
+    "storage": {
+      "title": "缓存与事务",
+      "description": "内存键值、原子加分、自动持久化与条件事务。",
+      "count": 6
+    },
     "web": {
       "title": "插件控制页面",
       "description": "声明式页面、HTML资源、动作回调与事件推送，重载清理旧注册。",
@@ -78,6 +83,12 @@
     }
   },
   "methods": [
+    {
+      "method": "game.commandResult",
+      "namespace": "game",
+      "signature": "game.commandResult(ticket, wait_ms?, consume?)",
+      "content": "- 功能、参数、返回与约束：ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
     {
       "method": "game.dataDir",
       "namespace": "game",
@@ -299,6 +310,12 @@
       "namespace": "game",
       "signature": "game.sendCommand(cmd, options?)",
       "content": "- 作用：无等待按顺序提交命令；没有默认逐条CPS等待。\n- 参数：`cmd, options?`；按此顺序传入。\n- 返回：Lua旧单参数写法保持无返回值；Python/C++返回提交信息（submitted/confirmed）。\n- 底层与游戏效果：当前默认魔法/ai使用SettingsCommand，套execute as机器人 at @s保留执行者与相对坐标；player/console为相应CommandRequest。不会逐条等待CommandOutput。\n- 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。"
+    },
+    {
+      "method": "game.sendCommandAsync",
+      "namespace": "game",
+      "signature": "game.sendCommandAsync(command, options?)",
+      "content": "- 功能、参数、返回与约束：command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。最多128个未读取ticket/实例，满时明确报错；Fast路径不走该窗口。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
     },
     {
       "method": "game.sendCommandConfirmed",
@@ -631,6 +648,12 @@
       "content": "- 作用：注册数据包事件处理器。\n- 参数：`handlerName` string 必填，回调签名 `onPacket(type, dataTable)`——2 参：`type` string（包类型）、`dataTable` table（数据）。\n- 返回：无。\n- 报错：`handlerName` 非 string 抛类型错误。\n- 底层：`registerEvent(&evPacket, L)`；触发 `firePacketEvent`，数据经 `goToLua` 转表。实时。\n- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。"
     },
     {
+      "method": "events.onPlayerDeath",
+      "namespace": "events",
+      "signature": "events.onPlayerDeath(handler)",
+      "content": "- 功能、参数、返回与约束：handler(event)；只接受玩家死亡；来自真实ActorEvent/血量归零/网易ModEventS2C OnPlayerDie，附已知最后位置、维度、timestamp；没有位置保持position_known=false。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。\n- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。"
+    },
+    {
       "method": "events.onRespawn",
       "namespace": "events",
       "signature": "events.onRespawn(handler)",
@@ -803,6 +826,12 @@
       "namespace": "chains",
       "signature": "chains.menu(player, page?)",
       "content": "- 功能、参数、返回与约束：player,page=1，仅向该玩家发分页聊天菜单；不会阻塞等待消息。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
+    {
+      "method": "chains.reload",
+      "namespace": "chains",
+      "signature": "chains.reload(name)",
+      "content": "- 功能、参数、返回与约束：name；只重新读取/编译TXT资源，当前轮使用原IR，下轮用新IR；不重启插件、保留启停与统计；无效修改保留原链。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
     },
     {
       "method": "chains.save",
@@ -1066,7 +1095,7 @@
       "method": "util.scheduleHz",
       "namespace": "util",
       "signature": "util.scheduleHz(hz, handler)",
-      "content": "- 功能、参数、返回与约束：hz,handler；本地完整回调的频率，0<hz<=1000。慢回调不重入、不补积压轮次；查看listJobs的missed。不是服务端同步Tick。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。\n- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。"
+      "content": "- 功能、参数、返回与约束：hz,handler；本地完整回调的频率，0<hz<=1000。慢回调不重入、不补积压轮次；统一时钟、skip策略；查看listJobs的missed。不是服务端同步Tick。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。\n- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。"
     },
     {
       "method": "util.scheduleSeconds",
@@ -1078,7 +1107,7 @@
       "method": "util.scheduleTick",
       "namespace": "util",
       "signature": "util.scheduleTick(ticks, handler)",
-      "content": "- 功能、参数、返回与约束：ticks,handler；ticks>=1，本地名义Tick=50ms，不宣称服务端同Tick同步。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。\n- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。"
+      "content": "- 功能、参数、返回与约束：ticks,handler；ticks>=1，统一宿主Tick Loop；本地名义Tick=50ms，不宣称服务端同Tick同步。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。\n- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。"
     },
     {
       "method": "util.setTimeout",
@@ -1217,6 +1246,42 @@
       "namespace": "system",
       "signature": "system.vibrate(ms?)",
       "content": "- 作用：触发手机震动（**不需要** Shizuku/ADB 权限）。\n- 参数：`ms` number 可选，默认 500（毫秒）。\n- 返回：table `{ok=true}`；异常时 `{ok=false, error=...}`。\n- 报错：桥调用失败抛 `system.vibrate: <err>`。\n- 底层：参数 `{\"ms\":ms}` → JNI → Java `vibrate`（Vibrator）。"
+    },
+    {
+      "method": "storage.atomicAdd",
+      "namespace": "storage",
+      "signature": "storage.atomicAdd(key, delta?)",
+      "content": "- 功能、参数、返回与约束：key,delta=1；持锁原子加，默认从0开始；非数字报错，不发生读改写竞争。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
+    {
+      "method": "storage.delete",
+      "namespace": "storage",
+      "signature": "storage.delete(key)",
+      "content": "- 功能、参数、返回与约束：key；删除缓存键，后台持久化。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
+    {
+      "method": "storage.flush",
+      "namespace": "storage",
+      "signature": "storage.flush()",
+      "content": "- 功能、参数、返回与约束：无参数；同步写临时文件、Sync、原子替换storage.json；失败报真实路径错误并保留dirty。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
+    {
+      "method": "storage.get",
+      "namespace": "storage",
+      "signature": "storage.get(key, default?)",
+      "content": "- 功能、参数、返回与约束：key,default?；内存读取并复制值，账号/插件的数据目录独立；首次读取storage.json一次。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
+    {
+      "method": "storage.set",
+      "namespace": "storage",
+      "signature": "storage.set(key, value)",
+      "content": "- 功能、参数、返回与约束：key,value；复制JSON可表示的值到内存，后台约1秒自动原子持久化；重要提交用flush或transaction。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
+    },
+    {
+      "method": "storage.transaction",
+      "namespace": "storage",
+      "signature": "storage.transaction(operations)",
+      "content": "- 功能、参数、返回与约束：operations数组；op=set/add/delete/check,key,value。check值不符则整批回滚；整批验证后持锁同步持久化成功才替换缓存。不是任意Lua函数/跨文件事务。\n- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。"
     },
     {
       "method": "web.action",

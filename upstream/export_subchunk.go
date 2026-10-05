@@ -64,7 +64,7 @@ func (t *SubChunkExportTask) Run() error {
 		return fmt.Errorf("区块半径协商失败: %w", err)
 	}
 
-	tmpDir, err := os.MkdirTemp("/data/data/org.youyuan.toolbox/files", "prism_export_*")
+	tmpDir, err := os.MkdirTemp("", "youyuan_export_*")
 	if err != nil {
 		return fmt.Errorf("导出失败：创建临时目录：%w", err)
 	}
@@ -281,7 +281,7 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 	}
 
 	if len(missing) > 0 {
-		t.bm.logCh <- fmt.Sprintf("[导出] chunk (%d,%d): 最终 %d 个子区块未获取（空气）", chunkX, chunkZ, len(missing))
+		return nil, nil, fmt.Errorf("区块 (%d,%d) 有 %d 个子区块未取得；拒绝伪造为空气", chunkX, chunkZ, len(missing))
 	}
 
 	return subs, allNBTs, nil
@@ -371,7 +371,18 @@ func (t *SubChunkExportTask) fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY
 		return nil, nil, nil, fmt.Errorf("导出子区块失败：区块 (%d,%d) 无响应", chunkX, chunkZ)
 	}
 
-	return decodeSubs(resp, base, subMinY, subMaxY, dimRange)
+	subs, nbts, missing, decodeErr := decodeSubs(resp, base, subMinY, subMaxY, dimRange)
+	requested := map[protocol.SubChunkPos]bool{}
+	for _, pos := range positions {
+		requested[pos] = true
+	}
+	filtered := []protocol.SubChunkPos{}
+	for _, pos := range missing {
+		if requested[pos] {
+			filtered = append(filtered, pos)
+		}
+	}
+	return subs, nbts, filtered, decodeErr
 }
 
 // subChunkResult 封装监听器回调结果。
@@ -396,14 +407,16 @@ func decodeSubs(resp *packet.SubChunk, base protocol.SubChunkPos, subMinY, subMa
 	subs := make([]*chunk.SubChunk, subCount)
 	var allNBTs []map[string]any
 	var missing []protocol.SubChunkPos
+	seen := map[int32]bool{}
 
 	for _, entry := range resp.SubChunkEntries {
 		entryY := base.Y() + int32(entry.Offset[1])
 		relY := entryY - subMinY
-		if relY < 0 || relY >= subCount {
+		if entry.Offset[0] != 0 || entry.Offset[2] != 0 || relY < 0 || relY >= subCount {
 			continue
 		}
 
+		seen[entryY] = true
 		switch entry.Result {
 		case protocol.SubChunkResultSuccessAllAir:
 			// 全空气，保持 nil（SaveSubChunk 会正确处理）
@@ -435,12 +448,20 @@ func decodeSubs(resp *packet.SubChunk, base protocol.SubChunkPos, subMinY, subMa
 			for buf.Len() > 0 {
 				var blockData map[string]any
 				if err := nbt.NewDecoderWithEncoding(buf, nbt.NetworkLittleEndian).Decode(&blockData); err != nil {
-					break
+					return nil, nil, nil, fmt.Errorf("方块实体NBT解码失败: %w", err)
 				}
 				if blockData != nil {
 					allNBTs = append(allNBTs, blockData)
 				}
 			}
+		default:
+			missing = append(missing, entrySubChunkPos(base, entry))
+		}
+	}
+
+	for y := subMinY; y <= subMaxY; y++ {
+		if !seen[y] {
+			missing = append(missing, protocol.SubChunkPos{base.X(), y, base.Z()})
 		}
 	}
 
@@ -451,7 +472,7 @@ func decodeSubs(resp *packet.SubChunk, base protocol.SubChunkPos, subMinY, subMa
 		for buf.Len() > 0 {
 			var blockData map[string]any
 			if err := nbt.NewDecoderWithEncoding(buf, nbt.NetworkLittleEndian).Decode(&blockData); err != nil {
-				break
+				return nil, nil, nil, fmt.Errorf("方块实体NBT解码失败: %w", err)
 			}
 			if blockData != nil {
 				allNBTs = append(allNBTs, blockData)

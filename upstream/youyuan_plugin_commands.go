@@ -37,6 +37,9 @@ func (s *yySDKContext) pluginCommandCall(method string, args []any) (any, error)
 	if method == "game.getCommandOptions" {
 		return yyCommandOptionsMap(options), nil
 	}
+	if _, ok := yyAsyncDocs[method]; ok {
+		return yyAsyncCommandCall(yyAsyncCommandKey{yyAccountBot(s.Instance.Account), s.Instance.Key}, method, args, options)
+	}
 	return yyPluginCommandCall(yyAccountBot(s.Instance.Account), method, args, options)
 }
 func yyCommandOptionsMap(options yyCommandOptions) map[string]any {
@@ -247,6 +250,15 @@ func yyLuaCommandDefaults(L *lua.LState) yyCommandOptions {
 }
 
 func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
+	// Build in Lua; submitFast crosses the Lua/Go boundary only once per buffer.
+	if err := L.DoString(`function CommandBuffer()
+ local list={}
+ return {add=function(self,cmd) assert(type(cmd)=="string","command需字符串");list[#list+1]=cmd;return self end,
+ clear=function(self) list={};return self end,size=function(self)return #list end,
+ submitFast=function(self,options)return game.sendCommandsFast(list,options)end}
+ end`); err != nil {
+		panic(err)
+	}
 	L.SetField(game, "getCommandOptions", L.NewFunction(func(L *lua.LState) int { L.Push(goToLua(L, yyCommandOptionsMap(yyLuaCommandDefaults(L)))); return 1 }))
 	L.SetField(game, "setCommandOptions", L.NewFunction(func(L *lua.LState) int {
 		options, err := yyMergeCommandOptions(yyLuaCommandDefaults(L), luaToGo(L.Get(1)))
@@ -258,9 +270,22 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 		L.Push(goToLua(L, yyCommandOptionsMap(options)))
 		return 1
 	}))
-	for _, method := range []string{"game.sendCommand", "game.sendCommandFast", "game.sendCommandsFast", "game.sendCommandConfirmed", "game.execute", "game.executeBatch"} {
+	for _, method := range []string{"game.sendCommand", "game.sendCommandFast", "game.sendCommandsFast", "game.sendCommandConfirmed", "game.sendCommandAsync", "game.commandResult", "game.execute", "game.executeBatch"} {
 		method := method
 		L.SetField(game, strings.TrimPrefix(method, "game."), L.NewFunction(func(L *lua.LState) int {
+			if method == "game.sendCommand" && L.GetTop() == 1 && L.GetGlobal("__YY_COMMAND_OPTIONS__") == lua.LNil {
+				cmd := L.CheckString(1)
+				if hook := getSendCommandHook(); hook != nil {
+					if e := hook(cmd); e != nil {
+						L.RaiseError("%v", e)
+					}
+					return 0
+				}
+				if e := abot(L).SendCommandNoWait(ChannelAI, cmd); e != nil {
+					L.RaiseError("sendCommand: %v", e)
+				}
+				return 0
+			}
 			args := []any{}
 			for index := 1; index <= L.GetTop(); index++ {
 				args = append(args, luaToGo(L.Get(index)))
@@ -274,7 +299,13 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 					return 0
 				}
 			}
-			result, err := yyPluginCommandCall(abot(L), method, args, yyLuaCommandDefaults(L))
+			var result any
+			var err error
+			if _, ok := yyAsyncDocs[method]; ok {
+				result, err = yyAsyncCommandCall(yyAsyncCommandKey{abot(L), lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))}, method, args, yyLuaCommandDefaults(L))
+			} else {
+				result, err = yyPluginCommandCall(abot(L), method, args, yyLuaCommandDefaults(L))
+			}
 			if err != nil {
 				L.RaiseError("%s: %v", method, err)
 				return 0

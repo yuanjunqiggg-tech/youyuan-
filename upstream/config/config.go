@@ -45,7 +45,7 @@ type AppConfig struct {
 	AutoConnect      bool     `json:"auto_connect"`
 	AutoReconnect    bool     `json:"auto_reconnect"`
 	ReconnectSeconds int      `json:"reconnect_seconds"`
-	AutoCreative     bool     `json:"auto_creative"` // Explicit opt-in: keep creative/flying for building work.
+	AutoCreative     bool     `json:"auto_creative"` // Default on; can disable for survival/death tests.
 }
 
 var cfgPath string
@@ -60,7 +60,7 @@ func InitConfig(dataDir string) {
 	current = nil
 }
 func configDefaults() *AppConfig {
-	return &AppConfig{AuthURL: "https://susu.bot.cd", ImportSpeed: 10000, ExportSpeed: 10000, MediaDisplay: "actionbar", MediaTarget: "@a", ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true}
+	return &AppConfig{AuthURL: "https://susu.bot.cd", ImportSpeed: 10000, ExportSpeed: 10000, MediaDisplay: "actionbar", MediaTarget: "@a", ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, AutoCreative: true}
 }
 func cloneConfig(cfg *AppConfig) *AppConfig {
 	c := *cfg

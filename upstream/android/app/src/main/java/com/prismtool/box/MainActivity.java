@@ -120,6 +120,12 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new JSBridge(), "android");
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request) {
+                return ExternalLinks.handle(MainActivity.this,request.getUrl().toString());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,String url) {
+                return ExternalLinks.handle(MainActivity.this,url);
+            }
             @Override
             public void onReceivedError(android.webkit.WebView v, android.webkit.WebResourceRequest req, android.webkit.WebResourceError err) {
                 // Will be handled by the retry page's JS
@@ -653,7 +659,7 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         webView.evaluateJavascript("window.__onBackPressed__()", val -> {
-            if ("false".equals(val) || "null".equals(val) || "\"\"".equals(val)) {
+            if ("false".equals(val) || "null".equals(val) || "\"\"".equals(val) || "\"exit\"".equals(val)) {
                 super.onBackPressed();
             }
         });

@@ -17,7 +17,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet"}
+var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet", "storage"}
 
 func yySDKWebID(key string) string {
 	hash := sha256.Sum256([]byte(key))
@@ -71,6 +71,9 @@ func yySDKGet(key string) *yySDKContext {
 	return yySDKContexts.Items[key]
 }
 func yySDKClose(key string) {
+	if s := yySDKGet(key); s != nil {
+		yyClearCommandTickets(yyAsyncCommandKey{yyAccountBot(s.Instance.Account), key})
+	}
 	yySDKContexts.Lock()
 	s := yySDKContexts.Items[key]
 	delete(yySDKContexts.Items, key)
@@ -167,7 +170,7 @@ func yySDKEmit(bm *BotManager, event map[string]any) {
 					s.enqueue(h.Handler, []any{event["packet_type"], event["data"]})
 				}
 			default:
-				if kind == h.Kind && (kind == "death" || kind == "health" || kind == "hurt" || kind == "move" || kind == "respawn" || kind == "block_change" || kind == "swing" || kind == "entity_spawn" || kind == "entity_remove" || kind == "item_pickup") {
+				if yySenseEventMatches(h.Kind, event) && (kind == "death" || kind == "health" || kind == "hurt" || kind == "move" || kind == "respawn" || kind == "block_change" || kind == "swing" || kind == "entity_spawn" || kind == "entity_remove" || kind == "item_pickup") {
 					s.enqueue(h.Handler, []any{event})
 				}
 			}
@@ -333,6 +336,9 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	if closed {
 		return nil, fmt.Errorf("插件已停止")
 	}
+	if _, ok := yyStorageDocs[method]; ok {
+		return yyStorageCall(s.Dir, method, args)
+	}
 	if method == "game.sendPacket" {
 		return yySendPacket(yyAccountBot(s.Instance.Account), args)
 	}
@@ -369,7 +375,7 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		}
 		return yySchedulerControl("sdk:"+s.Instance.Key, nil, method, args)
 	}
-	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.execute" || method == "game.executeBatch" {
+	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.sendCommandAsync" || method == "game.commandResult" || method == "game.execute" || method == "game.executeBatch" {
 		return s.pluginCommandCall(method, args)
 	}
 	if _, ok := yyExtraMethods[method]; ok {
