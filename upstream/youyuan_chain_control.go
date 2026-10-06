@@ -21,13 +21,15 @@ type yyChainControl struct {
 	Command    string `json:"command,omitempty"`
 	PollMS     int    `json:"poll_ms,omitempty"`
 	Edge       *bool  `json:"edge,omitempty"`
+	Then       string `json:"then,omitempty"`
+	Else       string `json:"else,omitempty"`
 }
 
 func yyParseChainControl(line string) (*yyChainControl, error) {
 	kind, text, _ := strings.Cut(line, " ")
 	c := &yyChainControl{}
-	if kind != "@call" && kind != "@wait" && kind != "@pause" {
-		return nil, fmt.Errorf("控制语法为 @call/@wait/@pause")
+	if kind != "@call" && kind != "@wait" && kind != "@pause" && kind != "@branch" {
+		return nil, fmt.Errorf("控制语法为 @call/@wait/@pause/@branch")
 	}
 	if kind == "@pause" && strings.TrimSpace(text) == "" {
 		c.Kind = "pause"
@@ -59,10 +61,23 @@ func yyParseChainControl(line string) (*yyChainControl, error) {
 		if c.Count != nil && *c.Count == 0 && !c.KeepOpen && c.DurationMS == 0 {
 			return nil, fmt.Errorf("count=0 必须指定 duration_ms 或 keep_open=true")
 		}
-	} else if c.Kind == "wait" {
+	} else if c.Kind == "wait" || c.Kind == "branch" {
 		c.Command = strings.TrimSpace(strings.TrimPrefix(c.Command, "/"))
 		if c.Command == "" || len(c.Command) > 32768 || strings.ContainsAny(c.Command, "\r\n") {
-			return nil, fmt.Errorf("@wait 需要一条条件检测命令")
+			return nil, fmt.Errorf("%s 需要一条条件检测命令", kind)
+		}
+		if c.Kind == "branch" {
+			if c.Then == "" && c.Else == "" {
+				return nil, fmt.Errorf("@branch 至少指定 then 或 else 链名")
+			}
+			for _, name := range []string{c.Then, c.Else} {
+				if name != "" {
+					if _, err := yyChainName(name); err != nil {
+						return nil, err
+					}
+				}
+			}
+			return c, nil
 		}
 		if c.PollMS == 0 {
 			c.PollMS = 500
@@ -107,7 +122,7 @@ func yyChainLookup(name, account string) (yyChainPlan, yyChainConfig, error) {
 	return plan, cfg, nil
 }
 func yyChainSlice(plan yyChainPlan, from, to int) (yyChainPlan, error) {
-	out := yyChainPlan{Periods: plan.Periods}
+	out := yyChainPlan{Periods: plan.Periods, Hz: plan.Hz}
 	for _, chain := range plan.Chains {
 		part := yyChain{Period: chain.Period, Repeat: chain.Repeat}
 		for _, n := range chain.Nodes {
@@ -144,6 +159,23 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 			return single(ctx, n, cfg)
 		}
 		c := n.Control
+		if c.Kind == "branch" {
+			test := n
+			test.Control, test.Command, test.RequireResult = nil, c.Command, true
+			ok, err := single(ctx, test, cfg)
+			record(ok, false, err)
+			if err != nil {
+				return false, err
+			}
+			name := c.Else
+			if ok {
+				name = c.Then
+			}
+			if name == "" {
+				return ok, nil
+			}
+			c = &yyChainControl{Kind: "call", Name: name}
+		}
 		switch c.Kind {
 		case "pause":
 			state("等待手动触发")
@@ -161,6 +193,7 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 				test := n
 				test.Control = nil
 				test.Command = c.Command
+				test.RequireResult = true
 				ok, err := single(ctx, test, cfg)
 				record(ok, false, err)
 				if err != nil {
@@ -214,6 +247,7 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 			nextPath := append(append([]string(nil), path...), c.Name)
 			state("调用 " + c.Name)
 			for i := 0; count == 0 || i < count; i++ {
+				roundStarted := time.Now()
 				err = yyChainExecuteGraph(childCtx, child, childCfg, nextPath, lookup, single, batch, trigger, state, record)
 				if err != nil || childCtx.Err() != nil {
 					if ctx.Err() != nil {
@@ -230,10 +264,13 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 					break
 				}
 				interval := childCfg.IntervalMS
-				if interval < 25 {
-					interval = 25
+				if child.Hz > 0 {
+					interval = int(1000 / child.Hz)
 				}
-				if err = yyChainSleep(childCtx, time.Duration(interval)*time.Millisecond); err != nil {
+				if interval < 1 {
+					interval = 1
+				}
+				if err = yyChainSleep(childCtx, yyChainRoundWait(time.Duration(interval)*time.Millisecond, time.Since(roundStarted))); err != nil {
 					if ctx.Err() != nil {
 						return false, ctx.Err()
 					}

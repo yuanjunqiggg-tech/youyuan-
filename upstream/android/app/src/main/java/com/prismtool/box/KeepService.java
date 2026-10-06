@@ -49,6 +49,20 @@ public class KeepService extends Service {
 
     private static KeepService instance;
  private android.os.PowerManager.WakeLock accountWake;
+    private volatile boolean stopped;
+    private android.net.ConnectivityManager connectivity;
+    private android.net.ConnectivityManager.NetworkCallback networkCallback;
+
+    static void scheduleRecovery(android.content.Context context) {
+        Intent intent = new Intent(context, KeepService.class);
+        int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE;
+        android.app.PendingIntent pending = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? android.app.PendingIntent.getForegroundService(context, 109, intent, flags)
+                : android.app.PendingIntent.getService(context, 109, intent, flags);
+        android.app.AlarmManager alarms = context.getSystemService(android.app.AlarmManager.class);
+        if (alarms != null) alarms.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                android.os.SystemClock.elapsedRealtime() + 3000, pending);
+    }
 
     @Override
     public void onCreate() {
@@ -79,6 +93,15 @@ public class KeepService extends Service {
 
         startForeground(NOTIF_ID, buildNotif(false, false, ""));
         MainActivity.ensureBackend(getApplicationContext());
+        connectivity = getSystemService(android.net.ConnectivityManager.class);
+        networkCallback = new android.net.ConnectivityManager.NetworkCallback() {
+            @Override public void onAvailable(android.net.Network network) {
+                MainActivity.ensureBackend(getApplicationContext());
+                Log.i("YouYuanKeep", "网络已可用；常驻内核继续自动重连");
+            }
+        };
+        try { connectivity.registerDefaultNetworkCallback(networkCallback); }
+        catch (RuntimeException error) { Log.w("YouYuanKeep", "无法监听网络切换", error); }
     }
 
     @Override
@@ -93,9 +116,19 @@ public class KeepService extends Service {
 
     @Override
     public void onDestroy() {
+        stopped = true;
+        instance = null;
+        if (connectivity != null && networkCallback != null) {
+            try { connectivity.unregisterNetworkCallback(networkCallback); } catch (RuntimeException ignored) {}
+        }
  if(accountWake!=null&&accountWake.isHeld())accountWake.release();
         if (handler != null && pollLoop != null) handler.removeCallbacks(pollLoop);
         super.onDestroy();
+    }
+
+    @Override public void onTaskRemoved(Intent rootIntent) {
+        scheduleRecovery(getApplicationContext());
+        super.onTaskRemoved(rootIntent);
     }
 
     // ═══════════════════════════════════════════
@@ -103,6 +136,7 @@ public class KeepService extends Service {
     // ═══════════════════════════════════════════
 
     private void pollAndUpdate() {
+        if (stopped) return;
         new Thread(() -> {
             boolean ok = false;
             try {
@@ -120,7 +154,7 @@ public class KeepService extends Service {
                 Log.e(TAG, "poll: HTTP error", e);
             }
             // 请求失败时放慢轮询，避免空转耗电
-            handler.postDelayed(pollLoop, ok ? POLL_MS : POLL_FAIL_MS);
+            if (!stopped) handler.postDelayed(pollLoop, ok ? POLL_MS : POLL_FAIL_MS);
         }).start();
     }
 

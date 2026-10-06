@@ -6,10 +6,6 @@ export default {
     const url = new URL(request.url);
     const update=await updateRoute(request,env);if(update)return update;
     if(url.pathname.startsWith('/api/identity/'))return identityRoute(request,env);
-    if(url.pathname==='/api/game-auth/accounts'){
-      if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
-      const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
-    }
     const rawToken=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');
     const isOwner=!!env.CONSOLE_TOKEN&&rawToken===env.CONSOLE_TOKEN;
     const isLegacyDevice=!!env.DEVICE_TOKEN&&rawToken===env.DEVICE_TOKEN;
@@ -53,17 +49,26 @@ export default {
     const qqMatch=url.pathname.match(/^\/qq\/webhook\/([a-f0-9-]{36})\/([A-Za-z0-9_-]{1,48})(?:\/([A-Za-z0-9_-]{1,64}))?$/);
     const legacyAccount=url.pathname.match(/^\/qq\/webhook\/accounts\/([A-Za-z0-9_-]{1,64})$/);
     const qqCallback = (url.pathname === '/qq/webhook'||!!qqMatch||!!legacyAccount) && request.method === 'POST';
-    const protectedPath = device || url.pathname.startsWith('/api/') || url.pathname.startsWith('/mcp');
+    const protectedPath = device || url.pathname.startsWith('/api/') || url.pathname.startsWith('/mcp') || url.pathname==='/health';
+    // Check entitlement on every request, including existing control tokens.
+    // Register/login/me remain available without cloud execution permission.
+    if(protectedPath&&identity&&!identity.user.cloud_allowed)return Response.json({ok:false,error:'云端工具箱仅限管理员或有效订阅用户',code:'SUBSCRIPTION_REQUIRED',user:identity.user},{status:403});
     if (!protectedPath && !qqCallback && url.pathname !== '/health') return env.ASSETS.fetch(request);
     const supplied = request.headers.get('Authorization') ?? '';
     const expected = 'Bearer ' + (device ? env.DEVICE_TOKEN : env.CONSOLE_TOKEN);
     const library = url.pathname.startsWith('/api/library/');
     const libraryDevice = library && env.DEVICE_TOKEN && supplied==='Bearer '+env.DEVICE_TOKEN;
     if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) return Response.json({error:'中继密钥不正确'},{status:401});
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.9',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
+    if(url.pathname==='/api/game-auth/accounts'){
+      if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
+      const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
+    }
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.10',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
     const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || 'primary-device';
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
-    const deviceId = qqMatch?('tenant:'+qqMatch[1]+':'+qqMatch[2]):legacyAccount?'primary-device':(identity?.relay_prefix||'')+requestedDevice;
+    // Assigned control permission cannot replace the shared node connection.
+    const assigned=!device&&identity?.user?.assigned_devices?.includes(requestedDevice)&&requestedDevice.startsWith('linux-');
+    const deviceId = qqMatch?('tenant:'+qqMatch[1]+':'+qqMatch[2]):legacyAccount?'primary-device':(assigned?'':identity?.relay_prefix||'')+requestedDevice;
     const relay = env.RELAY.get(env.RELAY.idFromName(deviceId));
     if (qqCallback) {const account=legacyAccount?.[1]||qqMatch?.[3];url.pathname=account&&account!=='main'?'/api/youyuan/accounts/invoke/'+account+'/api/qq/webhook':'/api/qq/webhook';request=new Request(url,request);}
     return relay.fetch(request);

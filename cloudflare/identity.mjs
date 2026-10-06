@@ -2,7 +2,7 @@ const encode = bytes => [...new Uint8Array(bytes)].map(x=>x.toString(16).padStar
 const randomToken = () => encode(crypto.getRandomValues(new Uint8Array(32)));
 const digest = async text => encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)));
 async function passwordHash(password,salt){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);return encode(await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},key,256));}
-function publicUser(user){return {id:user.id,username:user.username,qq:user.qq,qq_verified:false,qq_binding_status:'已登记，尚未验证归属',legacy_owner:!!user.legacy_owner,created:user.created};}
+function publicUser(user){const role=user.legacy_owner?'admin':user.role||'member',expires=Number(user.subscription_until)||0;return {id:user.id,username:user.username,qq:user.qq,qq_verified:false,qq_binding_status:'已登记，尚未验证归属',legacy_owner:!!user.legacy_owner,created:user.created,role,subscription_until:expires,cloud_allowed:role==='admin'||expires>Date.now(),assigned_devices:user.assigned_devices||[]};}
 const response=(data,status=200)=>Response.json(data,{status});
 function registry(env){return env.RELAY.get(env.RELAY.idFromName('identity-registry-v1'));}
 export async function identityResolve(env,token,purpose='session'){
@@ -12,7 +12,7 @@ export async function identityResolve(env,token,purpose='session'){
 }
 export async function identityRoute(request,env){
  const url=new URL(request.url),action=url.pathname.split('/').pop();
- if(!['register','login','me','logout','claim','delete'].includes(action))return response({ok:false,error:'未知账号操作'},404);
+ if(!['register','login','me','logout','claim','delete','users','entitlement'].includes(action))return response({ok:false,error:'未知账号操作'},404);
  const ip=request.headers.get('CF-Connecting-IP')||'local';
  const body=request.method==='GET'?'{}':await request.text();if(body.length>16384)return response({ok:false,error:'请求过大'},413);
  return registry(env).fetch(new Request('https://identity.internal/__identity/'+action,{method:'POST',headers:{'Authorization':request.headers.get('Authorization')||'','X-Identity-IP':ip},body}));
@@ -30,6 +30,23 @@ export async function identityHandle(request,ctx,env){
  const bearer=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');
  let user=null,sessionHash=null;
  if(bearer){sessionHash=await digest(bearer);const session=await ctx.storage.get('session:'+sessionHash);if(session&&session.expires>now)user=await ctx.storage.get('user:'+session.user);}
+ if(action==='me'&&env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN)return response({ok:true,user:{username:'项目管理员',role:'admin',cloud_allowed:true,subscription_until:0,assigned_devices:['linux-server'],legacy_owner:true}});
+ if(action==='users'||action==='entitlement'){
+  const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN;
+  if(!owner&&(!user||publicUser(user).role!=='admin'))return response({ok:false,error:'仅管理员可以管理订阅'},403);
+  if(action==='users'){const rows=await ctx.storage.list({prefix:'user:'});return response({ok:true,users:[...rows.values()].map(publicUser).sort((a,b)=>b.created-a.created)});}
+  const target=await ctx.storage.get('user:'+String(input.user_id||''));if(!target)return response({ok:false,error:'用户不存在'},404);
+  if(target.legacy_owner)return response({ok:false,error:'项目所有者权限不能通过订阅接口修改'},403);
+  if(!owner&&input.role==='admin')return response({ok:false,error:'只有项目所有者可以授予管理员'},403);
+  if(!owner&&publicUser(target).role==='admin')return response({ok:false,error:'只有项目所有者可以修改管理员'},403);
+  if(!['member','admin'].includes(input.role)||!Number.isSafeInteger(input.subscription_until)||input.subscription_until<0)return response({ok:false,error:'角色或到期时间无效'},400);
+  const devices=input.assigned_devices||[];
+  if(!Array.isArray(devices)||devices.length>8||devices.some(x=>!/^linux-[A-Za-z0-9_-]{1,40}$/.test(x)))return response({ok:false,error:'只允许分配明确的 Linux 节点'},400);
+  target.role=input.role;target.subscription_until=input.subscription_until;target.assigned_devices=[...new Set(devices)];target.entitlement_updated=now;
+  await ctx.storage.put('user:'+target.id,target);
+  await ctx.storage.put('entitlement-audit:'+now+':'+crypto.randomUUID(),{actor:owner?'project-owner':user.id,target:target.id,role:target.role,subscription_until:target.subscription_until,assigned_devices:target.assigned_devices,timestamp:now});
+  return response({ok:true,user:publicUser(target)});
+ }
  if(action==='register'||action==='login'){
   const name=String(input.username||'').normalize('NFKC').trim().toLowerCase(),password=String(input.password||'');
   if(!/^[A-Za-z0-9_\-\u4e00-\u9fff]{3,32}$/.test(name)||password.length<10||password.length>128)return response({ok:false,error:'账号需 3–32 个字符，密码需 10–128 个字符'},400);

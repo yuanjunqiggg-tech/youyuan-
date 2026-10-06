@@ -265,7 +265,7 @@ func (bm *BotManager) Connect(token, server, auth, password string) error {
 	res := resources_control.NewResourcesControl(c) // 自动排空登录缓存 + 自动回复网易心跳/传送/重生
 	bm.mu.Lock()
 	bm.resources = res
-	bm.pktCh = make(chan packet.Packet, 256)
+	bm.pktCh = make(chan packet.Packet, config.PacketQueueSize(config.LoadConfig()))
 	bm.mu.Unlock()
 	go bm.consumePackets()
 	bm.registerPacketHandlers()
@@ -470,7 +470,7 @@ func (bm *BotManager) connectTanLobby(token, roomID, auth, password string) erro
 	res := resources_control.NewResourcesControl(c)
 	bm.mu.Lock()
 	bm.resources = res
-	bm.pktCh = make(chan packet.Packet, 256)
+	bm.pktCh = make(chan packet.Packet, config.PacketQueueSize(config.LoadConfig()))
 	bm.mu.Unlock()
 	go bm.consumePackets()
 	bm.registerPacketHandlers()
@@ -531,7 +531,7 @@ func (bm *BotManager) connectTanLobby(token, roomID, auth, password string) erro
 }
 
 // registerPacketHandlers 订阅关心的包类型，收到后塞入 pktCh，由 consumePackets 顺序消费。
-// 只订阅需要的包，避免海量区块包触发大量回调 goroutine（flowers 每包每监听器起一个 goroutine）。
+// 使用同步短投递回调与可配置的接收缓存，保持收包顺序，不为每个包创建 goroutine。
 func (bm *BotManager) registerPacketHandlers() {
 	bm.mu.Lock()
 	conn, resources, packets, stop := bm.conn, bm.resources, bm.pktCh, bm.stopCh
@@ -555,7 +555,7 @@ func (bm *BotManager) registerPacketHandlers() {
 	for _, id := range ids {
 		wanted[id] = true
 	}
-	id, err := resources.PacketListener().ListenPacketFiltered(nil, func(pk packet.Packet) bool {
+	id, err := resources.PacketListener().ListenPacketOrdered(nil, func(pk packet.Packet) bool {
 		return pk != nil && (wanted[pk.ID()] || packetHubWants(yyPacketName(pk)) || yyCaptureWants(bm, yyPacketName(pk)))
 	}, func(pk packet.Packet, connCloseErr error) {
 		if connCloseErr != nil {
@@ -573,6 +573,7 @@ func (bm *BotManager) registerPacketHandlers() {
 		select {
 		case packets <- pk:
 		case <-stop:
+		case <-conn.Context().Done():
 		}
 	})
 	if err != nil {

@@ -64,14 +64,15 @@ func packetHubDispatch(bm *BotManager, pk packet.Packet) {
 	name := tn.Elem().Name()
 
 	packetHub.Lock()
-	subs := append(append([]*packetSubscriber{}, packetHub.subs[name]...), packetHub.subs["*"]...)
-	if len(subs) == 0 {
+	count := len(packetHub.subs[name]) + len(packetHub.subs["*"])
+	if count == 0 {
 		packetHub.Unlock()
 		return
 	}
 	// 拷贝一份再释放锁：订阅者回调里可能增删订阅（如 AI 工具退订），避免迭代器失效。
-	copySubs := make([]*packetSubscriber, len(subs))
-	copy(copySubs, subs)
+	copySubs := make([]*packetSubscriber, 0, count)
+	copySubs = append(copySubs, packetHub.subs[name]...)
+	copySubs = append(copySubs, packetHub.subs["*"]...)
 	packetHub.Unlock()
 
 	data := packetToMap(pk)

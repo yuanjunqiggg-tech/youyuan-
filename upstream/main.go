@@ -574,6 +574,10 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
 			return
 		}
+		if cfg.PacketQueueCapacity < 0 {
+			writeJSON(w, map[string]any{"ok": false, "error": "收包缓存数量不能为负数；0使用默认4096"})
+			return
+		}
 		var e error
 		cfg.AuthURL, e = yyProviderURL(cfg.AuthURL)
 		if e != nil {
@@ -1048,15 +1052,21 @@ func handleBotStatus(w http.ResponseWriter, r *http.Request) {
 	defer botMgrMu.Unlock()
 	isOP := false
 	serverCode := ""
+	queueDepth, queueCapacity := 0, 0
 	if botMgr != nil {
 		isOP = botMgr.IsOP()
 		serverCode = botMgr.ServerCode()
+		botMgr.mu.Lock()
+		queueDepth, queueCapacity = len(botMgr.pktCh), cap(botMgr.pktCh)
+		botMgr.mu.Unlock()
 	}
 	writeJSON(w, map[string]any{
-		"ok":        true,
-		"connected": botMgr != nil && botMgr.IsConnected(),
-		"is_op":     isOP,
-		"server":    serverCode,
+		"ok":                    true,
+		"connected":             botMgr != nil && botMgr.IsConnected(),
+		"is_op":                 isOP,
+		"server":                serverCode,
+		"packet_queue_depth":    queueDepth,
+		"packet_queue_capacity": queueCapacity,
 	})
 }
 

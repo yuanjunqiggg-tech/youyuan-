@@ -267,6 +267,19 @@ func yyConverterRoutes(mux *http.ServeMux) {
 		result["palette"] = len(s.Palette)
 		result["block_entities"] = len(s.NBTBlocks)
 		switch p.Target {
+		case "command_chains":
+			bundle, e := yyStructureChains(s, name, p.Origin)
+			if e != nil {
+				fail(e)
+				return
+			}
+			result["files"] = bundle["files"]
+			result["chains"] = bundle["chains"]
+			result["warnings"] = bundle["warnings"]
+			encoded, _ := json.MarshalIndent(bundle, "", "  ")
+			result["content"] = string(encoded)
+			result["filename"] = name + "_命令链拓扑.json"
+			result["note"] = "按朝向拆分命令方块；下载完整拓扑或保存为未启动的独立TXT。请审核动态接线、原生延迟与执行原点。"
 		case "inspect":
 			result["filename"] = name
 		case "txt":
@@ -306,7 +319,7 @@ func yyConverterRoutes(mux *http.ServeMux) {
 			result["data"] = base64.StdEncoding.EncodeToString(data)
 			result["filename"] = name + ".mcstructure"
 		default:
-			fail(fmt.Errorf("target 支持 inspect/txt/json/mcstructure"))
+			fail(fmt.Errorf("target 支持 inspect/txt/json/mcstructure/command_chains"))
 			return
 		}
 		writeJSON(w, result)

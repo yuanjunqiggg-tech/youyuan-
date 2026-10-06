@@ -94,15 +94,16 @@ func (bm *BotManager) SendConsole(input string) (map[string]any, error) {
 }
 
 type yyChainNode struct {
-	Type        int             `json:"type"`
-	Conditional bool            `json:"conditional"`
-	Redstone    bool            `json:"redstone"`
-	Command     string          `json:"command"`
-	Line        int             `json:"line"`
-	Channel     string          `json:"channel,omitempty"`
-	DelayMS     int             `json:"delay_ms,omitempty"`
-	Group       string          `json:"group,omitempty"`
-	Control     *yyChainControl `json:"control,omitempty"`
+	Type          int             `json:"type"`
+	Conditional   bool            `json:"conditional"`
+	Redstone      bool            `json:"redstone"`
+	Command       string          `json:"command"`
+	Line          int             `json:"line"`
+	Channel       string          `json:"channel,omitempty"`
+	DelayMS       int             `json:"delay_ms,omitempty"`
+	Group         string          `json:"group,omitempty"`
+	Control       *yyChainControl `json:"control,omitempty"`
+	RequireResult bool            `json:"-"` // Internal dependency barrier, never inferred from submission alone.
 }
 type yyChain struct {
 	Nodes  []yyChainNode `json:"nodes"`
@@ -442,6 +443,15 @@ func (in *yyChainInstance) run(ctx context.Context) {
 				ch, e := normalizeCommandChannel(channel)
 				if e != nil {
 					return false, e
+				}
+				if callCfg.Mode == "fast" && !node.RequireResult {
+					e := bm.SendCommandNoWaitRate(ch, node.Command, callCfg.RateCPS)
+					if e == nil {
+						in.Lock()
+						in.Submitted++
+						in.Unlock()
+					}
+					return e == nil, e
 				}
 				value, e := yyCommandBatchDefaultsContext(callCtx, bm, []any{[]any{node.Command}}, yyCommandOptions{Mode: "ordered", Channel: string(ch), Window: 1, TimeoutMS: 8000})
 				if e != nil {

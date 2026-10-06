@@ -479,6 +479,20 @@ public class MainActivity extends Activity {
 
         // 打开/关闭 连接状态悬浮窗（顶部按钮）
         @JavascriptInterface
+        public void requestBackgroundProtection() {
+            handler.post(() -> {
+                android.os.PowerManager power = getSystemService(android.os.PowerManager.class);
+                if (power.isIgnoringBatteryOptimizations(getPackageName())) {
+                    Toast.makeText(MainActivity.this, "后台电池限制已放行", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:" + getPackageName()))); }
+                catch (RuntimeException error) { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+            });
+        }
+
+        @JavascriptInterface
         public void toggleFloatingWindow() {
             if (!Settings.canDrawOverlays(MainActivity.this)) {
                 Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,

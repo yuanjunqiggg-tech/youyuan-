@@ -12,7 +12,8 @@ import (
 
 // singleListener 是单个数据包的监听器
 type singleListener struct {
-	filter func(packet.Packet) bool
+	filter  func(packet.Packet) bool
+	ordered bool
 	// 该监听器的唯一标识符
 	uniqueID string
 	// 该监听器的回调函数
@@ -60,6 +61,17 @@ func (p *PacketListener) ListenPacket(
 
 // Filter before spawning a callback goroutine, avoiding work for irrelevant packets.
 func (p *PacketListener) ListenPacketFiltered(packetID []uint32, filter func(packet.Packet) bool, callback func(packet.Packet, error)) (uniqueID string, err error) {
+	return p.listenPacket(packetID, filter, callback, false)
+}
+
+// ListenPacketOrdered invokes the short enqueue callback on the receive thread.
+// A bounded queue can apply real backpressure without spawning one goroutine per
+// packet. Callbacks run outside the listener lock and must not execute plugins.
+func (p *PacketListener) ListenPacketOrdered(packetID []uint32, filter func(packet.Packet) bool, callback func(packet.Packet, error)) (uniqueID string, err error) {
+	return p.listenPacket(packetID, filter, callback, true)
+}
+
+func (p *PacketListener) listenPacket(packetID []uint32, filter func(packet.Packet) bool, callback func(packet.Packet, error), ordered bool) (uniqueID string, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -74,6 +86,7 @@ func (p *PacketListener) ListenPacketFiltered(packetID []uint32, filter func(pac
 		uniqueID: uniqueID,
 		callback: callback,
 		filter:   filter,
+		ordered:  ordered,
 	}
 
 	if len(packetID) == 0 {
@@ -159,7 +172,6 @@ func (p *PacketListener) DestroyListener(uniqueID string) {
 				p.specificPacketListeners[packetID] = newListeners
 			}
 
-			return
 		}
 	}
 }
@@ -167,28 +179,27 @@ func (p *PacketListener) DestroyListener(uniqueID string) {
 // onPacket ..
 func (p *PacketListener) onPacket(pk packet.Packet) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	select {
 	case <-p.ctx.Done():
+		p.mu.Unlock()
 		return
 	default:
 	}
 
-	// Any packet listener
-	for _, listener := range p.anyPacketListeners {
+	listeners := make([]singleListener, 0, len(p.anyPacketListeners)+len(p.specificPacketListeners[pk.ID()]))
+	listeners = append(listeners, p.anyPacketListeners...)
+	listeners = append(listeners, p.specificPacketListeners[pk.ID()]...)
+	p.mu.Unlock()
+	for _, listener := range listeners {
 		if listener.filter != nil && !listener.filter(pk) {
 			continue
 		}
-		go listener.callback(pk, nil)
-	}
-
-	// Specific packet listener
-	for _, listener := range p.specificPacketListeners[pk.ID()] {
-		if listener.filter != nil && !listener.filter(pk) {
-			continue
+		if listener.ordered {
+			listener.callback(pk, nil)
+		} else {
+			go listener.callback(pk, nil)
 		}
-		go listener.callback(pk, nil)
 	}
 }
 

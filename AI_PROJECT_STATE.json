@@ -1,6 +1,6 @@
 {
-  "framework_version": "0.10.9",
-  "public_version": "0.10.8",
+  "framework_version": "0.10.10",
+  "public_version": "0.10.10",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
@@ -28,13 +28,18 @@
     "file_watch": "txt_recompile_on_change_preserves_runtime",
     "memory_kv": "implemented_atomic_persistence",
     "transaction_storage": "implemented_multikey_rollback",
-    "release": "0109_signed_apk_linux_build_final_publish_pending",
+    "release": "01010_signed_final_apk_and_linux_binaries_built",
     "ai_new_framework_skill": "actual_read_write_patch_publish_reload_async_verified",
     "android_cpp_sdk": "x86_64_emulator_actual_native_v2_resource_scheduler_stats_stop_verified",
     "conditional_chain": "actual_game_failed_predecessor_skips_conditional_tail_continues_verified",
     "skills": "25_available_multiselect_one_save_on_demand_read",
     "linux_web_upload": "public_route_and_hash_download_verified",
-    "building_export": "actual_stone_gold_all_three_formats_verified"
+    "building_export": "actual_stone_gold_all_three_formats_verified",
+    "cloud_entitlement": "server_side_admin_or_subscription_21_checks_passed",
+    "packet_receive": "ordered_bounded_queue_default4096_user_configurable_cancellation_release",
+    "command_branch": "actual_condition_one_child_then_return_code_regression_passed",
+    "structure_topology": "static_direction_extraction_disabled_review_bundle_dynamic_wiring_not_auto_translated",
+    "android_background": "foreground_wakelock_task_recovery_network_callback_battery_settings_implemented"
   },
   "known_issues": [
     "Repeated large fast traffic receives remote RakNet disconnect; 3000x60 submitted180000 but score17764 after reconnect; not verified stable",
@@ -47,9 +52,14 @@
     "No verified all-215-packets real server broadcasts",
     "sendcommandfeedback=false suppresses confirmed replies; fast submission unaffected",
     "Mixed single plugin runtime,new C++ABI, native isolation,zero-copy and optional tick carry budget incomplete",
-    "Registration Intent source fix compiled; physical SMS registration and 4399-to-NetEase flow not verified"
+    "Registration Intent source fix compiled; physical SMS registration and 4399-to-NetEase flow not verified",
+    "Original beta.9 downloaded but not compared: user paused testing",
+    "Cloud Linux process recovery verified; 24h observer stopped early, game not connected there",
+    "Desktop/lock/task removal/overlay short emulator checks only; physical network switching not verified",
+    "Static structure converter preserves/warns dynamic wiring; cannot automatically rewrite arbitrary gameplay"
   ],
   "next_tasks": [
+    "Engineering first; no new game pressure/original comparison tests until user resumes them",
     "Real death/killer/health tests with controlled player scenarios",
     "Same-account original APK sustained comparison; preserve failed 3000x60 samples",
     "Full mixed runtime, stable ABI/native isolation and Linux C++ adapter",
@@ -152,7 +162,7 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-05T17:27:05.744926+08:00",
+  "updated_at": "2026-10-06 Asia/Shanghai",
   "current_branch": "main",
   "current_commit": "ee21d219e4df425b4dac8eaa42b897fb89cced9c",
   "recent_commits": [
@@ -256,5 +266,6 @@
     "continuous_large_chain": "not repeated; previous disconnect remains"
   },
   "release_state": "final_validation_pending",
-  "requirement_audit": "框架改造实施核对.md"
+  "requirement_audit": "框架改造实施核对.md",
+  "tests_paused_by_user": true
 }

@@ -74,6 +74,7 @@ func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainCo
 				}
 				needsResult := cfg.Mode == "fast" && i+1 < len(chain.Nodes) && chain.Nodes[i+1].Conditional
 				if n.Control != nil || n.Conditional || needsResult || delay > 0 || n.DelayMS > 0 || window == 1 {
+					n.RequireResult = n.Conditional || needsResult
 					ok, err := single(n)
 					previous = ok && err == nil
 					record(previous, false, err)

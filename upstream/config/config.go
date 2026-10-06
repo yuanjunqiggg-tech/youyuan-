@@ -41,11 +41,19 @@ type AppConfig struct {
 	TLSSkipVerify *bool `json:"tls_skip_verify,omitempty"` // 跳过 TLS 证书验证，nil=默认 true
 
 	// ── 多机器人（S8） ──
-	BotTokens        []string `json:"bot_tokens"` // 子机器人令牌（不包括主令牌），配置即启用多机器人
-	AutoConnect      bool     `json:"auto_connect"`
-	AutoReconnect    bool     `json:"auto_reconnect"`
-	ReconnectSeconds int      `json:"reconnect_seconds"`
-	AutoCreative     bool     `json:"auto_creative"` // Default on; can disable for survival/death tests.
+	BotTokens           []string `json:"bot_tokens"` // 子机器人令牌（不包括主令牌），配置即启用多机器人
+	AutoConnect         bool     `json:"auto_connect"`
+	AutoReconnect       bool     `json:"auto_reconnect"`
+	ReconnectSeconds    int      `json:"reconnect_seconds"`
+	AutoCreative        bool     `json:"auto_creative"`         // Default on; can disable for survival/death tests.
+	PacketQueueCapacity int      `json:"packet_queue_capacity"` // Receive backlog capacity, not commands/sec. Zero uses 4096; changes apply on reconnect.
+}
+
+func PacketQueueSize(cfg *AppConfig) int {
+	if cfg != nil && cfg.PacketQueueCapacity > 0 {
+		return cfg.PacketQueueCapacity
+	}
+	return 4096
 }
 
 var cfgPath string

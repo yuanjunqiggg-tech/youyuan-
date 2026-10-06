@@ -5,10 +5,11 @@
  var originalFetch=window.fetch.bind(window);
  window.fetch=function(input,options){
   var path=typeof input==='string'?input:(input&&input.url)||'';
+  if(window.yyCloudBlocked&&path.startsWith('/api/')&&!path.startsWith('/api/identity/'))return Promise.resolve(new Response(JSON.stringify({ok:false,error:'云端订阅未开通或已到期',code:'SUBSCRIPTION_REQUIRED'}),{status:403,headers:{'Content-Type':'application/json'}}));
   if(path.startsWith('/api/')||path.startsWith('/mcp')||path==='/health'){
    options=Object.assign({},options);var headers=new Headers(options.headers||{});if(path.includes('market-proxy')&&headers.has('Authorization'))headers.set('X-YouYuan-Market-Authorization',headers.get('Authorization'));var key=sessionStorage.getItem('yy-cloud-key');if(key)headers.set('Authorization','Bearer '+key);var device=new URLSearchParams(location.search).get('device');if(device&&/^[A-Za-z0-9_-]{1,48}$/.test(device))headers.set('X-YouYuan-Device',device);options.headers=headers;
   }
-  return originalFetch(input,options);
+  return originalFetch(input,options).then(function(response){if(response.status===403&&path.startsWith('/api/')&&!path.startsWith('/api/identity/'))response.clone().json().then(function(data){if(data.code==='SUBSCRIPTION_REQUIRED'){window.yyCloudBlocked=true;if(typeof yySubscriptionGate==='function'&&data.user)yySubscriptionGate(data.user)}}).catch(function(){});return response});
  };
  // 云端用增量事件批次，避免把永久 SSE 当成一次请求缓冲。
  window.EventSource=function(path){
