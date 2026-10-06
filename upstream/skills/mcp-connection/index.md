@@ -54,3 +54,20 @@ Resources中可以按需读取`youyuan://docs/python-runtime`、`youyuan://docs/
 | 临时域名变了 | 从运行中的设备复制新地址；不能认为上次保存的地址仍有效 |
 
 危险命令、方块修改、重载插件都应限定到用户要求的对象与范围。超时后先查状态，不要自动重复发送可能已经执行过的操作。
+
+
+## 0.10.11：Grok / 只有网址输入框的客户端
+
+设置 → 账号联通与连接授权 → MCP专用连接。选择“查询状态和开发文档”或“管理”，有效期默认720小时，可设1–8760小时；每个平台账号/本机执行端最多128个同时有效的专用连接。这是游园自己的管理上限，不是Cloudflare每天创建域名的限额。
+
+生成 `https://域名/mcp/link/独立随机凭证`，客户端无需单独填密钥；网址本身就是凭证，不应公开。云端链接绑定创建时的设备，不允许用查询参数切换；权限与订阅到期每次检查。列表可撤销；云端完整链接只在创建时显示一次。原始 /mcp/ + Bearer 方式仍保留。
+
+本机API `GET/POST /api/youyuan/mcp-links`，云端 `POST /api/identity/mcp-links`：`{op:"create",scope:"read"或"control",hours:720,name:"Grok",device:"linux-server"}`；云端撤销 `{op:"revoke",id:"记录ID"}`；本机撤销 `{op:"revoke",token:"专用凭证"}`。本机创建不启动隧道；若尚无公网域名，先开启临时隧道，再把返回路径拼到真实临时域名下。
+
+只读连接仅提供连接状态、在线观测、插件运行状态、SDK目录与开发文档；不读取项目文件、不运行命令、不修改设置。“管理”连接开放完整当前节点工具，包含危险命令，交给AI前请明确选择该权限。
+
+Grok → Connectors → New Connector → Custom，粘贴完整专用网址，使用 Streamable HTTP。游园返回JSON，无旧版SSE依赖。若客户端强制要求OAuth而不接受已认证URL，则需另做OAuth接入；本版没有伪称实现OAuth。服务端握手与工具调用可以验收，Grok界面最终兼容仍需该客户端实际添加测试。
+
+Cloudflare Quick Tunnel 官方公开的限制是200个同时在途请求、超限429、不支持SSE、无在线SLA。未公布固定每天/历史创建数量，因此不能承诺无限；频繁新建可能被申请429限流。保持已有隧道、不反复重建，长期挂机选择固定域名/命名隧道。Pinggy免费会话另有时长限制，以提供商为准。
+
+参考核对来源（供维护者，不自动加载AI全部内容）：https://docs.x.ai/grok/connectors 、https://docs.x.ai/grok/connectors/custom-mcp-tunneling 、https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/ 。

@@ -144,6 +144,7 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 	mux.HandleFunc("/mcp", yyMCP)
 	mux.HandleFunc("/mcp/", yyMCP)
 	yyTunnelRoutes(mux, dataDir)
+	yyMCPLinksRoutes(mux, dataDir)
 	yyRegisterQQ(mux, dataDir)
 	yyRuntimeRoutes(mux, dataDir)
 	yyCommandRoutes(mux, dataDir)
@@ -154,6 +155,7 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 	yyNoticeRoutes(mux, dataDir)
 	yySocialRoutes(mux, dataDir)
 	yyAccountsRoutes(mux, dataDir)
+	yyAccountBridgeRoutes(mux, dataDir)
 	yyObservationRoutes(mux, dataDir)
 	yySenseRoutes(mux, dataDir)
 	yyAgentPreferencesRoutes(mux)
@@ -195,6 +197,16 @@ func yyMCP(w http.ResponseWriter, r *http.Request) {
 	key := yyRemote.Key
 	yyRemoteMu.RUnlock()
 	supplied := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	readOnly := false
+	if strings.HasPrefix(r.URL.Path, "/mcp/link/") {
+		grant, ok := yyMCPLinkLookup(strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/mcp/link/"), "/"))
+		if !ok {
+			http.Error(w, "专用连接已撤销或过期", 401)
+			return
+		}
+		supplied = key
+		readOnly = grant.Scope == "read"
+	}
 	if subtle.ConstantTimeCompare([]byte(supplied), []byte(key)) != 1 {
 		http.Error(w, "MCP 密钥不正确", 401)
 		return
@@ -219,6 +231,12 @@ func yyMCP(w http.ResponseWriter, r *http.Request) {
 	if len(packet.ID) == 0 {
 		w.WriteHeader(202)
 		return
+	}
+	if readOnly {
+		if err := yyMCPReadCheck(packet.Method, packet.Params); err != nil {
+			writeJSON(w, map[string]any{"jsonrpc": "2.0", "id": packet.ID, "error": map[string]any{"code": -32003, "message": err.Error()}})
+			return
+		}
 	}
 	var result any
 	switch packet.Method {
@@ -248,7 +266,18 @@ func yyMCP(w http.ResponseWriter, r *http.Request) {
 		}
 		result = map[string]any{"contents": []any{resource}}
 	case "tools/list":
-		result = map[string]any{"tools": yyMCPTools()}
+		tools := yyMCPTools()
+		if readOnly {
+			filtered := []any{}
+			for _, item := range tools {
+				name, _ := item.(map[string]any)["name"].(string)
+				if yyMCPReadTool(name) {
+					filtered = append(filtered, item)
+				}
+			}
+			tools = filtered
+		}
+		result = map[string]any{"tools": tools}
 	case "tools/call":
 		var p struct {
 			Name      string         `json:"name"`

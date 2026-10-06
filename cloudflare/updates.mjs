@@ -24,24 +24,35 @@ export async function updateRoute(request,env){
  const headers={'content-type':'application/vnd.android.package-archive','content-length':String(end-start+1),'accept-ranges':'bytes','etag':etag,'cache-control':'no-cache','content-disposition':'attachment; filename="youyuan-v'+manifest.version+'.apk"'};
  if(status===206)headers['content-range']='bytes '+start+'-'+end+'/'+size;
  if(request.method==='HEAD')return new Response(null,{status,headers});
- // Only one asset reader is live at a time; cancellation releases it. This
- // keeps the 50 MB APK out of Worker memory and supports resumed downloads.
- let offset=0,index=0,reader=null,remaining=end-start+1,chunkSkip=0,chunkLeft=0;
- while(index<manifest.parts.length&&offset+manifest.parts[index].size<=start){offset+=manifest.parts[index++].size}
- const body=new ReadableStream({
-  async pull(controller){try{
-   while(remaining>0){
-    if(!reader){const part=manifest.parts[index];if(!part)throw Error('Incomplete release');const response=await env.ASSETS.fetch(new Request(new URL(part.path,url)));if(!response.ok||!response.body)throw Error('Missing APK part');reader=response.body.getReader();chunkSkip=Math.max(0,start-offset);chunkLeft=part.size}
-    const {value,done}=await reader.read();
-    if(done){reader.releaseLock();reader=null;if(chunkLeft!==0)throw Error('Truncated APK part');offset+=manifest.parts[index++].size;continue}
-    chunkLeft-=value.byteLength;if(chunkLeft<0)throw Error('Oversized APK part');
-    const skip=Math.min(chunkSkip,value.length);chunkSkip-=skip;
-    const bytes=value.subarray(skip,skip+Math.min(remaining,value.length-skip));
-    if(bytes.length){remaining-=bytes.length;controller.enqueue(bytes);if(!remaining){await reader.cancel();reader=null;controller.close()}return}
+ // Native pipeTo avoids executing a JS reader callback for every network
+ // fragment. One asset body is live at a time; pipe cancellation propagates.
+ const {readable,writable}=new TransformStream();
+ (async()=>{
+  let offset=0;
+  for(const part of manifest.parts){
+   const partEnd=offset+part.size-1;
+   if(partEnd<start){offset+=part.size;continue}
+   if(offset>end)break;
+   const first=Math.max(0,start-offset),last=Math.min(part.size-1,end-offset),partial=first!==0||last!==part.size-1;
+   const partHeaders=partial?{Range:'bytes '+first+'-'+last}:{};
+   const response=await env.ASSETS.fetch(new Request(new URL(part.path,url),{headers:partHeaders}));
+   if(!response.ok||!response.body)throw Error('Missing APK part');
+   const contentRange=response.headers.get('content-range');
+   if(partial&&response.status===206){
+    if(contentRange!=='bytes '+first+'-'+last+'/'+part.size)throw Error('Invalid asset range');
+    await response.body.pipeTo(writable,{preventClose:true});
+   }else if(partial){
+    // Some asset adapters ignore Range. Buffer only this one <=8 MiB part,
+    // never the full APK, and slice it once rather than fragment callbacks.
+    const data=new Uint8Array(await response.arrayBuffer());if(data.length!==part.size)throw Error('Truncated APK part');
+    await new Response(data.subarray(first,last+1)).body.pipeTo(writable,{preventClose:true});
+   }else{
+    const length=response.headers.get('content-length');if(length!==null&&Number(length)!==part.size)throw Error('Invalid APK part length');
+    await response.body.pipeTo(writable,{preventClose:true});
    }
-   controller.close();
-  }catch(error){if(reader)await reader.cancel().catch(()=>{});controller.error(error)}},
-  async cancel(){if(reader)await reader.cancel()}
- });
- return new Response(body,{status,headers});
+   offset+=part.size;
+  }
+  await writable.close();
+ })().catch(error=>writable.abort(error).catch(()=>{}));
+ return new Response(readable,{status,headers});
 }

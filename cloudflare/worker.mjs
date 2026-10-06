@@ -1,16 +1,26 @@
 import {updateRoute} from './updates.mjs';
 import {identityHandle,identityResolve,identityRoute} from './identity.mjs';
+import {readPacketAllowed,readTools} from './mcp-link-policy.mjs';
 // 自有域名中继。设备主动连接，所有请求仍由游园执行端真实执行。
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const update=await updateRoute(request,env);if(update)return update;
     if(url.pathname.startsWith('/api/identity/'))return identityRoute(request,env);
-    const rawToken=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');
-    const isOwner=!!env.CONSOLE_TOKEN&&rawToken===env.CONSOLE_TOKEN;
+    let rawToken=(request.headers.get('Authorization')||'').replace(/^Bearer /,''),linkGrant=null,linkPacket=null;
+    const link=url.pathname.match(/^\/mcp\/link\/([a-f0-9]{64})\/?$/);
+    if(link){
+      linkGrant=await identityResolve(env,link[1],'mcp');if(!linkGrant)return Response.json({error:'专用连接已撤销或过期'},{status:401});
+      if(!linkGrant.user.cloud_allowed)return Response.json({error:'订阅已到期',code:'SUBSCRIPTION_REQUIRED'},{status:403});
+      url.pathname='/mcp/';url.search='';url.searchParams.set('device',linkGrant.device);
+      const headers=new Headers(request.headers);headers.delete('X-YouYuan-Device');
+      request=new Request(url,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,duplex:'half'});
+      if(linkGrant.scope==='read'&&request.method==='POST'){try{linkPacket=await request.clone().json()}catch{return Response.json({error:'JSON无效'},{status:400})};if(!readPacketAllowed(linkPacket))return Response.json({jsonrpc:'2.0',id:linkPacket.id||null,error:{code:-32003,message:'此连接仅可查询状态与开发文档'}},{status:200});}
+    }
+    const isOwner=!!linkGrant?.owner||!!env.CONSOLE_TOKEN&&rawToken===env.CONSOLE_TOKEN;
     const isLegacyDevice=!!env.DEVICE_TOKEN&&rawToken===env.DEVICE_TOKEN;
-    let identity=null;
-    if(rawToken&&!isOwner&&!isLegacyDevice)identity=await identityResolve(env,rawToken,url.pathname==='/device/connect'?'device':'session');
+    let identity=linkGrant;
+    if(!identity&&rawToken&&!isOwner&&!isLegacyDevice)identity=await identityResolve(env,rawToken,url.pathname==='/device/connect'?'device':'session');
     if(!identity&&rawToken&&!isOwner&&!isLegacyDevice&&(url.pathname.startsWith('/ai/')||url.pathname.startsWith('/api/library/')))identity=await identityResolve(env,rawToken,'device');
     const testAIAllowed=isOwner||isLegacyDevice||!!identity?.user?.legacy_owner;
     if(url.pathname==='/api/cloud/ai-capability')return Response.json({ok:true,allowed:testAIAllowed},{status:rawToken&&(isOwner||isLegacyDevice||identity)?200:401});
@@ -63,7 +73,7 @@ export default {
       if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
       const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
     }
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.10',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.11',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
     const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || 'primary-device';
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     // Assigned control permission cannot replace the shared node connection.
@@ -71,7 +81,9 @@ export default {
     const deviceId = qqMatch?('tenant:'+qqMatch[1]+':'+qqMatch[2]):legacyAccount?'primary-device':(assigned?'':identity?.relay_prefix||'')+requestedDevice;
     const relay = env.RELAY.get(env.RELAY.idFromName(deviceId));
     if (qqCallback) {const account=legacyAccount?.[1]||qqMatch?.[3];url.pathname=account&&account!=='main'?'/api/youyuan/accounts/invoke/'+account+'/api/qq/webhook':'/api/qq/webhook';request=new Request(url,request);}
-    return relay.fetch(request);
+    const response=await relay.fetch(request);
+    if(linkPacket?.method==='tools/list'&&response.ok){const result=await response.json();if(result.result?.tools)result.result.tools=result.result.tools.filter(t=>readTools.has(t.name));return Response.json(result,{status:response.status})}
+    return response;
   }
 };
 

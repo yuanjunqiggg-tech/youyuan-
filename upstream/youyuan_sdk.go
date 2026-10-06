@@ -17,7 +17,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet", "storage"}
+var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet", "storage", "accounts"}
 
 func yySDKWebID(key string) string {
 	hash := sha256.Sum256([]byte(key))
@@ -279,7 +279,7 @@ func yySDKRoutes(mux *http.ServeMux) {
 		out["game"] = append(out["game"], "execute")
 		out["web"] = append(out["web"], "invoke")
 		out["plugin"] = append(out["plugin"], "state", "save")
-		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.12", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
+		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.14", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
 	})
 	mux.HandleFunc("/api/youyuan/sdk/call", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -377,6 +377,9 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	}
 	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.sendCommandAsync" || method == "game.commandResult" || method == "game.execute" || method == "game.executeBatch" {
 		return s.pluginCommandCall(method, args)
+	}
+	if _, ok := yyAccountBridgeMethods[method]; ok {
+		return yyBridgeSDKCall(s.Instance.Manifest.ID, method, args)
 	}
 	if _, ok := yyExtraMethods[method]; ok {
 		return s.senseCall(method, args)

@@ -134,6 +134,9 @@ func yyWriteChildConfig(a yyManagedAccount, auto bool) error {
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return e
 	}
+	if e := os.WriteFile(filepath.Join(dir, "parent-port"), []byte(yyCorePort), 0600); e != nil {
+		return e
+	}
 	cfg := config.AppConfig{Token: a.Token, AuthURL: a.AuthURL, ServerCode: a.Server, ServerPass: a.Password, ImportSpeed: 10000, ExportSpeed: 10000, AutoConnect: auto, AutoReconnect: a.KeepAlive, ReconnectSeconds: 10, ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, MediaDisplay: "actionbar", MediaTarget: "@a"}
 	path := filepath.Join(dir, "config.json")
 	if old, e := os.ReadFile(path); e == nil {

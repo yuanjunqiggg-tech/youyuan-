@@ -1,6 +1,6 @@
 {
-  "framework_version": "0.10.10",
-  "public_version": "0.10.10",
+  "framework_version": "0.10.11",
+  "public_version": "0.10.11",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
@@ -28,11 +28,11 @@
     "file_watch": "txt_recompile_on_change_preserves_runtime",
     "memory_kv": "implemented_atomic_persistence",
     "transaction_storage": "implemented_multikey_rollback",
-    "release": "01010_signed_final_apk_and_linux_binaries_built",
+    "release": "01011_same_signature_apk_installed_linux_updated",
     "ai_new_framework_skill": "actual_read_write_patch_publish_reload_async_verified",
     "android_cpp_sdk": "x86_64_emulator_actual_native_v2_resource_scheduler_stats_stop_verified",
     "conditional_chain": "actual_game_failed_predecessor_skips_conditional_tail_continues_verified",
-    "skills": "25_available_multiselect_one_save_on_demand_read",
+    "skills": "26_available_155_export_entries_multiselect_on_demand",
     "linux_web_upload": "public_route_and_hash_download_verified",
     "building_export": "actual_stone_gold_all_three_formats_verified",
     "cloud_entitlement": "server_side_admin_or_subscription_21_checks_passed",
@@ -265,7 +265,14 @@
     "building_structure_export": "failed_no_server_structure_response",
     "continuous_large_chain": "not repeated; previous disconnect remains"
   },
-  "release_state": "final_validation_pending",
+  "release_state": "signed_installed_linux_deployed_public_apk_hash_verified",
   "requirement_audit": "框架改造实施核对.md",
-  "tests_paused_by_user": true
+  "tests_paused_by_user": true,
+  "publicly_deployed_version": "0.10.11",
+  "new_delivery_tasks": {
+    "account_bridge": "25 isolated process and MCP checks passed; no new game effects tested",
+    "mcp_url_links": "public no-header handshake, pinned node, read/control, revocation passed; actual Grok UI pending",
+    "admin_credentials": "youyuan_admin provisioned and login verified; original owner preserved",
+    "migration": "local Codex native/readable history, consistent SQLite, workspace files, runtime backups and five recovery scripts collected; final archive manifest is authoritative"
+  }
 }

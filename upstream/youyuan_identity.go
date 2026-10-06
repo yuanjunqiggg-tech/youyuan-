@@ -80,10 +80,12 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 			return
 		}
 		var input struct {
-			Action   string `json:"action"`
-			Username string `json:"username"`
-			QQ       string `json:"qq"`
-			Password string `json:"password"`
+			Action          string `json:"action"`
+			Username        string `json:"username"`
+			QQ              string `json:"qq"`
+			Password        string `json:"password"`
+			CurrentPassword string `json:"current_password"`
+			NewPassword     string `json:"new_password"`
 		}
 		if e := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&input); e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "输入无效"})
@@ -94,6 +96,15 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 			yyIdentity.Data.Session = ""
 			_ = yyIdentitySaveLocked()
 			writeJSON(w, map[string]any{"ok": true})
+			return
+		}
+		if input.Action == "password" {
+			result, e := yyIdentityCall("password", map[string]any{"current_password": input.CurrentPassword, "new_password": input.NewPassword}, yyIdentity.Data.Session)
+			if e != nil {
+				writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+				return
+			}
+			writeJSON(w, result)
 			return
 		}
 		if input.Action != "login" && input.Action != "register" {

@@ -115,6 +115,7 @@ func yyTunnelState(state, detail string) {
 	yyTunnel.Unlock()
 }
 func yyTunnelPublicHandler(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/mcp/link/") { yyMCP(w,r); return }
 	switch r.URL.Path {
 	case "/mcp", "/mcp/":
 		yyMCP(w, r)

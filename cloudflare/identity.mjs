@@ -12,7 +12,7 @@ export async function identityResolve(env,token,purpose='session'){
 }
 export async function identityRoute(request,env){
  const url=new URL(request.url),action=url.pathname.split('/').pop();
- if(!['register','login','me','logout','claim','delete','users','entitlement'].includes(action))return response({ok:false,error:'未知账号操作'},404);
+ if(!['register','login','me','logout','claim','delete','users','entitlement','password','mcp-links'].includes(action))return response({ok:false,error:'未知账号操作'},404);
  const ip=request.headers.get('CF-Connecting-IP')||'local';
  const body=request.method==='GET'?'{}':await request.text();if(body.length>16384)return response({ok:false,error:'请求过大'},413);
  return registry(env).fetch(new Request('https://identity.internal/__identity/'+action,{method:'POST',headers:{'Authorization':request.headers.get('Authorization')||'','X-Identity-IP':ip},body}));
@@ -22,6 +22,12 @@ export async function identityHandle(request,ctx,env){
  const action=new URL(request.url).pathname.split('/').pop(),now=Date.now();
  if(action==='resolve'){
   const hash=await digest(String(input.token||''));
+  if(input.purpose==='mcp'){
+   const grant=await ctx.storage.get('mcp-link:'+hash);if(!grant||grant.expires<=now)return response({ok:false},401);
+   if(grant.owner)return response({ok:true,owner:true,device:grant.device,scope:grant.scope,user:{role:'admin',cloud_allowed:true,assigned_devices:['linux-server']},relay_prefix:''});
+   const account=await ctx.storage.get('user:'+grant.user);if(!account)return response({ok:false},401);
+   return response({ok:true,owner:false,device:grant.device,scope:grant.scope,user:publicUser(account),relay_prefix:account.legacy_owner?'':'tenant:'+account.id+':'});
+  }
   const record=await ctx.storage.get((input.purpose==='device'?'device:':'session:')+hash)|| (input.purpose==='session'?await ctx.storage.get('control:'+hash):null);
   if(!record||record.expires&&record.expires<now)return response({ok:false},401);
   const user=await ctx.storage.get('user:'+record.user);if(!user)return response({ok:false},401);
@@ -31,6 +37,20 @@ export async function identityHandle(request,ctx,env){
  let user=null,sessionHash=null;
  if(bearer){sessionHash=await digest(bearer);const session=await ctx.storage.get('session:'+sessionHash);if(session&&session.expires>now)user=await ctx.storage.get('user:'+session.user);}
  if(action==='me'&&env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN)return response({ok:true,user:{username:'项目管理员',role:'admin',cloud_allowed:true,subscription_until:0,assigned_devices:['linux-server'],legacy_owner:true}});
+ if(action==='mcp-links'){
+  const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN;
+  if(!owner&&(!user||!publicUser(user).cloud_allowed))return response({ok:false,error:'仅管理员或有效订阅用户可创建 MCP 连接'},403);
+  const principal=owner?'project-owner':user.id,op=input.op||'list';
+  if(op==='list'){const rows=await ctx.storage.list({prefix:'mcp-link:'});return response({ok:true,links:[...rows.values()].filter(g=>g.user===principal).map(g=>({id:g.id,name:g.name,device:g.device,scope:g.scope,expires:g.expires}))});}
+  if(op==='revoke'){const g=await ctx.storage.get('mcp-link:'+String(input.id||''));if(!g||g.user!==principal)return response({ok:false,error:'连接不存在'},404);await ctx.storage.delete('mcp-link:'+g.id);return response({ok:true});}
+  if(op!=='create')return response({ok:false,error:'op支持list/create/revoke'},400);
+  const device=String(input.device||'primary-device'),scope=input.scope||'read',hours=input.hours===undefined?720:Number(input.hours);
+  if(!/^[A-Za-z0-9_-]{1,48}$/.test(device)||!['read','control'].includes(scope)||!Number.isInteger(hours)||hours<1||hours>8760)return response({ok:false,error:'设备、权限或有效期无效'},400);
+  if(!owner&&!user.legacy_owner&&device.startsWith('linux-')&&!(user.assigned_devices||[]).includes(device))return response({ok:false,error:'该 Linux 节点未授权'},403);
+  const rows=await ctx.storage.list({prefix:'mcp-link:'});if([...rows.values()].filter(g=>g.user===principal&&g.expires>now).length>=128)return response({ok:false,error:'请撤销不用的连接'},409);
+  const token=randomToken(),id=await digest(token),g={id,user:principal,owner,device,scope,name:String(input.name||'').slice(0,80),expires:now+hours*3600000};await ctx.storage.put('mcp-link:'+id,g);
+  return response({ok:true,created:{id,name:g.name,device,scope,expires:g.expires,token}});
+ }
  if(action==='users'||action==='entitlement'){
   const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN;
   if(!owner&&(!user||publicUser(user).role!=='admin'))return response({ok:false,error:'仅管理员可以管理订阅'},403);
@@ -70,6 +90,14 @@ export async function identityHandle(request,ctx,env){
   return response({ok:true,user:publicUser(user),session_token:token,device_token:user.device_token,control_token:user.control_token,expires:now+30*86400000});
  }
  if(!user)return response({ok:false,error:'请先登录游园账号'},401);
+ if(action==='password'){
+  const next=String(input.new_password||'');if(next.length<10||next.length>128)return response({ok:false,error:'新密码需10–128字符'},400);
+  const rateKey='rate:password:'+user.id;const allowed=await ctx.storage.transaction(async store=>{let rate=await store.get(rateKey)||{start:now,n:0};if(now-rate.start>60000)rate={start:now,n:0};rate.n++;await store.put(rateKey,rate);return rate.n<=10});if(!allowed)return response({ok:false,error:'修改尝试过于频繁'},429);
+  if(await passwordHash(String(input.current_password||''),user.salt)!==user.password_hash)return response({ok:false,error:'原密码不正确'},403);
+  user.salt=randomToken();user.password_hash=await passwordHash(next,user.salt);await ctx.storage.put('user:'+user.id,user);
+  const sessions=await ctx.storage.list({prefix:'session:'});const old=[...sessions].filter(([k,v])=>v.user===user.id&&k!=='session:'+sessionHash).map(([k])=>k);if(old.length)await ctx.storage.delete(old);
+  return response({ok:true,other_sessions_revoked:true});
+ }
  if(action==='me')return response({ok:true,user:publicUser(user)});
  if(action==='logout'){await ctx.storage.delete('session:'+sessionHash);return response({ok:true});}
  if(action==='claim'){
