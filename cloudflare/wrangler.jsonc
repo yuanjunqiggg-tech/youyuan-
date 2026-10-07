@@ -18,7 +18,7 @@
   "assets": {
     "directory": "public",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/api/*", "/mcp", "/mcp/*", "/ai/*", "/device/*", "/qq/*", "/health", "/auth", "/auth/*", "/updates/android/*"]
+    "run_worker_first": ["/", "/.well-known/*", "/oauth/*", "/api/*", "/mcp", "/mcp/*", "/ai/*", "/device/*", "/qq/*", "/health", "/auth", "/auth/*", "/updates/android/*"]
   },
   "durable_objects": {
     "bindings": [

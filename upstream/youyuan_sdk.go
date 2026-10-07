@@ -279,7 +279,7 @@ func yySDKRoutes(mux *http.ServeMux) {
 		out["game"] = append(out["game"], "execute")
 		out["web"] = append(out["web"], "invoke")
 		out["plugin"] = append(out["plugin"], "state", "save")
-		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.14", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
+		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.15", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
 	})
 	mux.HandleFunc("/api/youyuan/sdk/call", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {

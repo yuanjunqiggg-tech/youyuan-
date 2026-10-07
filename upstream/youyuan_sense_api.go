@@ -107,6 +107,7 @@ func yySenseLuaEmit(bm *BotManager, e map[string]any) {
 }
 func registerSenseAPI(L *lua.LState) {
 	L.SetGlobal("chains", L.NewTable())
+	L.SetGlobal("mcp", L.NewTable())
 	for method := range yyExtraMethods {
 		if method == "game.executeBatch" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
 			continue
@@ -235,6 +236,9 @@ func yySenseVec(args []any) (mgl32.Vec3, error) {
 	return p, nil
 }
 func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
+	if strings.HasPrefix(method, "mcp.") {
+		return yyPluginMCP(bm, method, args)
+	}
 	if method == "plugin.capabilities" {
 		return yyCapabilities(), nil
 	}

@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-const yyAppVersion = "0.10.11"
-const yyAppVersionCode = 1011
+const yyAppVersion = "0.10.13"
+const yyAppVersionCode = 1013
 const yyUpdateManifest = "https://updates.youyuanqi.dpdns.org/updates/android/latest.json"
 
 type yyReleaseManifest struct {

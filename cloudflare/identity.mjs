@@ -12,7 +12,7 @@ export async function identityResolve(env,token,purpose='session'){
 }
 export async function identityRoute(request,env){
  const url=new URL(request.url),action=url.pathname.split('/').pop();
- if(!['register','login','me','logout','claim','delete','users','entitlement','password','mcp-links'].includes(action))return response({ok:false,error:'未知账号操作'},404);
+ if(!['register','login','me','logout','claim','delete','users','entitlement','password','reset-password','mcp-links'].includes(action))return response({ok:false,error:'未知账号操作'},404);
  const ip=request.headers.get('CF-Connecting-IP')||'local';
  const body=request.method==='GET'?'{}':await request.text();if(body.length>16384)return response({ok:false,error:'请求过大'},413);
  return registry(env).fetch(new Request('https://identity.internal/__identity/'+action,{method:'POST',headers:{'Authorization':request.headers.get('Authorization')||'','X-Identity-IP':ip},body}));
@@ -51,11 +51,18 @@ export async function identityHandle(request,ctx,env){
   const token=randomToken(),id=await digest(token),g={id,user:principal,owner,device,scope,name:String(input.name||'').slice(0,80),expires:now+hours*3600000};await ctx.storage.put('mcp-link:'+id,g);
   return response({ok:true,created:{id,name:g.name,device,scope,expires:g.expires,token}});
  }
- if(action==='users'||action==='entitlement'){
-  const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN;
+ if(action==='users'||action==='entitlement'||action==='reset-password'){
+  const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN||!!user?.legacy_owner;
   if(!owner&&(!user||publicUser(user).role!=='admin'))return response({ok:false,error:'仅管理员可以管理订阅'},403);
   if(action==='users'){const rows=await ctx.storage.list({prefix:'user:'});return response({ok:true,users:[...rows.values()].map(publicUser).sort((a,b)=>b.created-a.created)});}
   const target=await ctx.storage.get('user:'+String(input.user_id||''));if(!target)return response({ok:false,error:'用户不存在'},404);
+  if(action==='reset-password'){
+   if(!owner&&publicUser(target).role==='admin')return response({ok:false,error:'只有项目所有者可以重置管理员密码'},403);
+   const next=String(input.new_password||'');if(next.length<10||next.length>128)return response({ok:false,error:'新密码需10–128字符'},400);
+   const salt=randomToken(),hash=await passwordHash(next,salt);
+   await ctx.storage.transaction(async store=>{const current=await store.get('user:'+target.id);if(!current)throw Error('用户不存在');current.salt=salt;current.password_hash=hash;current.password_reset_at=now;await store.put('user:'+current.id,current);const sessions=await store.list({prefix:'session:'});const keys=[...sessions].filter(([,v])=>v.user===current.id).map(([k])=>k);if(keys.length)await store.delete(keys);await store.put('password-reset-audit:'+now+':'+crypto.randomUUID(),{actor:owner?'project-owner':user.id,target:current.id,timestamp:now});});
+   return response({ok:true,sessions_revoked:true,username:target.username});
+  }
   if(target.legacy_owner)return response({ok:false,error:'项目所有者权限不能通过订阅接口修改'},403);
   if(!owner&&input.role==='admin')return response({ok:false,error:'只有项目所有者可以授予管理员'},403);
   if(!owner&&publicUser(target).role==='admin')return response({ok:false,error:'只有项目所有者可以修改管理员'},403);

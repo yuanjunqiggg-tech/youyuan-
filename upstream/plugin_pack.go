@@ -247,6 +247,16 @@ func (pc *PluginController) ImportPackage(zipPath string) (string, error) {
 			return "", e
 		}
 	}
+	// Reimport writes the same path, but ScanPlugins deliberately skips an ID
+	// already in defs. Refresh its metadata here so version, documentation and
+	// runtime settings do not remain those of the previous installed package.
+	def, err := BuildDefFromFile(filepath.Join(plugDir, codeName))
+	if err != nil {
+		return "", fmt.Errorf("导入后读取插件定义失败: %w", err)
+	}
+	pc.mu.Lock()
+	pc.defs[id] = def
+	pc.mu.Unlock()
 	debugLog("[插件] 导入完成 id=%s code=%s", id, codeName)
 	return id, nil
 }

@@ -171,7 +171,7 @@ func yyChainPluginCall(bm *BotManager, method string, args []any) (any, error) {
 			}
 			for k, v := range patch {
 				switch k {
-				case "interval_ms", "delay_ms", "run_count", "channel", "enabled", "mode", "window", "rate_cps":
+				case "interval_ms", "delay_ms", "run_count", "channel", "enabled", "mode", "window", "rate_cps", "scheduling", "bootstrap":
 					config[k] = v
 				default:
 					return nil, fmt.Errorf("不支持配置字段 %s", k)

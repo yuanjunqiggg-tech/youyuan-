@@ -24,7 +24,7 @@ type AISkill struct {
 
 // aiSkills 内置技能列表。内容来自 MiemieMethod/bedrock-docs（基岩版中文文档），打包在 skills/ 下。
 var aiSkills = []*AISkill{
- {ID:"account-bridge",Name:"跨账号定向联通",Description:"Lua/Python/C++账号查询、消息、Fast数组和常驻插件导出调用；显式授权与撤销",Sources:[]string{"skills/account-bridge/index.md"}},
+	{ID: "account-bridge", Name: "跨账号定向联通", Description: "Lua/Python/C++账号查询、消息、Fast数组和常驻插件导出调用；显式授权与撤销", Sources: []string{"skills/account-bridge/index.md"}},
 	{ID: "runtime-kernel", Name: "常驻内核与缓冲执行", Description: "统一调度、三种命令路径、CommandBuffer、Storage事务和TXT资源重载", Sources: []string{"skills/runtime-kernel/index.md"}},
 	{ID: "gameplay-events", Name: "协议到玩法与AI操作", Description: "挥臂、死亡RPC、血量位置、拾取和跨语言事件例子，工具到真实游戏的闭环", Sources: []string{"skills/gameplay-events/index.md"}},
 	{ID: "building-transfer", Name: "建筑导入导出与存储位置", Description: "宿主/游戏服务器/市场的职责、实际计数、部分导出与文件下载", Sources: []string{"skills/building-transfer/index.md"}},
@@ -76,7 +76,9 @@ func init() {
 		for _, section := range []string{"game", "player", "world", "events", "packet", "bot", "chains", "building", "media", "plugin", "util", "api", "http", "system", "web", "storage", "accounts"} {
 			sk.Sources = append(sk.Sources, "skills/"+id+"/"+section+".md")
 		}
+		sk.Sources = append(sk.Sources, "skills/"+id+"/native-mcp-and-chain-segments.md")
 	}
+	skillByID("command-chain").Sources = append(skillByID("command-chain").Sources, "skills/command-chain/R21A常驻与本机MCP开发说明.md")
 }
 
 // aiSkillStore 技能加载状态 + 内容缓存。

@@ -1,4 +1,4 @@
-// YouYuan SDK 1.13; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
+// YouYuan SDK 1.15; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
 #pragma once
 #include "third_party/json.hpp"
 #include <cstdlib>
@@ -18,6 +18,9 @@ public:
  Namespace(Client* client,const char* name):client_(client),namespace_(name){}
  template<typename... A> json sendMessage(A&&... args)const{return _send("sendMessage",json::array({std::forward<A>(args)...}));}
  template<typename... A> json callPlugin(A&&... args)const{return _send("callPlugin",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json connection(A&&... args)const{return _send("connection",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json tools(A&&... args)const{return _send("tools",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json resources(A&&... args)const{return _send("resources",json::array({std::forward<A>(args)...}));}
  json _send(const std::string& method,const json& args=json::array())const;
  template<typename... A> json sendPacket(A&&... args)const{return _send("sendPacket",json::array({std::forward<A>(args)...}));}
  template<typename... A> json subscribeAll(A&&... args)const{return _send("subscribeAll",json::array({std::forward<A>(args)...}));}
@@ -233,9 +236,9 @@ public:explicit API(Client* c):Namespace(c,"api"),client_(c){}
 class Client {
  HostAPI host_;json context_;
 public:
- Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet,storage,accounts;API api;
+ Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet,storage,accounts,mcp;API api;
  Client(const char* context,HostAPI host):host_(host),context_(json::parse(context)),
- game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),storage(this,"storage"),accounts(this,"accounts"),api(this){}
+ game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),storage(this,"storage"),accounts(this,"accounts"),mcp(this,"mcp"),api(this){}
  std::string account()const{return context_.at("account").get<std::string>();}
  std::string id()const{return context_.at("plugin_id").get<std::string>();}
  json root(const std::string& path,const json& body=nullptr)const{

@@ -99,9 +99,14 @@ func TestResolvePluginFilePathSafety(t *testing.T) {
 	}
 
 	// 数据目录：非法文件名必须被拒
-	for _, bad := range []string{"..", "../evil", "a/b", `a\b`, "..x", "a/../b"} {
+	for _, bad := range []string{"..", "../evil", "a/../../evil", `/absolute`, `C:\evil`} {
 		if _, err := pc.resolvePluginFile("data", "safe", bad); err == nil {
 			t.Errorf("应拒绝非法文件名 %q", bad)
+		}
+	}
+	for _, good := range []string{"a/b", `a\b`, "..x", "a/../b"} {
+		if _, err := pc.resolvePluginFile("data", "safe", good); err != nil {
+			t.Errorf("合法相对目录被拒绝 %q: %v", good, err)
 		}
 	}
 	// 合法数据文件名可解析
@@ -113,7 +118,7 @@ func TestResolvePluginFilePathSafety(t *testing.T) {
 		t.Errorf("数据路径解析错误: %s", p)
 	}
 
-	// code scope：忽略 file 参数，返回代码文件
+	// code scope: empty file keeps the legacy entry path.
 	p, err = pc.resolvePluginFile("code", "safe", "")
 	if err != nil {
 		t.Fatalf("code scope 解析失败: %v", err)

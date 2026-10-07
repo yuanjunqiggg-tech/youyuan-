@@ -69,6 +69,33 @@ func TestHandlePluginFileReadWriteCode(t *testing.T) {
 	}
 }
 
+func TestPluginEditorReadsWritesNestedModulesAndData(t *testing.T) {
+	pc := NewPluginController()
+	pc.SetPluginDirs(t.TempDir(), "")
+	id, e := pc.CreatePlugin("lua", "nested editor", "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, scope := range []string{"code", "data"} {
+		file := "modules/death.lua"
+		if scope == "data" {
+			file = "ai_prompts/core.txt"
+		}
+		if e := pc.WritePluginFile(scope, id, file, "nested source"); e != nil {
+			t.Fatal(e)
+		}
+		_, value, e := pc.ReadPluginFile(scope, id, file)
+		if e != nil || value != "nested source" {
+			t.Fatal(value, e)
+		}
+		for _, bad := range []string{"../escape", "/absolute", "C:/escape", `modules/../../escape`} {
+			if e := pc.WritePluginFile(scope, id, bad, "bad"); e == nil {
+				t.Fatal("escape accepted", bad)
+			}
+		}
+	}
+}
+
 // TestHandlePluginFileReadRejectsTraversal 数据文件路径穿越在 HTTP 层被拒。
 func TestHandlePluginFileReadRejectsTraversal(t *testing.T) {
 	initPluginControllerForTest(t)

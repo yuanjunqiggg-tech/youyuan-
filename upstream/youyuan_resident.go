@@ -27,6 +27,7 @@ type yyLuaResident struct {
 	senseDone                                      chan struct{}
 	senseStop                                      sync.Once
 	senseDropped                                   atomic.Uint64
+	botReadyDelivered                              sync.Map
 	callbackCalls, callbackFailures                atomic.Uint64
 	callbackLastNS, callbackMaxNS, callbackTotalNS atomic.Int64
 }
@@ -147,6 +148,17 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 		r.closed = true
 	} else {
 		go r.runSense()
+		// OP readiness may precede import or hot reload. Replay after all
+		// modules have defined their final callbacks, without re-running source.
+		connected := false
+		if bm != nil {
+			bm.mu.Lock()
+			connected = bm.inGame
+			bm.mu.Unlock()
+		}
+		if connected {
+			yyReplayBotReady(bm, id)
+		}
 	}
 	return r.err
 }
@@ -174,6 +186,18 @@ func yyStopResident(bm *BotManager, id string) {
 	defer r.mu.Unlock()
 	if !r.closed && r.L != nil {
 		cancelLuaCtx(r.L)
+		// The resident lifetime is already cancelled so active work can exit.
+		// Cleanup receives its own bounded context; it may stop native chains
+		// without reviving the plugin or registering background work.
+		if fn, ok := r.L.GetGlobal("on_stop").(*lua.LFunction); ok {
+			cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			setLuaBotCtxParent(r.L, bm, cleanup)
+			if err := r.L.CallByParam(lua.P{Fn: fn, NRet: 0, Protect: true}); err != nil {
+				debugLog("[插件] %s.on_stop: %v", id, err)
+			}
+			cancelLuaCtx(r.L)
+			cancel()
+		}
 		r.L.Close()
 		r.closed = true
 	}

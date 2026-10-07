@@ -1,6 +1,6 @@
 {
-  "framework_version": "0.10.11",
-  "public_version": "0.10.11",
+  "framework_version": "0.10.13",
+  "public_version": "0.10.13",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
@@ -28,7 +28,7 @@
     "file_watch": "txt_recompile_on_change_preserves_runtime",
     "memory_kv": "implemented_atomic_persistence",
     "transaction_storage": "implemented_multikey_rollback",
-    "release": "01011_same_signature_apk_installed_linux_updated",
+    "release": "01013_signed_built_linux_deployed_apk_install_pending",
     "ai_new_framework_skill": "actual_read_write_patch_publish_reload_async_verified",
     "android_cpp_sdk": "x86_64_emulator_actual_native_v2_resource_scheduler_stats_stop_verified",
     "conditional_chain": "actual_game_failed_predecessor_skips_conditional_tail_continues_verified",
@@ -227,16 +227,6 @@
       "subject": "chore: preserve existing framework source baseline before staged repairs"
     }
   ],
-  "delivery": {
-    "signed_apk_sha256": "6f99ad9ffb88f70470687271a0b438e6f73ecd7f4e9cb737199378ca150f9687",
-    "apk_public_hash_verified": true,
-    "linux_service": "active 0.10.8",
-    "linux_python_async_two_accounts_verified": true,
-    "cloudflare_version": "294a0061-44f4-4498-beab-e01af717c1de",
-    "public_mcp_language_resources_verified": true,
-    "sustained_fast_stress_passed": false,
-    "ai_framework_test": "passed; temporary model/plugin/workspace removed"
-  },
   "git_snapshot_rule": "Commit and recent_commits describe HEAD at file generation; the commit containing this file cannot include its own hash.",
   "reference_inventory": {
     "lua_namespaces": 15,
@@ -248,12 +238,16 @@
       "python",
       "cpp"
     ],
-    "packet_docs": "on demand by packet name"
+    "packet_docs": "on demand by packet name",
+    "building_export": "0.10.9 stone+gold two-block mcstructure/schematic/mcworld actual verified; large regions and unusual NBT remain unverified"
   },
   "latest_change_scope": [
-    "packet compatibility",
-    "language and game documentation",
-    "building progress presentation"
+    "R21A persistent native chain integration",
+    "local MCP and OAuth",
+    "ready replay after late plugin load",
+    "nested project file editing",
+    "owner password recovery",
+    "complete encrypted migration"
   ],
   "verification_0108": {
     "android_version": "0.10.8",
@@ -265,14 +259,43 @@
     "building_structure_export": "failed_no_server_structure_response",
     "continuous_large_chain": "not repeated; previous disconnect remains"
   },
-  "release_state": "signed_installed_linux_deployed_public_apk_hash_verified",
+  "release_state": "signed_built_linux_deployed_public_verification_report_authoritative_apk_not_installed",
   "requirement_audit": "框架改造实施核对.md",
   "tests_paused_by_user": true,
-  "publicly_deployed_version": "0.10.11",
+  "publicly_deployed_version": "0.10.13",
   "new_delivery_tasks": {
     "account_bridge": "25 isolated process and MCP checks passed; no new game effects tested",
     "mcp_url_links": "public no-header handshake, pinned node, read/control, revocation passed; actual Grok UI pending",
-    "admin_credentials": "youyuan_admin provisioned and login verified; original owner preserved",
-    "migration": "local Codex native/readable history, consistent SQLite, workspace files, runtime backups and five recovery scripts collected; final archive manifest is authoritative"
+    "admin_credentials": "幽怨qi owner password reset to user choice; real login verified; private file authoritative",
+    "migration": "final encrypted archive and all-file verification pending; final reports authoritative"
+  },
+  "r21a_adaptation": "single resident Lua plugin + native Go FUNCTION segments",
+  "new_tasks": "See 任务备忘录.md and R21A常驻与本机MCP开发说明.md",
+  "chat_oauth": "public protocol/live PC pass; Chat UI pending",
+  "release": "0.10.13",
+  "native_mcp_live": "OAuth from PC to Linux; nested source read/write passed",
+  "local_ai_live": "actual provider project read/write passed",
+  "emulator": "unavailable at final 0.10.13 installation",
+  "previous_public_version": "0.10.11",
+  "delivery_0108_historical": {
+    "signed_apk_sha256": "6f99ad9ffb88f70470687271a0b438e6f73ecd7f4e9cb737199378ca150f9687",
+    "apk_public_hash_verified": true,
+    "linux_service": "active 0.10.8",
+    "linux_python_async_two_accounts_verified": true,
+    "cloudflare_version": "294a0061-44f4-4498-beab-e01af717c1de",
+    "public_mcp_language_resources_verified": true,
+    "sustained_fast_stress_passed": false,
+    "ai_framework_test": "passed; temporary model/plugin/workspace removed"
+  },
+  "delivery": {
+    "version": "0.10.13",
+    "signed_apk_sha256": "e96bddf57e11d2b3c475f04826c4baa095dd7c66847007bd516e50dc12be62f8",
+    "apk_signature_verified": true,
+    "apk_installed_this_release": false,
+    "linux_service": "active enabled 0.10.13",
+    "public_download_final_verification": "see outputs/0.10.13-公开发布验收.json when present",
+    "chatgpt_ui_connected": false,
+    "grok_ui_connected": false,
+    "sustained_fast_stress_passed": false
   }
 }

@@ -109,12 +109,14 @@ type yyChain struct {
 	Nodes  []yyChainNode `json:"nodes"`
 	Period int           `json:"period"`
 	Repeat int           `json:"repeat,omitempty"`
+	Hz     float64       `json:"hz,omitempty"`
 }
 type yyChainPlan struct {
-	Chains   []yyChain `json:"chains"`
-	Periods  int       `json:"periods"`
-	Commands int       `json:"commands"`
-	Hz       float64   `json:"hz,omitempty"`
+	Chains    []yyChain `json:"chains"`
+	Periods   int       `json:"periods"`
+	Commands  int       `json:"commands"`
+	Hz        float64   `json:"hz,omitempty"`
+	Segmented bool      `json:"segmented,omitempty"`
 }
 
 var yyChainHeader = regexp.MustCompile(`^([012])\s*,\s*([01])\s*,\s*([01])(?:\s+([0-9]+(?:\.[0-9]+)?))?$`)
@@ -132,6 +134,9 @@ func yyParseChains(text string) (yyChainPlan, error) {
 		tests[test.Name] = test
 	}
 	inTest := false
+	currentHz := float64(0)
+	commonHz := float64(0)
+	mixedHz := false
 	flush := func() {
 		if len(chain.Nodes) > 0 {
 			chain.Period = period
@@ -140,6 +145,9 @@ func yyParseChains(text string) (yyChainPlan, error) {
 		}
 	}
 	appendCommand := func(command string, line int) {
+		if len(chain.Nodes) == 0 {
+			chain.Hz = currentHz
+		}
 		node := state
 		node.Command = strings.TrimPrefix(command, "/")
 		if group.Prefix != "" {
@@ -212,6 +220,9 @@ func yyParseChains(text string) (yyChainPlan, error) {
 			}
 			node := state
 			node.Command, node.Line, node.Control = line, index+1, control
+			if len(chain.Nodes) == 0 {
+				chain.Hz = currentHz
+			}
 			chain.Nodes = append(chain.Nodes, node)
 			plan.Commands++
 			continue
@@ -231,10 +242,24 @@ func yyParseChains(text string) (yyChainPlan, error) {
 				if err != nil || hz <= 0 || hz > 1000 || m[1] != "2" {
 					return plan, fmt.Errorf("第%d行：循环头Hz需0<hz<=1000", index+1)
 				}
-				if plan.Hz != 0 && plan.Hz != hz {
-					return plan, fmt.Errorf("第%d行：一个TXT实例只使用一个整轮Hz；不同频率请放入独立TXT", index+1)
+				if len(chain.Nodes) > 0 && chain.Hz != hz {
+					return plan, fmt.Errorf("第%d行：更改段频率前用 . 分隔独立链", index+1)
 				}
-				plan.Hz = hz
+				currentHz = hz
+				plan.Segmented = true
+				if commonHz == 0 {
+					commonHz = hz
+				} else if commonHz != hz {
+					mixedHz = true
+				}
+				if !mixedHz {
+					plan.Hz = commonHz
+				} else {
+					plan.Hz = 0
+				}
+			}
+			if m[1] == "1" {
+				currentHz = 0
 			}
 			state.Type, _ = strconv.Atoi(m[1])
 			state.Conditional = m[2] == "1"
@@ -269,6 +294,8 @@ type yyChainConfig struct {
 	Mode       string `json:"mode,omitempty"`
 	Window     int    `json:"window,omitempty"`
 	RateCPS    int    `json:"rate_cps,omitempty"`
+	Scheduling string `json:"scheduling,omitempty"` // auto, file, segments
+	Bootstrap  bool   `json:"bootstrap,omitempty"`  // Leading pulse segments finish before loop workers are started.
 }
 type yyChainInstance struct {
 	sync.Mutex
@@ -287,6 +314,9 @@ type yyChainInstance struct {
 	LastRoundMS int64
 	cancel      context.CancelFunc
 	done        chan struct{}
+	Ephemeral   bool
+	Revision    uint64
+	Segments    []map[string]any
 }
 
 var yyChainRoot string
@@ -392,6 +422,13 @@ func yyChainStart(instance *yyChainInstance) error {
 }
 func (in *yyChainInstance) run(ctx context.Context) {
 	in.Lock()
+	segmented := in.Config.Scheduling == "segments" || in.Config.Scheduling != "file" && in.Plan.Segmented
+	in.Unlock()
+	if segmented && !in.Ephemeral {
+		in.runSegments(ctx)
+		return
+	}
+	in.Lock()
 	done := in.done
 	in.Unlock()
 	defer func() {
@@ -401,7 +438,9 @@ func (in *yyChainInstance) run(ctx context.Context) {
 		if in.State != "已完成" && in.State != "错误暂停" {
 			in.State = "已停止"
 		}
-		_ = yyChainSaveConfig(in.Config)
+		if !in.Ephemeral {
+			_ = yyChainSaveConfig(in.Config)
+		}
 		in.Unlock()
 		close(done)
 	}()
@@ -413,7 +452,6 @@ func (in *yyChainInstance) run(ctx context.Context) {
 		if in.Plan.Hz > 0 {
 			cfg.IntervalMS = int(1000 / in.Plan.Hz)
 		}
-		in.Trigger = false
 		plan := in.Plan
 		in.Unlock()
 		bm := getBotManagerLocked()
@@ -667,7 +705,7 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 				if in.ElapsedMS > 0 {
 					hz = float64(in.Cycles) * 1000 / float64(in.ElapsedMS)
 				}
-				list = append(list, map[string]any{"config": in.Config, "state": in.State, "cycles": in.Cycles, "executed": in.Executed, "submitted": in.Submitted, "skipped": in.Skipped, "error": in.LastError, "commands": in.Plan.Commands, "redstone": in.Redstone, "elapsed_ms": in.ElapsedMS, "last_round_ms": in.LastRoundMS, "actual_hz": hz, "results_confirmed": in.Config.Mode != "fast", "counter_semantics": "executed=attempted nodes; submitted=host accepted; cycles=processed file rounds, not proof of server execution"})
+				list = append(list, map[string]any{"config": in.Config, "segments": in.Segments, "segmented": in.Config.Scheduling == "segments" || in.Config.Scheduling != "file" && in.Plan.Segmented, "state": in.State, "cycles": in.Cycles, "executed": in.Executed, "submitted": in.Submitted, "skipped": in.Skipped, "error": in.LastError, "commands": in.Plan.Commands, "redstone": in.Redstone, "elapsed_ms": in.ElapsedMS, "last_round_ms": in.LastRoundMS, "actual_hz": hz, "results_confirmed": in.Config.Mode != "fast", "counter_semantics": "executed=attempted nodes; submitted=host accepted; cycles=file rounds or sum of independent segment rounds, not proof of server execution"})
 				in.Unlock()
 			}
 			yyChains.Unlock()

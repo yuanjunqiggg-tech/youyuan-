@@ -7,6 +7,9 @@ import (
 )
 
 func yyChainValidate(c yyChainConfig) error {
+	if c.Scheduling != "" && c.Scheduling != "auto" && c.Scheduling != "file" && c.Scheduling != "segments" {
+		return fmt.Errorf("scheduling 支持 auto/file/segments")
+	}
 	if c.Mode != "" && c.Mode != "fast" && c.Mode != "remote" && c.Mode != "pipeline" && c.Mode != "burst" && c.Mode != "stream" {
 		return fmt.Errorf("命令链运行在机器人内；mode 应为 fast/remote/pipeline/burst/stream")
 	}

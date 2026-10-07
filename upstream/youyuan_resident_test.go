@@ -35,6 +35,39 @@ func TestYouYuanResidentKeepsStateAndSeparatesBots(t *testing.T) {
 		t.Fatalf("跨插件调用重跑源码：%s %v", value, err)
 	}
 }
+
+func TestBotReadyReplayedAfterLateLoadAndOncePerRuntime(t *testing.T) {
+	bm := &BotManager{inGame: true}
+	id := "ready-late-load"
+	source := `n=0;events.onBotReady("ready");function ready() n=n+1 end;function read() return n end`
+	defer func() { yyStopResident(bm, id); RemovePluginEvents(id) }()
+	for generation := 0; generation < 2; generation++ {
+		if e := LoadLuaPlugin(bm, id, source); e != nil {
+			t.Fatal(e)
+		}
+		fireBotReadyEvent(bm)
+		fireBotReadyEvent(bm)
+		deadline := time.Now().Add(time.Second)
+		for {
+			v, e := yyCallResident(bm, id, "read", nil, false, false)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if v == float64(1) {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("ready missed or duplicated: %v", v)
+			}
+			time.Sleep(time.Millisecond)
+		}
+		time.Sleep(10 * time.Millisecond)
+		v, e := yyCallResident(bm, id, "read", nil, false, false)
+		if e != nil || v != float64(1) {
+			t.Fatalf("ready duplicated: %v %v", v, e)
+		}
+	}
+}
 func TestYouYuanUnlimitedSpeed(t *testing.T) {
 	for _, speed := range []int{-1, 0} {
 		if building.UnlimitedSpeedDelay(speed) != 0 {

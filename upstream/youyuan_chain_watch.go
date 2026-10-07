@@ -35,6 +35,7 @@ func yyReloadChainResource(in *yyChainInstance) error {
 	}
 	in.Lock()
 	in.Plan = plan
+	in.Revision++
 	in.LastError = ""
 	in.Unlock()
 	return nil

@@ -1,0 +1,164 @@
+# 药水系统 FUNCTION
+# 已从旧格式反翻译成当前统一语法。
+# 1,0,0 = 脉冲 / 无条件 / 保持开启
+# 2,0,0 20 = 循环 / 无条件 / 保持开启 / 20Hz
+# 0,0,0 = 连锁 / 无条件 / 保持开启
+# 0,1,0 = 连锁 / 有条件 / 保持开启
+# `.` = 新独立链；`!` = 文件结束
+1,0,0
+/scoreboard objectives add Potion dummy
+.
+2,0,0 20
+/execute as @a[hasitem={item=potion,data=31,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 31
+0,0,0
+/execute as @a[scores={Potion=31}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear strength
+0,1,0
+/execute as @a[scores={Potion=31}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s strength 60 1
+0,1,0
+/execute as @a[scores={Potion=31}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s resistance 60 0
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=28,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 28
+0,0,0
+/execute as @a[scores={Potion=28}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear regeneration
+0,1,0
+/execute as @a[scores={Potion=28}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s regeneration 30 1
+0,1,0
+/execute as @a[scores={Potion=28}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s absorption 60 2
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=14,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 14
+0,0,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear speed
+0,1,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s speed 120 1
+0,1,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s haste 120 1
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=9,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 9
+0,0,0
+/execute as @a[scores={Potion=9}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear jump_boost
+0,1,0
+/execute as @a[scores={Potion=9}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s jump_boost 180 1
+0,1,0
+/execute as @a[scores={Potion=9}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s slow_falling 180 0
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=7,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 7
+0,0,0
+/execute as @a[scores={Potion=7}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear invisibility
+0,1,0
+/execute as @a[scores={Potion=7}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s invisibility 180 0
+0,1,0
+/execute as @a[scores={Potion=7}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s speed 180 1
+0,1,0
+/execute as @a[scores={Potion=7}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s night_vision 180 0
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=12,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 12
+0,0,0
+/execute as @a[scores={Potion=12}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear fire_resistance
+0,1,0
+/execute as @a[scores={Potion=12}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s fire_resistance 300 0
+0,1,0
+/execute as @a[scores={Potion=12}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s resistance 60 1
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=19,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 19
+0,0,0
+/execute as @a[scores={Potion=19}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear water_breathing
+0,1,0
+/execute as @a[scores={Potion=19}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s water_breathing 300 0
+0,1,0
+/execute as @a[scores={Potion=19}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s night_vision 300 0
+0,1,0
+/execute as @a[scores={Potion=19}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s speed 300 0
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=40,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 40
+0,0,0
+/execute as @a[scores={Potion=40}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear slow_falling
+0,1,0
+/execute as @a[scores={Potion=40}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s slow_falling 90 0
+0,1,0
+/execute as @a[scores={Potion=40}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s jump_boost 90 1
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=37,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 37
+0,0,0
+/execute as @a[scores={Potion=37}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear slowness
+0,1,0
+/execute as @a[scores={Potion=37}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s resistance 30 3
+0,1,0
+/execute as @a[scores={Potion=37}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s slowness 30 3
+0,1,0
+/execute as @a[scores={Potion=37}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s absorption 60 4
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=35,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 35
+0,0,0
+/execute as @a[scores={Potion=35}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear poison
+0,1,0
+/execute as @a[scores={Potion=35}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s poison 4 3
+0,1,0
+/execute as @a[scores={Potion=35}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s strength 30 3
+0,1,0
+/execute as @a[scores={Potion=35}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s regeneration 15 2
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=33,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 33
+0,0,0
+/execute as @a[scores={Potion=33}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear instant_damage
+0,1,0
+/execute as @a[scores={Potion=33}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s instant_damage 1 4
+0,1,0
+/execute as @a[scores={Potion=33}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s strength 45 2
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=22,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 22
+0,0,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear instant_health
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s instant_health 1 5
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s absorption 60 3
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s regeneration 30 0
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=4,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 4
+0,0,0
+/execute as @a[scores={Potion=4}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear night_vision
+0,1,0
+/execute as @a[scores={Potion=4}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s night_vision 600 0
+0,1,0
+/execute as @a[scores={Potion=4}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s speed 600 0
+0,1,0
+/execute as @a[scores={Potion=4}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s jump_boost 600 0
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=22,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 22
+0,0,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s strength 45 2
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s resistance 45 2
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s slowness 45 0
+0,1,0
+/execute as @a[scores={Potion=22}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s absorption 60 3
+0,0,0
+
+/execute as @a[hasitem={item=potion,data=14,location=slot.weapon.mainhand}] at @s run scoreboard players set @s Potion 14
+0,0,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s clear speed
+0,1,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s speed 120 2
+0,1,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s slow_falling 120 0
+0,1,0
+/execute as @a[scores={Potion=14}] if entity @s[hasitem={item=glass_bottle,location=slot.weapon.mainhand}] run effect @s jump_boost 120 1
+0,0,0
+!

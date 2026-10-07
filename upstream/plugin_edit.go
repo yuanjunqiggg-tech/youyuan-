@@ -123,13 +123,17 @@ func (pc *PluginController) CodeFileName(id string) (string, bool) {
 }
 
 // resolvePluginFile 解析插件可编辑文件为磁盘绝对路径并做安全校验。
-// scope：code（插件源码，忽略 file 参数）/ docs（操作文档 md）/ data（数据目录内文件）。
+// scope: code (empty file means the legacy entry; otherwise a relative module),
+// docs (legacy manual), data (relative resource path). Reject escaping/symlinks.
 func (pc *PluginController) resolvePluginFile(scope, id, file string) (string, error) {
 	if !validPluginID(id) {
 		return "", fmt.Errorf("插件 id 非法: %q", id)
 	}
 	switch scope {
 	case "code":
+		if file != "" {
+			return yyProjectPath(filepath.Join(pc.privateDir, "插件文件", id), file)
+		}
 		name, ok := pc.CodeFileName(id)
 		if !ok {
 			return "", fmt.Errorf("找不到插件代码文件: %s", id)
@@ -141,10 +145,7 @@ func (pc *PluginController) resolvePluginFile(scope, id, file string) (string, e
 		if file == "" || file == "." || file == ".." {
 			return "", fmt.Errorf("非法文件名: %q", file)
 		}
-		if strings.ContainsAny(file, `/\\`) || strings.Contains(file, "..") {
-			return "", fmt.Errorf("非法文件名（不允许路径分隔符）: %q", file)
-		}
-		return filepath.Join(pc.privateDir, "插件数据文件", id, file), nil
+		return yyProjectPath(filepath.Join(pc.privateDir, "插件数据文件", id), file)
 	default:
 		return "", fmt.Errorf("未知文件范围: %s", scope)
 	}

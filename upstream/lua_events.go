@@ -185,7 +185,28 @@ func fireLeaveEvent(bm *BotManager, name string) {
 }
 func fireBotReadyEvent(bm *BotManager) {
 	yyRuntimeEmit(bm, map[string]any{"type": "ready"})
-	runEventHandlers(bm, evBotReady)
+	yyReplayBotReady(bm, "")
+}
+
+func yyReplayBotReady(bm *BotManager, onlyPlugin string) {
+	evMu.Lock()
+	handlers := append([]*luaEventH(nil), evBotReady...)
+	evMu.Unlock()
+	for _, h := range handlers {
+		if onlyPlugin != "" && h.plugin != onlyPlugin {
+			continue
+		}
+		yyLuaMu.Lock()
+		r := yyLuaStates[yyLuaKey{bm, h.plugin}]
+		yyLuaMu.Unlock()
+		if r == nil {
+			continue
+		} // Its later load will replay readiness.
+		if _, delivered := r.botReadyDelivered.LoadOrStore(h.handler, true); delivered {
+			continue
+		}
+		yyQueueResidentEvent(bm, h.plugin, h.handler, nil)
+	}
 }
 func firePacketEvent(bm *BotManager, ptype string, data map[string]any) {
 	yyRuntimeEmit(bm, map[string]any{"type": "packet", "packet_type": ptype, "data": data})

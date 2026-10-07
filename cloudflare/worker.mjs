@@ -1,13 +1,24 @@
 import {updateRoute} from './updates.mjs';
 import {identityHandle,identityResolve,identityRoute} from './identity.mjs';
 import {readPacketAllowed,readTools} from './mcp-link-policy.mjs';
+import {oauthHandle,oauthRoute,oauthResolve,mcpChallenge} from './oauth.mjs';
 // 自有域名中继。设备主动连接，所有请求仍由游园执行端真实执行。
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const update=await updateRoute(request,env);if(update)return update;
+    const oauthResponse=await oauthRoute(request,env);if(oauthResponse)return oauthResponse;
     if(url.pathname.startsWith('/api/identity/'))return identityRoute(request,env);
     let rawToken=(request.headers.get('Authorization')||'').replace(/^Bearer /,''),linkGrant=null,linkPacket=null;
+    const oauthEndpoint=url.pathname.match(/^\/mcp\/oauth\/([A-Za-z0-9_-]{1,48})\/?$/);
+    if(oauthEndpoint){
+      linkGrant=await oauthResolve(env,rawToken,url.origin+'/mcp/oauth/'+oauthEndpoint[1]);
+      if(!linkGrant)return mcpChallenge(request);
+      url.pathname='/mcp/';url.search='';url.searchParams.set('device',linkGrant.device);
+      const headers=new Headers(request.headers);headers.delete('X-YouYuan-Device');
+      request=new Request(url,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,duplex:'half'});
+      if(request.method==='POST'){try{linkPacket=await request.clone().json()}catch{return Response.json({error:'JSON无效'},{status:400})};if(linkGrant.scope==='read'&&!readPacketAllowed(linkPacket))return Response.json({jsonrpc:'2.0',id:linkPacket.id??null,error:{code:-32003,message:'此授权仅可查询状态与开发文档'}},{status:200});}
+    }
     const link=url.pathname.match(/^\/mcp\/link\/([a-f0-9]{64})\/?$/);
     if(link){
       linkGrant=await identityResolve(env,link[1],'mcp');if(!linkGrant)return Response.json({error:'专用连接已撤销或过期'},{status:401});
@@ -68,12 +79,12 @@ export default {
     const expected = 'Bearer ' + (device ? env.DEVICE_TOKEN : env.CONSOLE_TOKEN);
     const library = url.pathname.startsWith('/api/library/');
     const libraryDevice = library && env.DEVICE_TOKEN && supplied==='Bearer '+env.DEVICE_TOKEN;
-    if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) return Response.json({error:'中继密钥不正确'},{status:401});
+    if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) return url.pathname.startsWith('/mcp')?mcpChallenge(request):Response.json({error:'中继密钥不正确'},{status:401});
     if(url.pathname==='/api/game-auth/accounts'){
       if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
       const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
     }
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.11',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.13',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
     const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || 'primary-device';
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     // Assigned control permission cannot replace the shared node connection.
@@ -82,7 +93,7 @@ export default {
     const relay = env.RELAY.get(env.RELAY.idFromName(deviceId));
     if (qqCallback) {const account=legacyAccount?.[1]||qqMatch?.[3];url.pathname=account&&account!=='main'?'/api/youyuan/accounts/invoke/'+account+'/api/qq/webhook':'/api/qq/webhook';request=new Request(url,request);}
     const response=await relay.fetch(request);
-    if(linkPacket?.method==='tools/list'&&response.ok){const result=await response.json();if(result.result?.tools)result.result.tools=result.result.tools.filter(t=>readTools.has(t.name));return Response.json(result,{status:response.status})}
+    if(linkPacket?.method==='tools/list'&&response.ok){const result=await response.json();if(result.result?.tools){if(linkGrant.scope==='read')result.result.tools=result.result.tools.filter(t=>readTools.has(t.name));if(linkGrant.oauth)result.result.tools=result.result.tools.map(t=>({...t,securitySchemes:[{type:'oauth2',scopes:linkGrant.scope==='control'?['mcp:control']:['mcp:read']}]}));}return Response.json(result,{status:response.status})}
     return response;
   }
 };
@@ -99,6 +110,7 @@ export class YouYuanRelay {
   async fetch(request) {
     const url=new URL(request.url);
     if(url.pathname.startsWith('/__identity/'))return identityHandle(request,this.ctx,this.env);
+    if(url.pathname.startsWith('/__oauth/'))return oauthHandle(request,this.ctx,this.env);
     if(url.pathname.startsWith('/api/library/'))return this.library(request,url);
     if(url.pathname==='/device/connect') {
       if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return Response.json({error:'需要 WebSocket'},{status:426});

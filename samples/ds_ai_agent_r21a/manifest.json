@@ -1,0 +1,10 @@
+{
+  "id": "ds_ai_agent",
+  "name": "多功能插件",
+  "version": "1.0.73-R21A-YouYuan.2",
+  "type": "lua",
+  "author": "疣螈",
+  "description": "R21A完整业务；常驻模块、原生命令链、独立段Hz、按需提示词、AI及时反馈与公告差分更新",
+  "pre_plugins": {},
+  "runtime_mode": "persistent"
+}

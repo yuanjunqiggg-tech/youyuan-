@@ -122,7 +122,7 @@ func yyChainLookup(name, account string) (yyChainPlan, yyChainConfig, error) {
 	return plan, cfg, nil
 }
 func yyChainSlice(plan yyChainPlan, from, to int) (yyChainPlan, error) {
-	out := yyChainPlan{Periods: plan.Periods, Hz: plan.Hz}
+	out := yyChainPlan{Periods: plan.Periods, Hz: plan.Hz, Segmented: plan.Segmented}
 	for _, chain := range plan.Chains {
 		part := yyChain{Period: chain.Period, Repeat: chain.Repeat}
 		for _, n := range chain.Nodes {

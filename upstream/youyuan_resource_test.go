@@ -6,6 +6,27 @@ import (
 	"testing"
 )
 
+func TestReimportRefreshesInstalledMetadata(t *testing.T) {
+	pc := NewPluginController()
+	pc.SetPluginDirs(t.TempDir(), "")
+	for _, desc := range []string{"old", "new"} {
+		_, e := pc.ImportPackage(writeZip(t, map[string]string{
+			"manifest.json": `{"id":"upgrade-test","description":"` + desc + `","runtime_mode":"persistent"}`,
+			"main.lua":      "value='" + desc + "'", "docs.md": desc,
+		}))
+		if e != nil {
+			t.Fatal(e)
+		}
+		pc.ScanPlugins()
+		pc.mu.Lock()
+		def := pc.defs["upgrade-test"]
+		pc.mu.Unlock()
+		if def == nil || def.Description != desc || def.Docs != desc {
+			t.Fatalf("stale metadata: %+v", def)
+		}
+	}
+}
+
 func TestResourceImportModuleAndFullRoundTrip(t *testing.T) {
 	pc := NewPluginController()
 	pc.SetPluginDirs(t.TempDir(), "")
