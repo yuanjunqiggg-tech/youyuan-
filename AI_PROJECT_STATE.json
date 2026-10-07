@@ -1,6 +1,6 @@
 {
-  "framework_version": "0.10.13",
-  "public_version": "0.10.13",
+  "framework_version": "0.10.14",
+  "public_version": "0.10.14",
   "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
@@ -162,9 +162,9 @@
     "AI_HANDOFF_FRAMEWORK.md",
     "CHANGELOG_FRAMEWORK.md"
   ],
-  "updated_at": "2026-10-06 Asia/Shanghai",
+  "updated_at": "2026-10-07 Asia/Shanghai",
   "current_branch": "main",
-  "current_commit": "ee21d219e4df425b4dac8eaa42b897fb89cced9c",
+  "current_commit": "ed3a0cf234b473fb4ccd411402fb10137f599c84",
   "recent_commits": [
     {
       "commit": "ee21d219e4df425b4dac8eaa42b897fb89cced9c",
@@ -259,10 +259,10 @@
     "building_structure_export": "failed_no_server_structure_response",
     "continuous_large_chain": "not repeated; previous disconnect remains"
   },
-  "release_state": "signed_built_linux_deployed_public_verification_report_authoritative_apk_not_installed",
+  "release_state": "signed_built_linux_deployed_public_apk_complete_sha256_verified",
   "requirement_audit": "框架改造实施核对.md",
   "tests_paused_by_user": true,
-  "publicly_deployed_version": "0.10.13",
+  "publicly_deployed_version": "0.10.14",
   "new_delivery_tasks": {
     "account_bridge": "25 isolated process and MCP checks passed; no new game effects tested",
     "mcp_url_links": "public no-header handshake, pinned node, read/control, revocation passed; actual Grok UI pending",
@@ -271,12 +271,12 @@
   },
   "r21a_adaptation": "single resident Lua plugin + native Go FUNCTION segments",
   "new_tasks": "See 任务备忘录.md and R21A常驻与本机MCP开发说明.md",
-  "chat_oauth": "public protocol/live PC pass; Chat UI pending",
-  "release": "0.10.13",
+  "chat_oauth": "actual UI reached consent login; final authorization pending; PC OAuth verified",
+  "release": "0.10.14",
   "native_mcp_live": "OAuth from PC to Linux; nested source read/write passed",
   "local_ai_live": "actual provider project read/write passed",
-  "emulator": "unavailable at final 0.10.13 installation",
-  "previous_public_version": "0.10.11",
+  "emulator": "not used; user requires Linux testing",
+  "previous_public_version": "0.10.13",
   "delivery_0108_historical": {
     "signed_apk_sha256": "6f99ad9ffb88f70470687271a0b438e6f73ecd7f4e9cb737199378ca150f9687",
     "apk_public_hash_verified": true,
@@ -297,5 +297,20 @@
     "chatgpt_ui_connected": false,
     "grok_ui_connected": false,
     "sustained_fast_stress_passed": false
+  },
+  "current_release": "0.10.14",
+  "pending_release": "0.10.14",
+  "current_owner": "幽怨qi",
+  "default_execution": "linux-server",
+  "active_registered_users": 1,
+  "linux_direct_transport": "temporary HTTPS tunnel with same-owner session authentication; verified 30 queries",
+  "migration_archive": "paused until client MCP and plugin business acceptance",
+  "current_release_artifacts": {
+    "apk": "outputs/youyuan-v0.10.14.apk",
+    "linux": "outputs/youyuan-v0.10.14-linux-x86_64.tar.gz",
+    "source": "outputs/youyuan-source-v0.10.14.zip",
+    "report": "outputs/0.10.14-公开发布验收.json",
+    "linux_acceptance": "outputs/0.10.14-Linux直连与在线验收.json",
+    "cleanup": "outputs/0.10.14-单账号清理与插件备份.json"
   }
 }

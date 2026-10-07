@@ -80,7 +80,16 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 		if yyAccounts.Worker {
 			accountID = filepath.Base(dataDir)
 		}
-		writeJSON(w, map[string]any{"ready": true, "version": yyAppVersion, "platform": platform, "backend": backend, "tools": len(yyAPIRoutes) + 2, "account_id": accountID})
+		result := map[string]any{"ready": true, "version": yyAppVersion, "platform": platform, "backend": backend, "tools": len(yyAPIRoutes) + 2, "account_id": accountID}
+		if platform == "linux" {
+			if raw, err := os.ReadFile(filepath.Join(dataDir, "linux-direct.json")); err == nil {
+				var direct map[string]any
+				if json.Unmarshal(raw, &direct) == nil {
+					result["linux_direct_url"] = direct["url"]
+				}
+			}
+		}
+		writeJSON(w, result)
 	})
 	mux.HandleFunc("/api/youyuan/remote", func(w http.ResponseWriter, r *http.Request) {
 		yyRemoteMu.Lock()

@@ -84,13 +84,21 @@ export default {
       if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
       const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
     }
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.13',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'APK 或 Linux 独立执行端主动连接；按设备隔离',user:identity?.user||null});
-    const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || 'primary-device';
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.14',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'默认 Linux；高频读写由 Linux 直连处理；Cloudflare 保留授权与兼容中继',user:identity?.user||null});
+    const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || (isOwner||identity?.user?.legacy_owner?'linux-server':'primary-device');
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     // Assigned control permission cannot replace the shared node connection.
     const assigned=!device&&identity?.user?.assigned_devices?.includes(requestedDevice)&&requestedDevice.startsWith('linux-');
     const deviceId = qqMatch?('tenant:'+qqMatch[1]+':'+qqMatch[2]):legacyAccount?'primary-device':(assigned?'':identity?.relay_prefix||'')+requestedDevice;
     const relay = env.RELAY.get(env.RELAY.idFromName(deviceId));
+    if(url.pathname==='/api/cloud/linux-direct'){
+      if(request.method!=='GET')return Response.json({ok:false},{status:405});
+      const probe=await relay.fetch(new Request(url.origin+'/health'));
+      if(!probe.ok)return Response.json({ok:false,error:'Linux执行端未连接'},{status:503});
+      const info=await probe.json(),origin=String(info.linux_direct_url||'');
+      if(!/^https:\/\/(?:[a-z0-9-]+\.trycloudflare\.com|linux\.youyuanqi\.dpdns\.org)$/.test(origin))return Response.json({ok:false,error:'Linux直连入口尚未就绪'},{status:503});
+      return Response.json({ok:true,origin,device:requestedDevice},{headers:{'Cache-Control':'no-store'}});
+    }
     if (qqCallback) {const account=legacyAccount?.[1]||qqMatch?.[3];url.pathname=account&&account!=='main'?'/api/youyuan/accounts/invoke/'+account+'/api/qq/webhook':'/api/qq/webhook';request=new Request(url,request);}
     const response=await relay.fetch(request);
     if(linkPacket?.method==='tools/list'&&response.ok){const result=await response.json();if(result.result?.tools){if(linkGrant.scope==='read')result.result.tools=result.result.tools.filter(t=>readTools.has(t.name));if(linkGrant.oauth)result.result.tools=result.result.tools.map(t=>({...t,securitySchemes:[{type:'oauth2',scopes:linkGrant.scope==='control'?['mcp:control']:['mcp:read']}]}));}return Response.json(result,{status:response.status})}

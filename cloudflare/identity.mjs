@@ -12,7 +12,7 @@ export async function identityResolve(env,token,purpose='session'){
 }
 export async function identityRoute(request,env){
  const url=new URL(request.url),action=url.pathname.split('/').pop();
- if(!['register','login','me','logout','claim','delete','users','entitlement','password','reset-password','mcp-links'].includes(action))return response({ok:false,error:'未知账号操作'},404);
+ if(!['register','login','me','logout','claim','delete','users','entitlement','password','reset-password','mcp-links','backup','delete-user'].includes(action))return response({ok:false,error:'未知账号操作'},404);
  const ip=request.headers.get('CF-Connecting-IP')||'local';
  const body=request.method==='GET'?'{}':await request.text();if(body.length>16384)return response({ok:false,error:'请求过大'},413);
  return registry(env).fetch(new Request('https://identity.internal/__identity/'+action,{method:'POST',headers:{'Authorization':request.headers.get('Authorization')||'','X-Identity-IP':ip},body}));
@@ -37,6 +37,20 @@ export async function identityHandle(request,ctx,env){
  let user=null,sessionHash=null;
  if(bearer){sessionHash=await digest(bearer);const session=await ctx.storage.get('session:'+sessionHash);if(session&&session.expires>now)user=await ctx.storage.get('user:'+session.user);}
  if(action==='me'&&env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN)return response({ok:true,user:{username:'项目管理员',role:'admin',cloud_allowed:true,subscription_until:0,assigned_devices:['linux-server'],legacy_owner:true}});
+ if(action==='backup'||action==='delete-user'){
+  const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN||!!user?.legacy_owner;
+  if(!owner)return response({ok:false,error:'仅项目所有者可以备份或删除平台账号'},403);
+  if(action==='backup'){const records=await ctx.storage.list();return response({ok:true,created:now,records:[...records]});}
+  const id=String(input.user_id||'');
+  return ctx.storage.transaction(async store=>{
+   const target=await store.get('user:'+id);if(!target)return response({ok:false,error:'账号不存在'},404);
+   if(target.legacy_owner||await store.get('legacy-owner')===id)return response({ok:false,error:'不能删除项目所有者'},403);
+   const records=await store.list();const keys=[...records].filter(([k,v])=>k==='user:'+id||k==='name:'+target.username||v?.user===id||v?.user_id===id).map(([k])=>k);
+   if(keys.length)await store.delete(keys);
+   await store.put('account-delete-audit:'+now+':'+crypto.randomUUID(),{actor:user?.id||'project-owner',target:id,username:target.username,timestamp:now,revoked:keys.length});
+   return response({ok:true,username:target.username,revoked:keys.length});
+  });
+ }
  if(action==='mcp-links'){
   const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN;
   if(!owner&&(!user||!publicUser(user).cloud_allowed))return response({ok:false,error:'仅管理员或有效订阅用户可创建 MCP 连接'},403);

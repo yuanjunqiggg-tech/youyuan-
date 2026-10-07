@@ -3,7 +3,7 @@ android {
  namespace 'org.youyuan.toolbox'
  compileSdk 34
  defaultConfig {
-  applicationId 'org.youyuan.toolbox'; minSdk 26; targetSdk 33; versionCode 1013; versionName '0.10.13'
+  applicationId 'org.youyuan.toolbox'; minSdk 26; targetSdk 33; versionCode 1014; versionName '0.10.14'
   ndk { abiFilters 'arm64-v8a', 'x86_64' }
  }
  buildTypes { release { minifyEnabled false } }

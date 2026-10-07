@@ -139,7 +139,14 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 			return
 		}
 		yyRemoteMu.Lock()
-		yyRemote.URL = "wss://toolbox.youyuanqi.dpdns.org/device/connect"
+		// A platform login must not move a Linux node onto the APK slug.
+		if yyRemote.URL == "" {
+			if getPlatformName() == "linux" {
+				yyRemote.URL = "wss://toolbox.youyuanqi.dpdns.org/device/connect?device=linux-server"
+			} else {
+				yyRemote.URL = "wss://toolbox.youyuanqi.dpdns.org/device/connect"
+			}
+		}
 		yyRemote.DeviceToken = device
 		yyRemote.Enabled = true
 		data, _ := json.MarshalIndent(yyRemote, "", "  ")

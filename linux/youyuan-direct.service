@@ -1,0 +1,17 @@
+[Unit]
+Description=YouYuan authenticated Linux direct gateway
+After=network-online.target youyuan.service
+Wants=network-online.target
+
+[Service]
+User=youyuan
+Group=youyuan
+ExecStart=/usr/bin/python3 /opt/youyuan/direct_gateway.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
