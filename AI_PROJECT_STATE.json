@@ -287,17 +287,6 @@
     "sustained_fast_stress_passed": false,
     "ai_framework_test": "passed; temporary model/plugin/workspace removed"
   },
-  "delivery": {
-    "version": "0.10.13",
-    "signed_apk_sha256": "e96bddf57e11d2b3c475f04826c4baa095dd7c66847007bd516e50dc12be62f8",
-    "apk_signature_verified": true,
-    "apk_installed_this_release": false,
-    "linux_service": "active enabled 0.10.13",
-    "public_download_final_verification": "see outputs/0.10.13-公开发布验收.json when present",
-    "chatgpt_ui_connected": false,
-    "grok_ui_connected": false,
-    "sustained_fast_stress_passed": false
-  },
   "current_release": "0.10.14",
   "pending_release": "0.10.14",
   "current_owner": "幽怨qi",
@@ -312,5 +301,27 @@
     "report": "outputs/0.10.14-公开发布验收.json",
     "linux_acceptance": "outputs/0.10.14-Linux直连与在线验收.json",
     "cleanup": "outputs/0.10.14-单账号清理与插件备份.json"
+  },
+  "delivery_01013_historical": {
+    "version": "0.10.13",
+    "signed_apk_sha256": "e96bddf57e11d2b3c475f04826c4baa095dd7c66847007bd516e50dc12be62f8",
+    "apk_signature_verified": true,
+    "apk_installed_this_release": false,
+    "linux_service": "active enabled 0.10.13",
+    "public_download_final_verification": "see outputs/0.10.13-公开发布验收.json when present",
+    "chatgpt_ui_connected": false,
+    "grok_ui_connected": false,
+    "sustained_fast_stress_passed": false
+  },
+  "delivery": {
+    "version": "0.10.14",
+    "signed_apk_sha256": "fe96f22b93f2b6da53a383328809311944dcf6a839ca2d7b6e4748920a58e3f7",
+    "apk_signature_verified": true,
+    "apk_installed_this_release": false,
+    "linux_service": "active and connected; same owner",
+    "public_download_final_verification": "outputs/0.10.14-公开发布验收.json",
+    "chatgpt_ui_connected": false,
+    "grok_ui_connected": false,
+    "sustained_fast_stress_passed": false
   }
 }
