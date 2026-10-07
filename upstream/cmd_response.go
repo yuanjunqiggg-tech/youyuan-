@@ -25,7 +25,11 @@ func (bm *BotManager) SendWSCommandWithResp(cmd string) (*packet.CommandOutput, 
 	if err != nil {
 		return nil, fmt.Errorf("gameInterface 未就绪: %v", err)
 	}
-	return gi.Commands().SendWSCommandWithResp(cmd)
+	resp, timedOut, err := gi.Commands().SendWSCommandWithTimeout(cmd, 5*time.Second)
+	if timedOut {
+		return nil, fmt.Errorf("WS确认查询超时（5s）：检查连接、权限及sendcommandfeedback；命令可能已执行")
+	}
+	return resp, err
 }
 
 // SendPlayerCommandWithTimeout 以玩家身份发送命令并等待响应。
@@ -45,7 +49,11 @@ func (bm *BotManager) SendPlayerCommandWithResp(cmd string) (*packet.CommandOutp
 		_ = bm.SendPlayerCommand(cmd)
 		return nil, fmt.Errorf("gameInterface 未就绪: %v", err)
 	}
-	return gi.Commands().SendPlayerCommandWithResp(cmd)
+	resp, timedOut, err := gi.Commands().SendPlayerCommandWithTimeout(cmd, 5*time.Second)
+	if timedOut {
+		return nil, fmt.Errorf("玩家确认查询超时（5s）：检查连接、权限及sendcommandfeedback；命令可能已执行")
+	}
+	return resp, err
 }
 
 // SendSettingsCommand 发送设置命令（等同于 SendWSCommand）。

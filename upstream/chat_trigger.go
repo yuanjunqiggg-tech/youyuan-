@@ -214,7 +214,7 @@ func toPlayerSelector(p string) string {
 	if strings.HasPrefix(p, "@") {
 		return p
 	}
-	return fmt.Sprintf(`@a[name="%s"]`, p)
+	return fmt.Sprintf(`@a[name=%s]`, mustJSON(p))
 }
 
 // ShowTriggers 向玩家定向展示所有可用触发项（仅 OP 项对 OP 可见）。
@@ -235,6 +235,10 @@ func (bm *BotManager) ShowTriggers(player string, op bool) {
 // handleChat 匹配触发词并分发。命中后：解析内联参数，缺失参数时交互提问，然后调用 Func。
 func (bm *BotManager) handleChat(player, msg string) {
 	fireChatEvent(bm, player, msg)
+	// WaitMsg owns trigger input, not observation: onChat must still see it.
+	if hasWaitMsg(player) {
+		return
+	}
 	debugLog("[触发] handleChat 进入 player=%s msg=%q", player, msg)
 	chatTriggers.Lock()
 	triggers := chatTriggers.list

@@ -12,13 +12,34 @@ import (
 var yyAgentSlots = make(chan struct{}, 2)
 var yyAgentSlotMu sync.Mutex
 
-func yyManageWorkspacePlugin(ws *yyWorkspace, action string) (string, bool) {
+func yyManageWorkspacePlugin(ws *yyWorkspace, action string, target ...string) (string, bool) {
 	if action != "start" && action != "stop" && action != "reload" && action != "delete" {
 		return "action 应为 start/stop/reload/delete", true
 	}
 	ws.Lock()
 	id, language := ws.PluginID, ws.Language
 	ws.Unlock()
+	if len(target) > 0 && target[0] != "" {
+		id = target[0]
+		language = ""
+		if pluginController != nil {
+			for _, p := range pluginController.List() {
+				if p.ID == id {
+					language = "lua"
+					break
+				}
+			}
+		}
+		if language == "" {
+			if !yyWorkspaceID(id) {
+				return "插件标识无效", true
+			}
+			if _, e := os.Stat(filepath.Join(yyRuntimeRoot, id, "manifest.json")); e != nil {
+				return "目标插件不存在，请先查询实际插件列表", true
+			}
+			language = "python"
+		}
+	}
 	if language == "mcfunction" {
 		return "命令链工作区不管理插件", true
 	}

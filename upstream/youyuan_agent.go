@@ -355,7 +355,7 @@ func yyAgentToolDefs() []ToolDef {
 		{Name: "project_rollback", Description: "恢复某条修订前的文件；恢复也生成新修订，不删除历史", Parameters: yySchema(map[string]any{"revision": str()}, "revision")},
 		{Name: "project_publish", Description: "发布 Python/Lua 到实际插件运行目录，或保存 mcfunction 为命令链；C++ 需编译后的原生库", Parameters: yySchema(map[string]any{})},
 		{Name: "project_validate", Description: "校验当前项目文件语法并返回真实错误。命令链校验格式与状态，游戏命令参数仍由服务端判定", Parameters: yySchema(map[string]any{"path": str()}, "path")},
-		{Name: "plugin_manage", Description: "启动、停用、重载或删除当前工作区已发布插件。删除清除插件数据，仅在用户明确要求时使用", Parameters: yySchema(map[string]any{"action": map[string]any{"type": "string", "enum": []string{"start", "stop", "reload", "delete"}}}, "action")},
+		{Name: "plugin_manage", Description: "启动、停用、重载或删除插件；plugin_id省略时使用当前工作区，指定时可管理其他已安装插件。删除清除插件数据，仅在用户明确要求时使用", Parameters: yySchema(map[string]any{"plugin_id": str(), "action": map[string]any{"type": "string", "enum": []string{"start", "stop", "reload", "delete"}}}, "action")},
 		{Name: "mcp_list", Description: "只列外部 MCP 工具名及短说明，不加载全部参数文档；分页时传 cursor", Parameters: yySchema(map[string]any{"server": str(), "kind": str(), "cursor": str()}, "server")},
 		{Name: "mcp_describe", Description: "按工具名读取单个外部 MCP 工具的参数文档；先 mcp_list 再按需调用", Parameters: yySchema(map[string]any{"server": str(), "tool": str()}, "server", "tool")},
 		{Name: "mcp_call", Description: "调用当前工作区已启用 MCP 的真实工具", Parameters: yySchema(map[string]any{"server": str(), "tool": str(), "arguments": map[string]any{"type": "object"}}, "server", "tool")},
@@ -612,7 +612,7 @@ func yyWorkspaceTool(ctx context.Context, ws *yyWorkspace, name string, args map
 		_ = json.Unmarshal(data, &value)
 		return string(data), value["ok"] != true
 	case "plugin_manage":
-		return yyManageWorkspacePlugin(ws, str("action"))
+		return yyManageWorkspacePlugin(ws, str("action"), str("plugin_id"))
 	case "project_fetch_artifact":
 		return yyFetchArtifact(ctx, ws, str("path"), str("url"), str("sha256"))
 	case "load_skill":
@@ -1102,8 +1102,8 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		_ = ws.saveLocked()
 		ws.Unlock()
 		budgetReached := false
-		for index, call := range turn.ToolCalls {
-			if index >= 8 || toolCount >= 32 || consecutiveFailures >= 3 {
+		for _, call := range turn.ToolCalls {
+			if toolCount >= 32 || consecutiveFailures >= 3 {
 				results = append(results, aiToolResult{ID: call.ID, Content: "工具调用预算达到上限，本次未执行。任务已保存，玩家可以继续或缩小任务。", IsError: true})
 				budgetReached = true
 				continue
@@ -1135,7 +1135,12 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		_ = ws.saveLocked()
 		ws.Unlock()
 		if budgetReached || consecutiveFailures >= 3 {
-			endState, endError = "等待继续", "工具调用达到预算或连续失败；任务与工具结果已保存，请查看报错后继续"
+			endState = "等待继续"
+			if consecutiveFailures >= 3 {
+				endError = fmt.Sprintf("连续%d次工具失败；已保存任务，请查看最后工具错误后继续", consecutiveFailures)
+			} else {
+				endError = fmt.Sprintf("本次已调用%d个工具，达到任务检查点；已保存进度，继续任务不会重建项目", toolCount)
+			}
 			return
 		}
 	}
@@ -1381,6 +1386,10 @@ func yyAgentRoutes(mux *http.ServeMux, dataDir string) {
 		ws, e := yyGetWorkspace(p.ID)
 		if e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+			return
+		}
+		if !yyAgentAllowed(ws, p.Tool) {
+			writeJSON(w, map[string]any{"ok": false, "error": "玩家已关闭工具 " + p.Tool})
 			return
 		}
 		result, isErr := yyWorkspaceTool(r.Context(), ws, p.Tool, p.Args)

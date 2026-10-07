@@ -189,6 +189,7 @@ var yyAPIRoutes = []yyAPIRoute{
 	{"api_youyuan_agent_file", "/api/youyuan/agent/file"},
 	{"api_youyuan_agent_fork", "/api/youyuan/agent/fork"},
 	{"api_youyuan_agent_mcp", "/api/youyuan/agent/mcp"},
+	{"api_youyuan_agent_model", "/api/youyuan/agent/model"},
 	{"api_youyuan_agent_preferences", "/api/youyuan/agent/preferences"},
 	{"api_youyuan_agent_save", "/api/youyuan/agent/save"},
 	{"api_youyuan_agent_session", "/api/youyuan/agent/session"},

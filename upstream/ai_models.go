@@ -86,14 +86,21 @@ func (s *aiModelStore) setPath(dataDir string) {
 }
 
 // saveLocked 把模型列表写回磁盘（调用方需持锁）。
-func (s *aiModelStore) saveLocked() {
+func (s *aiModelStore) saveLocked() error {
 	if s.path == "" {
-		return
+		return nil
 	}
-	data, _ := json.MarshalIndent(s.models, "", "  ")
-	if os.WriteFile(s.path+".tmp", data, 0600) == nil {
-		_ = os.Rename(s.path+".tmp", s.path)
+	data, err := json.MarshalIndent(s.models, "", "  ")
+	if err != nil {
+		return err
 	}
+	if err = os.WriteFile(s.path+".tmp", data, 0600); err != nil {
+		return fmt.Errorf("模型配置写入失败: %w", err)
+	}
+	if err = os.Rename(s.path+".tmp", s.path); err != nil {
+		return fmt.Errorf("模型配置替换失败: %w", err)
+	}
+	return nil
 }
 
 // builtin 仅从用户自行设置的模型环境变量读取配置，不使用游戏 Token。
@@ -172,28 +179,41 @@ func (s *aiModelStore) Add(m *AIModel) error {
 	defer s.mu.Unlock()
 	for _, x := range s.models {
 		if x.Name == m.Name {
+			before := *x
 			*x = *m
-			s.saveLocked()
+			if err := s.saveLocked(); err != nil {
+				*x = before
+				return err
+			}
 			return nil
 		}
 	}
-	s.models = append(s.models, m)
-	s.saveLocked()
+	copy := *m
+	s.models = append(s.models, &copy)
+	if err := s.saveLocked(); err != nil {
+		s.models = s.models[:len(s.models)-1]
+		return err
+	}
 	return nil
 }
 
 // Delete 按自定义名删除模型。内置模型不可删除。
-func (s *aiModelStore) Delete(name string) {
+func (s *aiModelStore) Delete(name string) error {
 	if name == BuiltinModelName {
-		return
+		return fmt.Errorf("内置模型不可删除")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	before := append([]*AIModel(nil), s.models...)
 	for i, m := range s.models {
 		if m.Name == name {
 			s.models = append(s.models[:i], s.models[i+1:]...)
 			break
 		}
 	}
-	s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		s.models = before
+		return err
+	}
+	return nil
 }

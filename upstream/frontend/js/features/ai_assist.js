@@ -202,7 +202,8 @@ async function aiSaveModel(){
   var r=await A('POST','/api/ai/models',m);
   if(!r.ok){T(r.error||'保存失败','e');return;}
   T('模型已保存','o');
-  closeOverlay(document.querySelector('.modal-overlay'));
+  if(document.getElementById('yy-agent-model')){await yyLoadAgentModels(m.name);await yySelectAgentModel(m.name);}
+  closeOverlay(document.getElementById('ai-name').closest('.modal-overlay'));
   __ai.modelName=m.name;
   aiLoadModels();
 }

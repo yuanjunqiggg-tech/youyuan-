@@ -49,21 +49,11 @@ func yyEffectiveAgentSkills(ws *yyWorkspace) []string {
 	return result
 }
 func yyDefaultAgentTools(language string) []string {
-	tools := []string{"project_list", "project_read", "project_search", "project_write", "project_patch", "project_history", "project_rollback", "project_validate", "project_publish", "load_skill", "skill_search", "mcp_list", "mcp_describe", "mcp_call", "mcp_read_resource"}
-	if language == "mcfunction" {
-		return tools
+	tools := []string{}
+	for _, tool := range yyAgentToolDefs() {
+		tools = append(tools, tool.Name)
 	}
-	tools = append(tools, "game_scene", "packet_schema", "terminal_log", "plugin_manage", "game_call", "listen_packet", "list_packets")
-	switch language {
-	case "python":
-		return tools
-	case "native_cpp":
-		return append(tools, "project_fetch_artifact")
-	case "lua":
-		return tools
-	default:
-		return tools
-	}
+	return tools
 }
 func yyWorkspaceToolDefs(ws *yyWorkspace) []ToolDef {
 	ws.Lock()
@@ -102,11 +92,11 @@ func yyAgentPreferencePrompt(ws *yyWorkspace) string {
 	text += strings.Join(skills, ", ") + "。简单任务只读取相关小节，load_skill 默认每页 3000 字；不要为简单指令遍历整个手册或反复加载同一页。\n"
 	text += "新工作区默认开放当前语言适用的全部技能，这表示可按需读取而非已经读完。玩家仍可在技能库关闭任意技能；关闭后不自行启用或通过外部 MCP 绕过选择。离线章节无需联网。\n"
 	if ws.Language == "mcfunction" {
-		text += "你是命令链编写助手：只编辑命令文件，读取 command-chain 基本语法，使用 project_validate 查看真实报错并修正；不抓包、不分析实体、不管理插件。除非用户要求，不发布、不运行命令链。\n"
+		text += "你的当前任务环境是命令链。优先读取 command-chain 语法并使用 project_validate 检查；简单写链任务不必抓包或遍历手册。需要联调时可使用已开放的工具。\n"
 	} else {
-		text += "你是当前语言的常驻插件开发助手。依据任务按需读取语言 Skill；抓包必须限制包类型、时长和结果量。project_publish 添加或更新当前插件；plugin_manage 启动、停用或重载当前插件。游戏指令使用 game_call，并检查真实回包；高影响操作只在玩家明确要求的范围内执行。\n"
+		text += "你是当前语言的常驻插件开发助手。依据任务按需读取语言 Skill；先确认连接和包类型，再抓包。project_publish 添加或更新当前插件；plugin_manage 可指定 plugin_id 管理其他已安装插件。api_call 可访问工具箱各功能区的真实API并读取其他工作区文件。当前工作区是项目保存位置，不是全部能力的边界。跨工作区操作应先查询实际ID，不能猜测或覆盖无关项目。高影响操作只在玩家明确要求的范围内执行。\n"
 	}
-	text += "每轮最多 8 次工具调用，每次任务最多 32 次，连续失败会暂停并保留任务。够用即停止，先定位再读相关行，不批量探测所有工具。\n"
+	text += "工具默认全部可用，玩家关闭的除外；技能默认可按需读取，不会预先塞入全部正文。每次运行32个工具后保存检查点等待继续，连续3次失败时保留具体错误；这只控制AI任务，不限制插件命令执行。够用即停止，使用skill_search返回的offset读取相关位置，避免重复读整份文档。\n"
 	if ws.CustomPrompt != "" {
 		text += "工作区自定义要求：\n" + ws.CustomPrompt + "\n"
 	}
@@ -201,5 +191,38 @@ func yyAgentPreferencesRoutes(mux *http.ServeMux) {
 			list = append(list, map[string]string{"name": tool.Name, "description": tool.Description})
 		}
 		writeJSON(w, map[string]any{"ok": true, "custom_prompt": ws.CustomPrompt, "skills": skills, "allowed_tools": tools, "tools": list, "available_skills": yyAvailableAgentSkills(ws.Language), "skill_catalog": yySkillCatalog(ws.Language), "language": ws.Language, "model": ws.Model})
+	})
+	mux.HandleFunc("/api/youyuan/agent/model", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(405)
+			return
+		}
+		var p struct {
+			ID    string `json:"id"`
+			Model string `json:"model"`
+		}
+		if e := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&p); e != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+			return
+		}
+		if aiStore.Get(p.Model) == nil {
+			writeJSON(w, map[string]any{"ok": false, "error": "模型未配置"})
+			return
+		}
+		ws, e := yyGetWorkspace(p.ID)
+		if e != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+			return
+		}
+		ws.Lock()
+		defer ws.Unlock()
+		previous := ws.Model
+		ws.Model = p.Model
+		if e = ws.saveLocked(); e != nil {
+			ws.Model = previous
+			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "model": ws.Model})
 	})
 }

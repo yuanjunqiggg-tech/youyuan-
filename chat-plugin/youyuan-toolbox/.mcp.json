@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "youyuan-toolbox": {
+      "type": "streamable-http",
+      "url": "https://toolbox.youyuanqi.dpdns.org/mcp/oauth/linux-server",
+      "headers": {}
+    }
+  }
+}
+

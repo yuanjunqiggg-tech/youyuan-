@@ -40,3 +40,8 @@
 
 #yy-agent-latest{min-height:26px;height:26px;line-height:18px;padding:4px 8px;margin:0;font-size:11px}
 #yy-attachment-status:not([data-busy="true"]){display:none}
+
+/* Session controls belong to the conversation, not the page header. */
+.yy-agent-pane #yy-open-agent-tabs{padding:8px 12px;display:flex;flex:0 0 auto;border-bottom:1px solid var(--phx-border);overflow-x:auto;flex-wrap:nowrap}
+.yy-session-actions{gap:6px}.yy-session-actions button{padding:6px 10px;border:1px solid var(--phx-border);border-radius:8px;background:var(--phx-bg-secondary)}
+@media(max-width:700px){.yy-agent-pane #yy-open-agent-tabs{flex-wrap:wrap}.yy-session-actions{margin-left:0;flex-wrap:wrap}}

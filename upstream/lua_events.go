@@ -104,9 +104,12 @@ func registerPacketSub(L *lua.LState) {
 	}
 	evMu.Unlock()
 
-	// 订阅 packetHub；收到包时异步派发（不阻塞收包循环）。
+	// Bind subscriptions to their account kernel; other accounts must not trigger it.
+	owner := abot(L)
 	unsub := packetHubSubscribe(pktType, func(bm *BotManager, data map[string]any) {
-		yyQueueResidentEvent(bm, plugin, handler, []any{data})
+		if bm == owner {
+			yyQueueResidentEvent(bm, plugin, handler, []any{data})
+		}
 	})
 	evMu.Lock()
 	evPacketSubs = append(evPacketSubs, &packetLuaSub{plugin: plugin, pktType: pktType, handler: handler, unsub: unsub})
@@ -114,7 +117,7 @@ func registerPacketSub(L *lua.LState) {
 }
 
 // registerEventAPI 注册事件监听 API：events.onChat/onJoin/onLeave/onBotReady/onPacket(handlerName)。
-// 事件触发时在临时 LState 重跑插件源码并调用该 handler。
+// 事件触发时调用对应账号的常驻 LState，不重跑插件源码。
 func registerEventAPI(L *lua.LState) {
 	e := L.NewTable()
 	L.SetGlobal("events", e)
@@ -139,7 +142,7 @@ func registerEventAPI(L *lua.LState) {
 		return 0
 	}))
 	// events.subscribe(packetType, handlerName)：通用数据包订阅。
-	// 机器人只监听已订阅的包类型，收到后重跑插件源码并调用 handler(dataTable)。
+	// 机器人只监听已订阅的包类型，收到后调用常驻 handler(dataTable)。
 	// dataTable 是完整序列化的包数据（字段 snake_case，[]byte 为完整 hex，不截断）。
 	L.SetField(e, "subscribe", L.NewFunction(func(L *lua.LState) int {
 		registerPacketSub(L)

@@ -9,15 +9,19 @@ import (
 	"time"
 )
 
-func TestCommandChainAgentHasNoDefaultGameOrPacketTools(t *testing.T) {
+func TestAgentDefaultsOpenToolsButPreservePlayerRestrictions(t *testing.T) {
 	ws := &yyWorkspace{Language: "mcfunction"}
 	for _, name := range []string{"game_call", "game_scene", "packet_schema", "listen_packet", "api_call", "plugin_manage"} {
-		if yyAgentAllowed(ws, name) {
-			t.Fatal("command-only workspace has", name)
+		if !yyAgentAllowed(ws, name) {
+			t.Fatal("default agent lacks", name)
 		}
 	}
 	if !yyAgentAllowed(ws, "project_validate") || !yyAgentAllowed(ws, "mcp_call") {
 		t.Fatal("validator/MCP unavailable")
+	}
+	ws.AllowedTools = []string{"project_validate"}
+	if yyAgentAllowed(ws, "api_call") || yyAgentAllowed(ws, "game_call") {
+		t.Fatal("explicit disabled tool reopened")
 	}
 }
 

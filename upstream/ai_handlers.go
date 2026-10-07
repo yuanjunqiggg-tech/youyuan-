@@ -40,6 +40,9 @@ func handleAIModels(w http.ResponseWriter, r *http.Request) {
 				"streaming":                m.Streaming,
 				"input_price_per_million":  m.InputPricePerMillion,
 				"output_price_per_million": m.OutputPricePerMillion,
+				"context_window":           m.ContextWindow,
+				"max_output_tokens":        m.MaxOutputTokens,
+				"compression_percent":      m.CompressionPercent,
 				"builtin":                  m.Builtin,
 			})
 		}
@@ -82,7 +85,10 @@ func handleAIModelDelete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "内置模型「" + BuiltinModelName + "」不可删除"})
 		return
 	}
-	aiStore.Delete(req.Name)
+	if err := aiStore.Delete(req.Name); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 	writeJSON(w, map[string]any{"ok": true})
 }
 

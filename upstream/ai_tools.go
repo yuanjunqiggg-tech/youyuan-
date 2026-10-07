@@ -441,12 +441,21 @@ func toolListenPacket(args map[string]any) (string, bool) {
 	if ptype == "" {
 		return "参数 packet_type 不能为空（如 MovePlayer / SetTime / PlayerList）", true
 	}
+	if !yyPacketTypeKnown(ptype) {
+		return "未知数据包类型 " + ptype + "，请用 list_packets 或 packet_schema 查询真实 Go 类型名", true
+	}
+	owner := getBotManagerLocked()
+	if owner == nil || !owner.IsConnected() {
+		return "机器人未连接，不能开始抓包", true
+	}
 	seconds := aiArgInt(args, "seconds", 5)
 	max := aiArgInt(args, "max_count", 0)
 	seconds = clampTimeout(seconds)
 	obs := newAIObserver(max)
 	unsub := packetHubSubscribe(ptype, func(bm *BotManager, data map[string]any) {
-		obs.feed(data)
+		if bm == owner {
+			obs.feed(data)
+		}
 	})
 	defer unsub()
 	items := obs.wait(time.Duration(seconds) * time.Second)

@@ -27,3 +27,5 @@ Token使用API返回usage，重试亦计入；不伪造计费价格。无内置A
 本适配不宣称游戏死亡/击杀者各协议均已实测；实际能力受服务器与回包影响。
 Linux为默认部署环境，C++宿主仍未接入；本次热点用原生Go无需添加额外Python/C++插件。
 完整框架API见软件开发文档/技能command-chain，SDK三语言共享chains接口。
+
+确认查询修复：旧WS/玩家WithResp实际无限等待，宿主现改为5秒超时并明确报告反馈/权限/连接问题。R21A初始化用Fast保持sendcommandfeedback=true，commandblockoutput=false，避免关闭自己依赖的查询回包。该超时不限制Fast发包或整链Hz。此前最终构建复验在第9项getScore遇到35秒HTTP超时，已保留失败记录，修复后重新验收。

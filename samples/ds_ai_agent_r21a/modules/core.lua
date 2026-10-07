@@ -22131,9 +22131,10 @@ end
 
 -- 最终初始化不再调用历史上层层包裹的 on_init，避免一次启动重复执行几十段初始化。
 function on_init()
-    -- 先静默关闭命令回显，后续初始化指令不会刷屏。
-    pcall(game.isCmdSuccess,"gamerule sendcommandfeedback false")
-    pcall(game.isCmdSuccess,"gamerule commandblockoutput false")
+    -- 查询和条件判断需要真实回包；关闭它会让旧确认接口无限等待。
+    -- 快速发送不会逐条等待，commandblockoutput保持关闭以减少刷屏。
+    pcall(game.sendCommand,"gamerule sendcommandfeedback true")
+    pcall(game.sendCommand,"gamerule commandblockoutput false")
 
     pcall(game.setConfigDefault,{
         ai_key="",

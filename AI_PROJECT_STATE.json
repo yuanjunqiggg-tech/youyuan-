@@ -1,7 +1,7 @@
 {
-  "framework_version": "0.10.14",
-  "public_version": "0.10.14",
-  "baseline_commit": "9f90893c0e2085f1e6c22b6095593e83fcdec6e7",
+  "framework_version": "0.10.15",
+  "public_version": "0.10.15",
+  "baseline_commit": "d6a64f1",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
     "python": "Persistent module and dedicated asyncio loop per Host; async init/event/stop/callback/RPC; Linux process / Android Chaquopy GIL",
@@ -22,17 +22,17 @@
     "profiler": "wall_clock_and_queue_metrics_done",
     "capability_query": "done",
     "lua_rpc_no_json": "done",
-    "ui_layout": "done_screenshot_verified",
+    "ui_layout": "latest_01015_source_syntax_passed_screenshot_pending",
     "async_confirmation": "bounded_tickets_implemented",
     "worker_pool": "not_implemented",
     "file_watch": "txt_recompile_on_change_preserves_runtime",
     "memory_kv": "implemented_atomic_persistence",
     "transaction_storage": "implemented_multikey_rollback",
-    "release": "01013_signed_built_linux_deployed_apk_install_pending",
+    "release": "01015_signed_built_linux_deployed_game_connected_apk_install_pending",
     "ai_new_framework_skill": "actual_read_write_patch_publish_reload_async_verified",
     "android_cpp_sdk": "x86_64_emulator_actual_native_v2_resource_scheduler_stats_stop_verified",
     "conditional_chain": "actual_game_failed_predecessor_skips_conditional_tail_continues_verified",
-    "skills": "26_available_155_export_entries_multiselect_on_demand",
+    "skills": "26_available_159_export_entries_multiselect_on_demand",
     "linux_web_upload": "public_route_and_hash_download_verified",
     "building_export": "actual_stone_gold_all_three_formats_verified",
     "cloud_entitlement": "server_side_admin_or_subscription_21_checks_passed",
@@ -54,9 +54,9 @@
     "Mixed single plugin runtime,new C++ABI, native isolation,zero-copy and optional tick carry budget incomplete",
     "Registration Intent source fix compiled; physical SMS registration and 4399-to-NetEase flow not verified",
     "Original beta.9 downloaded but not compared: user paused testing",
-    "Cloud Linux process recovery verified; 24h observer stopped early, game not connected there",
     "Desktop/lock/task removal/overlay short emulator checks only; physical network switching not verified",
-    "Static structure converter preserves/warns dynamic wiring; cannot automatically rewrite arbitrary gameplay"
+    "Static structure converter preserves/warns dynamic wiring; cannot automatically rewrite arbitrary gameplay",
+    "Installed ds_ai_agent is temporary probe-01, full R21A menu not current entry; do not override another tester before coordination"
   ],
   "next_tasks": [
     "Engineering first; no new game pressure/original comparison tests until user resumes them",
@@ -262,7 +262,7 @@
   "release_state": "signed_built_linux_deployed_public_apk_complete_sha256_verified",
   "requirement_audit": "框架改造实施核对.md",
   "tests_paused_by_user": true,
-  "publicly_deployed_version": "0.10.14",
+  "publicly_deployed_version": "0.10.15",
   "new_delivery_tasks": {
     "account_bridge": "25 isolated process and MCP checks passed; no new game effects tested",
     "mcp_url_links": "public no-header handshake, pinned node, read/control, revocation passed; actual Grok UI pending",
@@ -271,12 +271,12 @@
   },
   "r21a_adaptation": "single resident Lua plugin + native Go FUNCTION segments",
   "new_tasks": "See 任务备忘录.md and R21A常驻与本机MCP开发说明.md",
-  "chat_oauth": "actual UI reached consent login; final authorization pending; PC OAuth verified",
-  "release": "0.10.14",
-  "native_mcp_live": "OAuth from PC to Linux; nested source read/write passed",
-  "local_ai_live": "actual provider project read/write passed",
+  "chat_oauth": "Protocol verified; ordinary Chat still not_installed, real Chat tool execution pending",
+  "release": "0.10.15",
+  "native_mcp_live": "PC OAuth actual 245 tools, connected game, current resource docs verified",
+  "local_ai_live": "actual generated/published/reloaded Lua; game score7/0.14s on final build; test plugin persistently disabled",
   "emulator": "not used; user requires Linux testing",
-  "previous_public_version": "0.10.13",
+  "previous_public_version": "0.10.14",
   "delivery_0108_historical": {
     "signed_apk_sha256": "6f99ad9ffb88f70470687271a0b438e6f73ecd7f4e9cb737199378ca150f9687",
     "apk_public_hash_verified": true,
@@ -287,20 +287,21 @@
     "sustained_fast_stress_passed": false,
     "ai_framework_test": "passed; temporary model/plugin/workspace removed"
   },
-  "current_release": "0.10.14",
-  "pending_release": "0.10.14",
+  "current_release": "0.10.15",
+  "pending_release": null,
   "current_owner": "幽怨qi",
   "default_execution": "linux-server",
   "active_registered_users": 1,
   "linux_direct_transport": "temporary HTTPS tunnel with same-owner session authentication; verified 30 queries",
   "migration_archive": "paused until client MCP and plugin business acceptance",
   "current_release_artifacts": {
-    "apk": "outputs/youyuan-v0.10.14.apk",
-    "linux": "outputs/youyuan-v0.10.14-linux-x86_64.tar.gz",
-    "source": "outputs/youyuan-source-v0.10.14.zip",
-    "report": "outputs/0.10.14-公开发布验收.json",
-    "linux_acceptance": "outputs/0.10.14-Linux直连与在线验收.json",
-    "cleanup": "outputs/0.10.14-单账号清理与插件备份.json"
+    "apk": "outputs/youyuan-v0.10.15.apk",
+    "linux": "outputs/youyuan-v0.10.15-linux-x86_64.tar.gz",
+    "source": "outputs/youyuan-source-v0.10.15.zip",
+    "report": "outputs/0.10.15-公开发布验收.json",
+    "linux_acceptance": "outputs/0.10.15-Linux功能回归验收.json",
+    "mcp_acceptance": "outputs/0.10.15-MCP文档与真实接口验收.json",
+    "requirements": "outputs/需求逐项验收表.md"
   },
   "delivery_01013_historical": {
     "version": "0.10.13",
@@ -314,14 +315,34 @@
     "sustained_fast_stress_passed": false
   },
   "delivery": {
-    "version": "0.10.14",
-    "signed_apk_sha256": "fe96f22b93f2b6da53a383328809311944dcf6a839ca2d7b6e4748920a58e3f7",
+    "version": "0.10.15",
     "apk_signature_verified": true,
     "apk_installed_this_release": false,
-    "linux_service": "active and connected; same owner",
-    "public_download_final_verification": "outputs/0.10.14-公开发布验收.json",
+    "linux_service": "active and game connected; same owner",
+    "public_download_final_verification": "outputs/0.10.15-公开发布验收.json",
     "chatgpt_ui_connected": false,
     "grok_ui_connected": false,
     "sustained_fast_stress_passed": false
+  },
+  "latest_bugfixes": [
+    "waitmsg chat observation",
+    "core packet filter",
+    "account scoped packet subscriptions",
+    "model capacity roundtrip and persistence errors",
+    "agent full defaults explicit opt-out",
+    "plugin_manage target id",
+    "skill search offsets",
+    "conversation session controls",
+    "fork explicit empty permissions remain disabled across disk reload",
+    "legacy confirmation waits bounded5s; R21A retains query feedback"
+  ],
+  "active_plugin_entry": "ds_ai_agent probe-01 temporary entry observed; another concurrent tester confirmation pending; not overwritten",
+  "runtime_acceptance": {
+    "checks": 13,
+    "score": 7,
+    "score_seconds": 0.14,
+    "packet_roundtrip": "RequestChunkRadius -> ChunkRadiusUpdated",
+    "ordinary_chat_verified": false,
+    "all_gameplay_verified": false
   }
 }

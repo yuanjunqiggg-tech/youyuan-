@@ -68,7 +68,12 @@ func TestToolWaitChatCollects(t *testing.T) {
 }
 
 func TestToolListenPacketCollects(t *testing.T) {
-	bm := &BotManager{}
+	bm := &BotManager{connected: true}
+	botMgrMu.Lock()
+	oldBot := botMgr
+	botMgr = bm
+	botMgrMu.Unlock()
+	defer func() { botMgrMu.Lock(); botMgr = oldBot; botMgrMu.Unlock() }()
 	type res struct {
 		s     string
 		isErr bool

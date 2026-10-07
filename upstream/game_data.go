@@ -16,10 +16,10 @@ import (
 
 // PlayerPos 玩家位置信息
 type PlayerPos struct {
-	Dimension int              `json:"dimension"`
+	Dimension int                              `json:"dimension"`
 	Position  game_interface.TargetQueryingPos `json:"position"`
-	YRot      float32          `json:"yRot"`
-	Pitch     float32          `json:"pitch"`
+	YRot      float32                          `json:"yRot"`
+	Pitch     float32                          `json:"pitch"`
 }
 
 // PlayerInventory 玩家背包查询结果
@@ -29,10 +29,10 @@ type PlayerInventory struct {
 
 // PlayerInventoryItem 背包中的单个物品
 type PlayerInventoryItem struct {
-	Name    string `json:"name"`
-	Count   int    `json:"count"`
-	Slot    int    `json:"slot"`
-	Damage  int    `json:"damage"`
+	Name   string `json:"name"`
+	Count  int    `json:"count"`
+	Slot   int    `json:"slot"`
+	Damage int    `json:"damage"`
 }
 
 // TickingAreaInfo 常加载区域信息
@@ -428,48 +428,32 @@ func (bm *BotManager) QueryPlayerInventory(selector string) (*PlayerInventory, e
 
 // SendRichTellraw 发送 tellraw 消息给所有玩家（支持自动转义）。
 func (bm *BotManager) SendRichTellraw(msg string) error {
-	escaped := strings.ReplaceAll(msg, `"`, `\"`)
-	return bm.SendWOCmd(fmt.Sprintf(`tellraw @a {"rawtext":[{"text":"%s"}]}`, escaped))
+	return bm.SendChat("@a", msg)
 }
 
 // SendTitle 发送标题给指定玩家。
 // 等效于 td_prism 的 player_title()。
 func (bm *BotManager) SendTitle(target, title, subtitle string) error {
-	if !strings.HasPrefix(target, "@") {
-		target = `"` + target + `"`
-	}
-	escapedTitle := strings.ReplaceAll(title, `"`, `\"`)
-	escapedSub := strings.ReplaceAll(subtitle, `"`, `\"`)
+	target = toPlayerSelector(target)
 	if subtitle != "" {
-		_ = bm.SendWOCmd(fmt.Sprintf(`titleraw %s title {"rawtext":[{"text":"%s"}]}`, target, escapedTitle))
-		return bm.SendWOCmd(fmt.Sprintf(`titleraw %s subtitle {"rawtext":[{"text":"%s"}]}`, target, escapedSub))
+		if err := bm.SendTitleraw(target, "title", title); err != nil {
+			return err
+		}
+		return bm.SendTitleraw(target, "subtitle", subtitle)
 	}
-	return bm.SendWOCmd(fmt.Sprintf(`titleraw %s title {"rawtext":[{"text":"%s"}]}`, target, escapedTitle))
+	return bm.SendTitleraw(target, "title", title)
 }
 
 // SendActionbar 发送动作栏消息给指定玩家。
 // 等效于 td_prism 的 player_actionbar()。
 func (bm *BotManager) SendActionbar(target, text string) error {
-	if !strings.HasPrefix(target, "@") {
-		target = `"` + target + `"`
-	}
-	escaped := strings.ReplaceAll(text, `"`, `\"`)
-	return bm.SendWOCmd(fmt.Sprintf(`titleraw %s actionbar {"rawtext":[{"text":"%s"}]}`, target, escaped))
+	return bm.SendTitleraw(toPlayerSelector(target), "actionbar", text)
 }
 
 // SendChat 发送聊天消息给指定玩家（使用 /tellraw 或 /say）。
 // 等效于 td_prism 的 say_to()。
 func (bm *BotManager) SendChat(target, message string) error {
-	if !strings.HasPrefix(target, "@") {
-		target = `"` + target + `"`
-	}
-	// 对单个玩家用 tellraw，对全部玩家用 say
-	if target == `"@a"` || target == `@a` {
-		escaped := strings.ReplaceAll(message, `"`, `\"`)
-		return bm.SendWOCmd(fmt.Sprintf(`tellraw @a {"rawtext":[{"text":"%s"}]}`, escaped))
-	}
-	escaped := strings.ReplaceAll(message, `"`, `\"`)
-	return bm.SendWOCmd(fmt.Sprintf(`tellraw %s {"rawtext":[{"text":"%s"}]}`, target, escaped))
+	return bm.sendTargeted(target, message)
 }
 
 // ========== 等待消息 API ==========

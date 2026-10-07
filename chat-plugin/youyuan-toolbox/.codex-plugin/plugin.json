@@ -1,0 +1,21 @@
+{
+  "interface": {
+    "displayName": "疣螈工具箱",
+    "shortDescription": "连接工具箱 MCP 并执行授权任务",
+    "longDescription": "接入现有疣螈工具箱 MCP 服务。先检查连接和可用工具，再根据实际工具与参数完成查询、操作及结果验证。认证通过宿主的安全连接配置完成。",
+    "developerName": "疣螈",
+    "category": "Developer Tools",
+    "defaultPrompt": "检查疣螈工具箱连接和可用工具，然后完成我指定的任务。",
+    "capabilities": []
+  },
+  "name": "youyuan-toolbox",
+  "version": "1.0.1",
+  "description": "连接疣螈工具箱 MCP 服务，使用服务实际提供的工具完成用户授权的操作。",
+  "author": {
+    "name": "疣螈"
+  },
+  "keywords": [],
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}
+

@@ -550,6 +550,9 @@ func (bm *BotManager) registerPacketHandlers() {
 		packet.IDUpdateAttributes, packet.IDSetHealth, packet.IDActorEvent,
 		packet.IDAddActor, packet.IDRemoveActor, packet.IDMoveActorAbsolute, packet.IDMoveActorDelta, packet.IDUpdateBlock,
 		packet.IDAnimate, packet.IDAddItemActor, packet.IDTakeItemActor,
+		// These already have consumers below; filtering them out disabled them.
+		packet.IDLevelEvent, packet.IDSetActorData,
+		packet.IDNetworkChunkPublisherUpdate, packet.IDSyncActorProperty,
 	}
 	wanted := map[uint32]bool{}
 	for _, id := range ids {
@@ -700,9 +703,7 @@ func (bm *BotManager) consumePackets() {
 				}
 				// 会话优先：玩家有活跃 WaitMsg 会话时，消息归会话消费（供参数提问）；
 				// 无会话时才匹配触发词。
-				if !hasWaitMsg(p.SourceName) {
-					bm.handleChat(p.SourceName, p.Message)
-				}
+				bm.handleChat(p.SourceName, p.Message)
 				deliverWaitMsg(p.SourceName, p.Message)
 				// AI wait_chat 观察者（独立缓冲，不影响触发词/会话）
 				func() {
@@ -1509,7 +1510,7 @@ func (bm *BotManager) cleanupStructure(name string) {
 }
 
 func (bm *BotManager) SendTellraw(msg string) error {
-	return bm.SendWOCmd(fmt.Sprintf(`tellraw @a {"rawtext":[{"text":"%s"}]}`, msg))
+	return bm.SendChat("@a", msg)
 }
 
 func (bm *BotManager) SendWOCmd(cmd string) error {
@@ -1517,7 +1518,7 @@ func (bm *BotManager) SendWOCmd(cmd string) error {
 }
 
 func (bm *BotManager) SendTitleraw(target, mode, text string) error {
-	json := fmt.Sprintf(`{"rawtext":[{"text":"%s"}]}`, text)
+	json := fmt.Sprintf(`{"rawtext":[{"text":%s}]}`, mustJSON(text))
 	cmd := fmt.Sprintf("titleraw %s %s %s", target, mode, json)
 	return bm.SendWOCmd(cmd)
 }

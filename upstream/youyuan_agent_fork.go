@@ -51,9 +51,13 @@ func yyAgentForkRoutes(mux *http.ServeMux) {
 		id := fmt.Sprintf("branch_%d", time.Now().UnixNano())
 		fork := &yyWorkspace{ID: id, Name: source.Name + " · 分支", Language: source.Language,
 			CustomPrompt: source.CustomPrompt, Skills: append([]string{}, yyEffectiveAgentSkills(source)...),
-			AllowedTools: append([]string(nil), source.AllowedTools...), Model: source.Model,
+			AllowedTools: source.AllowedTools, Model: source.Model,
 			State: "待开始", PluginID: source.PluginID, SourceEntry: source.SourceEntry, Turns: append([]aiTurn(nil), source.Turns[:p.TurnIndex]...),
 			Pending: []string{p.Message}}
+		if source.AllowedTools != nil {
+			// An explicit empty selection means disabled, whereas nil means defaults.
+			fork.AllowedTools = append([]string{}, source.AllowedTools...)
+		}
 		fork.SourceHashes = map[string]string{}
 		for path, hash := range source.SourceHashes {
 			fork.SourceHashes[path] = hash
