@@ -65,6 +65,7 @@ type yySenseState struct {
 	sync.Mutex
 	Actors              map[uint64]*yyActorObservation
 	Blocks              map[string]map[string]any
+	BlocksEvicted       int
 	Events              []map[string]any
 	ActionEvents        []map[string]any
 	ActionEvictedSeq    uint64
@@ -742,8 +743,8 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		for k, x := range s.Blocks[key] {
 			v[k] = x
 		}
-		if len(s.Blocks) >= 4096 && s.Blocks[key] == nil {
-			s.Blocks = map[string]map[string]any{}
+		if len(s.Blocks) >= yyBlockCacheLimit && s.Blocks[key] == nil {
+			s.BlocksEvicted += yyBlockCacheTrim(s.Blocks)
 		}
 		id, _ := p.NBTData["id"].(string)
 		if id == "" {
@@ -758,8 +759,8 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 	case *packet.UpdateBlock:
 		key := yyBlockKey(dimension, p.Position, p.Layer)
 		old := s.Blocks[key]
-		if len(s.Blocks) >= 4096 && old == nil {
-			s.Blocks = map[string]map[string]any{}
+		if len(s.Blocks) >= yyBlockCacheLimit && old == nil {
+			s.BlocksEvicted += yyBlockCacheTrim(s.Blocks)
 		}
 		v := map[string]any{"known": true, "dimension": dimension, "position": p.Position, "layer": p.Layer, "runtime_id": p.NewBlockRuntimeID, "time": now.Format(time.RFC3339Nano), "source": source, "timestamp": now.UnixMilli()}
 		v["container_known"] = false // A new block may replace the cached container.
@@ -813,6 +814,41 @@ func yyFiniteVec(v mgl32.Vec3) bool {
 func yyBlockKey(d int32, p protocol.BlockPos, layer uint32) string {
 	return fmt.Sprintf("%d:%d:%d:%d:%d", d, p[0], p[1], p[2], layer)
 }
+
+// yyBlockCacheLimit bounds how many block/container records one session keeps.
+// It is a memory guard, not a semantic limit: trimming must never drop the
+// whole table, only the oldest half.
+const yyBlockCacheLimit = 4096
+
+// yyBlockCacheTrim keeps the block/container cache bounded by dropping the
+// oldest half instead of wiping the whole table. The old behaviour replaced
+// s.Blocks with an empty map on overflow, so one busy area with fast chest
+// placement erased every container record collected so far: world.containerState
+// went from known=true to unknown with no event and no counter.
+func yyBlockCacheTrim(blocks map[string]map[string]any) int {
+	if len(blocks) < yyBlockCacheLimit/2 {
+		return 0
+	}
+	type blockAge struct {
+		key string
+		at  int64
+	}
+	ages := make([]blockAge, 0, len(blocks))
+	for key, value := range blocks {
+		var at int64
+		if n, ok := value["timestamp"].(int64); ok {
+			at = n
+		}
+		ages = append(ages, blockAge{key: key, at: at})
+	}
+	sort.Slice(ages, func(i, j int) bool { return ages[i].at < ages[j].at })
+	drop := len(ages) / 2
+	for i := 0; i < drop; i++ {
+		delete(blocks, ages[i].key)
+	}
+	return drop
+}
+
 func yySenseActor(bm *BotManager, target string) map[string]any {
 	if bm == nil {
 		return map[string]any{"known": false, "connected": false, "reason": "游戏账号未连接"}

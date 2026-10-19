@@ -648,14 +648,15 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		if v != nil {
 			v = yyObservationCopy(v).(map[string]any)
 		}
+		evicted := s.BlocksEvicted
 		s.Unlock()
 		if method == "world.containerState" {
 			at, _ := v["container_timestamp"].(float64)
 			stale := !bm.IsConnected() || at == 0 || float64(time.Now().UnixMilli())-at > float64(yyObservationSettings().StaleMS)
-			return map[string]any{"known": v["container_known"] == true && !stale, "is_container": v["is_container"], "block_entity_id": v["block_entity_id"], "timestamp": at, "stale": stale, "source": v["container_source"], "position": p, "dimension": d}, nil
+			return map[string]any{"known": v["container_known"] == true && !stale, "is_container": v["is_container"], "block_entity_id": v["block_entity_id"], "timestamp": at, "stale": stale, "source": v["container_source"], "position": p, "dimension": d, "cache_evicted": evicted}, nil
 		}
 		if v == nil {
-			return map[string]any{"known": false, "reason": "未收到该方块 UpdateBlock"}, nil
+			return map[string]any{"known": false, "reason": "未收到该方块 UpdateBlock", "cache_evicted": evicted}, nil
 		}
 		return v, nil
 	}

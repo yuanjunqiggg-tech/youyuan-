@@ -50,8 +50,13 @@ func yyCaptureApplyAdmission(state *yyAdmissionState, c yyGlobalCaptureConfig, a
 		q, _ := json.Marshal(name)
 		reason, _ := json.Marshal(fmt.Sprintf("很抱歉，当前服务器已达到%d名玩家的接待上限。为保障游戏运行与连接稳定，本次暂无法接纳您的加入。感谢您的理解，期待您稍后再次加入。", limit))
 		p, timed, err := bm.SendWSCommandWithTimeout(fmt.Sprintf("kick %s %s", q, reason), 2*time.Second)
-		out.Sent = true
-		out.Confirmed = err == nil && !timed && p != nil && p.SuccessCount > 0
+		// Sent means "the command actually left this host and the server
+		// answered". Marking it true unconditionally made a rejected or timed-out
+		// kick count as handled: the over-limit player was decremented from the
+		// excess and put on a 30s cooldown, so the only enforcement point in the
+		// player limit silently did nothing.
+		out.Sent = err == nil && !timed && p != nil
+		out.Confirmed = out.Sent && p.SuccessCount > 0
 		return out
 	}
 	return state.step(yyAdmissionPolicy{ObservationEnabled: c.Enabled, Enforce: c.EnforceLimit, Limit: c.PlayerLimit}, time.Now(), read, reject)
