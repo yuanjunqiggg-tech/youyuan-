@@ -4,10 +4,11 @@
 > 与本文件冲突的聊天内容一律作废；发现记录缺失或互相矛盾时，**先停下向用户确认**，不得自行补脑。
 > 更新规则：每完成一个模块或一个阶段 → 更新本文件 → 提交 GitHub，提交信息写明回滚点。
 
-- 最后更新：2026-10-19 23:35（北京时间）
+- 最后更新：2026-10-20 00:10（北京时间）
 - 当前阶段：**0.10.75 收尾**（源码已改、未构建、未部署、未端到端验收）
 - 线上基线：**0.10.74 / versionCode 1074**
 - 整体完成：**否**（总账 `all_complete=false`）
+- 最近回滚点：**`2aacd22` / tag `rb-0.10.75-body-radius`**（抓包四个缺陷已修 + 身体半径可配置，仅本地验证）
 
 ---
 
@@ -53,11 +54,15 @@
 ### 3.2 未完成（明确未通过，不得宣称完成）
 
 - **0.10.75 全部改动未构建、未部署、未真机/真服验收、未更新总账**。
+- **抓包四个缺陷只到「本地可构建 + 单测通过」层**：未打安装包、未部署、未在真机真服上复现原症状与确认消失；race 检测本机不可用（无 gcc，cgo 关闭）。
 - 用户第 8 条：仅视角观察时不应要求旁观模式；普通界面仍写「采集账号需OP旁观」，F14「原理私有」未收口。
 - B08 整体 20 倍 / 200 倍目标未达到，仅列表争锁局部改善约 290.7 倍，整对耗时无提升。
 - E06 默认用户出口仍为 Linux 系统 UDP，**不是玩家手机出口**。
 - 手机覆盖升级、真实外部 LLM 长任务、RSS/Token 对照、真 QQ 群回执、跨维度多机观测均未验收。
 - O02 OpenCode 实际部署未落地。
+- **既有测试失败 2 项（非本次引入，未处理，需用户裁决）**：
+  - `bot-apk/cmd/server`：`import "bot-apk" is a program` —— `cmd/server` 是 `package main` 却导入同为 `package main` 的根包，结构上不可能编译；仅文档引用，构建脚本未用；本次 diff 未触碰。
+  - `bot-apk/internal/playerrelay` `TestEncryptedLoginOnlyPreservesOpaqueWorldAndInput`：连跑 3 次结果为 通过 / 失败（`dial udp 127.0.0.1:58449: i/o timeout`）/ 通过 —— UDP 回环偶发，与本次改动无调用关系。
 
 ### 3.3 上一阶段（0.10.75）改动清单
 
@@ -67,6 +72,42 @@
 | 宿主 Go | `youyuan_room_discovery.go`、`youyuan_observer_dimension.go`、`respawn_responder.go`、`packet_listener.go`、`packet_handler.go`、`main.go` |
 | 认证 | `auth-service/room_discovery.go`、`tan_lobby_contract.go`、`engine.go`、`worker.mjs` |
 | 测试 | `room-discovery.test.mjs`、`terminal-workbench.test.mjs`、`plugin-studio*.test.mjs`、`editor-file-order.test.mjs`、`agent-studio-lifecycle.test.mjs` 等 |
+
+### 3.4 本阶段模块：抓包四个缺陷（已修，仅本地验证）
+
+提交 `3a31201`，tag `rb-0.10.75-capture-fix`。
+
+| 缺陷 | 根因 | 处理 | 文件 |
+|---|---|---|---|
+| 全局抓包变全局丢包 | `yyCapturePacket` 在唯一 `consumePackets` goroutine 上同步 `packetToMap`+`json.Marshal`，整条收包链路被阻塞，RakNet 窗口超限后真实丢包；`yyCaptureWants` 在接收线程抢 `yySenseState` 锁 | 2048 有界队列 + 专用 `yyCaptureDrain`/`yyCaptureStore` goroutine；消费线程只做廉价过滤与非阻塞入队，满队计 `queue_dropped`；不可变 `captureMatcher`（`atomic.Pointer`）无锁预筛；`yyCaptureFlush` 读前排空 | `youyuan_capture.go`、`bot_conn.go` |
+| 地狱抓不到包 / 无血量 | camera 模式只发 `camera @s set`，机器人身体留原地，服务端不向其所在区块外广播 `UpdateAttributes`/`ActorEvent` | `body_radius_blocks`（默认 64）；`execute at <player> as <bot> if entity @s[distance=64..] run tp @s ~ ~ ~` 由服务端判定后只移动机器人身体；selector 模式每 10 次节流一次 | `youyuan_observer_watch.go`、`youyuan_selector_camera.go` |
+| 三机器人有一个不去末地 | `yyCaptureGrantOP` 要求 `a.CaptureOnly`，手动加入账号池的机器人被跳过 → 永不 ready | 去掉该限制，手动与自动账号一视同仁 | `youyuan_capture_runtime.go` |
+| 多人丢包严重 | `yyWatch.run`/`runSelectorCamera` 查询失败、跨维度、发送失败时 `return`，一次偶发即永久停摆 | 计数 + 最多 5 次重试；`snapshot` 暴露 `query_failures`/`dimension_skips`/`last_skip` | `youyuan_observer_watch.go`、`youyuan_selector_camera.go` |
+
+统一停止入口 `yyCaptureStop`：`/api/youyuan/game/call` 与 `events.captureStop` 两条路径共用，避免 matcher 与 `Active` 状态不一致（第二处入口 `youyuan_sense_api.go:599` 原先直写 `Active=false`，已改）。
+
+界面文案修正：`youyuan_global_capture.js` 由「采集账号需OP旁观」改为「采集账号需OP；默认只用摄像机视角、不切旁观模式，为接收实体与属性包会把身体保持在目标附近」。
+
+验证层级：
+- 静态核实：`go vet .` 通过。
+- 可构建：`go build ./...` 通过（`cmd/server` 为既有结构性失败）。
+- 已运行：`go test . ./config ./state ./building` 全通过（19.5s / 3.8s / 0.5s / 13.8s）；新增回归 5 项见 `youyuan_capture_queue_test.go`。
+- 未执行：race 检测（本机无 gcc）；安装包构建、部署、真机真服端到端。
+
+### 3.5 本阶段模块：身体接近半径可配置（已修，仅本地验证）
+
+提交 `2aacd22`，tag `rb-0.10.75-body-radius`。
+
+补 3.4 的可用性缺口：全局抓包页原先没有 `body_radius_blocks`，服务器禁止 tp 时用户无法关闭；观察方式选项仍写「身体不跟随」，与新行为矛盾。
+
+| 改动 | 要点 |
+|---|---|
+| `yyGlobalCaptureConfig.BodyRadius *float64` | **必须用指针**：旧 `global-capture.json` 无此字段，值类型会解码成 0，等于升级后静默关闭身体接近、重新收不到血量包 |
+| `yyGlobalBodyRadius(c)` | 缺字段 → 64；显式 0 → 关闭 |
+| `yyGlobalWatchOptions` | 透传给 `yyWatchParse`，沿用 0..4096 校验 |
+| 界面 | 新增「身体接近半径 / 格 · 0关闭」；观察方式文案改为「身体保持在目标附近」并说明只移动机器人身体 |
+
+验证：`go vet .` 通过；`go test . ./config ./state ./building` 全通过（19.2s / 3.6s / 0.5s / 13.4s）；新增 `TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs`；`node --test` 268/268 通过。未构建安装包、未部署、未真机真服验收。
 
 ## 4. 关键决策（已定，不再重复讨论）
 
@@ -145,26 +186,31 @@ python maintenance/requirements.py --project . --render
 |---|---|---|---|
 | `70a277a` | 提交 | 2026-10-07 历史提交 | git 中最后一个真实提交，早于 0.10.8–0.10.74 |
 | `rb-0.10.74-online` | tag | 接手基线（0.10.74 线上 + 0.10.75 未验收改动） | 本文件首次提交时创建 |
+| `3a31201` / `rb-0.10.75-capture-fix` | 提交 + tag | 抓包四个缺陷修复（队列异步化、身体接近、末地授权、观察者重试） | 仅本地验证层，未部署 |
+| `2aacd22` / `rb-0.10.75-body-radius` | 提交 + tag | 身体接近半径可配置 + 界面文案纠正 | 当前 HEAD，仅本地验证层 |
 | `rb-0.10.75-stage` | tag | 0.10.75 构建部署并验收后 | 待创建 |
 
 回滚方式：
 
 ```bash
-git checkout rb-0.10.74-online -- .   # 回到接手基线源码
-# 或整树切换
-git checkout rb-0.10.75-stage
+git checkout rb-0.10.74-online -- .               # 回到接手基线源码
+git checkout rb-0.10.75-capture-fix -- upstream/  # 只回滚抓包异步化
+git checkout rb-0.10.75-body-radius -- upstream/  # 回滚到当前 HEAD 的 upstream
+git checkout rb-0.10.75-stage                     # 整树切换（待创建）
 ```
 
 构建产物不入库：回滚源码后需用对应版本的 `work/rebuild_v0107x.ps1` 重新构建。
 
 ## 8. 下一步（按顺序）
 
-0. **当前阻塞**：GitHub 推送缺少凭据。GitHub 连接器为应用级令牌，无 `contents:write` 与建仓权限（403）；本机无 `gh`、无 `~/.git-credentials`、无 SSH 密钥、Windows 凭据管理器无 GitHub 条目。需用户提供 PAT（`Contents: Read and write`，目标仓库 `youyuan-`）后执行首次推送。
-1. **建立 GitHub 备份**（本文件 + 全部源码首次推送），推送 `rb-0.10.74-online` tag。
-2. **收尾 0.10.75**：构建 → 部署网页/Linux/APK → 核对线上版本与哈希 → 真机与真服验收（含房间识别三类候选、终端、插件启停删、编辑器）。
-3. **补第 8 条**：去掉「采集账号需OP旁观」表述，确认纯视角观察不切换旁观模式，收敛普通界面的抓包原理描述（F02/F14）。
-4. 更新总账对应编号与 `项目待办.md`，写阶段验收报告到 `outputs/`。
-5. 每完成一项即更新本文件并提交 GitHub（提交信息带 `rollback:` 标记）。
+0. **当前阻塞**：GitHub 推送缺少凭据。GitHub 连接器为应用级令牌，无 `contents:write` 与建仓权限（403）；本机无 `gh`、无 `~/.git-credentials`、无 SSH 密钥、Windows 凭据管理器无 GitHub 条目。需用户提供 PAT（`Contents: Read and write`，目标仓库 `youyuan-`）后执行首次推送。本地提交已就绪（`3a31201`）。
+1. **待用户裁决 2 项**：`cmd/server` 结构性编译失败（可加 `//go:build ignore` 一行修掉，或删除该遗留目录）；`internal/playerrelay` UDP 回环偶发超时（是否加长等待/重试）。
+2. **建立 GitHub 备份**（本文件 + 全部源码首次推送），推送 `rb-0.10.74-online` 与 `rb-0.10.75-capture-fix` tag。
+3. **真机复验抓包四缺陷**：开启全局抓包看 `queue_dropped` 是否长期为 0 且不再断连；进地狱打生物确认血量与属性包；确认三个机器人全部进入末地值守；多人同服观察丢包。
+4. **收尾 0.10.75**：构建 → 部署网页/Linux/APK → 核对线上版本与哈希 → 真机与真服验收（含房间识别三类候选、终端、插件启停删、编辑器）。
+5. **补第 8 条**：去掉「采集账号需OP旁观」表述（文案已改，需界面核对），确认纯视角观察不切换旁观模式，收敛普通界面的抓包原理描述（F02/F14）。
+6. 更新总账对应编号与 `项目待办.md`，写阶段验收报告到 `outputs/`。
+7. 每完成一项即更新本文件并提交 GitHub（提交信息带 `rollback:` 标记）。
 
 ## 9. 变更记录
 
@@ -172,3 +218,5 @@ git checkout rb-0.10.75-stage
 |---|---|---|
 | 2026-10-19 23:35 | 创建本文件；确立唯一状态源与提交规则 | `rb-0.10.74-online` |
 | 2026-10-19 23:50 | 备份仓库改为现有 `youyuan-`；记录推送凭据阻塞 | `rb-0.10.74-online` |
+| 2026-10-19 23:58 | 修复抓包四缺陷（异步队列、身体接近、末地授权、观察者重试）；补 5 项回归；记录 2 项既有测试失败 | `3a31201` / `rb-0.10.75-capture-fix` |
+| 2026-10-20 00:10 | 身体接近半径可配置（指针字段防旧配置静默失效）；界面文案纠正；补 1 项迁移回归；268 项 web 测试复跑通过 | `2aacd22` / `rb-0.10.75-body-radius` |
