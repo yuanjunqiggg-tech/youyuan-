@@ -593,14 +593,14 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		}
 		return yyCaptureStart(bm, cfg)
 	case "events.captureStop", "events.captureClear":
-		s := yySenseFor(bm)
-		s.Lock()
 		if method == "events.captureStop" {
-			s.Capture.Active = false
+			yyCaptureStop(bm)
 		} else {
+			s := yySenseFor(bm)
+			s.Lock()
 			s.Capture.clear()
+			s.Unlock()
 		}
-		s.Unlock()
 		return yyCaptureStatus(bm), nil
 	case "player.nearby":
 		radius, e := yyArgNumber(args, 0, 32)

@@ -85,8 +85,11 @@ var yyCaptureLaunches = struct {
 }{Items: map[string]*yyCaptureLaunch{}}
 
 func yyCaptureGrantOP(actor yyPoolActor, id, name string, c yyGlobalCaptureConfig) {
-	a, ok := yyManagedFind(id)
-	if !ok || !a.CaptureOnly || !yyCaptureAllowed(actor, id) || !yyWatchName(name) || c.AutoProvision != nil && !*c.AutoProvision {
+	_, ok := yyManagedFind(id)
+	// The caller only reaches here for accounts the user selected for capture.
+	// Requiring CaptureOnly silently skipped manually added accounts, which then
+	// never became ready and left a dimension (usually the End) uncovered.
+	if !ok || !yyCaptureAllowed(actor, id) || !yyWatchName(name) || c.AutoProvision != nil && !*c.AutoProvision {
 		return
 	}
 	bm := getBotManagerLocked()

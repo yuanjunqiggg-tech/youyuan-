@@ -15,7 +15,7 @@ import (
 // caller's control; the packet reader never performs queries or HTTP requests.
 func init() {
 	for k, v := range map[string]string{
-		"observerBridge.watchStart":  "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16}；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP身体、不等待确认；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
+		"observerBridge.watchStart":  "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:64}；camera模式只用摄像机视角、不切旁观模式，但服务端只在身体附近广播实体与属性包，因此默认把身体保持在目标body_radius_blocks内（0关闭，可能抓不到远处包）；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
 		"observerBridge.watchStatus": "返回本账号常驻观察目标、真实区域发布时间、submitted、missed_intervals、错误。region_updated只是收到对应区域包，不等于零漏包。",
 		"observerBridge.watchStop":   "取消本账号常驻观察，清除本次相机并恢复已确认的原位置；不会关闭其他插件拥有的观察。",
 	} {
@@ -42,6 +42,7 @@ type yyWatchConfig struct {
 	CameraYaw            float64  `json:"camera_yaw_degrees"`
 	CameraFacing         bool     `json:"camera_facing_player"`
 	ObserveDimension     *int32   `json:"observe_dimension,omitempty"`
+	BodyRadius           float64  `json:"body_radius_blocks"`
 	CameraRelative       bool     `json:"camera_relative"`
 	CameraFollowRotation bool     `json:"camera_follow_rotation"`
 	CameraBack           float64  `json:"camera_back_blocks"`
@@ -72,6 +73,14 @@ type yyWatch struct {
 	Origin          mgl32.Vec3
 	OriginDimension int32
 	Cleanup         []map[string]any
+	// A transient query failure or a target that walked into another dimension
+	// must not end observation. These counters keep the loop alive and make the
+	// reason visible instead of silently dropping the whole watch.
+	QueryFailures  uint64
+	SendFailures   uint64
+	DimensionSkips uint64
+	LastSkip       string
+	proximityTick  uint64
 }
 
 var yyWatches = struct {
@@ -80,7 +89,7 @@ var yyWatches = struct {
 }{Items: map[*BotManager]*yyWatch{}}
 
 func yyWatchParse(v any) (yyWatchConfig, error) {
-	c := yyWatchConfig{Mode: "camera", Interval: 2, FollowRadius: 16, CameraHeight: 2}
+	c := yyWatchConfig{Mode: "camera", Interval: 2, FollowRadius: 16, CameraHeight: 2, BodyRadius: 64}
 	raw, e := json.Marshal(v)
 	if e != nil {
 		return c, e
@@ -115,6 +124,9 @@ func yyWatchParse(v any) (yyWatchConfig, error) {
 	}
 	if math.IsNaN(c.FollowRadius) || math.IsInf(c.FollowRadius, 0) || c.FollowRadius < 0 || c.FollowRadius > 4096 {
 		return c, fmt.Errorf("follow_radius_blocks需要0..4096；0每轮请求，默认16仅离开半径或跨维度时TP")
+	}
+	if math.IsNaN(c.BodyRadius) || math.IsInf(c.BodyRadius, 0) || c.BodyRadius < 0 || c.BodyRadius > 4096 {
+		return c, fmt.Errorf("body_radius_blocks需要0..4096；0关闭身体接近，默认64保证实体包能下发")
 	}
 	if math.IsNaN(c.CameraHeight) || math.IsInf(c.CameraHeight, 0) || math.Abs(c.CameraHeight) > math.MaxFloat32 || math.IsNaN(c.CameraYaw) || math.IsInf(c.CameraYaw, 0) {
 		return c, fmt.Errorf("摄像机高度和朝向需要有效有限数值")
@@ -174,6 +186,19 @@ func yyWatchRegionReady(position mgl32.Vec3, at time.Time, expected mgl32.Vec3, 
 func yyWatchNeedsTeleport(known bool, body, target mgl32.Vec3, bodyDimension, targetDimension int32, radius float64) bool {
 	return radius == 0 || !known || bodyDimension != targetDimension || float64(body.Sub(target).Len()) > radius
 }
+
+// Entity and attribute packets are only broadcast around the observer body's
+// loaded chunks; a camera position alone does not load them. This keeps a
+// camera-only observer within a bounded radius without spectator mode and
+// without ever moving the observed player.
+func yyWatchBodyCommand(self, target string, radius float64) string {
+	if radius <= 0 || !yyWatchName(self) || !yyWatchName(target) {
+		return ""
+	}
+	bot, _ := json.Marshal(self)
+	player, _ := json.Marshal(target)
+	return fmt.Sprintf("execute at %s as %s if entity @s[distance=%.0f..] run tp @s ~ ~ ~", player, bot, radius)
+}
 func (w *yyWatch) snapshot() map[string]any {
 	w.Lock()
 	defer w.Unlock()
@@ -197,6 +222,9 @@ func (w *yyWatch) snapshot() map[string]any {
 	result["last_received_packet_at"] = yyVisibilityTime(lastPacket)
 	result["connection_session"] = session
 	result["current_player"] = w.CurrentPlayer
+	result["query_failures"] = w.QueryFailures
+	result["dimension_skips"] = w.DimensionSkips
+	result["last_skip"] = w.LastSkip
 	if w.Config.Mode == "camera" && (w.Config.CameraSelector || len(w.Config.Players) > 1 || w.Config.AutoPlayers) {
 		result["region_updated"] = false
 		result["target_position_known"] = false
@@ -329,24 +357,50 @@ watchLoop:
 		}
 		if e != nil || len(rows) != 1 {
 			w.Lock()
-			w.Error = "目标位置查询失败或玩家已离线"
+			w.QueryFailures++
+			w.LastSkip = "目标位置查询失败或玩家已离线"
+			w.Error = w.LastSkip
+			failures := w.QueryFailures
 			w.Unlock()
-			return
-		}
-		p := rows[0]
-		if w.Config.ObserveDimension != nil && int32(p.Dimension) != *w.Config.ObserveDimension {
+			// A player crossing a dimension boundary or a one-off query timeout
+			// used to terminate the whole watch, which turned "capture" into a
+			// permanent "no capture". Retry a bounded number of times instead.
+			if failures >= 5 {
+				return
+			}
 			next = time.Now().Add(interval)
 			continue
 		}
+		p := rows[0]
+		if w.Config.ObserveDimension != nil && int32(p.Dimension) != *w.Config.ObserveDimension {
+			w.Lock()
+			w.DimensionSkips++
+			w.LastSkip = "目标不在本机器人负责的维度"
+			w.Error = w.LastSkip
+			w.Unlock()
+			next = time.Now().Add(interval)
+			continue
+		}
+		w.Lock()
+		w.QueryFailures = 0
+		w.LastSkip = ""
+		w.Error = ""
+		w.Unlock()
 		feet := yyPatrolFeetPosition(mgl32.Vec3{p.Position.X, p.Position.Y, p.Position.Z})
 		w.Bot.mu.Lock()
 		dim, self := w.Bot.dimension, w.Bot.display
 		w.Bot.mu.Unlock()
 		if w.Config.Mode == "camera" && int32(p.Dimension) != dim {
+			// The body follows the assigned dimension; a target that moved away
+			// is skipped until the scheduler reassigns it. Killing the watch here
+			// stopped every later packet for this observer as well.
 			w.Lock()
-			w.Error = "相机不能跨维度；选择follow/hybrid才能移动本机器人"
+			w.DimensionSkips++
+			w.LastSkip = "相机不能跨维度，等待调度重新分配"
+			w.Error = w.LastSkip
 			w.Unlock()
-			return
+			next = time.Now().Add(interval)
+			continue
 		}
 		name, _ := json.Marshal(self)
 		commands := []string{}
@@ -359,6 +413,13 @@ watchLoop:
 			first := w.SubmittedAt.IsZero()
 			w.Unlock()
 			teleport = first || yyWatchNeedsTeleport(known, yyPatrolFeetPosition(bodyPosition), feet, dim, int32(p.Dimension), w.Config.FollowRadius)
+		} else if w.Config.BodyRadius > 0 {
+			// Camera-only observers still need the body inside the broadcast
+			// radius, otherwise no entity/attribute packets reach this account.
+			body := yySenseActor(w.Bot, "self")
+			bodyPosition, known := body["position"].(mgl32.Vec3)
+			known = known && body["position_known"] == true && body["position_stale"] != true
+			teleport = yyWatchNeedsTeleport(known, yyPatrolFeetPosition(bodyPosition), feet, dim, int32(p.Dimension), w.Config.BodyRadius)
 		}
 		if teleport {
 			dimension := yyWatchDimension(int32(p.Dimension))
@@ -385,10 +446,21 @@ watchLoop:
 			e = err
 			if e != nil {
 				w.Lock()
+				w.SendFailures++
 				w.Error = e.Error()
+				failures := w.SendFailures
 				w.Unlock()
-				return
+				// A rejected command is usually a temporary permission or rate
+				// limit. Only a repeated failure ends the watch.
+				if failures >= 5 {
+					return
+				}
+				next = time.Now().Add(interval)
+				continue watchLoop
 			}
+			w.Lock()
+			w.SendFailures = 0
+			w.Unlock()
 		}
 		w.Lock()
 		// Repeated submissions to an unchanged area must not erase evidence that

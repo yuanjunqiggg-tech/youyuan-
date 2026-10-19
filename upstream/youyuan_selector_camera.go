@@ -34,8 +34,23 @@ func yySelectorCameraCommand(self, target string, c yyWatchConfig) string {
 	}
 	return command
 }
-func (w *yyWatch) targets() []string {
-	w.Bot.mu.Lock()
+// Throttled: the server-side distance test is cheap, but one extra command per
+// camera switch is not free at 15ms intervals.
+func (w *yyWatch) proximityCommand(self, target string) string {
+	if w.Config.BodyRadius <= 0 {
+		return ""
+	}
+	w.Lock()
+	w.proximityTick++
+	tick := w.proximityTick
+	w.Unlock()
+	if tick%10 != 1 {
+		return ""
+	}
+	return yyWatchBodyCommand(self, target, w.Config.BodyRadius)
+}
+
+func (w *yyWatch) targets() []string {	w.Bot.mu.Lock()
 	self := w.Bot.display
 	w.Bot.mu.Unlock()
 	names := append([]string(nil), w.Config.Players...)
@@ -91,6 +106,13 @@ func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 		self, dimension := w.Bot.display, w.Bot.dimension
 		w.Bot.mu.Unlock()
 		if w.Config.ObserveDimension != nil && dimension != *w.Config.ObserveDimension {
+			// A stale body dimension used to spin here forever with no visible
+			// reason. Record it so the scheduler/UI can act on it.
+			w.Lock()
+			w.DimensionSkips++
+			w.LastSkip = "身体尚未进入分工维度"
+			w.Error = w.LastSkip
+			w.Unlock()
 			continue
 		}
 		targets := w.targets()
@@ -100,17 +122,37 @@ func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 		target := targets[index%len(targets)]
 		index++
 		allow := w.Config.PauseDuringJobs != nil && !*w.Config.PauseDuringJobs
+		// Keep the body inside the broadcast radius. The selector-camera path
+		// avoids querytarget, so the distance test runs on the server and the
+		// teleport only happens when the body is actually too far away.
+		if body := w.proximityCommand(self, target); body != "" {
+			if sent, err := yyObserverSend(w.Bot, body, allow); sent && err != nil {
+				w.Lock()
+				w.SendFailures++
+				w.Error = err.Error()
+				w.Unlock()
+			}
+		}
 		sent, e := yyObserverSend(w.Bot, yySelectorCameraCommand(self, target, w.Config), allow)
 		if !sent {
 			continue
 		}
 		if e != nil {
 			w.Lock()
+			w.SendFailures++
 			w.Error = e.Error()
+			failures := w.SendFailures
 			w.Unlock()
-			return
+			if failures >= 5 {
+				return
+			}
+			continue
 		}
 		w.Lock()
+		w.SendFailures = 0
+		w.DimensionSkips = 0
+		w.LastSkip = ""
+		w.Error = ""
 		w.CurrentPlayer = target
 		w.Submitted++
 		w.SubmittedAt = time.Now()

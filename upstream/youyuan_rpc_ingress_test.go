@@ -40,10 +40,7 @@ func TestRPCIngressCaptureOptInAndPayloadExclusion(t *testing.T) {
 	if err != nil || strings.Contains(string(encoded), "not-retained-secret") || strings.Contains(string(encoded), "private") {
 		t.Fatal("catalog exposed arguments", string(encoded), err)
 	}
-	s := yySenseFor(b)
-	s.Lock()
-	s.Capture.Active = false
-	s.Unlock()
+	yyCaptureStop(b)
 	if !yySelectIncomingPacket(b, p, wanted, a) || a.rpc.observed != 2 {
 		t.Fatal("stopping capture should stop discovery, not ordinary RPC selection")
 	}

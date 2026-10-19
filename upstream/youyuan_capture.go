@@ -32,10 +32,20 @@ type yyCaptureState struct {
 	Records                    []map[string]any
 	Seq                        uint64
 	Dropped                    uint64
+	QueueDropped               uint64
 	SampledOut                 uint64
 	Last                       map[string]time.Time
 	Head, Count, RetainedBytes int
+	// Serialization runs on a dedicated worker. Keeping packetToMap/JSON off the
+	// single packet-consumer goroutine is what stops capture from throttling
+	// every other packet path and eventually the RakNet receive window.
+	gen     uint64
+	stored  uint64
+	pending chan packet.Packet
+	done    chan struct{}
 }
+
+const yyCaptureQueueSize = 2048
 
 func yyPacketName(pk packet.Packet) string {
 	t := reflect.TypeOf(pk)
@@ -174,17 +184,121 @@ func yyCaptureStart(bm *BotManager, c yyCaptureConfig) (map[string]any, error) {
 	}
 	s := yySenseFor(bm)
 	s.Lock()
-	s.Capture = yyCaptureState{Active: true, Config: c, Records: make([]map[string]any, c.Capacity), Last: map[string]time.Time{}}
+	if s.Capture.done != nil {
+		close(s.Capture.done)
+	}
+	gen := s.Capture.gen + 1
+	next := yyCaptureState{Active: true, Config: c, Records: make([]map[string]any, c.Capacity), Last: map[string]time.Time{}, gen: gen, pending: make(chan packet.Packet, yyCaptureQueueSize), done: make(chan struct{})}
+	s.Capture = next
 	s.Unlock()
+	if bm != nil {
+		bm.captureMatcher.Store(yyCaptureBuildMatcher(c))
+	}
+	go yyCaptureDrain(bm, next.pending, next.done, gen)
 	return yyCaptureStatus(bm), nil
 }
+// A published, immutable matcher keeps the receive thread off the sense mutex.
+// The consumer holds that mutex while emitting events; blocking the receive
+// thread there is what pushed the RakNet window over its limit under load.
+type yyCaptureMatcher struct {
+	types    map[string]bool
+	exclude  map[string]bool
+	wildcard bool
+}
+
+func yyCaptureBuildMatcher(c yyCaptureConfig) *yyCaptureMatcher {
+	m := &yyCaptureMatcher{types: map[string]bool{}, exclude: map[string]bool{}}
+	for _, v := range c.Types {
+		if v == "*" {
+			m.wildcard = true
+			continue
+		}
+		m.types[v] = true
+	}
+	for _, v := range c.Exclude {
+		m.exclude[v] = true
+	}
+	return m
+}
+
+func (m *yyCaptureMatcher) match(name string) bool {
+	if m == nil || yyPacketPrivate(name) {
+		return false
+	}
+	if m.exclude[name] || m.exclude["*"] {
+		return false
+	}
+	if m.types[name] {
+		return true
+	}
+	return m.wildcard && !yyPacketBulk(name)
+}
+
 func yyCaptureWants(bm *BotManager, name string) bool {
+	if bm != nil {
+		return bm.captureMatcher.Load().match(name)
+	}
 	s := yySenseFor(bm)
 	s.Lock()
 	defer s.Unlock()
 	return s.Capture.Active && yyCaptureTypeMatch(s.Capture.Config, name)
 }
+// yyCapturePacket is the only capture work allowed on the packet-consumer
+// goroutine: cheap filtering and a bounded, non-blocking hand-off.
 func yyCapturePacket(bm *BotManager, pk packet.Packet) {
+	if bm == nil {
+		return
+	}
+	s := yySenseFor(bm)
+	s.Lock()
+	c := &s.Capture
+	if !c.Active {
+		s.Unlock()
+		return
+	}
+	name := yyPacketName(pk)
+	if !yyCaptureTypeMatch(c.Config, name) {
+		s.Unlock()
+		return
+	}
+	if every := c.Config.Filter.EveryMS; every > 0 {
+		now := time.Now()
+		if now.Sub(c.Last[name]) < time.Duration(every)*time.Millisecond {
+			c.SampledOut++
+			s.Unlock()
+			return
+		}
+		c.Last[name] = now
+	}
+	if c.pending == nil {
+		c.QueueDropped++
+		s.Unlock()
+		return
+	}
+	select {
+	case c.pending <- pk:
+	default:
+		// A bounded queue keeps memory flat. Loss is counted, never silent.
+		c.QueueDropped++
+	}
+	s.Unlock()
+}
+
+func yyCaptureDrain(bm *BotManager, ch chan packet.Packet, done chan struct{}, gen uint64) {
+	for {
+		select {
+		case <-done:
+			return
+		case pk, ok := <-ch:
+			if !ok {
+				return
+			}
+			yyCaptureStore(bm, pk, gen)
+		}
+	}
+}
+
+func yyCaptureStore(bm *BotManager, pk packet.Packet, gen uint64) {
 	server := ""
 	if bm != nil {
 		bm.mu.Lock()
@@ -195,20 +309,18 @@ func yyCapturePacket(bm *BotManager, pk packet.Packet) {
 	s.Lock()
 	defer s.Unlock()
 	c := &s.Capture
-	name := yyPacketName(pk)
-	if !c.Active || !yyCaptureTypeMatch(c.Config, name) {
+	if !c.Active || c.gen != gen {
 		return
 	}
-	now := time.Now()
-	if now.Sub(c.Last[name]) < time.Duration(c.Config.Filter.EveryMS)*time.Millisecond {
-		c.SampledOut++
+	name := yyPacketName(pk)
+	if !yyCaptureTypeMatch(c.Config, name) {
 		return
 	}
 	data := packetToMap(pk)
 	if !yyFilterMatch(c.Config.Filter, data) {
 		return
 	}
-	c.Last[name] = now
+	now := time.Now()
 	encoded, e := json.Marshal(data)
 	if e != nil {
 		return
@@ -237,6 +349,7 @@ func yyCapturePacket(bm *BotManager, pk packet.Packet) {
 	c.Records[(c.Head+c.Count)%len(c.Records)] = row
 	c.Count++
 	c.RetainedBytes += retained
+	c.stored++
 }
 func (c *yyCaptureState) evict() {
 	if c.Count == 0 {
@@ -258,8 +371,33 @@ func (c *yyCaptureState) clear() {
 	c.Count = 0
 	c.RetainedBytes = 0
 	c.Dropped = 0
+	c.QueueDropped = 0
+	c.SampledOut = 0
 }
+// yyCaptureFlush waits (bounded) for the serialization worker to consume what is
+// already queued, so a diagnostic read reflects everything accepted so far.
+// It never runs on the packet-consumer goroutine.
+func yyCaptureFlush(bm *BotManager, timeout time.Duration) {
+	s := yySenseFor(bm)
+	deadline := time.Now().Add(timeout)
+	last := uint64(1 << 63)
+	for {
+		s.Lock()
+		pending, stored := len(s.Capture.pending), s.Capture.stored
+		s.Unlock()
+		if pending == 0 && stored == last {
+			return
+		}
+		if time.Now().After(deadline) {
+			return
+		}
+		last = stored
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func yyCaptureRead(bm *BotManager, after uint64, limit int) map[string]any {
+	yyCaptureFlush(bm, 250*time.Millisecond)
 	connected := bm != nil && bm.IsConnected()
 	s := yySenseFor(bm)
 	s.Lock()
@@ -278,12 +416,24 @@ func yyCaptureRead(bm *BotManager, after uint64, limit int) map[string]any {
 			}
 		}
 	}
-	return map[string]any{"ok": true, "active": c.Active, "connected": connected, "waiting_for_connection": c.Active && !connected, "config": c.Config, "cursor": c.Seq, "retained_count": c.Count, "retained_serialized_bytes_estimate": c.RetainedBytes, "records": yyObservationCopyRows(rows), "overwritten": c.Dropped, "sampled_out": c.SampledOut, "scope": "decoded incoming game packets for this account; not device-wide TCP/TLS capture"}
+	return map[string]any{"ok": true, "active": c.Active, "connected": connected, "waiting_for_connection": c.Active && !connected, "config": c.Config, "cursor": c.Seq, "retained_count": c.Count, "retained_serialized_bytes_estimate": c.RetainedBytes, "queue_depth": len(c.pending), "queue_capacity": cap(c.pending), "queue_dropped": c.QueueDropped, "records": yyObservationCopyRows(rows), "overwritten": c.Dropped, "sampled_out": c.SampledOut, "scope": "decoded incoming game packets for this account; not device-wide TCP/TLS capture"}
 }
 
 // Control operations return metadata only. Packet payloads can be megabytes;
 // they belong to explicit cursor reads, not every start/stop tool response.
 func yyCaptureStatus(bm *BotManager) map[string]any { return yyCaptureRead(bm, ^uint64(0), 1) }
+// yyCaptureStop is the single place that turns capture off, so the published
+// matcher and the stored state cannot disagree.
+func yyCaptureStop(bm *BotManager) {
+	s := yySenseFor(bm)
+	s.Lock()
+	s.Capture.Active = false
+	if bm != nil {
+		bm.captureMatcher.Store(nil)
+	}
+	s.Unlock()
+}
+
 func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 	yyLoadObservationSettings(dataDir)
 	mux.HandleFunc("/api/youyuan/game/call", func(w http.ResponseWriter, r *http.Request) {
@@ -397,14 +547,14 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 				writeJSON(w, v)
 			}
 		case "stop", "clear":
-			s := yySenseFor(bm)
-			s.Lock()
 			if p.Action == "stop" {
-				s.Capture.Active = false
+				yyCaptureStop(bm)
 			} else {
+				s := yySenseFor(bm)
+				s.Lock()
 				s.Capture.clear()
+				s.Unlock()
 			}
-			s.Unlock()
 			writeJSON(w, yyCaptureStatus(bm))
 		default:
 			writeJSON(w, map[string]any{"ok": false, "error": "action 应为 start/stop/clear"})
@@ -462,18 +612,34 @@ func yyCaptureTransfer(old, next *BotManager) {
 	from.Lock()
 	copyState := from.Capture
 	copyState.Records = nil // new connection must not erase the old ring through shared backing arrays.
+	if from.Capture.done != nil {
+		close(from.Capture.done)
+	}
 	from.Capture.Active = false
+	from.Capture.pending = nil
+	from.Capture.done = nil
 	from.Unlock()
+	if old != nil {
+		old.captureMatcher.Store(nil)
+	}
 	if !copyState.Active {
 		return
 	}
 	copyState.clear()
 	copyState.Seq = 0
 	copyState.Dropped = 0
+	copyState.QueueDropped = 0
 	copyState.SampledOut = 0
 	copyState.Last = map[string]time.Time{}
+	copyState.gen++
+	copyState.pending = make(chan packet.Packet, yyCaptureQueueSize)
+	copyState.done = make(chan struct{})
 	to := yySenseFor(next)
 	to.Lock()
 	to.Capture = copyState
 	to.Unlock()
+	if next != nil {
+		next.captureMatcher.Store(yyCaptureBuildMatcher(copyState.Config))
+	}
+	go yyCaptureDrain(next, copyState.pending, copyState.done, copyState.gen)
 }

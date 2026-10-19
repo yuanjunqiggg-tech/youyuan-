@@ -52,6 +52,7 @@ type BotManager struct {
 	pktCh                  chan packet.Packet
 	listenerID             string
 	packetIngress          *yyPacketIngress // Per-connection decoded packets, before the host selection filter.
+	captureMatcher         atomic.Pointer[yyCaptureMatcher]
 	inputBridge            *yyObserverInputSession
 	loginIngress           *yyPacketIngress
 	connected              bool
