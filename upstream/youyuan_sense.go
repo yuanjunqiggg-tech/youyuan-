@@ -81,6 +81,9 @@ type yySenseState struct {
 	ServerTick          uint64
 	ServerTickAt        time.Time
 	ConnectionHistory   []map[string]any
+	ConnectionAttempt   uint64
+	ConnectionFirstErr  string
+	ConnectionFirstWhen string
 	Scores              map[string]map[string]any
 	ViewRequestMu       sync.Mutex
 	RequestedRadius     int32
@@ -146,10 +149,7 @@ func yySenseReset(bm *BotManager) {
 	s.RequestedRadiusAt, s.GrantedRadiusAt, s.PublisherAt = time.Time{}, time.Time{}, time.Time{}
 	s.GrantedRadiusSource = ""
 	s.PacketCount, s.PacketCounts, s.LastPacketAt = 0, map[string]uint64{}, time.Time{}
-	s.ConnectionHistory = append(s.ConnectionHistory, map[string]any{"phase": "connected", "timestamp": time.Now().UnixMilli()})
-	if len(s.ConnectionHistory) > 64 {
-		s.ConnectionHistory = s.ConnectionHistory[len(s.ConnectionHistory)-64:]
-	}
+	yyConnectionAppendLocked(s, "connected", "", nil)
 	if conn != nil {
 		now := time.Now()
 		gd := conn.GameData()
@@ -439,10 +439,7 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 			yyObserveItem(s, a, "off_hand", p.NewItem, now, source)
 		}
 	case *packet.Disconnect:
-		s.ConnectionHistory = append(s.ConnectionHistory, map[string]any{"phase": "server_disconnect", "reason_code": p.Reason, "reason": p.Message, "timestamp": now.UnixMilli()})
-		if len(s.ConnectionHistory) > 64 {
-			s.ConnectionHistory = s.ConnectionHistory[len(s.ConnectionHistory)-64:]
-		}
+		yyConnectionAppendLocked(s, "server_disconnect", p.Message, map[string]any{"reason_code": p.Reason})
 	case *packet.Text:
 		// Translation packets, not arbitrary chat text, provide authoritative
 		// death causes. Only a known observed player may be named as the killer.

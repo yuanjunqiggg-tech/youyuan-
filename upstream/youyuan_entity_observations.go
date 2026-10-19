@@ -296,7 +296,34 @@ func yyConnectionDiagnostic(bm *BotManager, phase, reason string) {
 	s := yySenseFor(bm)
 	s.Lock()
 	defer s.Unlock()
-	s.ConnectionHistory = append(s.ConnectionHistory, map[string]any{"phase": phase, "reason": reason, "timestamp": time.Now().UnixMilli()})
+	yyConnectionAppendLocked(s, phase, reason, nil)
+}
+
+// yyConnectionAppendLocked records one connection event with the attempt it
+// belongs to and the first error seen in that attempt. The closed event used to
+// carry only connCloseErr ("EOF", "closed network connection"), so the log could
+// not answer whether the attempt died on auth, on a kick, or on the network.
+// Callers must already hold s.
+func yyConnectionAppendLocked(s *yySenseState, phase, reason string, extra map[string]any) {
+	if phase == "connect_attempt" {
+		s.ConnectionAttempt++
+		s.ConnectionFirstErr = ""
+		s.ConnectionFirstWhen = ""
+	}
+	entry := map[string]any{"phase": phase, "reason": reason, "timestamp": time.Now().UnixMilli(), "attempt": s.ConnectionAttempt}
+	for k, v := range extra {
+		if _, exists := entry[k]; !exists {
+			entry[k] = v
+		}
+	}
+	if reason != "" && s.ConnectionFirstErr == "" {
+		s.ConnectionFirstErr, s.ConnectionFirstWhen = reason, phase
+	}
+	if s.ConnectionFirstErr != "" {
+		entry["first_error"] = s.ConnectionFirstErr
+		entry["first_error_phase"] = s.ConnectionFirstWhen
+	}
+	s.ConnectionHistory = append(s.ConnectionHistory, entry)
 	if len(s.ConnectionHistory) > 64 {
 		s.ConnectionHistory = s.ConnectionHistory[len(s.ConnectionHistory)-64:]
 	}
