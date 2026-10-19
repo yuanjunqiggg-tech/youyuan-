@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "header": {
+    "name": "游园服务端观测桥",
+    "description": "服务端真实血量、攻击、死亡事件，只读转发给已授权机器人",
+    "uuid": "8925ee73-d1ce-48ae-8dfc-1d202168919b",
+    "version": [0, 10, 29]
+  },
+  "modules": [{"type": "data", "uuid": "6a8aa14f-6ca3-4c50-8710-cdc51e9d0b5b", "version": [0, 10, 29]}]
+}

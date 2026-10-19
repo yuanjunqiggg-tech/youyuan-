@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 )
@@ -27,6 +28,20 @@ var packetHub = struct {
 	nextID uint64
 }{subs: map[string][]*packetSubscriber{}}
 
+// Published slices are immutable. Dispatch keeps its snapshot even when a
+// callback subscribes/unsubscribes, just like the previous locked copy.
+var yyPacketSubscribers atomic.Pointer[map[string][]*packetSubscriber]
+
+func yyPublishPacketSubscribers() {
+	next := make(map[string][]*packetSubscriber, len(packetHub.subs))
+	for name, list := range packetHub.subs {
+		if len(list) > 0 {
+			next[name] = append([]*packetSubscriber(nil), list...)
+		}
+	}
+	yyPacketSubscribers.Store(&next)
+}
+
 // packetHubSubscribe 订阅某类数据包，返回退订函数。回调在 consumePackets 同步调用，
 // 订阅者不得长时间阻塞收包循环（需要的话自行开 goroutine）。
 func packetHubSubscribe(typeName string, cb func(bm *BotManager, data map[string]any)) (unsub func()) {
@@ -35,6 +50,7 @@ func packetHubSubscribe(typeName string, cb func(bm *BotManager, data map[string
 	packetHub.nextID++
 	sub := &packetSubscriber{id: packetHub.nextID, cb: cb}
 	packetHub.subs[typeName] = append(packetHub.subs[typeName], sub)
+	yyPublishPacketSubscribers()
 	return func() {
 		packetHub.Lock()
 		defer packetHub.Unlock()
@@ -42,6 +58,7 @@ func packetHubSubscribe(typeName string, cb func(bm *BotManager, data map[string
 		for i, s := range list {
 			if s.id == sub.id {
 				packetHub.subs[typeName] = append(list[:i], list[i+1:]...)
+				yyPublishPacketSubscribers()
 				return
 			}
 		}
@@ -63,54 +80,76 @@ func packetHubDispatch(bm *BotManager, pk packet.Packet) {
 	}
 	name := tn.Elem().Name()
 
-	packetHub.Lock()
-	count := len(packetHub.subs[name]) + len(packetHub.subs["*"])
-	if count == 0 {
-		packetHub.Unlock()
+	snapshot := yyPacketSubscribers.Load()
+	if snapshot == nil {
 		return
 	}
-	// 拷贝一份再释放锁：订阅者回调里可能增删订阅（如 AI 工具退订），避免迭代器失效。
-	copySubs := make([]*packetSubscriber, 0, count)
-	copySubs = append(copySubs, packetHub.subs[name]...)
-	copySubs = append(copySubs, packetHub.subs["*"]...)
-	packetHub.Unlock()
+	named, wildcard := (*snapshot)[name], (*snapshot)["*"]
+	if len(named)+len(wildcard) == 0 {
+		return
+	}
 
 	data := packetToMap(pk)
 	data["_packet_type"] = name
-	for _, s := range copySubs {
+	for _, s := range named {
+		s.cb(bm, data)
+	}
+	for _, s := range wildcard {
 		s.cb(bm, data)
 	}
 }
 
 func packetHubWants(name string) bool {
-	packetHub.Lock()
-	defer packetHub.Unlock()
-	return len(packetHub.subs[name]) > 0 || len(packetHub.subs["*"]) > 0
+	snapshot := yyPacketSubscribers.Load()
+	return snapshot != nil && (len((*snapshot)[name]) > 0 || len((*snapshot)["*"]) > 0)
+}
+
+type yyPacketField struct {
+	index int
+	name  string
+}
+
+var yyPacketFields sync.Map // reflect.Type -> immutable exported field metadata
+func yyFieldsFor(t reflect.Type) []yyPacketField {
+	if cached, ok := yyPacketFields.Load(t); ok {
+		return cached.([]yyPacketField)
+	}
+	fields := make([]yyPacketField, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.IsExported() {
+			fields = append(fields, yyPacketField{i, snakeCase(f.Name)})
+		}
+	}
+	cached, _ := yyPacketFields.LoadOrStore(t, fields)
+	return cached.([]yyPacketField)
+}
+func yyPacketStructMap(rv reflect.Value) map[string]any {
+	fields := yyFieldsFor(rv.Type())
+	out := make(map[string]any, len(fields))
+	for _, f := range fields {
+		out[f.name] = toPlainValue(rv.Field(f.index))
+	}
+	return out
 }
 
 // packetToMap 用反射把任意数据包序列化为 map[string]any（字段名 snake_case）。
 // 完整序列化、不截断：[]byte 转完整 hex，slice/array/map 递归转 []any/map。
 func packetToMap(pk any) map[string]any {
-	out := map[string]any{}
 	rv := reflect.ValueOf(pk)
+	if !rv.IsValid() {
+		return map[string]any{}
+	}
 	if rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
-			return out
+			return map[string]any{}
 		}
 		rv = rv.Elem()
 	}
 	if rv.Kind() != reflect.Struct {
-		return out
+		return map[string]any{}
 	}
-	rt := rv.Type()
-	for i := 0; i < rv.NumField(); i++ {
-		f := rt.Field(i)
-		if !f.IsExported() {
-			continue
-		}
-		out[snakeCase(f.Name)] = toPlainValue(rv.Field(i))
-	}
-	return out
+	return yyPacketStructMap(rv)
 }
 
 // toPlainValue 把一个 reflect.Value 转成可直接塞进 map 的 Go 值。
@@ -163,7 +202,7 @@ func toPlainValue(v reflect.Value) any {
 		}
 		return out
 	case reflect.Struct:
-		return packetToMap(v.Interface())
+		return yyPacketStructMap(v)
 	case reflect.Interface:
 		if v.IsNil() {
 			return nil

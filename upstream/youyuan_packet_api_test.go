@@ -13,6 +13,17 @@ import (
 )
 
 func TestPacketConstructionPrecisionAndValidation(t *testing.T) {
+	var decoded map[string]any
+	if e := json.Unmarshal([]byte(`{"operation_type":98247598,"value":["ModEventC2S",["Minecraft","preset","GetLoadedInstances",{"playerId":"1"}],null]}`), &decoded); e != nil {
+		t.Fatal(e)
+	}
+	rpc, err := yyMakePacket("PyRpc", decoded)
+	if err != nil || rpc.(*packet.PyRpc).OperationType != packet.PyRpcOperationTypeSend {
+		t.Fatalf("JSON numeric operation code rejected: %v %v", rpc, err)
+	}
+	if _, err := yyMakePacket("Animate", map[string]any{"action_type": 1, "entity_runtime_id": float64(9007199254740992)}); err == nil {
+		t.Fatal("unsafe floating runtime ID accepted")
+	}
 	p, err := yyMakePacket("Animate", map[string]any{"action_type": 1, "entity_runtime_id": "18446744073709551615"})
 	if err != nil {
 		t.Fatal(err)

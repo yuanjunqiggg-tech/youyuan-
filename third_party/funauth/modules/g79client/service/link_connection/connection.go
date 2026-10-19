@@ -235,9 +235,9 @@ func (c *LinkConnection) completeHandshake(payload []byte) error {
 	if err != nil {
 		return fmt.Errorf("link_connection.handshake: decrypt cipherR2: %w", err)
 	}
-	plain = bytes.TrimRight(plain, "\x00")
-	if len(plain) != 16 {
-		return fmt.Errorf("link_connection.handshake: unexpected cipherR2 length %d", len(plain))
+	plain, err = linkCipherR2(plain)
+	if err != nil {
+		return err
 	}
 
 	encryptKey := append(append([]byte{}, c.cipherR1...), plain...)
@@ -260,6 +260,21 @@ func (c *LinkConnection) completeHandshake(payload []byte) error {
 		return err
 	}
 	return nil
+}
+
+// R2 is a fixed-width binary key, not a zero-terminated string. RSA already
+// removed PKCS#1 padding. Some legacy peers add zero bytes after the 16-byte
+// key; accept only that explicit suffix without trimming bytes inside the key.
+func linkCipherR2(plain []byte) ([]byte, error) {
+	if len(plain) < 16 {
+		return nil, fmt.Errorf("link_connection.handshake: unexpected cipherR2 length %d", len(plain))
+	}
+	for _, b := range plain[16:] {
+		if b != 0 {
+			return nil, fmt.Errorf("link_connection.handshake: invalid cipherR2 padding")
+		}
+	}
+	return plain[:16], nil
 }
 
 func (c *LinkConnection) sendLoginRequest() error {

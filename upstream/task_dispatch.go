@@ -33,11 +33,29 @@ var brandName = "游园"
 func dispatchTaskWithResume(tc *state.TaskController, taskType string, params json.RawMessage, resumeID string) {
 	var p map[string]any
 	json.Unmarshal(params, &p)
+	var workers []*BotManager
+	if taskType == "import_multi" {
+		var err error
+		workers, err = yySelectImportWorkers(getBotManager(), getFleetBots(), p)
+		if err != nil {
+			hub.Emit("task_error", mustJSON(map[string]any{"error": err.Error()}))
+			return
+		}
+	}
+	if taskType == "import" || taskType == "export" || taskType == "import_multi" || taskType == "repair" || taskType == "mapart" || taskType == "skin" {
+		if taskType == "import_multi" {
+			for _, bm := range workers {
+				defer yyBeginSpatialJob(bm, taskType)()
+			}
+		} else {
+			defer yyBeginSpatialJob(getBotManager(), taskType)()
+		}
+	}
 	switch taskType {
 	case "import":
 		runImportTask(tc, p, resumeID)
 	case "import_multi":
-		runMultiImportTask(tc, p, getFleetBots())
+		runMultiImportTask(tc, p, workers, resumeID)
 	case "repair":
 		runRepairTask(tc, p)
 	case "export":
@@ -158,8 +176,20 @@ func sendActionbar(msg string) {
 	}
 }
 
+var yyDebugLogMu sync.Mutex
+
 func debugLog(format string, args ...any) {
-	f, err := os.OpenFile("/sdcard/Download/youyuan_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if yyDataRoot == "" {
+		return
+	}
+	yyDebugLogMu.Lock()
+	defer yyDebugLogMu.Unlock()
+	path := filepath.Join(yyDataRoot, "youyuan_debug.log")
+	if info, e := os.Stat(path); e == nil && info.Size() > 8*1024*1024 {
+		_ = os.Remove(path + ".1")
+		_ = os.Rename(path, path+".1")
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return
 	}
@@ -167,11 +197,49 @@ func debugLog(format string, args ...any) {
 	fmt.Fprintf(f, time.Now().Format("15:04:05.000")+" "+format+"\n", args...)
 }
 
+// A requested resume must have a complete, typed position. Empty/corrupt
+// checkpoint data must never silently become an import from the origin.
+func yyImportResumeData(cp *state.Checkpoint) (building.ImportCheckpointData, error) {
+	var result building.ImportCheckpointData
+	if cp == nil || cp.Type != "import" {
+		return result, fmt.Errorf("导入断点类型无效")
+	}
+	var saved struct {
+		LastCX       *int `json:"last_cx"`
+		LastCZ       *int `json:"last_cz"`
+		BlocksPlaced *int `json:"blocks_placed"`
+	}
+	if err := json.Unmarshal(cp.Data, &saved); err != nil {
+		return result, fmt.Errorf("导入断点数据损坏: %w", err)
+	}
+	if saved.LastCX == nil || saved.LastCZ == nil || saved.BlocksPlaced == nil ||
+		*saved.LastCX < 0 || *saved.LastCZ < 0 || *saved.BlocksPlaced < 0 {
+		return result, fmt.Errorf("导入断点缺少有效恢复位置")
+	}
+	result.LastCX, result.LastCZ, result.BlocksPlaced = *saved.LastCX, *saved.LastCZ, *saved.BlocksPlaced
+	return result, nil
+}
+
 func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpoint string) {
 	path := getString(p, "path", "")
 	if path == "" {
 		hub.Emit("task_error", mustJSON(map[string]any{"error": "缺少文件路径"}))
 		return
+	}
+	// Validate before file parsing, bot commands, task creation or pre-clear.
+	// Keep the validated snapshot instead of reloading and ignoring later errors.
+	var resumeCheckpoint *state.Checkpoint
+	var resumeData building.ImportCheckpointData
+	if resumeFromCheckpoint != "" {
+		var err error
+		resumeCheckpoint, err = state.LoadCheckpoint(resumeFromCheckpoint)
+		if err == nil {
+			resumeData, err = yyImportResumeData(resumeCheckpoint)
+		}
+		if err != nil {
+			hub.Emit("task_error", mustJSON(map[string]any{"error": "无法恢复导入，未开始新任务，原断点已保留: " + err.Error()}))
+			return
+		}
 	}
 
 	bm := getBotManager()
@@ -181,12 +249,12 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 
 	// 输出缓存命中状态
 	if building.IsCached(path) {
-		hub.Emit("progress", mustJSON(map[string]any{"msg": "OK新鲜的缓存"}))
+		hub.Emit("progress", mustJSON(map[string]any{"msg": "使用已解析的建筑数据"}))
 	} else {
-		hub.Emit("progress", mustJSON(map[string]any{"msg": "缓存消失了"}))
+		hub.Emit("progress", mustJSON(map[string]any{"msg": "正在解析建筑文件"}))
 	}
 
-	data, err := loadStructureFileCached(path)
+	data, err := building.TakeStructureFileCached(path, yyImportRegion(p)...)
 	if err == nil && data != nil {
 		debugLog("CACHE: import cache %s (%d blocks, %dx%dx%d)", shortName(path), len(data.Blocks), data.SizeX, data.SizeY, data.SizeZ)
 	}
@@ -247,25 +315,27 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	// 仅当断点确有进度（放置过方块）才跳过；无进度（如中断在预清空阶段）时仍正常预清空。
 	resuming := false
 	if resumeFromCheckpoint != "" {
-		if c, err := state.LoadCheckpoint(resumeFromCheckpoint); err == nil {
-			var rd building.ImportCheckpointData
-			json.Unmarshal(c.Data, &rd)
+		{
+			c, rd := resumeCheckpoint, resumeData
 			resuming = rd.BlocksPlaced > 0 || rd.LastCX > 0 || rd.LastCZ > 0
-			// 往回倒 2 个区块再恢复：断点处的区块可能只放了一半，重放最后 2 块是幂等的，
-			// 避免崩溃/断开时边界缺口、漏放
-			chunksZ := (data.SizeZ + 15) / 16
-			seq := rd.LastCX*chunksZ + rd.LastCZ
-			if seq >= 2 {
-				seq -= 2
-			} else {
-				seq = 0
+			// Follow the same serpentine region order as Run. Replay the saved
+			// region and two predecessors conservatively after interruption.
+			var resumeErr error
+			startChunkX, startChunkZ, resumeErr = building.ImportResumeStart(rd.LastCX, rd.LastCZ, data.SizeX, data.SizeZ, getInt(p, "region_mode", 1), 2)
+			if resumeErr != nil {
+				cp.Status, cp.Message = "failed", resumeErr.Error()
+				state.SaveCheckpointNow(cp)
+				hub.Emit("task_error", mustJSON(map[string]any{"error": resumeErr.Error()}))
+				return
 			}
-			startChunkX = seq / chunksZ
-			startChunkZ = seq % chunksZ
 			hub.Emit("progress", mustJSON(map[string]any{
-				"msg": fmt.Sprintf("从断点恢复: 区块 (%d,%d)（倒回 2 块重放）", startChunkX, startChunkZ),
+				"msg": fmt.Sprintf("从断点恢复: 区块 (%d,%d)（沿实际遍历倒回 2 个区域重放）", startChunkX, startChunkZ),
 			}))
 			// 恢复的旧断点由本次新任务接管，删除以免任务列表残留一条卡在"运行中"的陈旧记录
+			if err := yyAdoptImportCheckpoint(cp, c); err != nil {
+				hub.Emit("task_error", mustJSON(map[string]any{"error": "恢复断点接管失败，旧断点已保留: " + err.Error()}))
+				return
+			}
 			state.DeleteCheckpoint(resumeFromCheckpoint)
 		}
 	}
@@ -353,14 +423,11 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			// （无论目标方块是否存在），未加载时命令超时或报错。
 			posX := cx*16 + 8
 			posZ := cz*16 + 8
-			_, isTimeout, err := bm.SendWSCommandWithTimeout(
+			response, isTimeout, err := bm.SendWSCommandWithTimeout(
 				fmt.Sprintf("testforblock %d 1 %d minecraft:air", posX, posZ),
 				1*time.Second,
 			)
-			if isTimeout || err != nil {
-				return false
-			}
-			return true
+			return yyImportChunkProbeLoaded(response, isTimeout, err)
 		},
 		DenyEnable:         getBool(p, "deny_enable", false),
 		DenyYOffset:        getInt(p, "deny_y_offset", -1),
@@ -504,47 +571,14 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 
 			if !handled {
 				if needsNBT {
-					statesMap := utils.ParseBlockStatesString(blockStates)
-					// 跨块复用同一操作台与 NBT 缓存（相同方块命中缓存直接复用结构），
-					// 仅在失败重试时强制重建，避免每块都重走"传送到工作区"初始化导致卡死。
-					for attempt := 0; attempt < 3; attempt++ {
-						debugLog("NBT: 第%d次 getNBTAssigner block=%s pos=(%d,%d,%d)", attempt+1, blockName, x, y, z)
-						assigner, aErr := bm.getNBTAssigner(consoleCenter)
-						if aErr != nil {
-							debugLog("NBT: getNBTAssigner 失败(第%d次): %v", attempt+1, aErr)
-							bm.cleanupNBTWorkspace() // 强制重建，规避授权后首次初始化竞态
-							time.Sleep(500 * time.Millisecond)
-							continue
-						}
-						// 先传送到工作区，让 PlaceNBTBlock 能正常操作（铁砧/织布机/容器交互需要物理接近）
-						debugLog("NBT: getNBTAssigner OK, TP 到工作区 center=%v", consoleCenter)
-						bm.TP(int(consoleCenter[0]), int(consoleCenter[1]+1), int(consoleCenter[2]))
-						time.Sleep(50 * time.Millisecond)
-
-						canFast, uniqueID, _, nbtErr := assigner.PlaceNBTBlock(blockName, statesMap, nbtData)
-						debugLog("NBT: PlaceNBTBlock 完成 err=%v", nbtErr)
-						if nbtErr != nil {
-							debugLog("NBT: PlaceNBTBlock 失败(第%d次): %v", attempt+1, nbtErr)
-							bm.cleanupNBTWorkspace() // 强制重建
-							time.Sleep(500 * time.Millisecond)
-							continue
-						}
-						// 直接用缓存结构 uniqueID 加载，不再重新 save / 提前 delete：
-						// 相同内容方块（缓存命中）复用同一 uniqueID，任务结束统一 CleanCache 删除。
-						if !canFast {
-							bm.TP(int(x), int(y+1), int(z))
-							time.Sleep(100 * time.Millisecond)
-							loadCmd := fmt.Sprintf("structure load \"%v\" %d %d %d", utils.MakeUUIDSafeString(uniqueID), x, y, z)
-							debugLog("load: %s", loadCmd)
-							if err := bm.SendAICommand(loadCmd); err != nil {
-								debugLog("load error: %v", err)
-							}
-							debugLog("load: 发送完成")
-						}
+					var seq int
+					if err := placeOneNBTBlock(bm, x, y, z, blockName, blockStates, nbtData, consoleCenter, &seq); err != nil {
+						hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("游园 · NBT制作失败 (%d,%d,%d): %v", x, y, z, err)}))
+					} else {
 						handled = true
-						break
 					}
 				}
+
 			} // 回退：简单方块实体补发 BlockActorData
 			if !handled {
 				if !strings.Contains(blockName, "command_block") &&
@@ -586,17 +620,16 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 				"msg": fmt.Sprintf("区块 %d/%d, %d 方块", chunk, total, blocks),
 			}))
 
-			seq := chunk - 1
 			d := building.ImportCheckpointData{
-				LastCX:       seq / ((data.SizeZ + 15) / 16),
-				LastCZ:       seq % ((data.SizeZ + 15) / 16),
+				LastCX:       cx,
+				LastCZ:       cz,
 				BlocksPlaced: blocks,
 			}
 
 			cp.Data, _ = json.Marshal(d)
 			cp.Message = fmt.Sprintf("区块 %d/%d", chunk, total)
-			state.SaveCheckpoint(cp)
 			cp.Progress = progress
+			state.SaveCheckpoint(cp)
 		},
 		OnSubProgress: func(cx, cz, placed, chunkTotal int) {
 			sp := float64(placed) / float64(chunkTotal)
@@ -718,20 +751,15 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	setSuppressGameLogs(true)
 	err = task.Run()
 	close(watchDone)
-	if lostConn.Load() {
+	if status, message := yyImportInterruptedOutcome(tc, lostConn.Load(), err); status != "" {
 		setSuppressGameLogs(false)
-		cp.Status = "failed"
-		cp.Message = "连接断开/主机器人丢失，任务失败"
-		state.SaveCheckpoint(cp)
-		hub.Emit("task_error", mustJSON(map[string]any{"error": "连接断开/主机器人丢失，任务失败"}))
-		return
-	}
-	if err != nil {
-		setSuppressGameLogs(false)
-		cp.Status = "failed"
-		cp.Message = err.Error()
-		state.SaveCheckpoint(cp)
-		hub.Emit("task_error", mustJSON(map[string]any{"error": err.Error()}))
+		cp.Status, cp.Message = status, message
+		state.SaveCheckpointNow(cp)
+		if status == "paused" {
+			hub.Emit("task_paused", mustJSON(map[string]any{"task_id": cp.TaskID, "msg": message}))
+		} else {
+			hub.Emit("task_error", mustJSON(map[string]any{"error": message}))
+		}
 		return
 	}
 	setSuppressGameLogs(false)
@@ -760,7 +788,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	bm.cleanupNBTWorkspace()
 
 	cp.Progress = 1.0
-	state.SaveCheckpoint(cp)
+	state.SaveCheckpointNow(cp)
 	// 记录心跳增量
 	recordHeartbeatIncrement(IncrementData{
 		BlocksImported:    totalSolid,
@@ -802,7 +830,7 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 	hub.Emit("progress", mustJSON(map[string]any{"msg": "加载缓存的建筑文件: " + shortName(path)}))
 
 	// 加载缓存（必须已存在，即之前已导入过此文件）
-	data, err := loadStructureFileCached(path)
+	data, err := building.TakeStructureFileCached(path, yyImportRegion(p)...)
 	if err != nil || data == nil {
 		hub.Emit("task_error", mustJSON(map[string]any{"error": "无法加载建筑文件缓存，请先正常导入该文件"}))
 		return
@@ -1103,78 +1131,44 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 	}
 	state.SaveCheckpointNow(cp)
 
-	// mcworld / mcstructure / schematic: 统一走 RequestStructure 获取数据
-	// mcworld: 通过 RequestStructure 获取含 NBT 的结构数据，写入 LevelDB 打包
-	// mcstructure/schematic: 通过 RequestStructure 获取数据，NBT 编码写入文件
-	chunkSize := 16
-	chunkCountX := (dx + chunkSize - 1) / chunkSize
-	chunkCountZ := (dz + chunkSize - 1) / chunkSize
-	totalChunks := chunkCountX * chunkCountZ
-
-	var allChunks []map[string]any
-	successChunks := 0
-
-	for cx := 0; cx < chunkCountX; cx++ {
-		for cz := 0; cz < chunkCountZ; cz++ {
-			select {
-			case <-tc.StopCh():
-				cp.Status = "failed"
-				cp.Message = "导出取消"
-				state.SaveCheckpoint(cp)
-				hub.Emit("task_error", mustJSON(map[string]any{"error": "导出取消"}))
-				return
-			default:
-			}
-
-			csx := sx + cx*chunkSize
-			csz := sz + cz*chunkSize
-			csizex := min(chunkSize, dx-cx*chunkSize)
-			csizez := min(chunkSize, dz-cz*chunkSize)
-			chunkNum := cx*chunkCountZ + cz + 1
-
-			hub.Emit("progress", mustJSON(map[string]any{
-				"msg": fmt.Sprintf("区块 %d/%d: (%d,%d) %dx%d", chunkNum, totalChunks, csx, csz, csizex, csizez),
-			}))
-			hub.Emit("task_progress", mustJSON(map[string]any{"progress": float64(chunkNum-1) / float64(totalChunks), "completed": chunkNum - 1, "total": totalChunks, "phase": "建筑读取", "unit": "区块已检查", "location": "当前游戏服务器 → 工具箱设备"}))
-			if bm.IsOP() {
-				sendActionbar(yyTaskActionbar("建筑读取", filepath.Base(outputPath), "6", successChunks, totalChunks, 0, 0))
-			}
-
-			bm.TP(csx+csizex/2, sy+dy/2, csz+csizez/2)
-			time.Sleep(200 * time.Millisecond)
-
-			nbtData, err := bm.RequestStructure(
-				[3]int32{int32(csx), int32(sy), int32(csz)},
-				[3]int32{int32(csizex), int32(dy), int32(csizez)},
-				8*time.Second,
-			)
-			if err != nil {
-				hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("区块 %d 失败: %v，跳过", chunkNum, err)}))
-				continue
-			}
-			// 提取 block_position_data（箱子/命令方块等 NBT 数据）
-			extractBlockEntities(nbtData)
-			allChunks = append(allChunks, nbtData)
-			successChunks++
-			cp.Progress = float64(chunkNum) / float64(totalChunks)
-			cp.Message = fmt.Sprintf("区块 %d/%d", chunkNum, totalChunks)
-			state.SaveCheckpoint(cp)
-		}
-	}
-
-	if successChunks == 0 {
+	// Tile reads are independent across configured same-server Fleet bots.
+	// One bot keeps its position-sensitive operations in a single lane.
+	origin, size, regionErr := yyRegionArgs([]any{[]any{sx, sy, sz}, []any{dx, dy, dz}})
+	if regionErr != nil {
 		cp.Status = "failed"
-		cp.Message = "所有区块获取失败"
+		cp.Message = regionErr.Error()
 		state.SaveCheckpoint(cp)
-		hub.Emit("task_error", mustJSON(map[string]any{"error": "所有区块获取失败"}))
+		hub.Emit("task_error", mustJSON(map[string]any{"error": cp.Message}))
 		return
 	}
-
-	hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("收到 %d 个区块数据，正在编码...", successChunks)}))
+	totalChunks := len(yyRegionTiles(origin, size))
+	allChunks, workersUsed, readErr := yyReadRegionTiles(bm, origin, size, max(1, getInt(p, "workers", 1)), tc.StopCh(), func(done, total int) {
+		cp.Progress = float64(done) / float64(total)
+		cp.Message = fmt.Sprintf("游园 · 读取 %d/%d 分区", done, total)
+		state.SaveCheckpoint(cp)
+		hub.Emit("task_progress", mustJSON(map[string]any{"progress": cp.Progress, "completed": done, "total": total, "phase": "游园 · 建筑读取", "unit": "分区", "location": "游戏服务器 → 工具箱设备"}))
+	})
+	if readErr != nil {
+		cp.Status = "failed"
+		cp.Message = readErr.Error()
+		state.SaveCheckpoint(cp)
+		hub.Emit("task_error", mustJSON(map[string]any{"error": "导出中止，未生成缺块文件: " + readErr.Error()}))
+		return
+	}
+	successChunks := len(allChunks)
+	mergedAll := mergeChunkStructures(allChunks, int32(dx), int32(dy), int32(dz))
+	if mergedAll == nil {
+		cp.Status = "failed"
+		cp.Message = "分区数据不完整，未生成文件"
+		state.SaveCheckpoint(cp)
+		hub.Emit("task_error", mustJSON(map[string]any{"error": cp.Message}))
+		return
+	}
+	hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("游园 · %d分区读取完成，实际协作机器人%d，保留方块实体NBT", successChunks, workersUsed)}))
 
 	var outData []byte
 	if format == "mcworld" {
-		merged := mergeChunkStructures(allChunks, int32(dx), int32(dy), int32(dz))
+		merged := mergedAll
 		if err := building.WriteMergedStructureToMCWorld(merged, int32(dx), int32(dy), int32(dz), outputPath, int32(sx), int32(sy), int32(sz)); err != nil {
 			cp.Status = "failed"
 			cp.Message = err.Error()
@@ -1184,13 +1178,14 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 		}
 		hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("已写入: %s", outputPath)}))
 	} else if format == "mcstructure" {
-		mergedStructure := mergeChunkStructures(allChunks, int32(dx), int32(dy), int32(dz))
+		mergedStructure := mergedAll
 		var buf bytes.Buffer
 		enc := nbt.NewEncoderWithEncoding(&buf, nbt.LittleEndian)
 		root := map[string]any{
-			"format_version": int32(1),
-			"size":           []int32{int32(dx), int32(dy), int32(dz)},
-			"structure":      mergedStructure,
+			"format_version":         int32(1),
+			"size":                   []int32{int32(dx), int32(dy), int32(dz)},
+			"structure":              mergedStructure,
+			"structure_world_origin": []int32{int32(sx), int32(sy), int32(sz)},
 		}
 		if err := enc.Encode(root); err != nil {
 			cp.Status = "failed"
@@ -1208,8 +1203,22 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 			hub.Emit("task_error", mustJSON(map[string]any{"error": "没有区块数据可编码"}))
 			return
 		}
-		merged := mergeChunkStructures(allChunks, int32(dx), int32(dy), int32(dz))
+		merged := mergedAll
+		if dx > 32767 || dy > 32767 || dz > 32767 {
+			cp.Status = "failed"
+			cp.Message = "Schematic尺寸超出short字段，请用mcstructure"
+			state.SaveCheckpoint(cp)
+			hub.Emit("task_error", mustJSON(map[string]any{"error": cp.Message}))
+			return
+		}
 		outData = convertToSchematic(map[string]any{"structure": merged}, dx, dy, dz)
+		if len(outData) == 0 {
+			cp.Status = "failed"
+			cp.Message = "Schematic编码失败，未输出文件"
+			state.SaveCheckpoint(cp)
+			hub.Emit("task_error", mustJSON(map[string]any{"error": cp.Message}))
+			return
+		}
 	}
 
 	if outputPath != "" && len(outData) > 0 {
@@ -1223,8 +1232,6 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 		}
 		hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("已写入: %s (%d 字节)", outputPath, len(outData))}))
 	}
-
-	bm.cleanupNBTWorkspace()
 
 	cp.Status = "done"
 	cp.Progress = 1.0
@@ -1303,11 +1310,31 @@ func convertToSchematic(nbtData map[string]any, w, h, l int) []byte {
 		}
 	}
 
-	// schematic 格式不支持 NBT 方块实体数据，跳过 block_position_data
+	// Preserve the full Bedrock palette and block entities for lossless YouYuan round trips.
+	bedrockEntities := []any{}
+	pd := yyStructurePalette(structure)
+	positions, _ := pd["block_position_data"].(map[string]any)
+	for key, v := range positions {
+		var idx int
+		if _, e := fmt.Sscanf(key, "%d", &idx); e != nil || idx < 0 || idx >= total {
+			continue
+		}
+		row, _ := v.(map[string]any)
+		entity, _ := row["block_entity_data"].(map[string]any)
+		if entity == nil {
+			continue
+		}
+		pos := []int32{int32(idx / (h * l)), int32(idx / l % h), int32(idx % l)}
+		bedrockEntities = append(bedrockEntities, map[string]any{"Pos": pos, "NBT": entity})
+	}
 
 	root := map[string]any{
-		"Version": int32(2),
-		"Width":   int16(w), "Height": int16(h), "Length": int16(l),
+		"Version":     int32(2),
+		"DataVersion": int32(0), "PaletteMax": nextID,
+		"YouYuanBedrockStructure":     structure,
+		"YouYuanBedrockBlockEntities": bedrockEntities,
+		"Metadata":                    map[string]any{"YouYuanFormat": "Bedrock round-trip extension; Java NBT conversion not guaranteed"},
+		"Width":                       int16(w), "Height": int16(h), "Length": int16(l),
 		// Sponge v2 的 BlockData 是 VarInt 编码的字节数组（不是 []int32）
 		"BlockData": encodeVarInts(blockData), "Palette": palette,
 		"Offset": [3]int32{0, 0, 0},
@@ -2330,201 +2357,157 @@ func blockNameForIndex(idx int, paletteData map[string]any) string {
 	return "minecraft:air"
 }
 
-func mergeChunkStructures(chunks []map[string]any, totalW, totalH, totalL int32) map[string]any {
-	if len(chunks) == 0 {
+func mergeChunkStructures(chunks []map[string]any, w, h, l int32) map[string]any {
+	if len(chunks) == 0 || w <= 0 || h <= 0 || l <= 0 {
 		return nil
 	}
-	if len(chunks) == 1 {
-		if s, ok := chunks[0]["structure"].(map[string]any); ok {
-			return s
-		}
+	volume := int64(w) * int64(h) * int64(l)
+	if volume > 16*1024*1024 {
 		return nil
 	}
-
-	// For multi-chunk: build a merged palette and concat block_indices properly.
-	// Each chunk covers a 16×totalH×16 region (partial at edges).
-	chunkSize := int32(16)
-	chunksZ := (totalL + chunkSize - 1) / chunkSize
-
-	// Collect all chunk structures
-	type chunkInfo struct {
-		structure map[string]any
-		cx, cz    int32
-		szX, szZ  int32
+	type part struct {
+		s         map[string]any
+		off, size [3]int32
+		palette   []any
+		remap     map[int]int32
 	}
-	var infos []chunkInfo
-	for ci, chunk := range chunks {
-		s, ok := chunk["structure"].(map[string]any)
+	parts := []part{}
+	covered := int64(0)
+	layers := 0
+	for i, c := range chunks {
+		st, ok := c["structure"].(map[string]any)
 		if !ok {
-			continue
+			return nil
 		}
-		cx := int32(ci) / chunksZ
-		cz := int32(ci) % chunksZ
-		szX := chunkSize
-		szZ := chunkSize
-		if (cx+1)*chunkSize > totalW {
-			szX = totalW - cx*chunkSize
+		off := [3]int32{int32(i) / ((l + 15) / 16) * 16, 0, int32(i) % ((l + 15) / 16) * 16}
+		sz := [3]int32{min(16, w-off[0]), h, min(16, l-off[2])}
+		if v, ok := c["_yy_offset"].([3]int32); ok {
+			off = v
 		}
-		if (cz+1)*chunkSize > totalL {
-			szZ = totalL - cz*chunkSize
+		if v, ok := c["_yy_size"].([3]int32); ok {
+			sz = v
+		} else if v := anyToIntSlice(c["size"]); len(v) == 3 {
+			sz = [3]int32{int32(v[0]), int32(v[1]), int32(v[2])}
 		}
-		infos = append(infos, chunkInfo{s, cx, cz, szX, szZ})
+		for d, total := range [3]int32{w, h, l} {
+			if off[d] < 0 || sz[d] <= 0 || int64(off[d])+int64(sz[d]) > int64(total) {
+				return nil
+			}
+		}
+		bi, ok := st["block_indices"].([]any)
+		if !ok || len(bi) == 0 {
+			return nil
+		}
+		layers = max(layers, len(bi))
+		pal := yyStructurePalette(st)
+		bp, ok := pal["block_palette"].([]any)
+		if !ok {
+			return nil
+		}
+		parts = append(parts, part{st, off, sz, bp, map[int]int32{}})
+		covered += int64(sz[0]) * int64(sz[1]) * int64(sz[2])
 	}
-	if len(infos) == 0 {
+	// Never report a truncated structure as a successful whole-region export.
+	if covered != volume {
 		return nil
 	}
-	if len(infos) == 1 {
-		return infos[0].structure
-	}
-
-	// Build merged palette from all chunks
-	paletteMap := make(map[string]int) // blockName → mergedIndex
-	var mergedPalette []map[string]any
-	mergedPalette = append(mergedPalette, map[string]any{"name": "minecraft:air"}) // index 0 = air
-	paletteMap["minecraft:air"] = 0
-
-	// Remap lists: oldChunkName → newIndex
-	type remapKey struct{ ci, oldIdx int }
-	remaps := make(map[remapKey]int)
-
-	for ci, info := range infos {
-		palRaw, _ := info.structure["palette"].(map[string]any)
-		for _, pv := range palRaw {
-			pm, ok := pv.(map[string]any)
+	palette := []any{}
+	paletteKeys := map[string]int32{}
+	for i := range parts {
+		for old, v := range parts[i].palette {
+			keyBytes, e := json.Marshal(v)
+			if e != nil {
+				return nil
+			}
+			key := string(keyBytes)
+			id, ok := paletteKeys[key]
 			if !ok {
-				continue
+				id = int32(len(palette))
+				paletteKeys[key] = id
+				palette = append(palette, v)
 			}
-			bp, ok := pm["block_palette"].([]any)
-			if !ok {
-				continue
-			}
-			for oldIdx, entry := range bp {
-				em, _ := entry.(map[string]any)
-				name, _ := em["name"].(string)
-				if name == "" {
-					name = "minecraft:air"
-				}
-				key := name
-				if states, ok := em["states"].(map[string]any); ok && len(states) > 0 {
-					key = name + fmt.Sprintf("%v", states)
-				}
-				if _, exists := paletteMap[key]; !exists {
-					paletteMap[key] = len(mergedPalette)
-					mergedPalette = append(mergedPalette, em)
-				}
-				remaps[remapKey{ci, oldIdx}] = paletteMap[key]
-			}
-			break // only process first palette name
+			parts[i].remap[old] = id
 		}
 	}
-
-	// Build merged block_indices layers
-	// For each layer, create a totalW×totalH×totalL array
-	numLayers := 0
-	if len(infos) > 0 {
-		if bi, ok := infos[0].structure["block_indices"].([]any); ok {
-			numLayers = len(bi)
+	arrays := make([]any, layers)
+	for d := 0; d < layers; d++ {
+		a := make([]int32, int(volume))
+		for i := range a {
+			a[i] = -1
 		}
+		arrays[d] = a
 	}
-	mergedLayers := make([][]int32, numLayers)
-	for layer := 0; layer < numLayers; layer++ {
-		total := int(totalW * totalH * totalL)
-		merged := make([]int32, total)
-		for i := range merged {
-			merged[i] = -1
-		}
-
-		for ci, info := range infos {
-			bi, _ := info.structure["block_indices"].([]any)
-			if layer >= len(bi) {
-				continue
+	visited := make([]bool, int(volume))
+	bpd := map[string]any{}
+	for _, p := range parts {
+		bi := p.s["block_indices"].([]any)
+		indices := make([][]int, len(bi))
+		for layer, v := range bi {
+			indices[layer] = toIntSlice(v)
+			if len(indices[layer]) != int(p.size[0]*p.size[1]*p.size[2]) {
+				return nil
 			}
-			indices := toIntSlice(bi[layer])
-			offsetX := int(info.cx * chunkSize)
-			offsetZ := int(info.cz * chunkSize)
-			for y := int32(0); y < totalH; y++ {
-				for z := int32(0); z < info.szZ; z++ {
-					for x := int32(0); x < info.szX; x++ {
-						srcIdx := int(x*totalH*info.szZ + y*info.szZ + z)
-						dstIdx := int((int32(offsetX)+x)*totalH*totalL + y*totalL + (int32(offsetZ) + z))
-						if srcIdx < len(indices) && dstIdx < total {
-							oldIdx := indices[srcIdx]
-							if newIdx, ok := remaps[remapKey{ci, oldIdx}]; ok {
-								merged[dstIdx] = int32(newIdx)
-							} else if oldIdx >= 0 {
-								merged[dstIdx] = int32(oldIdx) // keep as-is (fallback)
-							}
+		}
+		for x := int32(0); x < p.size[0]; x++ {
+			for y := int32(0); y < p.size[1]; y++ {
+				for z := int32(0); z < p.size[2]; z++ {
+					src := int((x*p.size[1]+y)*p.size[2] + z)
+					dst := int(((p.off[0]+x)*h+p.off[1]+y)*l + p.off[2] + z)
+					if visited[dst] {
+						return nil
+					}
+					visited[dst] = true
+					for layer, a := range indices {
+						old := a[src]
+						if old < 0 {
+							continue
 						}
+						id, ok := p.remap[old]
+						if !ok {
+							return nil
+						}
+						arrays[layer].([]int32)[dst] = id
 					}
 				}
 			}
 		}
-		mergedLayers[layer] = merged
-	}
-
-	// Build merged block_position_data (remap keys)
-	mergedPosData := make(map[string]any)
-	for _, info := range infos {
-		palRaw, _ := info.structure["palette"].(map[string]any)
-		for _, pv := range palRaw {
-			pm, ok := pv.(map[string]any)
-			if !ok {
-				continue
-			}
-			bpd, ok := pm["block_position_data"].(map[string]any)
-			if !ok {
-				continue
-			}
-			for oldKeyStr, value := range bpd {
-				var oldIdx int
-				fmt.Sscanf(oldKeyStr, "%d", &oldIdx)
-				// block_position_data key 是线性方块索引，不是调色板索引
-				// 区块索引: x*totalH*szZ + y*szZ + z
-				szZ := int(info.szZ)
-				h := int(totalH)
-				l := int(totalL)
-				chunkStride := h * szZ
-				offsetX := int(info.cx * chunkSize)
-				offsetZ := int(info.cz * chunkSize)
-				x := oldIdx / chunkStride
-				rem := oldIdx % chunkStride
-				y := rem / szZ
-				z := rem % szZ
-				// 合并后索引: (offsetX+x)*totalH*totalL + y*totalL + (offsetZ+z)
-				newIdx := (offsetX+x)*h*l + y*l + (offsetZ + z)
-				mergedPosData[fmt.Sprintf("%d", newIdx)] = value
+		pal, _ := p.s["palette"].(map[string]any)
+		for _, raw := range pal {
+			v, _ := raw.(map[string]any)
+			rows, _ := v["block_position_data"].(map[string]any)
+			for key, data := range rows {
+				var src int
+				if _, err := fmt.Sscanf(key, "%d", &src); err != nil || src < 0 || src >= int(p.size[0]*p.size[1]*p.size[2]) {
+					return nil
+				}
+				x := int32(src) / (p.size[1] * p.size[2])
+				y := int32(src) / p.size[2] % p.size[1]
+				z := int32(src) % p.size[2]
+				dst := ((p.off[0]+x)*h+p.off[1]+y)*l + p.off[2] + z
+				bpd[fmt.Sprint(dst)] = data
 			}
 		}
 	}
+	return map[string]any{"block_indices": arrays, "entities": []any{}, "palette": map[string]any{"default": map[string]any{"block_palette": palette, "block_position_data": bpd}}}
+}
 
-	// Convert mergedLayers to []any for NBT encoding
-	mergedIndices := make([]any, numLayers)
-	for layer := 0; layer < numLayers; layer++ {
-		arr := make([]any, len(mergedLayers[layer]))
-		for i, v := range mergedLayers[layer] {
-			arr[i] = v
+func yyStructurePalette(st map[string]any) map[string]any {
+	pal, _ := st["palette"].(map[string]any)
+	if p, ok := pal["default"].(map[string]any); ok {
+		return p
+	}
+	// Deterministic fallback for a named palette, rather than Go map order.
+	keys := []string{}
+	for k := range pal {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if p, ok := pal[k].(map[string]any); ok {
+			return p
 		}
-		mergedIndices[layer] = arr
 	}
-
-	mergedPaletteAny := make([]any, len(mergedPalette))
-	for i, v := range mergedPalette {
-		mergedPaletteAny[i] = v
-	}
-
-	mergedPaletteData := map[string]any{
-		"default": map[string]any{
-			"block_palette": mergedPaletteAny,
-		},
-	}
-	if len(mergedPosData) > 0 {
-		mergedPaletteData["default"].(map[string]any)["block_position_data"] = mergedPosData
-	}
-
-	return map[string]any{
-		"block_indices": mergedIndices,
-		"palette":       mergedPaletteData,
-	}
+	return nil
 }
 
 // nbtInt reads an integer value from an NBT map, supporting all numeric NBT types.
@@ -2704,7 +2687,11 @@ func buildClearActionbar(cleared, total int) string {
 func buildV5Actionbar(sendFn func(string), name string, sx, sy, sz int,
 	regionMode, totalSolid, targetSpeed, realSpeed, blocks, totalPct, subPct int,
 	regionIdx, totalRegions int, startTime time.Time, brandName string) {
-	sendFn(yyTaskActionbar("建筑写入", name, "b", blocks, totalSolid, realSpeed, time.Since(startTime)))
+	text := yyTaskActionbar("建筑写入", name, "b", blocks, totalSolid, realSpeed, time.Since(startTime))
+	if totalRegions > 0 {
+		text += fmt.Sprintf("\n§r§d分区 §f%d §7/ %d  ·  本区 §d%s§8%s", regionIdx, totalRegions, strings.Repeat("┃", max(0, min(10, subPct/10))), strings.Repeat("┃", 10-max(0, min(10, subPct/10))))
+	}
+	sendFn(text)
 }
 
 func formatSpeedV5(speed float64) string {

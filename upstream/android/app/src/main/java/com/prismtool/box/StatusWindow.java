@@ -73,7 +73,8 @@ public final class StatusWindow implements FloatingWindow {
                     boolean conn = o.optBoolean("connected", false);
                     String server = o.optString("server", "");
                     double tps = o.optDouble("tps", 0);
-                    String tpsTxt = tps > 0 ? String.format("TPS: %.1f", tps) : "TPS: --";
+                    boolean tpsKnown = !o.isNull("tps") && !Double.isNaN(tps) && !Double.isInfinite(tps) && tps >= 0;
+                    String tpsTxt = tpsKnown ? String.format("TPS: %.1f", tps) : "TPS: 暂不可用";
                     statusLine.setText((conn ? "● 已连接" : "○ 未连接")
                             + (server.isEmpty() ? "" : "  " + server) + "   " + tpsTxt);
                     break;

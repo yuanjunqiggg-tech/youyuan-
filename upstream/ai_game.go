@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // toolGameCall 把 game.* 函数名映射到 BotManager 方法执行（完整 game API）。
@@ -12,14 +13,16 @@ func toolGameCall(args map[string]any) (string, bool) {
 	if fn == "" {
 		return "参数 function 不能为空（如 sendCommand / getPlayerPos）", true
 	}
-	if _, ok := yyExtraMethods[fn]; ok {
+	canonical := yyCanonicalGameMethod(fn)
+	if _, ok := yyExtraMethods[canonical]; ok {
 		argv, _ := args["args"].([]any)
-		value, e := yySenseCall(getBotManagerLocked(), fn, argv)
+		value, e := yySenseCall(getBotManagerLocked(), canonical, argv)
 		if e != nil {
 			return e.Error(), true
 		}
 		return mustJSON(value), false
 	}
+	fn = strings.TrimPrefix(fn, "game.")
 	if !botOnline() {
 		return "机器人未连接，无法调用 game API", true
 	}
@@ -210,7 +213,10 @@ func toolGameCall(args map[string]any) (string, bool) {
 		m, _ := json.Marshal(bm.GetPosition())
 		return string(m), false
 	case "getTPS":
-		return fmt.Sprintf("%.1f", bm.GetTPS()), false
+		if tps := bm.GetTPS(); tps != nil {
+			return fmt.Sprintf("%.1f", *tps), false
+		}
+		return "暂不可用", false
 
 	// ── 移动 / 飞行 ──
 	case "teleport":

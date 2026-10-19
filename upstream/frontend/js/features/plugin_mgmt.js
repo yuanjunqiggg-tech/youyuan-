@@ -18,10 +18,10 @@ function plgImport(){
 
 // 从本地导入：内置选择器优先；若用户关闭(取消)内置选择器，回退到系统选择器选 ZIP。
 function plgImportLocal(){
-  if (useBuiltinPicker && typeof showFilePicker==='function') {
+  if (typeof showFilePicker==='function') {
     showFilePicker('/storage/emulated/0','zip',function(path){
       if(path) uploadAndImport(path);
-    }, null, function(){ plgImportSystem(); }); // 关闭内置 → 系统选择器
+    });
   } else {
     plgImportSystem();
   }
@@ -265,19 +265,21 @@ async function plgDataDir(id){
   var r=await A('GET','/api/plugin/data?id='+encodeURIComponent(id));
   if(!r.ok){ T((r.error||'读取数据目录失败'),'e'); return; }
   var files=r.files||[];
+  var account=window.yyActiveAccount||'main';
   var title='数据目录·'+id;
   delete subPageCache[title];
   var h;
   if(!files.length){
     h='<p style="text-align:center;color:var(--phx-text-secondary);padding:20px;font-size:13px">数据目录为空</p>';
   } else {
-    h='<div style="font-size:12px;color:var(--phx-text-secondary);margin-bottom:8px">点击文本文件可编辑</div>'
+    h='<div style="font-size:12px;color:var(--phx-text-secondary);margin-bottom:8px">插件生成的文件可下载到本机；文本文件可编辑</div>'
       + files.map(function(f){
           var editable=isTextFile(f);
           var on=editable?'onclick="plgDataOpen(\''+id+'\',\''+String(f).replace(/'/g,"\\'")+'\')"':'';
           return '<div class="df-row'+(editable?' df-clickable':'')+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(128,128,128,.06);margin-bottom:6px;cursor:'+(editable?'pointer':'default')+'" '+on+'>'
             +'<span style="font-family:monospace;font-size:12px;flex:1;word-break:break-all">'+escHtml(f)+'</span>'
             +(editable?'<span style="font-size:11px;color:var(--phx-primary);flex-shrink:0">编辑</span>':'')
+            +'<button class="btn-s" data-output-file="'+encodeURIComponent(f)+'" data-output-plugin="'+encodeURIComponent(id)+'" data-output-account="'+encodeURIComponent(account)+'" style="width:auto;margin:0;flex-shrink:0">下载</button>'
             +'</div>';
         }).join('');
   }

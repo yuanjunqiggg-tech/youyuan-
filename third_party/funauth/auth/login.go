@@ -314,86 +314,33 @@ func handleRentalGame(ctx context.Context, cli *g79.Client, serverCode, password
 	}
 	ipAddress := fmt.Sprintf("%s:%d", enterResp.Entity.McserverHost, enterResp.Entity.McserverPort.Int64())
 
-	var linkErr error
-	const maxLinkRetries = 3
-	for attempt := 1; attempt <= maxLinkRetries; attempt++ {
-		linkErr = func() error {
-			service, err := link.NewLinkConnectionService(cli)
-			if err != nil {
-				return fmt.Errorf("NewLinkConnectionService: %w", err)
-			}
-
-			dialCtx := ctx
-			if dialCtx == nil {
-				dialCtx = context.Background()
-			}
-			dialCtx, cancel := context.WithTimeout(dialCtx, 10*time.Second)
-			defer cancel()
-			conn, err := service.Dial(dialCtx)
-			if err != nil {
-				return fmt.Errorf("link.Dial: %w", err)
-			}
-
-			gameInfo := map[string]interface{}{
-				"min_level": serverEntity.MinLevel.Int64(),
-				"room_name": serverCode,
-				"gameType":  "RentalGame",
-				"res_name":  serverCode,
-				"ownerName": ownerName,
-				"ownerId":   ownerID,
-				"id":        serverEntity.EntityID.String(),
-			}
-			gameInfoJSON, err := json.Marshal(gameInfo)
-			if err != nil {
-				conn.Close()
-				return fmt.Errorf("marshal rental game info: %w", err)
-			}
-			gameStartPayload := map[string]interface{}{
-				"game_info":    string(gameInfoJSON),
-				"strict_mode":  true,
-				"game_type":    10,
-				"is_free_play": false,
-				"game_id":      serverEntity.EntityID.String(),
-				"play_iids":    []string{},
-			}
-
-			opCtx, opCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer opCancel()
-
-			errCh := make(chan error, 1)
-			go func() {
-				if err := conn.SendGameStart(gameStartPayload); err != nil {
-					errCh <- fmt.Errorf("SendGameStart: %w", err)
-					return
-				}
-				if err := conn.Conn().Close(); err != nil {
-					errCh <- fmt.Errorf("Close: %w", err)
-					return
-				}
-				errCh <- nil
-			}()
-
-			select {
-			case err := <-errCh:
-				if err != nil {
-					return err
-				}
-			case <-opCtx.Done():
-				return fmt.Errorf("operation timed out: %w", opCtx.Err())
-			}
-			return nil
-		}()
-
-		if linkErr == nil {
-			break
-		}
-		if attempt < maxLinkRetries {
-			fmt.Printf("Link 连接失败 (尝试 %d/%d): %v，正在重试...\n", attempt, maxLinkRetries, linkErr)
-			time.Sleep(time.Duration(attempt) * time.Second)
-		}
+	service, err := link.NewLinkConnectionServiceContext(ctx, cli)
+	if err != nil {
+		return "", "", fmt.Errorf("NewLinkConnectionService: %w", err)
 	}
-	if linkErr != nil {
-		return "", "", fmt.Errorf("link 连接失败 (已重试 %d 次): %w", maxLinkRetries, linkErr)
+	// Transport failover happens only before a Link session is established.
+	// Do not replay GameStart when its write outcome is unknown.
+	conn, err := service.Dial(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("link.Dial: %w", err)
+	}
+	gameInfo := map[string]interface{}{
+		"min_level": serverEntity.MinLevel.Int64(), "room_name": serverCode,
+		"gameType": "RentalGame", "res_name": serverCode,
+		"ownerName": ownerName, "ownerId": ownerID, "id": serverID.String(),
+	}
+	gameInfoJSON, err := json.Marshal(gameInfo)
+	if err != nil {
+		conn.Close()
+		return "", "", fmt.Errorf("marshal rental game info: %w", err)
+	}
+	gameStartPayload := map[string]interface{}{
+		"game_info": string(gameInfoJSON), "strict_mode": true,
+		"game_type": 10, "is_free_play": false,
+		"game_id": serverID.String(), "play_iids": []string{},
+	}
+	if err := sendRentalGameStart(ctx, conn, gameStartPayload); err != nil {
+		return "", "", err
 	}
 
 	authv2Data, err := cli.GenerateRentalGameAuthV2(serverID.String(), clientPublicKey)

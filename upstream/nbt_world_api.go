@@ -70,6 +70,11 @@ func (bm *BotManager) GetRegionBlockData(pos, size [3]int32) (map[string]*BlockD
 	if bm == nil || bm.conn == nil {
 		return nil, fmt.Errorf("未连接")
 	}
+	releaseSpatial := yyBeginSpatialJob(bm, "region-read")
+	defer releaseSpatial()
+	lock := yyBlockOperationLock(bm)
+	lock.Lock()
+	defer lock.Unlock()
 	// 传送到区域中心上方加载区块，否则 structure save 返回空。
 	bm.TP(int(pos[0]+size[0]/2), 150, int(pos[2]+size[2]/2))
 	_ = bm.AwaitChangesGeneral()
@@ -196,10 +201,13 @@ func (bm *BotManager) SetBlock(x, y, z int, blockName, blockStates string) error
 
 // PlaceNBTBlock 放置一个带 NBT 的特殊方块（命令方块/箱子/告示牌/旗帜等）。
 // 按 building.ClassifyBlock 分类分发，与多机器人导入完全一致：
-//   命令/结构方块 → 直接发包（快）
-//   告示牌        → PlaceSign（快）
-//   重NBT（箱子/旗帜等）→ 工作台+结构复制（慢，需要结构权限）
+//
+//	命令/结构方块 → 直接发包（快）
+//	告示牌        → PlaceSign（快）
+//	重NBT（箱子/旗帜等）→ 工作台+结构复制（慢，需要结构权限）
 func (bm *BotManager) PlaceNBTBlock(x, y, z int, blockName, blockStates string, nbt map[string]any) error {
+	releaseSpatial := yyBeginSpatialJob(bm, "nbt-placement")
+	defer releaseSpatial()
 	name := normalizeBlockName(blockName)
 	if name == "" {
 		return fmt.Errorf("blockName 不能为空")
@@ -225,6 +233,8 @@ func (bm *BotManager) PlaceNBTBlock(x, y, z int, blockName, blockStates string, 
 // SetBlockState 修改一个方块的方块状态：先读当前名称与 NBT，把新状态合并后
 // 重新放置（保留原有 NBT）。对命令方块/告示牌/箱子同样适用。
 func (bm *BotManager) SetBlockState(x, y, z int, states map[string]any) error {
+	releaseSpatial := yyBeginSpatialJob(bm, "block-state")
+	defer releaseSpatial()
 	data, err := bm.GetBlockData(x, y, z)
 	if err != nil {
 		return err

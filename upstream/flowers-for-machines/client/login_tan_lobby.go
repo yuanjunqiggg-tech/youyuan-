@@ -17,8 +17,17 @@ import (
 // cfg.RentalServerCode 为房间号，cfg.RentalServerPasscode 为房间密码（无密码则留空）。
 // 返回的 Client 与 LoginRentalServer 结构一致，后续流程完全复用。
 func LoginTanLobbyRoom(cfg Config) (client *Client, err error) {
+	parent := cfg.LoginContext
+	if parent == nil {
+		parent = context.Background()
+	}
+	if err := parent.Err(); err != nil {
+		return nil, err
+	}
+	ctx, cancelFunc := context.WithTimeout(parent, time.Second*600)
+	defer cancelFunc()
 	DebugLog("=== LoginTanLobbyRoom 开始 ===")
-	DebugLog("房间号: %s, 密码: %s", cfg.RentalServerCode, cfg.RentalServerPasscode)
+	DebugLog("房间号: %s", cfg.RentalServerCode)
 	DebugLog("认证服务器: %s", cfg.AuthServerAddress)
 	defer func() {
 		if err != nil {
@@ -32,35 +41,32 @@ func LoginTanLobbyRoom(cfg Config) (client *Client, err error) {
 		cfg.OnLoginProgress("向认证服务器请求令牌...")
 	}
 	DebugLog("Step 1: 创建 authClient...")
-	authClient, err := auth.CreateClient(&auth.ClientOptions{
+	authClient, err := auth.CreateClientContext(ctx, &auth.ClientOptions{
 		AuthServer: cfg.AuthServerAddress,
 	})
 	if err != nil {
 		DebugLog("authClient 创建失败: %v", err)
-		return nil, fmt.Errorf("登录大厅房间失败：%v", err)
+		return nil, fmt.Errorf("登录大厅房间失败：%w", err)
 	}
 	DebugLog("authClient 创建成功")
 
 	if cfg.OnLoginProgress != nil {
 		cfg.OnLoginProgress("通过中继服务器加入房间...")
 	}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*600)
-	defer cancelFunc()
-
 	// 构造 AccessWrapper（Token 即 FBToken）
 	wrapper := auth.NewAccessWrapper(
 		authClient,
-		cfg.RentalServerCode,      // 房间号
-		cfg.RentalServerPasscode,  // 房间密码
-		cfg.AuthServerToken,       // FBToken
+		cfg.RentalServerCode,     // 房间号
+		cfg.RentalServerPasscode, // 房间密码
+		cfg.AuthServerToken,      // FBToken
 		"", "",
 	)
 
 	DebugLog("Step 2: 调用 TanLobbyGetAccess...")
-	loginResp, err := wrapper.TanLobbyGetAccess(cfg.RentalServerCode)
+	loginResp, err := wrapper.TanLobbyGetAccessContext(ctx, cfg.RentalServerCode)
 	if err != nil {
 		DebugLog("TanLobbyGetAccess 失败: %v", err)
-		return nil, fmt.Errorf("登录大厅房间失败：%v", err)
+		return nil, fmt.Errorf("登录大厅房间失败：%w", err)
 	}
 	DebugLog("TanLobbyGetAccess 成功, UserUniqueID=%d, PlayerName=%s", loginResp.UserUniqueID, loginResp.UserPlayerName)
 	DebugLog("RaknetAddr: %s, SignalingAddr: %s", loginResp.RaknetServerAddress, loginResp.SignalingServerAddress)
@@ -79,12 +85,15 @@ func LoginTanLobbyRoom(cfg Config) (client *Client, err error) {
 	DebugLog("Step 3: 调用 tanservice.DialContext...")
 	netConn, tanLobbyLoginResp, err := tanservice.DialContext(
 		ctx,
-		cfg.RentalServerCode,         // roomID
-		cfg.RentalServerPasscode,     // password
-		auth.NewTanLobbyAuthenticator(wrapper),
+		cfg.RentalServerCode,     // roomID
+		cfg.RentalServerPasscode, // password
+		auth.NewTanLobbyAuthenticatorContext(ctx, wrapper),
 	)
 	if err != nil {
 		DebugLog("tanservice.DialContext 失败: %v", err)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("登录大厅房间失败：%w", ctx.Err())
+		}
 		return nil, fmt.Errorf("登录大厅房间失败：%v", err)
 	}
 	DebugLog("tanservice.DialContext 成功, netConn=%T", netConn)
@@ -105,14 +114,19 @@ func LoginTanLobbyRoom(cfg Config) (client *Client, err error) {
 	}
 
 	// 在 WebRTC 隧道上做 Minecraft 离线登录
-	DebugLog("Step 4: 调用 minecraft.DialNetConnContext (30s timeout)...")
-	loginCtx, cancelLogin := context.WithTimeout(context.Background(), time.Second*60)
+	DebugLog("Step 4: 调用 minecraft.DialNetConnContext (60s timeout)...")
+	loginCtx, cancelLogin := context.WithTimeout(ctx, time.Second*60)
 	defer cancelLogin()
+	stopCancellation := context.AfterFunc(loginCtx, func() { _ = netConn.Close() })
+	defer stopCancellation()
 	conn, err := minecraft.DialNetConnContext(loginCtx, netConn, identityData, clientData)
 	if err != nil {
 		DebugLog("DialNetConnContext 失败: %v", err)
 		_ = netConn.Close()
-		return nil, fmt.Errorf("登录大厅房间失败：%v", err)
+		if loginCtx.Err() != nil {
+			return nil, fmt.Errorf("登录大厅房间失败：%w", loginCtx.Err())
+		}
+		return nil, fmt.Errorf("登录大厅房间失败：%w", err)
 	}
 	DebugLog("DialNetConnContext 成功, EntityUniqueID=%d", conn.GameData().EntityUniqueID)
 
@@ -137,6 +151,14 @@ func LoginTanLobbyRoom(cfg Config) (client *Client, err error) {
 	// 发送登录后的初始化包序列（同租赁服登录流程）
 	postLoginPackets(conn, tanLobbyLoginResp.BotComponent, tanLobbyLoginResp.BotSkin.ItemID)
 	DebugLog("postLoginPackets 完成")
+	if err := loginCtx.Err(); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("登录大厅房间失败：%w", err)
+	}
+	if !stopCancellation() {
+		_ = conn.Close()
+		return nil, context.Canceled
+	}
 
 	return client, nil
 }

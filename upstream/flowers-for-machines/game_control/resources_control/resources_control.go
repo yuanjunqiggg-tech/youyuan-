@@ -30,6 +30,8 @@ type Resources struct {
 	listener *PacketListener
 	// constant 是常量数据包的简要记录实现
 	constant *ConstantPacket
+	// respawn keeps one cancellable acknowledgement worker per connection.
+	respawn *respawnResponder
 }
 
 // NewResourcesControl 基于 client 创建一个新的资源中心。
@@ -39,6 +41,13 @@ type Resources struct {
 // 否则可能会出现未知的竞态条件问题，因为资源管理器本身也会
 // 不断的读取数据包并依此更新其自身的资源数据
 func NewResourcesControl(client *client.Client) *Resources {
+	return NewResourcesControlWithListener(client, nil)
+}
+
+// NewResourcesControlWithListener installs consumers before replaying the login
+// cache and before the continuous reader starts. The callback must register
+// listeners/start consumers only, not wait for a server response.
+func NewResourcesControlWithListener(client *client.Client, setup func(*Resources)) *Resources {
 	clientCtx := client.Conn().Context()
 	resourcesControl := &Resources{
 		client:    client,
@@ -47,6 +56,7 @@ func NewResourcesControl(client *client.Client) *Resources {
 		container: NewContainerManager(clientCtx),
 		listener:  NewPacketListener(clientCtx),
 	}
+	resourcesControl.respawn = newRespawnResponder(clientCtx, resourcesControl.WritePacket)
 
 	inventory := NewInventories()
 	inventory.createInventory(protocol.WindowIDCrafting)
@@ -56,16 +66,21 @@ func NewResourcesControl(client *client.Client) *Resources {
 	constantPacket.updateByGameData(client.Conn().GameData())
 	resourcesControl.constant = constantPacket
 
-	for {
-		pk := <-resourcesControl.client.CachedPacket()
-		if pk == nil {
-			break
-		}
-		resourcesControl.handlePacket(pk)
-	}
-	go resourcesControl.listenPacket()
+	resourcesControl.startWithCache(client.CachedPacket(), setup, resourcesControl.listenPacket)
 
 	return resourcesControl
+}
+
+func (r *Resources) startWithCache(cached <-chan packet.Packet, setup func(*Resources), read func()) {
+	if setup != nil {
+		setup(r)
+	}
+	for pk := range cached {
+		if pk != nil {
+			r.handlePacket(pk)
+		}
+	}
+	go read()
 }
 
 // listenPacket ..

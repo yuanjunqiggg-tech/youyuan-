@@ -53,13 +53,6 @@ func yyPythonValidate(content, path string) (string, error) {
 	return string(data), e
 }
 
-func yyNativeStart(entry, account, pluginID string) (uint64, error) {
-	return 0, fmt.Errorf("桌面原生插件适配器尚未接入；Android 内置适配器已实现")
-}
-func yyNativeEvent(id uint64, event string) (string, error) {
-	return "", fmt.Errorf("桌面原生插件适配器尚未接入")
-}
-func yyNativeStop(id uint64) {}
 func yyPythonRuntime(action string, params map[string]any) (string, error) {
 	params["port"] = yyCorePort
 	yyPythonMu.Lock()

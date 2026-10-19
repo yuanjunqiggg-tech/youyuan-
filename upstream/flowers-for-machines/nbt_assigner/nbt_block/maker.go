@@ -30,6 +30,7 @@ func init() {
 // NBTBlockIsSupported 检查 block 是否是受支持的 NBT 方块
 func NBTBlockIsSupported(block nbt_parser_interface.Block) bool {
 	switch block.(type) {
+	case *nbt_parser_block.Skull:
 	case *nbt_parser_block.CommandBlock:
 	case *nbt_parser_block.Sign:
 	case *nbt_parser_block.StructureBlock:
@@ -98,6 +99,8 @@ func placeNBTBlock(
 
 	// 取得相应 NBT 方块的放置方法
 	switch block := nbtBlock.(type) {
+	case *nbt_parser_block.Skull:
+		method = &Skull{console: console, data: *block}
 	case *nbt_parser_block.CommandBlock:
 		method = &CommandBlock{
 			console: console,
@@ -176,6 +179,9 @@ func placeNBTBlock(
 		}
 
 		if hashNumber.HashNumber != nbt_hash.NBTBlockFullHash(newBlock) {
+			if _, ok := nbtBlock.(*nbt_parser_block.Skull); ok {
+				return false, uuid.UUID{}, protocol.BlockPos{}, fmt.Errorf("头颅NBT读回与请求不一致：请求=%s，读回=%s", nbtBlock.Format(""), newBlock.Format(""))
+			}
 			nextCount := repeatCount + 1
 			if nextCount > MaxRetryPlaceNBTBlock {
 				return false, uuid.UUID{}, protocol.BlockPos{}, fmt.Errorf(

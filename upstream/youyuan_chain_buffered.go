@@ -7,6 +7,11 @@ import (
 )
 
 func yyChainValidate(c yyChainConfig) error {
+	if c.Hz != 0 {
+		if _, e := yyScheduleDuration("util.scheduleHz", c.Hz); e != nil {
+			return e
+		}
+	}
 	if c.Scheduling != "" && c.Scheduling != "auto" && c.Scheduling != "file" && c.Scheduling != "segments" {
 		return fmt.Errorf("scheduling 支持 auto/file/segments")
 	}

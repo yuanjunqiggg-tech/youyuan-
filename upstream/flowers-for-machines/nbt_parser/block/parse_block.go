@@ -29,6 +29,15 @@ func ParseBlock(
 	if !strings.HasPrefix(name, "minecraft:") {
 		name = "minecraft:" + name
 	}
+	// Legacy skull is split into named blocks by newer block registries. Use
+	// its real NBT subtype before upgrade, otherwise all heads become skeletons.
+	if name == "minecraft:skull" {
+		var s Skull
+		if e := s.Parse(blockNBT); e != nil {
+			return nil, e
+		}
+		name = SkullNames[s.NBT.SkullType]
+	}
 
 	newBlock := blockupgrader.Upgrade(blockupgrader.BlockState{
 		Name:       name,
@@ -51,6 +60,8 @@ func ParseBlock(
 	)
 
 	switch blockType {
+	case mapping.SupportNBTBlockTypeSkull:
+		block = &Skull{DefaultBlock: defaultBlock, NBT: SkullNBT{SkullType: SkullTypeForName(newBlock.Name)}}
 	case mapping.SupportNBTBlockTypeCommandBlock:
 		block = &CommandBlock{DefaultBlock: defaultBlock}
 	case mapping.SupportNBTBlockTypeContainer:

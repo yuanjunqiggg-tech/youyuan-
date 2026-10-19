@@ -3,7 +3,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/core/py_rpc"
@@ -18,92 +17,21 @@ func (m *MCPCheckChallengesSolver) CopeChallenge() error {
 	return nil
 }
 
+// HandleRuntimeChallenge preserves challenge responses that arrive after reader
+// handoff. Only the resource reader calls it; there is no competing reader.
+func (c *Client) HandleRuntimeChallenge(p *packet.PyRpc) error {
+	return (&MCPCheckChallengesSolver{client: c}).onPyRpc(p)
+}
+
 // solveMCPCheckChallenges ..
 func (m *MCPCheckChallengesSolver) solveMCPCheckChallenges() error {
-	var (
-		pk               packet.Packet
-		err              error
-		challengeTimeout bool
-		challengeError   = make(chan struct{})
-		challengeSolved  = make(chan struct{})
-		cachedPkt        = make(chan packet.Packet, 32767)
-		levelChunkSeen   = make(chan struct{})
-		timer            = time.NewTimer(time.Second * 120)
-	)
-
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// cachedPkt 可能已关闭，忽略恐慌
-			}
-		}()
-		for {
-			if challengeTimeout {
-				return
-			}
-			pk, err = m.client.connection.ReadPacket()
-			if challengeTimeout {
-				return
-			}
-			if err != nil {
-				close(challengeError)
-				return
-			}
-
-			m.client.fireCallbacks(pk)
-
-			switch p := pk.(type) {
-			case *packet.PyRpc:
-				olderStates := m.client.getCheckNumEverPassed
-				if err = m.onPyRpc(p); err != nil {
-					close(challengeError)
-					return
-				}
-				if !olderStates && m.client.getCheckNumEverPassed {
-					close(challengeSolved)
-				}
-			case *packet.LevelChunk:
-				select {
-				case <-levelChunkSeen:
-				default:
-					close(levelChunkSeen)
-				}
-				select {
-				case cachedPkt <- pk:
-				default:
-				}
-			default:
-				select {
-				case cachedPkt <- pk:
-				default:
-				}
-			}
-		}
-	}()
-
-	select {
-	case <-challengeSolved:
-		// 发送 RequestChunkRadius 请求区块，等待 LevelChunk 确认游戏世界已启动.
-		// 不发 /list 避免被山头服当洪水攻击踢下线.
-		m.client.connection.WritePacket(&packet.RequestChunkRadius{ChunkRadius: 12})
-
-		select {
-		case <-levelChunkSeen:
-		case <-time.After(time.Second * 10):
-		}
-
-		challengeTimeout = true
-		close(cachedPkt)
-		m.client.cachedPacket = cachedPkt
-		return nil
-	case <-challengeError:
-		close(challengeSolved)
-		close(cachedPkt)
-		return fmt.Errorf("处理 MCPC 验证挑战失败：%v", err)
-	case <-timer.C:
-		challengeTimeout = true
-		return fmt.Errorf("处理 MCPC 验证挑战失败：未通过 MCPC 验证挑战，请稍后重试")
+	cached, err := collectChallengePackets(m.client.connection, m.client.fireCallbacks, m.onPyRpc,
+		func() bool { return m.client.getCheckNumEverPassed }, 32767)
+	if err != nil {
+		return err
 	}
+	m.client.cachedPacket = cached
+	return nil
 }
 
 // onPyRpc ..

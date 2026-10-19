@@ -68,7 +68,7 @@ class Host:
         self._loop_thread=threading.Thread(target=run_loop,name='yy-async-'+str(plugin_id),daemon=True)
         self._loop_thread.start()
         self._loop_ready.wait()
-        for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet','storage','accounts','mcp','mcp'):
+        for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet','storage','accounts','accountsPool','mcp','entities','entity','diagnostics','hud','scoreboard','observerBridge'):
             setattr(self,namespace,Namespace(self,namespace))
 
     def command_buffer(self): return CommandBuffer(self)
@@ -92,7 +92,7 @@ class Host:
     def _dispatch(self,event):
         kind=event.get('type')
         if kind in ('sdk_callback','sdk_rpc'):
-            name=event.get('handler');args=event.get('args',[])
+            name=event.get('handler');args=event.get('args') or []
             if kind=='sdk_rpc':
                 exports=getattr(self._module,'plugin_api',{})
                 callback=exports.get(name) if isinstance(exports,dict) else None
@@ -188,7 +188,7 @@ def dispatch(params_json):
                 sys.modules[package_name+'.main']=module
                 host=Host(params['account'],params['data_dir'],params.get('port'),params.get('plugin_id'),module)
                 # Expose the familiar original API names before on_init runs.
-                for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet','storage','accounts','mcp','mcp'):
+                for namespace in ('game','system','api','plugin','util','bot','building','media','world','player','events','http','web','chains','packet','storage','accounts','accountsPool','mcp','entities','entity','diagnostics','hud','scoreboard','observerBridge'):
                     if not hasattr(module,namespace): setattr(module,namespace,getattr(host,namespace))
                 module.host=host
                 spec.loader.exec_module(module)

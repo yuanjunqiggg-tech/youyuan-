@@ -338,14 +338,17 @@ func fleetConnectedCountLocked() int {
 // 仅返回 IsJoined（已连接且权限确认完成，真正在目标服务器内）的机器人，
 // 避免把"连接了但误进别服/未真正进服"的机器人当成在线并派发任务。
 func GetFleetBots() []*BotManager {
+	// A main connection is available even before FleetConnect was ever called.
+	// Snapshot it before the fleet lock; never retain a stale main from an old login.
+	main := getBotManager()
 	fleet.mu.Lock()
 	defer fleet.mu.Unlock()
 	var bots []*BotManager
-	if fleet.Main != nil && fleet.Main.IsJoined() {
-		bots = append(bots, fleet.Main)
+	if main != nil && main.IsJoined() {
+		bots = append(bots, main)
 	}
 	for _, bm := range fleet.Subs {
-		if bm.IsJoined() {
+		if bm != nil && bm != main && bm.IsJoined() {
 			bots = append(bots, bm)
 		}
 	}

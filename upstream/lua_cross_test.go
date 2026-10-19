@@ -49,6 +49,54 @@ func TestCrossPluginMissing(t *testing.T) {
 	}
 }
 
+func TestCrossPluginBusyQueuesAndCycleStillFails(t *testing.T) {
+	bm := &BotManager{}
+	entered, release := make(chan struct{}), make(chan struct{})
+	old := sendTargetedHook
+	setSendTargetedHook(func(string, string) error { close(entered); <-release; return nil })
+	defer setSendTargetedHook(old)
+	if e := LoadLuaPlugin(bm, "busy-target", `plugin_api={value=function()return 7 end};function work()game.sendTargeted('probe','hold')end`); e != nil {
+		t.Fatal(e)
+	}
+	if e := LoadLuaPlugin(bm, "busy-caller", `function get()return api.require('busy-target').value()end`); e != nil {
+		t.Fatal(e)
+	}
+	defer yyStopResident(bm, "busy-target")
+	defer yyStopResident(bm, "busy-caller")
+	go yyCallResident(bm, "busy-target", "work", nil, false, false)
+	<-entered
+	done := make(chan any, 1)
+	go func() {
+		v, e := yyCallResident(bm, "busy-caller", "get", nil, false, false)
+		if e != nil {
+			done <- e
+		} else {
+			done <- v
+		}
+	}()
+	select {
+	case v := <-done:
+		t.Fatalf("busy call did not queue: %v", v)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case v := <-done:
+		if v != float64(7) {
+			t.Fatal(v)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queued call stuck")
+	}
+	if e := LoadLuaPlugin(bm, "cycle-guard", `plugin_api={again=function()return api.require('cycle-guard').again()end}`); e != nil {
+		t.Fatal(e)
+	}
+	defer yyStopResident(bm, "cycle-guard")
+	if _, e := yyCallResident(bm, "cycle-guard", "again", nil, true, false); e == nil || !strings.Contains(e.Error(), "循环") {
+		t.Fatal("cycle not rejected", e)
+	}
+}
+
 // util 工具库：时间/字符串/坐标/JSON 文件读写往返。
 func TestUtilAPIs(t *testing.T) {
 	bm := &BotManager{}

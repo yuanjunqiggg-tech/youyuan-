@@ -6,7 +6,8 @@ function RmapDisplayHTML(){
     '<div id="md-grid-info" class="gone" style="margin-bottom:8px"></div>'+
     '<div id="md-file-section" class="gone">'+
     '<label>选择图片或视频</label><div class="pick" onclick="doMapPick()"><i class="pi">' + ICONS.upload + '</i><div id="md-pick-txt">点击选择文件</div></div>'+
-    '<div class="row">'+
+    '<label for="md-fps">目标帧率 / FPS</label><input id="md-fps" type="number" min="1" step="1" value="30">'+
+    '<p class="dim">画布按实际展示框数量计算，每张地图128×128像素。相同帧与相同像素不重复提交；实际帧率以服务器处理和广播为准。</p><div class="row">'+
     '<button class="btn" id="md-display-btn" onclick="doMapDisplay()">显示图片</button>'+
     '<button class="btn" id="md-play-btn" onclick="doMapPlay()">播放视频</button></div></div>'+
     '<div class="row"><button class="btn-d gone" id="md-stop" onclick="doMapStop()">停止</button></div></div>'+
@@ -51,7 +52,9 @@ async function doMapDisplay(){
 async function doMapPlay(){
   var path=document.getElementById('md-pick-txt').dataset.path;
   if(!path){T('请先选择文件','e');return}
-  var fd=new FormData();fd.append('path',path);fd.append('fps','10');
+  var fps=Number(document.getElementById('md-fps').value);
+  if(!Number.isFinite(fps)||fps<1||!Number.isInteger(fps)){T('请输入正整数目标帧率','e');return}
+  var fd=new FormData();fd.append('path',path);fd.append('fps',String(fps));
   var r=await fetch('/api/map/play',{method:'POST',body:fd}).then(function(x){return x.json()});
   if(r.ok){T('开始播放','o');document.getElementById('md-stop').classList.remove('gone');document.getElementById('md-log-card').classList.remove('gone')}
   else T('播放失败: '+r.error,'e')

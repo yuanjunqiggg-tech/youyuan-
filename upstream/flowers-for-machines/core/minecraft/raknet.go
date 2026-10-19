@@ -10,17 +10,18 @@ import (
 
 // RakNet is an implementation of a RakNet v10 Network.
 type RakNet struct {
-	l *slog.Logger
+	l        *slog.Logger
+	upstream raknet.UpstreamDialer
 }
 
 // DialContext ...
 func (r RakNet) DialContext(ctx context.Context, address string) (net.Conn, error) {
-	return raknet.Dialer{ErrorLog: r.l.With("net origin", "raknet")}.DialContext(ctx, address)
+	return raknet.Dialer{ErrorLog: r.l.With("net origin", "raknet"), UpstreamDialer: r.upstream}.DialContext(ctx, address)
 }
 
 // PingContext ...
 func (r RakNet) PingContext(ctx context.Context, address string) (response []byte, err error) {
-	return raknet.Dialer{ErrorLog: r.l.With("net origin", "raknet")}.PingContext(ctx, address)
+	return raknet.Dialer{ErrorLog: r.l.With("net origin", "raknet"), UpstreamDialer: r.upstream}.PingContext(ctx, address)
 }
 
 // Listen ...

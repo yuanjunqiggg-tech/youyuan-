@@ -63,6 +63,14 @@ func checkVolume(sx, sy, sz int) error {
 }
 
 func parseSchematicV2(root map[string]any) (*StructureData, error) {
+	if st, ok := root["YouYuanBedrockStructure"].(map[string]any); ok {
+		var b bytes.Buffer
+		if err := nbt.NewEncoderWithEncoding(&b, nbt.LittleEndian).Encode(map[string]any{"format_version": int32(1), "size": []int32{int32(toSchematicInt(root["Width"])), int32(toSchematicInt(root["Height"])), int32(toSchematicInt(root["Length"]))}, "structure": st}); err != nil {
+			return nil, err
+		}
+		return ParseMCStructure(b.Bytes())
+	}
+
 	width := int(toSchematicInt(root["Width"]))
 	height := int(toSchematicInt(root["Height"]))
 	length := int(toSchematicInt(root["Length"]))
@@ -107,10 +115,15 @@ func parseSchematicV2(root map[string]any) (*StructureData, error) {
 	if beList, ok := root["BlockEntities"].([]any); ok {
 		for _, beItem := range beList {
 			bem, ok := beItem.(map[string]any)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			x := int32(toSchematicInt(bem["x"]))
 			y := int32(toSchematicInt(bem["y"]))
 			z := int32(toSchematicInt(bem["z"]))
+			if pos, ok := bem["Pos"].([]int32); ok && len(pos) == 3 {
+				x, y, z = pos[0], pos[1], pos[2]
+			}
 			nbtMap[packPos(x, y, z)] = bem
 		}
 	}
@@ -181,7 +194,9 @@ func parseSchematicLegacy(root map[string]any) (*StructureData, error) {
 	width := int(toSchematicInt(root["Width"]))
 	height := int(toSchematicInt(root["Height"]))
 	length := int(toSchematicInt(root["Length"]))
-	if err := checkVolume(width, height, length); err != nil { return nil, err }
+	if err := checkVolume(width, height, length); err != nil {
+		return nil, err
+	}
 
 	blocks := getByteSlice(root["Blocks"])
 	if blocks == nil {
@@ -194,9 +209,12 @@ func parseSchematicLegacy(root map[string]any) (*StructureData, error) {
 	if mapping, ok := root["SchematicaMapping"].(map[string]any); ok {
 		for name, idVal := range mapping {
 			switch v := idVal.(type) {
-			case int32: idToName[int(v)] = name
-			case int16: idToName[int(v)] = name
-			case float64: idToName[int(v)] = name
+			case int32:
+				idToName[int(v)] = name
+			case int16:
+				idToName[int(v)] = name
+			case float64:
+				idToName[int(v)] = name
 			}
 		}
 	}
@@ -212,7 +230,9 @@ func parseSchematicLegacy(root map[string]any) (*StructureData, error) {
 	for y := 0; y < height; y++ {
 		for z := 0; z < length; z++ {
 			for x := 0; x < width; x++ {
-				if index >= len(blocks) { break }
+				if index >= len(blocks) {
+					break
+				}
 				blockID := int(blocks[index])
 				var dataVal int
 				if dataValues != nil && len(dataValues) > index {
@@ -256,7 +276,9 @@ func lookupBedrockBlock(id, data int) (name, states string) {
 
 func splitNameStates(raw string) (name, states string) {
 	idx := strings.IndexByte(raw, '[')
-	if idx < 0 { return raw, "[]" }
+	if idx < 0 {
+		return raw, "[]"
+	}
 	return strings.TrimSpace(raw[:idx]), strings.TrimSpace(raw[idx:])
 }
 
@@ -278,9 +300,12 @@ func getByteSlice(v any) []byte {
 
 func toSchematicInt(v any) int32 {
 	switch val := v.(type) {
-	case int16: return int32(val)
-	case int32: return val
-	case float64: return int32(val)
+	case int16:
+		return int32(val)
+	case int32:
+		return val
+	case float64:
+		return int32(val)
 	}
 	return 0
 }
@@ -289,12 +314,12 @@ var javaToBedrock = map[string]string{
 	"grass_block": "grass", "stone": "stone", "dirt": "dirt",
 	"bricks": "brick_block", "nether_bricks": "nether_brick",
 	"red_nether_bricks": "red_nether_brick",
-	"slime_block": "slime", "snow_block": "snow",
-	"terracotta": "hardened_clay",
+	"slime_block":       "slime", "snow_block": "snow",
+	"terracotta":                   "hardened_clay",
 	"light_gray_glazed_terracotta": "silver_glazed_terracotta",
-	"nether_quartz_ore": "quartz_ore",
-	"note_block": "noteblock",
-	"oak_log": "log", "birch_log": "log", "spruce_log": "log",
+	"nether_quartz_ore":            "quartz_ore",
+	"note_block":                   "noteblock",
+	"oak_log":                      "log", "birch_log": "log", "spruce_log": "log",
 	"jungle_log": "log", "acacia_log": "log2", "dark_oak_log": "log2",
 	"oak_planks": "planks", "birch_planks": "planks", "spruce_planks": "planks",
 	"jungle_planks": "planks", "acacia_planks": "planks", "dark_oak_planks": "planks",
@@ -314,4 +339,3 @@ func convertJavaBlockName(name string) string {
 	}
 	return name
 }
-

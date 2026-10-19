@@ -113,7 +113,25 @@ func idFromName(name string, free func(id string) bool) string {
 // CodeFileName 返回插件代码文件名（<id>.lua / main.lua / <id>词库.json / <id>.json），
 // 按序探测第一个存在的；不存在返回 ok=false。
 func (pc *PluginController) CodeFileName(id string) (string, bool) {
-	dir := filepath.Join(pc.privateDir, "插件文件", id)
+	dir, e := pc.CodeDir(id)
+	if e != nil {
+		return "", false
+	}
+	pc.mu.Lock()
+	def := pc.defs[id]
+	entry := ""
+	if def != nil {
+		entry = def.SourceFile
+	}
+	pc.mu.Unlock()
+	if entry != "" {
+		if filepath.Dir(entry) == dir {
+			if _, err := os.Stat(entry); err == nil {
+				return filepath.Base(entry), true
+			}
+		}
+		return "", false
+	}
 	for _, cand := range []string{id + ".lua", "main.lua", id + "词库.json", id + ".json"} {
 		if _, err := os.Stat(filepath.Join(dir, cand)); err == nil {
 			return cand, true
@@ -131,16 +149,24 @@ func (pc *PluginController) resolvePluginFile(scope, id, file string) (string, e
 	}
 	switch scope {
 	case "code":
+		dir, e := pc.CodeDir(id)
+		if e != nil {
+			return "", e
+		}
 		if file != "" {
-			return yyProjectPath(filepath.Join(pc.privateDir, "插件文件", id), file)
+			return yyProjectPath(dir, file)
 		}
 		name, ok := pc.CodeFileName(id)
 		if !ok {
 			return "", fmt.Errorf("找不到插件代码文件: %s", id)
 		}
-		return filepath.Join(pc.privateDir, "插件文件", id, name), nil
+		return yyProjectPath(dir, name)
 	case "docs":
-		return filepath.Join(pc.privateDir, "插件文件", id, id+".docs.md"), nil
+		dir, e := pc.CodeDir(id)
+		if e != nil {
+			return "", e
+		}
+		return yyProjectPath(dir, id+".docs.md")
 	case "data":
 		if file == "" || file == "." || file == ".." {
 			return "", fmt.Errorf("非法文件名: %q", file)

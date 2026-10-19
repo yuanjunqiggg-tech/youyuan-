@@ -14,6 +14,39 @@ import (
 	"testing"
 )
 
+func TestRobotCooperationGuidesIncludedInSelectableLanguageSkills(t *testing.T) {
+	for _, language := range []string{"lua-runtime", "python-runtime", "cpp-runtime"} {
+		data, err := yySkillArchive(language)
+		if err != nil {
+			t.Fatal(language, err)
+		}
+		archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := map[string]bool{}
+		for _, f := range archive.File {
+			for _, chapter := range []string{"account-pool-guide.md", "observation-cooperation.md", "realtime-queries.md"} {
+				if f.Name == language+"/"+chapter {
+					r, err := f.Open()
+					if err != nil {
+						t.Fatal(err)
+					}
+					text, err := io.ReadAll(r)
+					r.Close()
+					if err != nil || (!bytes.Contains(text, []byte("accountsPool.handoff")) && !bytes.Contains(text, []byte("world.containerState"))) {
+						t.Fatal(language, chapter, err)
+					}
+					found[chapter] = true
+				}
+			}
+		}
+		if len(found) != 3 {
+			t.Fatal("可选技能缺少账号调用/协作章节", language, found)
+		}
+	}
+}
+
 func TestSkillLibraryPlayerChoicePersistenceAndIsolation(t *testing.T) {
 	oldRoot := yyAgentRoot
 	yyAgentRoot = t.TempDir()

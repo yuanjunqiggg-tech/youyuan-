@@ -33,7 +33,8 @@ func TestBlockVideoDeltaAndPlanes(t *testing.T) {
 			img.Set(i%2, i/2, color.RGBA{R: 207, G: 213, B: 214, A: 255})
 		}
 		a, e := j.appendFrame(img)
-		if e != nil || a["changed_blocks"] != 4 || a["frame_commands"] != 2 {
+		// A uniform 2x2 image is one exact rectangle, no longer two rows.
+		if e != nil || a["changed_blocks"] != 4 || a["frame_commands"] != 1 {
 			t.Fatal(a, e)
 		}
 		b, e := j.appendFrame(img)
@@ -47,7 +48,7 @@ func TestBlockVideoDeltaAndPlanes(t *testing.T) {
 		}
 		text, _ := os.ReadFile(path)
 		plan, e := yyParseChains(string(text))
-		if e != nil || plan.Commands != 6 {
+		if e != nil || plan.Commands != 5 {
 			t.Fatal(plan, e, string(text))
 		}
 		if strings.Contains(string(text), "titleraw") {

@@ -15,21 +15,24 @@ import (
 )
 
 type yyQQAssistantConfig struct {
-	Nicknames         map[string]string `json:"nicknames,omitempty"`
-	Companion         bool              `json:"companion"`
-	CompanionOwner    string            `json:"companion_owner"`
-	CompanionKeywords []string          `json:"companion_keywords"`
-	Enabled           bool              `json:"enabled"`
-	SuperAdmins       []string          `json:"super_admins"`
-	Admins            []string          `json:"admins"`
-	Death             bool              `json:"death"`
-	Join              bool              `json:"join"`
-	Leave             bool              `json:"leave"`
-	PublicObjectives  []string          `json:"public_objectives"`
-	Model             string            `json:"model"`
-	Prompt            string            `json:"prompt"`
-	MCPURL            string            `json:"mcp_url"`
-	MCPToken          string            `json:"mcp_token,omitempty"`
+	Memory               yyQQMemoryConfig  `json:"memory"`
+	Nicknames            map[string]string `json:"nicknames,omitempty"`
+	Companion            bool              `json:"companion"`
+	CompanionOwner       string            `json:"companion_owner"`
+	CompanionKeywords    []string          `json:"companion_keywords"`
+	CompanionAllMessages bool              `json:"companion_all_messages"`
+	ImageModel           string            `json:"image_model"`
+	Enabled              bool              `json:"enabled"`
+	SuperAdmins          []string          `json:"super_admins"`
+	Admins               []string          `json:"admins"`
+	Death                bool              `json:"death"`
+	Join                 bool              `json:"join"`
+	Leave                bool              `json:"leave"`
+	PublicObjectives     []string          `json:"public_objectives"`
+	Model                string            `json:"model"`
+	Prompt               string            `json:"prompt"`
+	MCPURL               string            `json:"mcp_url"`
+	MCPToken             string            `json:"mcp_token,omitempty"`
 }
 type yyQQPlayerStats struct {
 	Joined        time.Time `json:"joined"`
@@ -104,6 +107,8 @@ func yyQQHelperSaveLocked() error {
 	return os.Rename(tmp, yyQQHelper.Path)
 }
 func yyQQAssistantRoutes(mux *http.ServeMux, root string) {
+	yyQQMemoryInit(root)
+	yyQQMessageRoutes(mux)
 	yyQQHelper.Path = filepath.Join(root, "qq-assistant.json")
 	if raw, e := os.ReadFile(yyQQHelper.Path); e == nil {
 		var saved struct {
@@ -167,9 +172,14 @@ func yyQQAssistantRoutes(mux *http.ServeMux, root string) {
 			http.Error(w, "GET/POST required", 405)
 			return
 		}
+		cf := yyQQSnapshot()
 		yyQQHelper.Lock()
 		defer yyQQHelper.Unlock()
-		writeJSON(w, map[string]any{"ok": true, "bindings": yyQQHelper.Bindings, "members": yyQQHelper.Seen, "stats": yyQQHelper.Stats, "help": yyQQHelp(2)})
+		members := map[string]string{}
+		for id, name := range yyQQHelper.Seen {
+			members[id] = yyQQDisplayName(cf, id, name)
+		}
+		writeJSON(w, map[string]any{"ok": true, "bindings": yyQQHelper.Bindings, "members": members, "stats": yyQQHelper.Stats, "help": yyQQHelp(2)})
 	})
 	mux.HandleFunc("/api/qq/player-card", func(w http.ResponseWriter, r *http.Request) {
 		image, e := yyQQPlayerCard(r.URL.Query().Get("player"))
@@ -179,6 +189,29 @@ func yyQQAssistantRoutes(mux *http.ServeMux, root string) {
 		}
 		w.Header().Set("Content-Type", "image/png")
 		w.Write(image)
+	})
+	mux.HandleFunc("/api/qq/player-list", func(w http.ResponseWriter, r *http.Request) {
+		page := 1
+		if v := r.URL.Query().Get("page"); v != "" {
+			var e error
+			page, e = strconv.Atoi(v)
+			if e != nil {
+				writeJSON(w, map[string]any{"ok": false, "error": "页码无效"})
+				return
+			}
+		}
+		names, e := yyQQOnlinePlayers()
+		if e != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+			return
+		}
+		data, e := yyQQPlayersCard(names, page)
+		if e != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(data)
 	})
 	go func() {
 		tick := time.NewTicker(5 * time.Second)
@@ -202,7 +235,7 @@ func yyQQHelp(level int) string {
 	level = max(0, min(level, 2))
 	text := "✦ 游园 · 群服助手\n━━━━━━━━━━━━━━\n你的权限：" + []string{"成员", "管理员", "超级管理员"}[level]
 	text += "\n\n💬 聊天与账号 · 所有成员\n.通 消息 → 转发到游戏\n/绑定 游戏ID → 游戏内验证后绑定\n.我的绑定 → 查看自己的绑定\n/解绑 → 解除自己的绑定\n/说 消息 → 使用绑定身份发言\n.身份 → 查看昵称与权限"
-	text += "\n\n📋 查询与记录 · 所有成员\nlist → 当前在线玩家\n.状态 → 游戏连接与个人绑定状态\n.查询 游戏ID → 玩家头像与活动资料卡\n.日志 [条数] [页码] → 最近聊天，默认60条\n例如：.日志 20"
+	text += "\n\n📋 查询与记录 · 所有成员\nlist → 当前在线玩家\n.状态 → 游戏连接与个人绑定状态\n.查询 游戏ID → 玩家头像与活动资料卡\n.日志 [条数] [页码] → 最近聊天，默认60条\n例如：.日志 20\n.群日志 [条数] → 机器人收到的近期群消息"
 	text += "\n\n✨ AI 助手\n.AI 问题 → 聊天、在线玩家与公开分数\n成员不能查询坐标或修改服务器\n管理员可使用已配置的游戏工具与MCP"
 	text += "\n\n🛠 仅管理员\n/命令 指令 → 默认魔法通道\n支持多行TXT/function；不会无限重复执行\n.死亡消息 开启/关闭\n.进服消息 开启/关闭\n.退服消息 开启/关闭"
 	text += "\n\n🔑 仅超级管理员\n/授权 昵称 → 添加管理员\n/撤权 昵称 → 撤销管理员\n.认领 认领码 → APK所有者指定超级管理员"
@@ -211,7 +244,7 @@ func yyQQHelp(level int) string {
 }
 func yyQQAssistantHandle(cf yyQQConfig, name, user, role, text, id string) bool {
 	if len(text) > 24000 {
-		yyQQFeedback("消息过长，请缩短到24000字节内", id)
+		yyQQFeedbackTo(cf, "消息过长，请缩短到24000字节内", id)
 		return true
 	}
 	yyQQHelper.Lock()
@@ -226,13 +259,13 @@ func yyQQAssistantHandle(cf yyQQConfig, name, user, role, text, id string) bool 
 	case yyQQHelperSlots <- struct{}{}:
 		defer func() { <-yyQQHelperSlots }()
 	default:
-		yyQQFeedback("助手正在处理其他任务，请稍后再试", id)
+		yyQQFeedbackTo(cf, "助手正在处理其他任务，请稍后再试", id)
 		return true
 	}
 	replies := yyQQAssistantCommand(cf, name, user, text, id)
 	for _, reply := range replies {
 		for _, part := range yyQQParts(reply, 4, 3200) {
-			yyQQFeedback(part, id)
+			yyQQFeedbackTo(cf, part, id)
 		}
 	}
 	return true
@@ -327,12 +360,55 @@ func yyQQAssistantCommand(cf yyQQConfig, name, user, text, id string) []string {
 			return reply("保存失败：" + e.Error())
 		}
 		return reply("已设为当前账号的超级管理员。")
-	case text == "list":
+	case text == "list" || strings.HasPrefix(text, "list ") || yyQQHasPrefix(text, ".玩家"):
+		page := 1
+		value := strings.TrimSpace(strings.TrimPrefix(text, "list"))
+		if yyQQHasPrefix(text, ".玩家") {
+			value = arg(".玩家")
+		}
+		if value != "" {
+			var e error
+			page, e = strconv.Atoi(value)
+			if e != nil || page < 1 {
+				return reply("格式：list [页码] 或 .玩家 [页码]")
+			}
+		}
 		names, e := yyQQOnlinePlayers()
 		if e != nil {
 			return reply(e.Error())
 		}
-		return reply(fmt.Sprintf("当前在线 %d 人\n%s", len(names), strings.Join(names, "\n")))
+		image, e := yyQQPlayersCard(names, page)
+		if e != nil {
+			return reply(e.Error())
+		}
+		if e = yyQQSendImage(cf, image, id); e != nil {
+			start, end := (page-1)*12, min(page*12, len(names))
+			return reply(fmt.Sprintf("当前在线 %d 人 · 第%d页\n%s\n头像发送失败，已改用文字。", len(names), page, strings.Join(names[start:end], "\n")))
+		}
+		return nil
+	case yyQQHasPrefix(text, ".群日志"):
+		n := 20
+		if value := arg(".群日志"); value != "" {
+			v, e := strconv.Atoi(value)
+			if e != nil || v < 1 || v > 80 {
+				return reply("格式：.群日志 [1..80]，默认20；只含机器人实际收到的群消息")
+			}
+			n = v
+		}
+		rows := yyQQRecentMessages(cf, n)
+		if len(rows) == 0 {
+			return reply("还没有收到这个群的消息；不能读取QQ完整历史。")
+		}
+		var b strings.Builder
+		b.WriteString("✦ 游园 · 近期群消息\n")
+		for _, row := range rows {
+			content := row.Text
+			if level == 0 {
+				content = yyQQHideCoordinates(content)
+			}
+			fmt.Fprintf(&b, "[%s] %s：%s\n", row.Timestamp.Format("01-02 15:04:05"), row.Name, content)
+		}
+		return yyQQParts(b.String(), 4, 2800)
 	case yyQQHasPrefix(text, ".日志"):
 		n, page := 60, 1
 		f := strings.Fields(arg(".日志"))
@@ -510,7 +586,7 @@ func yyQQAssistantCommand(cf yyQQConfig, name, user, text, id string) []string {
 		if message == "" {
 			return reply("格式：.AI 消息")
 		}
-		answer, e := yyQQAskAI(cf, user, message)
+		answer, e := yyQQAskAIWithReply(cf, user, message, id)
 		if e != nil {
 			return reply("AI处理失败：" + e.Error())
 		}

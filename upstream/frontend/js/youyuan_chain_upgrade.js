@@ -9,7 +9,7 @@
     var panel=account.closest('section');
     var interval=document.getElementById('yy-chain-interval');
     var intervalLabel=document.querySelector('label[for="yy-chain-interval"]');
-    if(interval){interval.type='hidden';if(intervalLabel)intervalLabel.style.display='none';interval.insertAdjacentHTML('beforebegin','<label for="yy-chain-hz">整条链目标频率 · Hz</label><input id="yy-chain-hz" type="number" min="0.001" max="1000" step="any"><p class="yy-hint">一次执行整个文件为一轮。20 Hz 表示每秒启动20轮；一轮超时则立即继续下一轮，不额外加周期，也不积压轮次。</p>');var hz=document.getElementById('yy-chain-hz');hz.value=1000/(cfg.interval_ms||1000);hz.oninput=function(){if(Number(this.value)>0)interval.value=Math.max(1,Math.round(1000/Number(this.value)))};}
+    if(interval){interval.type='hidden';if(intervalLabel)intervalLabel.style.display='none';interval.insertAdjacentHTML('beforebegin','<label for="yy-chain-hz">整条链目标频率 · Hz</label><input id="yy-chain-hz" type="number" min="0" step="any"><p class="yy-hint">一次执行整个文件为一轮。20 Hz 表示每秒启动20轮；一轮超时则立即继续下一轮，不额外加周期，也不积压轮次。</p>');var hz=document.getElementById('yy-chain-hz');hz.value=cfg.hz||1000/(cfg.interval_ms||1000);hz.oninput=function(){if(Number(this.value)>0)interval.value=Math.max(1,Math.round(1000/Number(this.value)))};}
 
     var hint=panel.querySelector('.yy-hint');
     hint.insertAdjacentHTML('beforebegin','<label for="yy-chain-channel">默认命令通道</label><select id="yy-chain-channel"><option value="ai">魔法指令 · 自动化</option><option value="console">控制台 · 自动化</option><option value="player">玩家 · 玩家身份</option></select><p class="yy-hint">#组 可覆盖通道、速率、前缀与次数；#测试 和 #执行 可展开参数模板。组与链都在保存时预解析，运行时不重复解析文件。</p>');
@@ -48,7 +48,8 @@
     var mode=document.getElementById('yy-chain-mode').value,windowSize=Number(document.getElementById('yy-chain-window').value);
     if(!Number.isInteger(windowSize)||windowSize<1||windowSize>(['fast','burst','stream'].includes(mode)?1024:16))throw Error('流水线1～16条；整批1～1024条');
     var rate=Number(document.getElementById('yy-chain-rate').value);if(!Number.isInteger(rate)||(rate!==0&&rate<20)||rate>20000)throw Error('发送预算0或20～20000；滑动窗口0表示只按回包背压');
-    return {account:document.getElementById('yy-chain-account').value,interval_ms:Number(document.getElementById('yy-chain-interval').value),delay_ms:Number(document.getElementById('yy-chain-delay').value),run_count:Number(document.getElementById('yy-chain-run-count').value),channel:document.getElementById('yy-chain-channel').value,mode:mode,window:windowSize,rate_cps:rate};
+    var hz=Number(document.getElementById('yy-chain-hz').value);if(!Number.isFinite(hz)||hz<=0||1000000000/hz<1)throw Error('整链频率需有限正数且可表示为宿主周期');
+    return {hz:hz,account:document.getElementById('yy-chain-account').value,interval_ms:Number(document.getElementById('yy-chain-interval').value),delay_ms:Number(document.getElementById('yy-chain-delay').value),run_count:Number(document.getElementById('yy-chain-run-count').value),channel:document.getElementById('yy-chain-channel').value,mode:mode,window:windowSize,rate_cps:rate};
   };
 })();
 

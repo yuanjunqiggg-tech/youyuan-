@@ -64,6 +64,9 @@ func IsWorkspaceNBTBlock(blockName string, nbtData map[string]any) bool {
 		}
 	}
 	switch {
+	case strings.HasSuffix(blockName, "_skull") || strings.HasSuffix(blockName, "_head") || strings.TrimPrefix(blockName, "minecraft:") == "skull":
+		_, has := nbtData["SkullType"]
+		return has
 	// 展示框（有物品）
 	case strings.Contains(blockName, "frame"):
 		_, has := nbtData["Item"]

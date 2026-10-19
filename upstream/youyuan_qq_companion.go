@@ -20,8 +20,8 @@ var yyQQCompanions = struct {
 
 // No polling or unsolicited repeat messages: only received events advance a session.
 func yyQQCompanionBegin(cf yyQQConfig, user, text string, mentioned bool, now time.Time) (key string, epoch, sequence uint64, initial, active bool) {
-	group := yyQQGroupString(cf.GroupID)
-	key = group + ":" + user
+	group := yyQQMessageKey(cf)
+	key = group + "\x00" + user
 	yyQQCompanions.Lock()
 	defer yyQQCompanions.Unlock()
 	for k, s := range yyQQCompanions.Sessions {
@@ -32,7 +32,7 @@ func yyQQCompanionBegin(cf yyQQConfig, user, text string, mentioned bool, now ti
 	if cf.Assistant.CompanionOwner != "" && user == cf.Assistant.CompanionOwner {
 		yyQQCompanions.Epoch[group]++
 		for k := range yyQQCompanions.Sessions {
-			if strings.HasPrefix(k, group+":") {
+			if strings.HasPrefix(k, group+"\x00") {
 				delete(yyQQCompanions.Sessions, k)
 			}
 		}
@@ -45,7 +45,7 @@ func yyQQCompanionBegin(cf yyQQConfig, user, text string, mentioned bool, now ti
 		return
 	}
 	old, exists := yyQQCompanions.Sessions[key]
-	trigger := mentioned
+	trigger := mentioned || cf.Assistant.CompanionAllMessages
 	for _, word := range cf.Assistant.CompanionKeywords {
 		if word != "" && strings.Contains(text, word) {
 			trigger = true
@@ -68,7 +68,7 @@ func yyQQCompanionCurrent(cf yyQQConfig, key string, epoch, sequence uint64, now
 	yyQQCompanions.Lock()
 	defer yyQQCompanions.Unlock()
 	s, ok := yyQQCompanions.Sessions[key]
-	return ok && now.Before(s.Until) && s.Sequence == sequence && yyQQCompanions.Epoch[yyQQGroupString(cf.GroupID)] == epoch
+	return ok && now.Before(s.Until) && s.Sequence == sequence && yyQQCompanions.Epoch[yyQQMessageKey(cf)] == epoch
 }
 func yyQQCompanionHandle(cf yyQQConfig, user, text, id string, mentioned bool) bool {
 	key, epoch, seq, initial, ok := yyQQCompanionBegin(cf, user, text, mentioned, time.Now())
@@ -92,8 +92,8 @@ func yyQQCompanionHandle(cf yyQQConfig, user, text, id string, mentioned bool) b
 		chat := cf
 		chat.Assistant.Admins = nil
 		chat.Assistant.SuperAdmins = nil
-		chat.Assistant.Prompt += "\n当前是AI陪聊。你是AI，不能假装是服主本人；自然跟随对话，优先聊天，只有明确的服务器查询才调用工具。"
-		answer, e := yyQQAskAI(chat, user, text)
+		chat.Assistant.Prompt += "\n你是群里的智能助手，不能冒充服主本人。结合最近群聊自然回应当前发言，不要给每条回复加身份标签；通常用一两句话，只有明确的服务器查询才调用工具。"
+		answer, e := yyQQAskAIWithReplyGuard(chat, user, text, id, current)
 		if !current() {
 			return
 		}
@@ -101,7 +101,7 @@ func yyQQCompanionHandle(cf yyQQConfig, user, text, id string, mentioned bool) b
 			yyQQLog("AI陪聊失败：" + e.Error())
 			return
 		}
-		yyQQFeedback("[AI陪聊] "+answer, id)
+		yyQQFeedbackTo(cf, answer, id)
 	}()
 	return true
 }

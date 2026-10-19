@@ -14,6 +14,7 @@ import (
 type PluginStatus struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
+	Version     string `json:"version,omitempty"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	State       string `json:"state"`           // unloaded | loaded | error
@@ -30,10 +31,11 @@ type PluginController struct {
 	running      map[string]bool
 	loading      map[string]bool // 正在加载中（防并发 Run 重复加载）
 	state        map[string]string
-	errs         map[string]string // 加载错误信息（State=error 时）
-	privateDir   string            // 插件存储私有根目录（插件文件/ 扫描与磁盘加载用）
-	disabled     map[string]bool   // 持久禁用的插件 id（重连不自动加载）
-	disabledPath string            // 禁用集合的持久化文件路径
+	errs         map[string]string  // 加载错误信息（State=error 时）
+	removeTree   func(string) error // nil uses the real filesystem; testable IO failure boundary
+	privateDir   string             // 插件存储私有根目录（插件文件/ 扫描与磁盘加载用）
+	disabled     map[string]bool    // 持久禁用的插件 id（重连不自动加载）
+	disabledPath string             // 禁用集合的持久化文件路径
 }
 
 // NewPluginController 初始化控制器（内置插件已移除，插件由用户安装后 AddDef 注册）。
@@ -162,6 +164,7 @@ func (pc *PluginController) ScanPlugins() error {
 		}
 		return err
 	}
+	var conflicts []string
 	for _, e := range entries {
 		if e.IsDir() {
 			// 每插件独立目录：插件文件/<id>/<id>.lua（或 main.lua / <id>.json 词库）
@@ -176,7 +179,9 @@ func (pc *PluginController) ScanPlugins() error {
 			if codePath == "" {
 				continue
 			}
-			registerScannedDef(pc, codePath)
+			if e := registerScannedDef(pc, codePath); e != nil {
+				conflicts = append(conflicts, e.Error())
+			}
 			continue
 		}
 		name := e.Name()
@@ -189,27 +194,37 @@ func (pc *PluginController) ScanPlugins() error {
 		if strings.HasSuffix(trimmed, ".manifest") {
 			continue
 		}
-		registerScannedDef(pc, filepath.Join(dir, name))
+		if e := registerScannedDef(pc, filepath.Join(dir, name)); e != nil {
+			conflicts = append(conflicts, e.Error())
+		}
+	}
+	if len(conflicts) > 0 {
+		return fmt.Errorf("插件扫描冲突：%s", strings.Join(conflicts, "；"))
 	}
 	return nil
 }
 
 // registerScannedDef 从代码文件路径构建 def 并去重注册。
-func registerScannedDef(pc *PluginController, path string) {
+func registerScannedDef(pc *PluginController, path string) error {
 	def, err := BuildDefFromFile(path)
 	if err != nil {
 		debugLog("[插件] 扫描跳过 %s err=%v", path, err)
-		return
+		return err
 	}
 	pc.mu.Lock()
-	_, exists := pc.defs[def.ID]
+	previous, exists := pc.defs[def.ID]
 	pc.mu.Unlock()
 	if exists {
-		return
+		if previous.SourceFile != "" && filepath.Clean(previous.SourceFile) != filepath.Clean(def.SourceFile) {
+			return fmt.Errorf("插件ID %s 对应多个入口：%s 与 %s；保留既有归属，未覆盖", def.ID, previous.SourceFile, def.SourceFile)
+		}
+		return nil
 	}
 	if err := pc.AddDef(def); err != nil {
 		debugLog("[插件] 注册失败 %s err=%v", def.ID, err)
+		return err
 	}
+	return nil
 }
 
 // LoadPluginFromDisk 从磁盘加载插件（走 Run 路径，状态流转到 loaded/running）。
@@ -254,6 +269,7 @@ func (pc *PluginController) defStatus(def *PluginDef) *PluginStatus {
 	return &PluginStatus{
 		ID:          def.ID,
 		Name:        def.Name,
+		Version:     def.Version,
 		Type:        def.Type,
 		Description: def.Description,
 		State:       st,
@@ -311,8 +327,8 @@ func (pc *PluginController) Run(bm *BotManager, id string) error {
 		// 回滚：Load 可能半途注册了部分触发项/事件/定时器，失败时全部清理，
 		// 避免插件处于 error 状态但其触发项仍在运行（且 Stop 会报"未在运行"无法清理）。
 		bm.RemovePluginTriggers(id)
-		RemovePluginEvents(id)
-		RemovePluginSchedules(id)
+		RemovePluginEvents(id, bm)
+		RemovePluginSchedules(id, bm)
 		RemovePluginWeb(id)
 		pc.markError(id, err)
 		return err
@@ -399,8 +415,8 @@ func (pc *PluginController) Stop(bm *BotManager, id string) error {
 	}
 	pc.mu.Unlock()
 	bm.RemovePluginTriggers(id)
-	RemovePluginEvents(id)
-	RemovePluginSchedules(id)
+	RemovePluginEvents(id, bm)
+	RemovePluginSchedules(id, bm)
 	RemovePluginWeb(id)
 	yyStopResident(bm, id)
 	pc.mu.Lock()
@@ -434,17 +450,78 @@ func (pc *PluginController) Reload(bm *BotManager, id string) error {
 
 // Delete 删除插件：停止运行、移除列表、清除禁用记录，并删除磁盘上的
 // 代码/配置/数据文件（否则重启后扫描会重新注册复活）。不要求机器人连接。
-func (pc *PluginController) Delete(_ *BotManager, id string) error {
-	debugLog("[插件] Delete id=%s", id)
+func (pc *PluginController) Delete(bm *BotManager, id string) error {
+	if !validPluginID(id) {
+		return fmt.Errorf("插件 id 非法")
+	}
+	codeDir, pathErr := pc.CodeDir(id)
+	if pathErr != nil {
+		return pathErr
+	}
+	looseFiles, loose, pathErr := pc.looseCodeFiles(id)
+	if pathErr != nil {
+		return pathErr
+	}
 	pc.mu.Lock()
-	running := pc.running[id]
+	if pc.loading[id] {
+		pc.mu.Unlock()
+		return fmt.Errorf("插件 %s 正在加载或清理，请等待本次操作完成", id)
+	}
+	pc.loading[id] = true
 	pc.mu.Unlock()
-	if running {
-		// 清理该插件的所有运行态（触发/事件/定时/网页），不依赖连接
-		(&BotManager{}).RemovePluginTriggers(id)
+	defer func() { pc.mu.Lock(); delete(pc.loading, id); pc.mu.Unlock() }()
+	// File removal must wait for the resident VM, callbacks and on_stop to exit.
+	// A nil owner means every instance of this plugin in this execution process.
+	yyLuaMu.Lock()
+	keys := []yyLuaKey{}
+	for key := range yyLuaStates {
+		if key.id == id && (bm == nil || key.bot == bm) {
+			keys = append(keys, key)
+		}
+	}
+	yyLuaMu.Unlock()
+	for _, key := range keys {
+		yyStopResident(key.bot, id)
+	}
+	bm.RemovePluginTriggers(id)
+	if bm == nil {
 		RemovePluginEvents(id)
 		RemovePluginSchedules(id)
-		RemovePluginWeb(id)
+	} else {
+		RemovePluginEvents(id, bm)
+		RemovePluginSchedules(id, bm)
+	}
+	RemovePluginWeb(id)
+	pc.mu.Lock()
+	pc.running[id] = false
+	pc.state[id] = "unloaded"
+	pc.mu.Unlock()
+	failures := []string{}
+	removeTree := pc.removeTree
+	if removeTree == nil {
+		removeTree = os.RemoveAll
+	}
+	for _, sub := range []string{"插件文件", "插件配置文件", "插件数据文件"} {
+		if sub == "插件文件" && loose {
+			for _, file := range looseFiles {
+				if err := removeTree(file); err != nil {
+					failures = append(failures, sub+": "+err.Error())
+				}
+			}
+			continue
+		}
+		target := filepath.Join(pc.privateDir, sub, id)
+		if sub == "插件文件" {
+			target = codeDir
+		}
+		if err := removeTree(target); err != nil {
+			failures = append(failures, sub+": "+err.Error())
+		}
+	}
+	if len(failures) > 0 {
+		err := fmt.Errorf("插件已停止，但部分文件未能删除：%s", strings.Join(failures, "；"))
+		pc.markError(id, err)
+		return err
 	}
 	pc.mu.Lock()
 	delete(pc.defs, id)
@@ -454,9 +531,5 @@ func (pc *PluginController) Delete(_ *BotManager, id string) error {
 	delete(pc.disabled, id)
 	pc.saveDisabledLocked()
 	pc.mu.Unlock()
-	for _, sub := range []string{"插件文件", "插件配置文件", "插件数据文件"} {
-		_ = os.RemoveAll(filepath.Join(pc.privateDir, sub, id))
-	}
-	debugLog("[插件] Delete 成功 id=%s", id)
 	return nil
 }

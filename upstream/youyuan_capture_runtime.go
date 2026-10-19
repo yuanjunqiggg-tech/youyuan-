@@ -1,0 +1,397 @@
+package main
+
+import (
+	"bot-apk/config"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"sync"
+	"time"
+)
+
+func init() {
+	for method, doc := range map[string]string{
+		"accountsPool.captureStatus":    "无参数；读取宿主全局抓包config/plan/states/candidates。真实玩家维度未知不会猜测；active/submitted不是全局无漏包证明。",
+		"accountsPool.captureRoster":    "options={include_bots:false}；只读本服当前名单和原生querytarget真实维度，用于诊断。include_bots=true仅诊断受管机器人，不改变生产观察排除规则，不传送/发镜头；维度缺失标unknown。",
+		"accountsPool.captureConfigure": "patch对象；统一保存enabled/accounts/auto_fleet/auto_provision/account_limit/fleet_steps/idle_seconds/player_limit/enforce_player_limit和镜头参数。本人或明确shared_capture账号可选；自动1/2/3、>10为5、>=15为6台，数量非0为人工基础投入；fleet_steps=[{min_players:1,observers:1},...]可自定义递增人数阶梯，最多32台子进程，不限双机器人；无真人停镜头，专用采集进程60秒回收。分维度回防/借调/错峰，失败冷却替补。修改会影响本设备统一观察，不创建插件。",
+	} {
+		yyAccountPoolMethods[method] = true
+		yyExtraMethods[method] = doc
+	}
+}
+
+// Shared capture never grants access to another owner's files, token, console,
+// plugin management or generic accountsPool.invoke.
+func yyCaptureAvailable(actor yyPoolActor) []yyManagedAccount {
+	yyAccounts.Lock()
+	defer yyAccounts.Unlock()
+	out := []yyManagedAccount{}
+	for _, a := range yyAccounts.Items {
+		if yyPoolOwner(a) == actor.ID || a.SharedCapture {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+func yyCaptureAllowed(actor yyPoolActor, id string) bool {
+	if id == "main" {
+		return actor.ID == yyPoolBoundActor().ID
+	}
+	for _, a := range yyCaptureAvailable(actor) {
+		if a.ID == id {
+			return true
+		}
+	}
+	return false
+}
+func yyCaptureCall(actor yyPoolActor, id, method string, args []any) (map[string]any, error) {
+	if !yyCaptureAllowed(actor, id) {
+		return nil, fmt.Errorf("账号未授予采集权限")
+	}
+	a, ok := yyManagedFind(id)
+	if id == "main" || !ok || yyPoolOwner(a) == actor.ID {
+		return yyObserverAccountCall(actor, id, method, args)
+	}
+	// Deliberately narrow shared-account capability.
+	switch method {
+	case "bot.self", "observerBridge.dimensionStatus", "observerBridge.assignDimension", "observerBridge.watchStatus", "observerBridge.watchStart", "observerBridge.watchStop":
+	default:
+		return nil, fmt.Errorf("共享账号仅允许观察调度")
+	}
+	r, e := yyChildJSON(a, "POST", "/api/youyuan/game/call", map[string]any{"method": method, "args": args})
+	if e != nil {
+		return nil, e
+	}
+	if r["ok"] != true {
+		return nil, fmt.Errorf("采集账号: %v", r["error"])
+	}
+	v, _ := r["result"].(map[string]any)
+	return v, nil
+}
+
+type yyCaptureLaunch struct {
+	Busy     bool
+	At       time.Time
+	Attempts int
+	Error    string
+	IdleAt   time.Time
+	Started  bool
+	PermitAt time.Time
+}
+
+var yyCaptureLaunches = struct {
+	sync.Mutex
+	Items map[string]*yyCaptureLaunch
+}{Items: map[string]*yyCaptureLaunch{}}
+
+func yyCaptureGrantOP(actor yyPoolActor, id, name string, c yyGlobalCaptureConfig) {
+	a, ok := yyManagedFind(id)
+	if !ok || !a.CaptureOnly || !yyCaptureAllowed(actor, id) || !yyWatchName(name) || c.AutoProvision != nil && !*c.AutoProvision {
+		return
+	}
+	bm := getBotManagerLocked()
+	if bm == nil || !bm.IsConnected() || !bm.IsOP() {
+		return
+	}
+	yyCaptureLaunches.Lock()
+	l := yyCaptureLaunches.Items[id]
+	if l == nil {
+		l = &yyCaptureLaunch{}
+		yyCaptureLaunches.Items[id] = l
+	}
+	if time.Since(l.PermitAt) < 15*time.Second {
+		yyCaptureLaunches.Unlock()
+		return
+	}
+	l.PermitAt = time.Now()
+	yyCaptureLaunches.Unlock()
+	go func() { q, _ := json.Marshal(name); bm.SendWSCommandWithTimeout("op "+string(q), time.Second) }()
+}
+
+func yyCaptureProvision(actor yyPoolActor, id string, c yyGlobalCaptureConfig) map[string]any {
+	if id == "main" || c.AutoProvision != nil && !*c.AutoProvision {
+		return map[string]any{"phase": "offline", "auto_provision": false}
+	}
+	yyCaptureLaunches.Lock()
+	l := yyCaptureLaunches.Items[id]
+	if l == nil {
+		l = &yyCaptureLaunch{}
+		yyCaptureLaunches.Items[id] = l
+	}
+	delay := time.Duration(15*(1<<min(l.Attempts, 4))) * time.Second
+	if l.Busy || time.Since(l.At) < delay {
+		r := map[string]any{"phase": "starting_or_cooldown", "error": l.Error, "attempts": l.Attempts, "retry_after_ms": max(0, int(time.Until(l.At.Add(delay)).Milliseconds()))}
+		yyCaptureLaunches.Unlock()
+		return r
+	}
+	l.Busy = true
+	l.At = time.Now()
+	l.Attempts++
+	attempt := l.Attempts
+	yyCaptureLaunches.Unlock()
+	go func() {
+		a, ok := yyManagedFind(id)
+		var e error
+		yyGlobalCapture.Lock()
+		wanted := yyGlobalCapture.Config.Enabled
+		stillSelected := false
+		for _, candidate := range yyGlobalCapture.Config.Accounts {
+			if candidate == id {
+				stillSelected = true
+			}
+		}
+		yyGlobalCapture.Unlock()
+		if !wanted || !stillSelected {
+			e = fmt.Errorf("投放配置已取消")
+		} else if !ok || !yyCaptureAllowed(actor, id) {
+			e = fmt.Errorf("账号已移除或未授权")
+		} else {
+			// Never replace another owner's bound/shared active assignment.
+			yyPool.Lock()
+			lease := yyPool.Leases[id]
+			yyPool.Unlock()
+			if lease.Phase == "bound" && lease.Owner != actor.ID {
+				e = fmt.Errorf("共享机器人已被其他任务占用")
+			} else {
+				c := config.LoadConfig()
+				a.Server = c.ServerCode
+				a.Password = c.ServerPass
+				if bm := getBotManagerLocked(); bm != nil {
+					bm.mu.Lock()
+					if bm.serverCode != "" {
+						a.Server = bm.serverCode
+					}
+					bm.mu.Unlock()
+				}
+				a.CaptureOnly = true
+				owner := yyPoolActor{ID: yyPoolOwner(a), Scope: "control"}
+				_, e = yyPoolInvokeActor(owner, "POST", "/api/youyuan/accounts", map[string]any{"action": "save", "id": id, "account": a, "defer_connect": true})
+				if e == nil {
+					_, e = yyPoolCall(owner, "accountsPool.start", []any{id, map[string]any{"server": a.Server, "connect": true, "purpose": "global_capture"}})
+				}
+			}
+		}
+		yyCaptureLaunches.Lock()
+		defer yyCaptureLaunches.Unlock()
+		l.Busy = false
+		if e != nil {
+			l.Error = e.Error()
+		} else {
+			l.Started = true
+			l.Error = "等待游戏连接和OP确认"
+		}
+	}()
+	return map[string]any{"phase": "starting", "attempts": attempt}
+}
+func yyCaptureRetire(actor yyPoolActor, selected map[string]bool, c yyGlobalCaptureConfig) {
+	idle := c.IdleSeconds
+	if idle == 0 {
+		idle = 60
+	}
+	for _, a := range yyCaptureAvailable(actor) {
+		if !a.CaptureOnly {
+			continue
+		}
+		yyCaptureLaunches.Lock()
+		l := yyCaptureLaunches.Items[a.ID]
+		if l == nil {
+			l = &yyCaptureLaunch{Started: true}
+			yyCaptureLaunches.Items[a.ID] = l
+		}
+		if selected[a.ID] {
+			l.IdleAt = time.Time{}
+			l.Attempts = 0
+			l.Error = ""
+			yyCaptureLaunches.Unlock()
+			continue
+		}
+		// A released account must receive a fresh idle grace period when it
+		// is next enabled. Keeping the old deadline killed new workers before
+		// their authentication could finish.
+		if !a.Enabled {
+			l.IdleAt = time.Time{}
+			yyCaptureLaunches.Unlock()
+			continue
+		}
+		if l.IdleAt.IsZero() {
+			l.IdleAt = time.Now()
+		}
+		due := time.Since(l.IdleAt) > time.Duration(idle)*time.Second && !l.Busy && a.Enabled
+		if due {
+			l.Busy = true
+		}
+		yyCaptureLaunches.Unlock()
+		if due {
+			go func(a yyManagedAccount, l *yyCaptureLaunch) {
+				_, e := yyPoolCall(yyPoolActor{ID: yyPoolOwner(a), Scope: "control"}, "accountsPool.stop", []any{a.ID})
+				yyCaptureLaunches.Lock()
+				l.Busy = false
+				l.IdleAt = time.Now()
+				if e != nil {
+					l.Error = e.Error()
+				}
+				yyCaptureLaunches.Unlock()
+			}(a, l)
+		}
+	}
+}
+
+func yyCaptureRobotNames() []string { names, _ := yyCaptureRobotNamesWithStatus(); return names }
+func yyCaptureRobotNamesWithStatus() ([]string, bool) {
+	names := map[string]bool{}
+	identitiesKnown := true
+	yyAccounts.Lock()
+	items := append([]yyManagedAccount{}, yyAccounts.Items...)
+	yyAccounts.Unlock()
+	for _, a := range items {
+		if profile := yyAccountProfileView(a.ID, a.Name); profile["nickname"] != nil {
+			if n, ok := profile["nickname"].(string); ok && n != "" {
+				names[n] = true
+			}
+		}
+		if a.Name != "" {
+			names[a.Name] = true
+		}
+	}
+	if bm := getBotManagerLocked(); bm != nil {
+		bm.mu.Lock()
+		names[bm.display] = true
+		bm.mu.Unlock()
+	}
+	// Active workers may use a game nickname different from the saved profile.
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, a := range items {
+		if a.Slot < 1 {
+			continue
+		}
+		wg.Add(1)
+		go func(a yyManagedAccount) {
+			defer wg.Done()
+			r, e := yyChildJSON(a, "POST", "/api/youyuan/game/call", map[string]any{"method": "bot.self", "args": []any{}})
+			if e == nil {
+				v, _ := r["result"].(map[string]any)
+				n, _ := v["name"].(string)
+				if n != "" {
+					mu.Lock()
+					names[n] = true
+					mu.Unlock()
+				} else {
+					mu.Lock()
+					identitiesKnown = false
+					mu.Unlock()
+				}
+			} else {
+				mu.Lock()
+				identitiesKnown = false
+				mu.Unlock()
+			}
+		}(a)
+	}
+	wg.Wait()
+	out := []string{}
+	for n := range names {
+		if n != "" {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out, identitiesKnown
+}
+
+func yyCaptureIdleStates(actor yyPoolActor, selected map[string]bool) map[string]any {
+	out := map[string]any{}
+	for _, a := range yyCaptureAvailable(actor) {
+		if selected[a.ID] || !a.CaptureOnly {
+			continue
+		}
+		yyCaptureLaunches.Lock()
+		l := yyCaptureLaunches.Items[a.ID]
+		v := map[string]any{"enabled": a.Enabled, "phase": "idle"}
+		if !a.Enabled {
+			v["phase"] = "released"
+		}
+		if l != nil {
+			if !l.IdleAt.IsZero() {
+				v["idle_since"] = l.IdleAt.Format(time.RFC3339Nano)
+			}
+			v["error"] = l.Error
+			if l.Busy {
+				v["phase"] = "starting_or_releasing"
+			}
+		}
+		yyCaptureLaunches.Unlock()
+		out[a.ID] = v
+	}
+	return out
+}
+
+func yyCaptureCandidates(actor yyPoolActor) []map[string]any {
+	out := []map[string]any{}
+	if actor.ID == yyPoolBoundActor().ID {
+		out = append(out, map[string]any{"id": "main", "name": "当前主机器人", "source": "own", "capture_only": false})
+	}
+	for _, a := range yyCaptureAvailable(actor) {
+		kind := "own"
+		if yyPoolOwner(a) != actor.ID {
+			kind = "shared"
+		}
+		out = append(out, map[string]any{"id": a.ID, "name": a.Name, "source": kind, "capture_only": a.CaptureOnly, "enabled": a.Enabled, "has_token": a.Token != ""})
+	}
+	return out
+}
+func yyCapturePlayers(excluded []string) ([]yyCapturePlayer, string) {
+	ex := map[string]bool{}
+	for _, n := range excluded {
+		ex[n] = true
+	}
+	// Copy under lock; GetAllPlayers returns pointers and is unsafe to retain
+	// while the packet reader updates identity/coordinates.
+	playerInfoMgr.mu.RLock()
+	byID := map[int64]string{}
+	byUUID := map[string]string{}
+	all := map[string]yyCapturePlayer{}
+	for _, p := range playerInfoMgr.players {
+		if p.Online && !ex[p.Name] {
+			all[p.Name] = yyCapturePlayer{Name: p.Name}
+			byID[p.EntityID] = p.Name
+			byUUID[p.UUID] = p.Name
+		}
+	}
+	playerInfoMgr.mu.RUnlock()
+	if len(all) == 0 {
+		return []yyCapturePlayer{}, ""
+	}
+	errText := ""
+	bm := getBotManagerLocked()
+	if bm != nil && bm.IsConnected() {
+		// NetEase execute can return success with an empty data set. Query
+		// directly so the native querytarget response retains details/parameters.
+		p, timed, e := bm.SendWSCommandWithTimeout("querytarget @a", 2*time.Second)
+		if e != nil {
+			errText = e.Error()
+		} else if timed || p == nil {
+			errText = "维度查询超时，未知玩家保留为待探测"
+		} else {
+			rows := yyCaptureQueryRows(p)
+			for _, r := range rows {
+				n := byUUID[r.PlayerUUID.String()]
+				if n == "" {
+					n = byID[r.PlayerUniqueID]
+				}
+				if _, ok := all[n]; ok && r.Dimension <= 2 {
+					all[n] = yyCapturePlayer{Name: n, Dimension: int32(r.Dimension), Known: true}
+				}
+			}
+			if len(rows) == 0 {
+				errText = "服务器未返回可验证的玩家维度；执行同维度探测，不声称已定位"
+			}
+		}
+	}
+	out := []yyCapturePlayer{}
+	for _, p := range all {
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, errText
+}

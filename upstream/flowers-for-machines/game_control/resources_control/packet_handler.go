@@ -2,7 +2,6 @@ package resources_control
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
@@ -53,25 +52,9 @@ func (r *Resources) handleMovePlayer(p *packet.MovePlayer) {
 func (r *Resources) handleRespawn(p *packet.Respawn) {
 	switch p.State {
 	case packet.RespawnStateSearchingForSpawn:
-		_ = r.WritePacket(&packet.Respawn{
-			State:           packet.RespawnStateClientReadyToSpawn,
-			EntityRuntimeID: r.BotInfo().EntityRuntimeID,
-		})
-		_ = r.WritePacket(&packet.PlayerAction{
-			EntityRuntimeID: r.BotInfo().EntityRuntimeID,
-			ActionType:      protocol.PlayerActionRespawn,
-			BlockFace:       -1,
-		})
+		r.respawn.search(r.BotInfo().EntityRuntimeID)
 	case packet.RespawnStateReadyToSpawn:
-		inputData := protocol.NewBitset(packet.PlayerAuthInputBitsetSize)
-		inputData.Set(packet.InputFlagStartFlying)
-		for range 5 {
-			_ = r.WritePacket(&packet.PlayerAuthInput{
-				Position:  p.Position,
-				InputData: inputData,
-			})
-			time.Sleep(time.Second / 20 * 3)
-		}
+		r.respawn.start(p.Position)
 	}
 }
 
@@ -94,6 +77,11 @@ func (r *Resources) handlePyRpc(p *packet.PyRpc) {
 	}
 	// unmarshal
 	switch c := content.(type) {
+	case *py_rpc.StartType, *py_rpc.GetMCPCheckNum:
+		if err := r.client.HandleRuntimeChallenge(p); err != nil {
+			pterm.Warning.Printfln("late login challenge: %v", err)
+			_ = r.client.Conn().Close()
+		}
 	case *py_rpc.HeartBeat:
 		// heart beat to test the device is still alive?
 		// it seems that we just need to return it back to the server is OK
@@ -274,6 +262,9 @@ func (r *Resources) handlePacket(pk packet.Packet) {
 
 // handleConnClose ..
 func (r *Resources) handleConnClose(err error) {
+	if r.respawn != nil {
+		r.respawn.stop()
+	}
 	r.commands.handleConnClose(err)
 	r.itemStack.handleConnClose(err)
 	r.container.handleConnClose(err)

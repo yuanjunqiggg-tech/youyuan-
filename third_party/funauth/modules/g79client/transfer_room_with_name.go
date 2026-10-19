@@ -1,6 +1,7 @@
 package g79client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -50,6 +51,10 @@ type TransferRoomWithNameResponse struct {
 
 // GetTransferRoomWithName 根据房间名查询
 func (c *Client) GetTransferRoomWithName(name string) (*TransferRoomWithNameResponse, error) {
+	return c.GetTransferRoomWithNameContext(context.Background(), name)
+}
+
+func (c *Client) GetTransferRoomWithNameContext(ctx context.Context, name string) (*TransferRoomWithNameResponse, error) {
 	apiBase := c.ReleaseJSON.TransferServerNewHttpUrl
 	api := "/room-with-name"
 	userID, err := strconv.ParseInt(c.UserID, 10, 64)
@@ -67,7 +72,7 @@ func (c *Client) GetTransferRoomWithName(name string) (*TransferRoomWithNameResp
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", apiBase+api, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequestWithContext(ctx, "POST", apiBase+api, strings.NewReader(string(jsonData)))
 	if err != nil {
 		return nil, err
 	}

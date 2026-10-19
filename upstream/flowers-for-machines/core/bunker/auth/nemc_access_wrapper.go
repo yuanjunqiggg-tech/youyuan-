@@ -56,9 +56,13 @@ func (aw *AccessWrapper) GetAccess(ctx context.Context, publicKey []byte) (authR
 
 // TanLobbyGetAccess 通过认证服务器获取 TanLobby 房间的接入信息。
 func (aw *AccessWrapper) TanLobbyGetAccess(roomID string) (TanLobbyLoginResponse, error) {
-	response, err := aw.Client.TanLobbyAuth(roomID, aw.Token)
+	return aw.TanLobbyGetAccessContext(context.Background(), roomID)
+}
+
+func (aw *AccessWrapper) TanLobbyGetAccessContext(ctx context.Context, roomID string) (TanLobbyLoginResponse, error) {
+	response, err := aw.Client.TanLobbyAuthContext(ctx, roomID, aw.Token)
 	if err != nil {
-		return TanLobbyLoginResponse{}, fmt.Errorf("获取 TanLobby 访问失败: %v", err)
+		return TanLobbyLoginResponse{}, fmt.Errorf("获取 TanLobby 访问失败: %w", err)
 	}
 	return response, nil
 }

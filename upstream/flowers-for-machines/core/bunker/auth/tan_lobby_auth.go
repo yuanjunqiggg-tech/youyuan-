@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 
 	tanauth "github.com/Happy2018new/nemc-tan-lobby-solver/bunker"
@@ -9,17 +10,24 @@ import (
 // tanLobbyAuthenticator 实现了 nemc-tan-lobby-solver/bunker.Authenticator 接口，
 // 用于 tanservice.DialContext 调用。
 type tanLobbyAuthenticator struct {
-	aw *AccessWrapper
+	aw  *AccessWrapper
+	ctx context.Context
 }
 
 // NewTanLobbyAuthenticator 创建一个 TanLobby 认证器，将 AccessWrapper 适配为
 // nemc-tan-lobby-solver 所需的 Authenticator 接口。
 func NewTanLobbyAuthenticator(aw *AccessWrapper) tanauth.Authenticator {
-	return &tanLobbyAuthenticator{aw: aw}
+	return NewTanLobbyAuthenticatorContext(context.Background(), aw)
+}
+
+// NewTanLobbyAuthenticatorContext keeps the interface's context-free callbacks
+// inside the same cancellable login used by tanservice.DialContext.
+func NewTanLobbyAuthenticatorContext(ctx context.Context, aw *AccessWrapper) tanauth.Authenticator {
+	return &tanLobbyAuthenticator{aw: aw, ctx: ctx}
 }
 
 func (a *tanLobbyAuthenticator) GetAccess(roomID string) (tanauth.TanLobbyLoginResponse, error) {
-	response, err := a.aw.TanLobbyGetAccess(roomID)
+	response, err := a.aw.TanLobbyGetAccessContext(a.ctx, roomID)
 	if err != nil {
 		return tanauth.TanLobbyLoginResponse{}, err
 	}

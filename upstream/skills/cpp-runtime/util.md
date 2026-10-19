@@ -277,3 +277,15 @@ client.util.write_file(path, content);
 - 返回：boolean `true`。
 - 报错：建目录/写文件失败抛 `write_file: <err>`。
 - 底层：`os.MkdirAll` + `os.WriteFile(path, []byte(content), 0644)`。
+
+### `util.monotonicMs`
+
+无参数，进程启动以来单调时间毫秒，适合间隔计算；不是Unix时间。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `util.serverTick`
+
+返回known/tick/source/updated_at；仅观测UpdateAttributes的真实非零tick，不以本地50ms计时冒充服务器tick。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。

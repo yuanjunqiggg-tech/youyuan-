@@ -18,23 +18,33 @@ type yyLuaKey struct {
 type yyLuaResident struct {
 	mu                                             sync.Mutex
 	L                                              *lua.LState
+	idle                                           []*lua.LState
 	closed                                         bool
 	ready                                          bool
 	err                                            error
 	lifetime                                       context.Context
 	stop                                           context.CancelFunc
 	senseQueue                                     chan yySenseDelivery
+	priorityQueue                                  chan yySenseDelivery
+	queueLastWaitNS, queueMaxWaitNS                atomic.Int64
 	senseDone                                      chan struct{}
 	senseStop                                      sync.Once
 	senseDropped                                   atomic.Uint64
 	botReadyDelivered                              sync.Map
 	callbackCalls, callbackFailures                atomic.Uint64
 	callbackLastNS, callbackMaxNS, callbackTotalNS atomic.Int64
+	activeHandler                                  atomic.Value
+	activeSince                                    atomic.Int64
+	lastSlowCallback                               atomic.Value
+	lastCallbackError                              atomic.Value
+	vmLastWaitNS, vmMaxWaitNS                      atomic.Int64
+	ioWaiting, ioCalls, ioTotalNS, ioMaxNS         atomic.Int64
 }
 type yySenseDelivery struct {
 	Bot             *BotManager
 	Plugin, Handler string
 	Args            []any
+	QueuedAt        time.Time
 }
 
 func yyQueueSenseLua(r *yyLuaResident, bm *BotManager, id, handler string, args []any) {
@@ -44,13 +54,27 @@ func yyQueueSenseLua(r *yyLuaResident, bm *BotManager, id, handler string, args 
 	default:
 	}
 	select {
-	case r.senseQueue <- yySenseDelivery{bm, id, handler, args}:
+	case yySenseDeliveryQueue(r, args) <- yySenseDelivery{bm, id, handler, args, time.Now()}:
 	case <-r.senseDone:
 	default:
 		r.senseDropped.Add(1)
 	}
 }
-func (r *yyLuaResident) runSense() {
+func yySenseDeliveryQueue(r *yyLuaResident, args []any) chan yySenseDelivery {
+	if len(args) > 0 {
+		if e, ok := args[0].(map[string]any); ok {
+			switch e["type"] {
+			case "hurt", "health", "death", "death_details", "player_kill", "respawn", "session_join", "session_leave", "dimension_change", "equipment":
+				if r.priorityQueue != nil {
+					return r.priorityQueue
+				}
+			}
+		}
+	}
+	return r.senseQueue
+}
+func (r *yyLuaResident) runSense() { r.runSenseQueue(r.senseQueue) }
+func (r *yyLuaResident) runSenseQueue(queue <-chan yySenseDelivery) {
 	for {
 		select {
 		case <-r.senseDone:
@@ -60,7 +84,11 @@ func (r *yyLuaResident) runSense() {
 		select {
 		case <-r.senseDone:
 			return
-		case d := <-r.senseQueue:
+		case d := <-queue:
+			wait := time.Since(d.QueuedAt).Nanoseconds()
+			r.queueLastWaitNS.Store(wait)
+			for old := r.queueMaxWaitNS.Load(); wait > old && !r.queueMaxWaitNS.CompareAndSwap(old, wait); old = r.queueMaxWaitNS.Load() {
+			}
 			if _, e := yyCallResidentState(d.Bot, d.Plugin, d.Handler, d.Args, false, false, r); e != nil {
 				debugLog("[感知] %s.%s: %v", d.Plugin, d.Handler, e)
 			}
@@ -92,7 +120,7 @@ func yyGetResident(bm *BotManager, id string) (*yyLuaResident, error) {
 	return r, nil
 }
 
-func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
+func yyLoadResident(bm *BotManager, id, src string, secondary bool, sourceDirs ...string) error {
 	key := yyLuaKey{bm, id}
 	yyLuaMu.Lock()
 	if previous := yyLuaStates[key]; previous != nil {
@@ -103,7 +131,8 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 		yyStopResident(bm, id)
 		yyLuaMu.Lock()
 	}
-	r := &yyLuaResident{senseQueue: make(chan yySenseDelivery, 128), senseDone: make(chan struct{})}
+	limits := yyObservationSettings()
+	r := &yyLuaResident{senseQueue: make(chan yySenseDelivery, limits.EventQueue), priorityQueue: make(chan yySenseDelivery, limits.PriorityQueue), senseDone: make(chan struct{})}
 	r.lifetime, r.stop = context.WithCancel(context.Background())
 	r.mu.Lock()
 	yyLuaStates[key] = r
@@ -113,7 +142,18 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 	r.L = L
 	setLuaBotCtxParent(L, bm, r.lifetime)
 	L.SetGlobal("__PLUGIN_ID__", lua.LString(id))
+	codeDir := ""
+	if secondary {
+		codeDir = getPluginSourceDir(id)
+	}
+	if len(sourceDirs) > 0 {
+		codeDir = sourceDirs[0]
+	}
+	if codeDir != "" {
+		L.SetGlobal("__YY_PLUGIN_CODE_DIR__", lua.LString(codeDir))
+	}
 	yyLuaModulePath(L)
+	yyLegacyFileBindings(L)
 	if pluginController != nil {
 		if config, err := pluginController.ReadConfig(id); err == nil {
 			if raw, ok := config["command_options"]; ok {
@@ -148,6 +188,7 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 		r.closed = true
 	} else {
 		go r.runSense()
+		go r.runSenseQueue(r.priorityQueue)
 		// OP readiness may precede import or hot reload. Replay after all
 		// modules have defined their final callbacks, without re-running source.
 		connected := false
@@ -164,6 +205,7 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool) error {
 }
 
 func yyStopResident(bm *BotManager, id string) {
+	yyHudClearOwner(bm, id)
 	yyClearCommandTickets(yyAsyncCommandKey{bm, id})
 	yySenseLuaClear(bm, id)
 	key := yyLuaKey{bm, id}
@@ -211,6 +253,7 @@ func yyCallResident(bm *BotManager, id, fnName string, args []any, exported, non
 	return yyCallResidentState(bm, id, fnName, args, exported, nonblocking, r)
 }
 func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported, nonblocking bool, r *yyLuaResident) (any, error) {
+	waitStarted := time.Now()
 	if nonblocking {
 		if !r.mu.TryLock() {
 			return nil, fmt.Errorf("目标插件正在执行或发生循环调用：%s", id)
@@ -219,13 +262,42 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 		r.mu.Lock()
 	}
 	defer r.mu.Unlock()
+	waitNS := time.Since(waitStarted).Nanoseconds()
+	r.vmLastWaitNS.Store(waitNS)
+	for old := r.vmMaxWaitNS.Load(); waitNS > old && !r.vmMaxWaitNS.CompareAndSwap(old, waitNS); old = r.vmMaxWaitNS.Load() {
+	}
 	if r.closed || !r.ready {
 		return nil, fmt.Errorf("插件 %s 已停止或加载失败", id)
 	}
-	L := r.L
-	started := time.Now()
+	// A callback has its own stack, but shares globals/modules/upvalues with
+	// the resident VM. This permits safe cooperative I/O suspension without
+	// rebuilding source or concurrently executing Lua instructions.
+	var L *lua.LState
+	if n := len(r.idle); n > 0 {
+		L = r.idle[n-1]
+		r.idle = r.idle[:n-1]
+	} else {
+		var inheritedCancel context.CancelFunc
+		L, inheritedCancel = r.L.NewThread()
+		if inheritedCancel != nil {
+			inheritedCancel()
+		}
+	}
 	defer func() {
+		L.SetTop(0)
+		if !r.closed && len(r.idle) < 8 {
+			r.idle = append(r.idle, L)
+		}
+	}()
+	started := time.Now()
+	r.activeHandler.Store(fnName)
+	r.activeSince.Store(started.UnixNano())
+	defer func() {
+		r.activeSince.Store(0)
 		ns := time.Since(started).Nanoseconds()
+		if ns >= int64(100*time.Millisecond) {
+			r.lastSlowCallback.Store(map[string]any{"handler": fnName, "elapsed_ms": float64(ns) / 1e6, "started_at": started.Format(time.RFC3339Nano), "finished_at": time.Now().Format(time.RFC3339Nano), "includes_io_wait": true})
+		}
 		r.callbackCalls.Add(1)
 		r.callbackLastNS.Store(ns)
 		r.callbackTotalNS.Add(ns)
@@ -237,6 +309,7 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 		parent = context.Background()
 	}
 	setLuaBotCtxParent(L, bm, parent)
+	L.SetContext(context.WithValue(L.Context(), yyLuaWaitKey{}, r))
 	defer cancelLuaCtx(L)
 	top := L.GetTop()
 	defer L.SetTop(top)
@@ -259,6 +332,7 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 	}
 	if err := L.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true}, values...); err != nil {
 		r.callbackFailures.Add(1)
+		r.lastCallbackError.Store(map[string]any{"handler": fnName, "time": time.Now().Format(time.RFC3339Nano), "error": err.Error()})
 		return nil, fmt.Errorf("plugin=%s handler=%s elapsed_ms=%.3f: %w", id, fnName, float64(time.Since(started))/float64(time.Millisecond), err)
 	}
 	if L.Get(-1) == lua.LNil {

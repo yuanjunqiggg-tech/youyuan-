@@ -31,6 +31,7 @@ type yyRuntimeInstance struct {
 	Processed atomic.Uint64
 	Failures  atomic.Uint64
 	Dropped   atomic.Uint64
+	Fatal     atomic.Bool
 	LastError atomic.Value
 	Stopped   bool
 	Queue     chan map[string]any
@@ -55,31 +56,7 @@ func yyRuntimeRoutes(mux *http.ServeMux, dataDir string) {
 	mux.HandleFunc("/api/youyuan/library/upload", yyLibraryProxy)
 	mux.HandleFunc("/api/youyuan/library/download", yyLibraryProxy)
 	mux.HandleFunc("/api/youyuan/library/delete", yyLibraryProxy)
-	mux.HandleFunc("/api/youyuan/runtime/list", func(w http.ResponseWriter, r *http.Request) {
-		yyRuntimeMu.Lock()
-		defer yyRuntimeMu.Unlock()
-		list := []map[string]any{}
-		for _, instance := range yyRuntimeInstances {
-			last := instance.LastError.Load()
-			if last == nil {
-				last = ""
-			}
-			list = append(list, map[string]any{"id": instance.Manifest.ID, "language": instance.Manifest.Language, "account": instance.Account, "state": "running", "queue_depth": len(instance.Queue), "queue_capacity": 256, "processed": instance.Processed.Load(), "failures": instance.Failures.Load(), "dropped": instance.Dropped.Load(), "last_error": last})
-		}
-		installed := []yyRuntimeManifest{}
-		entries, _ := os.ReadDir(yyRuntimeRoot)
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			data, e := os.ReadFile(filepath.Join(yyRuntimeRoot, entry.Name(), "manifest.json"))
-			var m yyRuntimeManifest
-			if e == nil && json.Unmarshal(data, &m) == nil {
-				installed = append(installed, m)
-			}
-		}
-		writeJSON(w, map[string]any{"ok": true, "installed": installed, "instances": list, "languages": []string{"python", "native_cpp", "lua_compat"}, "dependency_dir": yyRuntimeRoot})
-	})
+	mux.HandleFunc("/api/youyuan/runtime/list", yyRuntimeListHandler)
 	mux.HandleFunc("/api/youyuan/runtime/start", func(w http.ResponseWriter, r *http.Request) {
 		var p struct {
 			ID      string `json:"id"`
@@ -141,7 +118,7 @@ func yyRuntimeRoutes(mux *http.ServeMux, dataDir string) {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 			return
 		}
-		instance := &yyRuntimeInstance{Key: key, Account: p.Account, Manifest: manifest, Queue: make(chan map[string]any, 256), Done: make(chan struct{})}
+		instance := &yyRuntimeInstance{Key: key, Account: p.Account, Manifest: manifest, Queue: make(chan map[string]any, yyObservationSettings().RuntimeQueue), Done: make(chan struct{})}
 		yySDKPrepare(instance, dir)
 		var result string
 		var err error
@@ -216,6 +193,7 @@ func yyRuntimeRoutes(mux *http.ServeMux, dataDir string) {
 		var p struct {
 			ID      string `json:"id"`
 			Account string `json:"account"`
+			Native  uint64 `json:"native_instance,omitempty"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&p)
 		if p.Account == "" {
@@ -224,6 +202,13 @@ func yyRuntimeRoutes(mux *http.ServeMux, dataDir string) {
 		yyRuntimeStartMu.Lock()
 		defer yyRuntimeStartMu.Unlock()
 		key := p.Account + ":" + p.ID
+		yyRuntimeMu.Lock()
+		current := yyRuntimeInstances[key]
+		yyRuntimeMu.Unlock()
+		if p.Native != 0 && (current == nil || current.Native != p.Native) {
+			writeJSON(w, map[string]any{"ok": true, "skipped": "instance_replaced"})
+			return
+		}
 		if e := yyRememberRuntime(p.ID, p.Account, false); e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 			return
@@ -249,6 +234,49 @@ func yyRuntimeRoutes(mux *http.ServeMux, dataDir string) {
 	yyRestoreRuntimeLoop(mux, dataDir)
 }
 
+// Only copy live counters under the registry lock. Directory reads and response
+// writes may block on storage or a slow client; neither may stall game event
+// delivery or plugin start/stop, which share yyRuntimeMu.
+func yyRuntimeListSnapshot() []map[string]any {
+	yyRuntimeMu.Lock()
+	defer yyRuntimeMu.Unlock()
+	return yyRuntimeListSnapshotLocked()
+}
+
+func yyRuntimeListSnapshotLocked() []map[string]any {
+	list := make([]map[string]any, 0, len(yyRuntimeInstances))
+	for _, instance := range yyRuntimeInstances {
+		last := instance.LastError.Load()
+		if last == nil {
+			last = ""
+		}
+		list = append(list, map[string]any{"id": instance.Manifest.ID, "language": instance.Manifest.Language, "account": instance.Account, "state": "running", "queue_depth": len(instance.Queue), "queue_capacity": cap(instance.Queue), "processed": instance.Processed.Load(), "failures": instance.Failures.Load(), "dropped": instance.Dropped.Load(), "last_error": last})
+	}
+	return list
+}
+
+func yyRuntimeInstalled(root string) []yyRuntimeManifest {
+	installed := []yyRuntimeManifest{}
+	entries, _ := os.ReadDir(root)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		data, e := os.ReadFile(filepath.Join(root, entry.Name(), "manifest.json"))
+		var manifest yyRuntimeManifest
+		if e == nil && json.Unmarshal(data, &manifest) == nil {
+			installed = append(installed, manifest)
+		}
+	}
+	return installed
+}
+
+func yyRuntimeListHandler(w http.ResponseWriter, r *http.Request) {
+	list := yyRuntimeListSnapshot()
+	installed := yyRuntimeInstalled(yyRuntimeRoot)
+	writeJSON(w, map[string]any{"ok": true, "installed": installed, "instances": list, "languages": []string{"python", "native_cpp", "lua_compat"}, "dependency_dir": yyRuntimeRoot})
+}
+
 func (instance *yyRuntimeInstance) event(event map[string]any) (string, error) {
 	instance.mu.Lock()
 	defer instance.mu.Unlock()
@@ -256,9 +284,9 @@ func (instance *yyRuntimeInstance) event(event map[string]any) (string, error) {
 }
 
 func (instance *yyRuntimeInstance) rpcEvent(event map[string]any) (string, error) {
-	if !instance.mu.TryLock() {
-		return "", fmt.Errorf("目标插件正在执行，跨插件调用请稍后重试")
-	}
+	// Callers register a wait edge before entering. Genuine cycles are rejected
+	// there; ordinary concurrent calls queue instead of spuriously failing.
+	instance.mu.Lock()
 	defer instance.mu.Unlock()
 	return instance.eventLocked(event)
 }
@@ -280,6 +308,17 @@ func (instance *yyRuntimeInstance) eventLocked(event map[string]any) (string, er
 	}
 	text, err := yyNativeEvent(instance.Native, string(data))
 	instance.noteResult(text, err)
+	if err != nil && instance.Fatal.CompareAndSwap(false, true) {
+		// Native transport errors mean the isolated worker has exited or timed
+		// out. Stop through the normal lifecycle after releasing instance.mu.
+		// This cancels subscriptions/timers and prevents ghost callbacks.
+		go func() {
+			_, _, stopErr := yyInvoke("POST", "/api/youyuan/runtime/stop", nil, map[string]any{"id": instance.Manifest.ID, "account": instance.Account, "native_instance": instance.Native})
+			if stopErr != nil {
+				yyEvent("native_stop_error", stopErr.Error())
+			}
+		}()
+	}
 	return text, err
 }
 func (instance *yyRuntimeInstance) noteResult(text string, err error) {

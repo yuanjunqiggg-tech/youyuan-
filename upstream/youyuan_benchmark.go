@@ -39,7 +39,7 @@ func yyRunBenchmark(rounds int) map[string]any {
 	ratios := result["speedup_vs_reset_lua"].(map[string]any)
 	errors := result["errors"].(map[string]string)
 	baseline, e := yyBenchmarkMedian(rounds, func() error {
-		L := lua.NewState()
+		L := newYYLuaVM()
 		defer L.Close()
 		if e := L.DoString(yyBenchLua); e != nil {
 			return e
@@ -52,7 +52,7 @@ func yyRunBenchmark(rounds int) map[string]any {
 		return result
 	}
 	values["reset_lua"] = baseline
-	L := lua.NewState()
+	L := newYYLuaVM()
 	defer L.Close()
 	_ = L.DoString(yyBenchLua)
 	step := L.GetGlobal("step")

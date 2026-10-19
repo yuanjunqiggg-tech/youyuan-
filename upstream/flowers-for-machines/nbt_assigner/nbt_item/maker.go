@@ -2,6 +2,8 @@ package nbt_item
 
 import (
 	"fmt"
+	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
+	"github.com/OmineDev/flowers-for-machines/nbt_assigner/block_helper"
 
 	"github.com/OmineDev/flowers-for-machines/game_control/resources_control"
 	nbt_assigner_interface "github.com/OmineDev/flowers-for-machines/nbt_assigner/interface"
@@ -107,7 +109,20 @@ func EnchMultiple(
 	}
 
 	if len(enchItems) > 0 {
-		success, err := api.ContainerOpenAndClose().OpenInventory()
+		// NetEase may deny inventory-only requests (status 3) while permitting
+		// the same move inside an actual block-container screen.
+		var success bool
+		var err error
+		center := console.BlockByIndex(nbt_console.ConsoleIndexCenterBlock)
+		if center != nil {
+			if _, isContainer := (*center).(block_helper.ContainerBlockHelper); isContainer {
+				success, err = console.OpenContainerByIndex(nbt_console.ConsoleIndexCenterBlock)
+			} else {
+				success, err = api.ContainerOpenAndClose().OpenInventory()
+			}
+		} else {
+			success, err = api.ContainerOpenAndClose().OpenInventory()
+		}
 		if err != nil {
 			return fmt.Errorf("多次附魔: %v", err)
 		}
@@ -122,13 +137,29 @@ func EnchMultiple(
 			break
 		}
 
-		currentRound := enchItems[0:min(len(enchItems), 9)]
+		// A server plugin may immediately replace equipment and change its
+		// StackNetworkID after the first acknowledged move. Synchronize once
+		// per real inventory phase, never per ordinary command-chain node.
+		if err := api.Commands().AwaitChangesGeneral(); err != nil {
+			return fmt.Errorf("附魔前背包同步: %w", err)
+		}
+		freeSlots := []resources_control.SlotID{}
+		for slot := resources_control.SlotID(0); slot < 9; slot++ {
+			stack, _ := api.Resources().Inventories().GetItemStack(protocol.WindowIDInventory, slot)
+			if stack.Stack.Count == 0 {
+				freeSlots = append(freeSlots, slot)
+			}
+		}
+		if len(freeSlots) == 0 {
+			return fmt.Errorf("附魔无空闲快捷栏；不覆盖服务器锁定物品")
+		}
+		currentRound := enchItems[0:min(len(enchItems), len(freeSlots))]
 		transaction := api.ItemStackOperation().OpenTransaction()
 
 		for dstSlotID, srcSlotID := range currentRound {
 			_ = transaction.MoveBetweenInventory(
 				srcSlotID,
-				resources_control.SlotID(dstSlotID),
+				freeSlots[dstSlotID],
 				enchItemsCount[srcSlotID],
 			)
 		}
@@ -145,7 +176,7 @@ func EnchMultiple(
 			item := multipleItems[originSlotID-9]
 			defaultItem := (*item).UnderlyingItem().(*nbt_parser_item.DefaultItem)
 
-			currentSlotID := resources_control.SlotID(index)
+			currentSlotID := freeSlots[index]
 			if console.HotbarSlotID() != currentSlotID {
 				err = console.ChangeAndUpdateHotbarSlotID(currentSlotID)
 				if err != nil {
@@ -170,7 +201,7 @@ func EnchMultiple(
 
 		for currentSlotID, originSlotID := range currentRound {
 			_ = transaction.MoveBetweenInventory(
-				resources_control.SlotID(currentSlotID),
+				freeSlots[currentSlotID],
 				originSlotID,
 				enchItemsCount[originSlotID],
 			)

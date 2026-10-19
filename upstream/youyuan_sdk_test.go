@@ -1,10 +1,31 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestSDKRelativeFilesUseActualRuntimeDirectories(t *testing.T) {
+	s := sdkFixture(t, "sdk_files")
+	if e := os.MkdirAll(filepath.Join(s.Code, "resources"), 0755); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(s.Code, "resources", "guide.txt"), []byte("guide"), 0644); e != nil {
+		t.Fatal(e)
+	}
+	if v, e := s.call("util.read_file", []any{"guide.txt"}); e != nil || v != "guide" {
+		t.Fatal(v, e)
+	}
+	if _, e := s.call("util.write_file", []any{"nested/state.txt", "saved"}); e != nil {
+		t.Fatal(e)
+	}
+	if v, e := os.ReadFile(filepath.Join(s.Dir, "nested/state.txt")); e != nil || string(v) != "saved" {
+		t.Fatal(string(v), e)
+	}
+}
 
 func sdkFixture(t *testing.T, id string) *yySDKContext {
 	t.Helper()

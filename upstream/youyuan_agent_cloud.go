@@ -46,6 +46,7 @@ func yyCheckCloudCapability(ctx context.Context, key, origin string) bool {
 		return false
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("User-Agent", "YouYuan-Toolbox/"+yyAppVersion)
 	// Credentials never follow redirects away from the trusted capability service.
 	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	res, e := client.Do(req)

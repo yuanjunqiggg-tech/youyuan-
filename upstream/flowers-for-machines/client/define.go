@@ -1,15 +1,26 @@
 package client
 
 import (
+	"context"
 	"github.com/OmineDev/flowers-for-machines/core/bunker/auth"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
+	"github.com/OmineDev/flowers-for-machines/core/minecraft/raknet"
 )
 
 // ------------------------- Config -------------------------
 
 // Config ..
 type Config struct {
+	GameUpstreamDialer raknet.UpstreamDialer
+	DisablePharos      bool
+	OnGameRoute        func(officialSelected bool)
+	// AccessAuthenticator optionally routes a key-bound login through an owned
+	// gateway. Challenge responses still use AuthServerAddress. No identity is
+	// changed by this transport override.
+	AccessAuthenticator  minecraft.Authenticator
+	AuthClient           *auth.Client    // Optional already authenticated challenge client.
+	LoginContext         context.Context // Optional lifecycle of the login only.
 	AuthServerAddress    string
 	AuthServerToken      string
 	RentalServerCode     string

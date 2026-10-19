@@ -34,6 +34,7 @@ func yyGameAuthRoutes(mux *http.ServeMux) {
 		}
 		req.Header.Set("Authorization", "Bearer "+key)
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "YouYuan-Toolbox/"+yyAppVersion)
 		client := &http.Client{Timeout: 75 * time.Second}
 		resp, e := client.Do(req)
 		if e != nil {

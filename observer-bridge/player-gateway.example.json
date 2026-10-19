@@ -1,0 +1,17 @@
+{
+  "listen": "127.0.0.1:19142",
+  "allowed_uuid": "填写目标玩家的真实游戏UUID",
+  "allowed_uid": 0,
+  "auth_url": "https://auth.youyuanqi.dpdns.org",
+  "game_token": "填写该玩家自己账号的有效游戏Token",
+  "server": "填写服务器号",
+  "server_password": "",
+  "auth_headers": {},
+  "bridge_url": "http://127.0.0.1:19429/api/youyuan/observer/ingest",
+  "source_id": "填写observerBridge.create返回的id",
+  "bridge_token": "填写observerBridge.create返回的token",
+  "bridge_headers": {},
+  "sequence_file": "./private/player-gateway-sequence.json",
+  "queue_capacity": 4096,
+  "flush_ms": 10
+}

@@ -20,10 +20,13 @@ func yyWakeTickLoop() {
 }
 
 func yyTickLoop() {
+	timer := time.NewTimer(time.Hour)
+	defer timer.Stop()
 	for {
 		now := time.Now()
 		var due, exiting []*schedJob
-		wait := time.Hour
+		var nextWake time.Time
+		precisionRequested := false
 		schedMu.Lock()
 		for id, j := range schedJobs {
 			select {
@@ -41,6 +44,9 @@ func yyTickLoop() {
 					exiting = append(exiting, j)
 				}
 				continue
+			}
+			if !j.paused.Load() && !j.oneshot && !j.running && j.interval <= time.Millisecond {
+				precisionRequested = true
 			}
 			if j.nextDue.IsZero() {
 				j.nextDue = now.Add(j.interval)
@@ -65,8 +71,8 @@ func yyTickLoop() {
 					}
 				}
 			}
-			if d := j.nextDue.Sub(now); d < wait {
-				wait = d
+			if nextWake.IsZero() || j.nextDue.Before(nextWake) {
+				nextWake = j.nextDue
 			}
 		}
 		schedMu.Unlock()
@@ -84,10 +90,20 @@ func yyTickLoop() {
 				runScheduledHandler(j)
 			}(j)
 		}
-		if wait < time.Millisecond {
-			wait = time.Millisecond
+		wait := time.Hour
+		if !nextWake.IsZero() {
+			wait = time.Until(nextWake)
+			if wait < 0 {
+				wait = 0
+			}
 		}
-		timer := time.NewTimer(wait)
+		// Explicit high-frequency jobs use the platform precision wait.
+		// Ordinary timers remain asleep; callbacks never overlap themselves.
+		if precisionRequested && wait <= time.Millisecond {
+			yyPrecisionWait(wait)
+			continue
+		}
+		timer.Reset(wait)
 		select {
 		case <-timer.C:
 		case <-yyTickWake:

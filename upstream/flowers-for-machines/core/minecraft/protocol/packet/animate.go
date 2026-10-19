@@ -12,6 +12,11 @@ const (
 	AnimateActionMagicCriticalHit
 )
 
+const (
+	AnimateActionRowRight = 128
+	AnimateActionRowLeft  = 129
+)
+
 // Animate is sent by the server to send a player animation from one player to all viewers of that player. It
 // is used for a couple of actions, such as arm swimming and critical hits.
 type Animate struct {
@@ -22,6 +27,10 @@ type Animate struct {
 	// ID is unique for each world session, and entities are generally identified in packets using this
 	// runtime ID.
 	EntityRuntimeID uint64
+	// Data is the animation data present in every 1.21.120 animation packet,
+	// including arm swings. Omitting it leaves four unread bytes on receive
+	// and writes an incomplete packet on send.
+	Data float32
 	// BoatRowingTime ...
 	BoatRowingTime float32
 }
@@ -34,7 +43,8 @@ func (*Animate) ID() uint32 {
 func (pk *Animate) Marshal(io protocol.IO) {
 	io.Varint32(&pk.ActionType)
 	io.Varuint64(&pk.EntityRuntimeID)
-	if pk.ActionType&0x80 != 0 {
+	io.Float32(&pk.Data)
+	if pk.ActionType == AnimateActionRowRight || pk.ActionType == AnimateActionRowLeft {
 		io.Float32(&pk.BoatRowingTime)
 	}
 }

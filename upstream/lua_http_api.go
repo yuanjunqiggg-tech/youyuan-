@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/url"
 	"time"
 
@@ -8,10 +9,12 @@ import (
 )
 
 // registerHTTPAPI 注册详细网络能力到全局 http 表：
-//   http.request(method, url, body?, opts?) → {ok, status, body, headers, error}
-//   http.get(url, opts?) / post / put / delete
-//   http.json_encode(v) / http.json_decode(s)
-//   http.querify(paramsTable) → "a=1&b=2"
+//
+//	http.request(method, url, body?, opts?) → {ok, status, body, headers, error}
+//	http.get(url, opts?) / post / put / delete
+//	http.json_encode(v) / http.json_decode(s)
+//	http.querify(paramsTable) → "a=1&b=2"
+//
 // opts = { headers = {..}, timeout = 秒 }
 // 区别于 game.httpGet/httpPost（返回纯文本、错误即报错）：http.* 返回完整响应对象，
 // 非 2xx 也返回 body，传输错误放进 error 字段而不抛异常。
@@ -85,7 +88,14 @@ func pushHTTPResult(L *lua.LState, method, u, body string, opts lua.LValue) int 
 			}
 		}
 	}
-	status, rheaders, rbody, err := httpRequestFull(method, u, body, headers, timeout)
+	var status int
+	var rheaders map[string]string
+	rbody, err := yyLuaWait(L, func(ctx context.Context) (string, error) {
+		var resultBody string
+		var e error
+		status, rheaders, resultBody, e = httpRequestFullContext(ctx, method, u, body, headers, timeout)
+		return resultBody, e
+	})
 	out := L.NewTable()
 	if err != nil {
 		out.RawSetString("ok", lua.LFalse)

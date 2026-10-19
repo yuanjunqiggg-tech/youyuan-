@@ -26,6 +26,7 @@ type yyQQConfig struct {
 	GroupNumber string      `json:"group_number,omitempty"`
 	Groups      []yyQQGroup `json:"groups"`
 	OneBot      struct {
+		BotID string `json:"bot_id,omitempty"`
 		URL   string `json:"ws_url"`
 		Token string `json:"token,omitempty"`
 	} `json:"onebot"`
@@ -181,6 +182,7 @@ func yyRegisterQQ(mux *http.ServeMux, dataDir string) {
 	})
 	mux.HandleFunc("/api/qq/webhook", yyQQWebhook)
 	go yyQQConnectLoop()
+	go yyQQMemoryMaintenance()
 	go func() {
 		for job := range yyQQOutgoing {
 			var err error
@@ -288,7 +290,9 @@ func yyQQConnectLoop() {
 					break
 				}
 				var event map[string]any
-				if json.Unmarshal(raw, &event) != nil {
+				decoder := json.NewDecoder(strings.NewReader(string(raw)))
+				decoder.UseNumber() // QQ IDs may exceed float64's exact integer range.
+				if decoder.Decode(&event) != nil {
 					continue
 				}
 				if echo, ok := event["echo"].(string); ok {
@@ -307,14 +311,23 @@ func yyQQConnectLoop() {
 					continue
 				}
 				sender, _ := event["sender"].(map[string]any)
-				name := fmt.Sprint(sender["nickname"])
+				name := yyQQSenderName(sender)
 				role, _ := sender["role"].(string)
 				text, _ := event["raw_message"].(string)
 				current := yyQQSnapshot()
+				if self := yyQQStableID(event["self_id"]); self != "" {
+					current.OneBot.BotID = self
+					yyQQMu.Lock()
+					if yyQQ.OneBot.URL == current.OneBot.URL {
+						yyQQ.OneBot.BotID = self
+					}
+					yyQQMu.Unlock()
+				}
 				current.GroupID = yyQQGroupString(event["group_id"])
-				id := fmt.Sprint(event["message_id"])
+				id := yyQQStableID(event["message_id"])
 				yyQQRememberReply(yyQQGroupString(current.GroupID), id)
-				go yyQQToGame(current, name, yyQQGroupString(event["user_id"]), role, text, id)
+				user := yyQQStableID(event["user_id"])
+				go yyQQToGameMentionMeta(current, name, user, role, text, id, false, yyQQEventReplyID(event), user != "" && user == current.OneBot.BotID)
 			}
 			conn.CloseNow()
 		}
@@ -376,10 +389,28 @@ func yyQQFeedback(text, id string) {
 		yyQQLog("群执行回执发送失败：" + err.Error())
 	}
 }
+
+// AI replies retain their received group even when message IDs collide across groups.
+func yyQQFeedbackTo(cf yyQQConfig, text, id string) {
+	next := yyQQSnapshot()
+	next.GroupID = yyQQGroupString(cf.GroupID)
+	if !next.Enabled || !yyQQGroupEnabled(next, yyQQGroupString(cf.GroupID)) || yyQQMessageKey(next) != yyQQMessageKey(cf) {
+		return
+	}
+	if err := yyQQSendToGroup(next, text, id); err != nil {
+		yyQQLog("群执行回执发送失败：" + err.Error())
+	}
+}
 func yyQQToGame(cf yyQQConfig, name, userID, role, text, id string) {
 	yyQQToGameMention(cf, name, userID, role, text, id, false)
 }
 func yyQQToGameMention(cf yyQQConfig, name, userID, role, text, id string, mentioned bool) {
+	yyQQToGameMentionMeta(cf, name, userID, role, text, id, mentioned, "", false)
+}
+func yyQQToGameMentionMeta(cf yyQQConfig, name, userID, role, text, id string, mentioned bool, replyID string, isBot bool) {
+	if userID == "" || isBot {
+		return
+	}
 	next := yyQQSnapshot()
 	sourceGroup := yyQQGroupString(cf.GroupID)
 	if !next.Enabled || next.Adapter != cf.Adapter || !yyQQGroupEnabled(next, sourceGroup) || next.Official.AppID != cf.Official.AppID {
@@ -397,8 +428,9 @@ func yyQQToGameMention(cf yyQQConfig, name, userID, role, text, id string, menti
 				delete(yyQQRecent, key)
 			}
 		}
-		_, seen := yyQQRecent[id]
-		yyQQRecent[id] = now
+		dedupKey := yyQQMessageKey(cf) + "\x00" + id
+		_, seen := yyQQRecent[dedupKey]
+		yyQQRecent[dedupKey] = now
 		yyQQMu.Unlock()
 		if seen {
 			return
@@ -406,10 +438,15 @@ func yyQQToGameMention(cf yyQQConfig, name, userID, role, text, id string, menti
 	}
 	yyQQHelper.Lock()
 	if userID != "" && (len(yyQQHelper.Seen) < 256 || yyQQHelper.Seen[userID] != "") {
+		name = yyQQDisplayName(cf, userID, name)
+		if name == "群成员" && yyQQHelper.Seen[userID] != "" && yyQQHelper.Seen[userID] != userID {
+			name = yyQQHelper.Seen[userID]
+		}
 		yyQQHelper.Seen[userID] = name
 		yyQQHelper.Dirty = true
 	}
 	yyQQHelper.Unlock()
+	yyQQRememberGroupMessageMeta(cf, userID, name, text, id, replyID, false)
 	if cf.Assistant.Enabled && yyQQCompanionHandle(cf, userID, text, id, mentioned) {
 		return
 	}
@@ -568,7 +605,7 @@ func yyQQSendOneBot(cf yyQQConfig, message any, autoEscape bool) error {
 	}
 	select {
 	case ack := <-waiter:
-		if ack["retcode"] != float64(0) {
+		if yyQQStableID(ack["retcode"]) != "0" {
 			return fmt.Errorf("OneBot 返回失败：%s", mustJSON(ack))
 		}
 		return nil

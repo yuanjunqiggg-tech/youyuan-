@@ -1,6 +1,7 @@
 var _consoleRendered = 0;
 
 function Rconsole(){
+  _consoleRendered=0;
   document.getElementById('tab-terminal').innerHTML=
     '<div class="content-inner" style="display:flex;flex-direction:column;height:calc(100vh - 160px)">'+
     '<div class="console-log" id="console-log" style="flex:1;overflow-y:auto;margin-bottom:8px"></div>'+
@@ -12,11 +13,12 @@ function Rconsole(){
     '</div>';
   var log=document.getElementById('console-log');
   if(log) appendConsoleLogs(log);
-  setTimeout(function(){var el=document.getElementById('console-input');if(el)el.focus()},100)
+  setTimeout(function(){var el=document.getElementById('console-input');if(el&&curTab==='terminal'&&!subPageOpen)el.focus()},100)
 }
 
 function appendConsoleLogs(log){
   if(!log) return;
+  var follow=log.scrollHeight-log.clientHeight-log.scrollTop<64 || !log.children.length;
   if(allLogs.length===0){
     if(!log.children.length) log.innerHTML='<div style="color:#888;text-align:center;padding:40px 0;font-size:12px">▍控制台就绪</div>';
     return;
@@ -41,7 +43,8 @@ function appendConsoleLogs(log){
     log.appendChild(d);
   }
   _consoleRendered=allLogs.length;
-  log.scrollTop=log.scrollHeight
+  while(log.children.length>2000)log.removeChild(log.firstChild);
+  if(follow)log.scrollTop=log.scrollHeight
 }
 
 async function sendConsole(){
@@ -68,20 +71,10 @@ async function sendConsole(){
   }
 }
 
+var yyConsoleFrame=null;
 function addConsoleLine(msg,cl){
+  if(allLogs.length>=2000){var removed=allLogs.length-1999;allLogs.splice(0,removed);_consoleRendered=Math.max(0,_consoleRendered-removed)}
   allLogs.push({msg:msg,cl:cl,tp:'console'});
-  var l=document.getElementById('console-log');
-  if(!l)return;
-  var d=document.createElement('div');
-  d.style.padding='2px 0';
-  d.style.borderBottom='1px solid rgba(255,255,255,.04)';
-  d.style.fontFamily="'SF Mono','Fira Code',monospace";
-  d.style.fontSize='12px';
-  d.style.lineHeight='1.5';
-  if(cl==='e'){d.innerHTML='<span style="color:#ff5555">'+renderLogLine(msg)+'</span>'}
-  else if(cl==='cmd'){d.innerHTML='<span style="color:#ffaa00;font-weight:700">'+escHtml(msg)+'</span>'}
-  else if(cl==='chat'){d.innerHTML='<span style="color:#aaa">'+escHtml(msg)+'</span>'}
-  else{d.innerHTML=renderLogLine(msg)}
-  l.appendChild(d);
-  l.scrollTop=l.scrollHeight
+  if(yyConsoleFrame!==null)return;
+  yyConsoleFrame=requestAnimationFrame(function(){yyConsoleFrame=null;var log=document.getElementById('console-log');if(log&&curTab==='terminal')appendConsoleLogs(log)});
 }

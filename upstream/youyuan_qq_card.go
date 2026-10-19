@@ -155,3 +155,79 @@ func yyQQCardClip(s string, n int) string {
 	}
 	return string(r[:n]) + "…"
 }
+
+// A paginated roster using received skin data. Missing skins have a visible
+// placeholder; no external identity or coordinate lookup is performed.
+func yyQQPlayersCard(names []string, page int) ([]byte, error) {
+	pages := max(1, (len(names)+11)/12)
+	if page < 1 || page > pages {
+		return nil, fmt.Errorf("当前名单只有%d页", pages)
+	}
+	yyQQCardFontOnce.Do(func() { yyQQCardTypeface, yyQQCardFontError = opentype.Parse(yyQQCardFont) })
+	if yyQQCardFontError != nil {
+		return nil, yyQQCardFontError
+	}
+	start, end := (page-1)*12, min(page*12, len(names))
+	shown := names[start:end]
+	rows := max(1, (len(shown)+1)/2)
+	height := 180 + rows*112
+	img := image.NewRGBA(image.Rect(0, 0, 820, height))
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.RGBA{242, 247, 247, 255}), image.Point{}, draw.Src)
+	text := func(x, y int, s string, size float64) {
+		face, e := opentype.NewFace(yyQQCardTypeface, &opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingFull})
+		if e != nil {
+			return
+		}
+		defer face.Close()
+		d := font.Drawer{Dst: img, Src: image.NewUniform(color.RGBA{31, 57, 57, 255}), Face: face, Dot: fixed.P(x, y)}
+		d.DrawString(s)
+	}
+	text(32, 48, "游园 · 在线玩家", 27)
+	text(32, 84, fmt.Sprintf("当前在线 %d 人 · 第 %d / %d 页", len(names), page, pages), 20)
+	if len(shown) == 0 {
+		text(32, 150, "目前没有在线玩家", 20)
+	}
+	for i, name := range shown {
+		x, y := 24+(i%2)*390, 110+(i/2)*112
+		draw.Draw(img, image.Rect(x, y, x+376, y+100), image.NewUniform(color.White), image.Point{}, draw.Src)
+		known := yyQQDrawSkinFace(img, name, x+12, y+16, 64)
+		text(x+92, y+34, yyQQCardClip(name, 13), 20)
+		s, _ := yyQQStatsFor(name)
+		text(x+92, y+62, fmt.Sprintf("观测在线 %d 分 · 发言 %d 条", s.OnlineSeconds/60, s.Messages), 15)
+		if !known {
+			text(x+92, y+85, "尚未收到皮肤", 14)
+		}
+	}
+	text(32, height-20, "list 页码 · .查询 游戏ID · 不含玩家坐标", 16)
+	var buf bytes.Buffer
+	if e := png.Encode(&buf, img); e != nil {
+		return nil, e
+	}
+	return buf.Bytes(), nil
+}
+func yyQQDrawSkinFace(img draw.Image, player string, x, y, size int) bool {
+	skin, w, h, ok := playerInfoMgr.GetPlayerSkin(player)
+	if !ok || w < 64 || h < w/4 || uint64(len(skin)) != uint64(w)*uint64(h)*4 {
+		draw.Draw(img, image.Rect(x, y, x+size, y+size), image.NewUniform(color.RGBA{223, 239, 235, 255}), image.Point{}, draw.Src)
+		return false
+	}
+	scale := int(w) / 64
+	face := image.NewNRGBA(image.Rect(0, 0, size, size))
+	for yy := 0; yy < size; yy++ {
+		for xx := 0; xx < size; xx++ {
+			sx, sy := 8*scale+xx*8*scale/size, 8*scale+yy*8*scale/size
+			i := (sy*int(w) + sx) * 4
+			face.SetNRGBA(xx, yy, color.NRGBA{skin[i], skin[i+1], skin[i+2], skin[i+3]})
+		}
+	}
+	draw.Draw(img, image.Rect(x, y, x+size, y+size), face, image.Point{}, draw.Over)
+	for yy := 0; yy < size; yy++ {
+		for xx := 0; xx < size; xx++ {
+			sx, sy := 40*scale+xx*8*scale/size, 8*scale+yy*8*scale/size
+			i := (sy*int(w) + sx) * 4
+			face.SetNRGBA(xx, yy, color.NRGBA{skin[i], skin[i+1], skin[i+2], skin[i+3]})
+		}
+	}
+	draw.Draw(img, image.Rect(x, y, x+size, y+size), face, image.Point{}, draw.Over)
+	return true
+}

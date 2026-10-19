@@ -173,6 +173,14 @@ function cbFinalizeImport(ok, msg){
   if(stopBtn)stopBtn.classList.add('gone');
 }
 
+function cbPauseImport(msg){
+  cbState.importing=false;
+  var pct=document.getElementById('cb-import-pct'),text=document.getElementById('cb-import-msg');
+  if(pct)pct.textContent='已暂停';
+  if(text)text.textContent=msg||'断点已保存，可继续导入';
+  var stop=document.querySelector('#cb-import-progress .btn-d');if(stop)stop.classList.add('gone');
+}
+
 function cbStopImport(){
   A('POST','/api/task/stop',{}).then(function(r){
     if(r.ok){T('已停止导入','o');cbState.importing=false}

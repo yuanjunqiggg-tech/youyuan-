@@ -257,6 +257,12 @@ func handleStatic(prefix, dir string) http.HandlerFunc {
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(w, map[string]any{"ok": false, "error": "not_found", "path": r.URL.Path})
+		return
+	}
 	data, _ := frontendFS.ReadFile("frontend/index.html")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -311,8 +317,8 @@ func handleTaskStart(w http.ResponseWriter, r *http.Request) {
 	}
 	taskMu.Lock()
 	defer taskMu.Unlock()
-	if activeTask != nil && activeTask.Running() {
-		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行中"})
+	if activeTask != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行或停止清理中，请等待完成后再开始"})
 		return
 	}
 	var req struct {
@@ -362,8 +368,8 @@ func handleRepairStart(w http.ResponseWriter, r *http.Request) {
 	}
 	taskMu.Lock()
 	defer taskMu.Unlock()
-	if activeTask != nil && activeTask.Running() {
-		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行中"})
+	if activeTask != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行或停止清理中，请等待完成后再开始"})
 		return
 	}
 
@@ -467,7 +473,6 @@ func handleTaskStop(w http.ResponseWriter, r *http.Request) {
 	defer taskMu.Unlock()
 	if activeTask != nil {
 		activeTask.Stop()
-		activeTask = nil
 	}
 	writeJSON(w, map[string]any{"ok": true})
 }
@@ -498,8 +503,8 @@ func handleTaskResume(w http.ResponseWriter, r *http.Request) {
 	}
 	taskMu.Lock()
 	defer taskMu.Unlock()
-	if activeTask != nil && activeTask.Running() {
-		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行中"})
+	if activeTask != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行或停止清理中，请等待完成后再开始"})
 		return
 	}
 	// 检查机器人连接
@@ -555,6 +560,10 @@ func handleTaskDelete(w http.ResponseWriter, r *http.Request) {
 		TaskID string `json:"task_id"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
+	if cp, e := state.LoadCheckpoint(req.TaskID); e == nil && cp.Status == "running" {
+		writeJSON(w, map[string]any{"ok": false, "error": "请先停止作业并等待断点保存，再删除记录"})
+		return
+	}
 	if err := state.DeleteCheckpoint(req.TaskID); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
@@ -568,8 +577,11 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		cfg := config.ReloadConfig()
 		writeJSON(w, map[string]any{"ok": true, "config": cfg})
 	case "POST":
-		var cfg config.AppConfig
-		previousCreative := config.LoadConfig().AutoCreative
+		yyConfigMutationMu.Lock()
+		defer yyConfigMutationMu.Unlock()
+		previous := config.LoadConfig()
+		cfg := *previous
+		previousCreative := previous.AutoCreative
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
 			return
@@ -599,6 +611,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
+		if cfg.AutoReconnect && !previous.AutoReconnect {
+			yyResumeAutoConnection()
+		}
 		if cfg.AutoCreative && !previousCreative {
 			if bm := getBotManagerLocked(); bm != nil && bm.IsConnected() {
 				go func() {
@@ -625,7 +640,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePluginList(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"ok": true, "plugins": pluginController.List()})
+	writeJSON(w, map[string]any{"ok": true, "plugins": pluginController.List(), "market_origin": yyMarketOrigin(config.ReloadConfig())})
 }
 
 func handlePluginRun(w http.ResponseWriter, r *http.Request) {
@@ -662,10 +677,9 @@ func handlePluginStop(w http.ResponseWriter, r *http.Request) {
 	}
 	botMgrMu.Lock()
 	bm := botMgr
-	connected := bm != nil && bm.IsConnected()
 	botMgrMu.Unlock()
-	if !connected {
-		writeJSON(w, map[string]any{"ok": false, "error": "未连接"})
+	if bm == nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "插件执行上下文不存在"})
 		return
 	}
 	if err := pluginController.Stop(bm, req.ID); err != nil {
@@ -740,6 +754,14 @@ func handlePluginImport(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePluginExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "使用POST导出", 405)
+		return
+	}
+	if _, err := yyExportActor(r, true); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
 	var req struct {
 		ID string `json:"id"`
 	}
@@ -747,17 +769,27 @@ func handlePluginExport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
 		return
 	}
+	yyPluginExportMu.Lock()
+	defer yyPluginExportMu.Unlock()
 	path, err := pluginController.ExportPackage(req.ID)
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "path": path})
+	yyExportResponse(w, r, path, req.ID, "lua")
 }
 
 // handlePluginExportSAF 打包插件并用系统文件选择器(SAF)直接导出私有文件。
 // 返回源路径与建议文件名；前端据此调用 android.exportFile(src, name)。
 func handlePluginExportSAF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "使用POST导出", 405)
+		return
+	}
+	if _, err := yyExportActor(r, true); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
 	var req struct {
 		ID string `json:"id"`
 	}
@@ -765,12 +797,14 @@ func handlePluginExportSAF(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
 		return
 	}
+	yyPluginExportMu.Lock()
+	defer yyPluginExportMu.Unlock()
 	path, err := pluginController.ExportPackage(req.ID)
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "src_path": path, "name": req.ID + ".zip"})
+	yyExportResponse(w, r, path, req.ID, "lua")
 }
 
 func handlePluginGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -961,7 +995,15 @@ func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "正在连接，请稍后或先断开"})
 		return
 	}
-	req.Server = yyNormalizeServer(req.Server)
+	req.Server = yyNormalizeServer(yyRoomRememberedTarget(req.Token, req.Auth, req.Server))
+	// A connected session must retain its own login inputs for retry/restart.
+	// Previously connecting without separately saving settings left the retry
+	// loop with an empty token/server, so an enabled switch could do nothing.
+	if err := yySaveConnectionCredentials(req.Token, req.Server, req.Auth, req.Password, req.UseNewProtocol); err != nil {
+		yyEndConnectionAttempt(err)
+		writeJSON(w, map[string]any{"ok": false, "error": "无法保存连接配置: " + err.Error()})
+		return
+	}
 
 	// 取消上一次连接
 	connectStopMu.Lock()
@@ -973,8 +1015,11 @@ func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 
 	botMgrMu.Lock()
 	previousBot := botMgr
-	if botMgr != nil {
-		botMgr.Disconnect()
+	botMgrMu.Unlock()
+	// Network flushing/cleanup must not hold the manager lookup lock; otherwise
+	// a bad connection freezes status requests and makes switches look dead.
+	if previousBot != nil {
+		previousBot.Disconnect()
 	}
 	bm := NewBotManager()
 	bm.isMain = true // 主机器人：OP 后自动加载插件、断开时停用全部
@@ -984,6 +1029,7 @@ func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 			bm.yyNotice("ready")
 		}
 	}
+	botMgrMu.Lock()
 	botMgr = bm
 	botMgrMu.Unlock()
 	yyCaptureTransfer(previousBot, bm)
@@ -999,7 +1045,8 @@ func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 	// 连接前刷新工具箱信息
 	// 自有云端在远控配置中设置
 	go func() {
-		defer yyEndConnectionAttempt()
+		var connectErr error
+		defer func() { yyEndConnectionAttempt(connectErr) }()
 		go func(m *BotManager) {
 			// 防御：日志转发器绝不能死。若某条消息处理 panic 退出，logCh 会被填满，
 			// 导致机器人里所有 bm.logCh <- 永久阻塞 → 机器人卡死、日志通道停。
@@ -1026,8 +1073,9 @@ func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 				}()
 			}
 		}(bm)
-		if err := bm.Connect(token, server, auth, password); err != nil {
-			hub.Emit("bot_log", mustJSON(map[string]any{"msg": fmt.Sprintf("✗ 连接失败(已重试3次): %v", err)}))
+		connectErr = bm.Connect(token, server, auth, password)
+		if connectErr != nil {
+			hub.Emit("bot_log", mustJSON(map[string]any{"msg": fmt.Sprintf("✗ 本轮连接失败（自动重连按设置继续）: %v", connectErr)}))
 		}
 	}()
 
@@ -1038,11 +1086,12 @@ func handleBotDisconnect(w http.ResponseWriter, r *http.Request) {
 	yyPauseAutoConnection()
 	go func() {
 		botMgrMu.Lock()
-		if botMgr != nil {
-			botMgr.Disconnect()
-			botMgr = nil
-		}
+		bm := botMgr
+		botMgr = nil
 		botMgrMu.Unlock()
+		if bm != nil {
+			bm.Disconnect()
+		}
 	}()
 	writeJSON(w, map[string]any{"ok": true})
 }
@@ -1090,8 +1139,16 @@ func handleFleetDisconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFleetStatus(w http.ResponseWriter, r *http.Request) {
+	main := getBotManager()
+	workers := []map[string]any{}
+	for _, bm := range getFleetBots() {
+		if bm != nil {
+			workers = append(workers, map[string]any{"name": bm.display, "server": bm.ServerCode(), "is_op": bm.IsOP(), "main": bm == main})
+		}
+	}
 	writeJSON(w, map[string]any{
 		"ok":             true,
+		"workers":        workers,
 		"status":         FleetStatus(),
 		"main_connected": botMgr != nil && botMgr.IsConnected(),
 		"main_op":        botMgr != nil && botMgr.IsOP(),
@@ -1107,7 +1164,7 @@ func handleBotConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Input == "" {
-		writeJSON(w, map[string]any{"ok": false, "error": "输入为空"})
+		writeJSON(w, map[string]any{"ok": false, "error": "必须提供非空input字段，例如 {\"input\":\"/say hello\"}", "code": "invalid_input"})
 		return
 	}
 	// 只取 botMgr 指针，不持有锁（SendConsole 可能等待命令响应）
@@ -2009,8 +2066,8 @@ func handleMarketDownload(w http.ResponseWriter, r *http.Request) {
 	cfg := config.ReloadConfig()
 	target := yyMarketOrigin(cfg) + "/api/market/files/" + id + "/download"
 	req, _ := http.NewRequest("GET", target, nil)
-	if cfg.MarketToken != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.MarketToken)
+	if auth := yyMarketCredential(cfg, r); auth != "" {
+		req.Header.Set("Authorization", auth)
 	}
 	client := &http.Client{Timeout: 120 * time.Second, Transport: makeTransport()}
 	resp, err := client.Do(req)
@@ -2243,6 +2300,12 @@ func handleMarketContribute(w http.ResponseWriter, r *http.Request) {
 func handlePluginMarketProxy(w http.ResponseWriter, r *http.Request) {
 	p := strings.TrimPrefix(r.URL.Path, "/api/plugin-market-proxy")
 	cfg := config.ReloadConfig()
+	if expected := r.Header.Get("X-YouYuan-Market-Origin"); expected != "" && expected != yyMarketOrigin(cfg) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		writeJSON(w, map[string]any{"ok": false, "error": "市场来源已变更，请重新检查更新", "code": "MARKET_SOURCE_CHANGED", "submitted": false})
+		return
+	}
 	target := yyMarketOrigin(cfg) + p
 	if r.URL.RawQuery != "" {
 		target += "?" + r.URL.RawQuery
@@ -2306,8 +2369,8 @@ func handlePluginMarketInstall(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	if cfg.MarketToken != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.MarketToken)
+	if auth := yyMarketCredential(cfg, r); auth != "" {
+		req.Header.Set("Authorization", auth)
 	}
 	client := &http.Client{Timeout: 120 * time.Second, Transport: makeTransport()}
 	resp, err := client.Do(req)
@@ -2378,7 +2441,7 @@ func handlePluginMarketInstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = pluginController.ScanPlugins()
-	writeJSON(w, map[string]any{"ok": true, "id": importedID, "language": "lua", "location": "插件文件/" + importedID, "review_state": 0})
+	writeJSON(w, map[string]any{"ok": true, "id": importedID, "source_id": id, "source_origin": yyMarketOrigin(cfg), "language": "lua", "location": "插件文件/" + importedID, "review_state": 0})
 }
 
 // handlePluginMarketContribute 上传我的插件：本地 ExportPackage 打包，两阶段上传到
@@ -3479,9 +3542,9 @@ func handleSkinBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	taskMu.Lock()
-	if activeTask != nil && activeTask.Running() {
+	if activeTask != nil {
 		taskMu.Unlock()
-		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行中"})
+		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行或停止清理中，请等待完成后再开始"})
 		return
 	}
 
@@ -3628,9 +3691,9 @@ func handleSkinOnlineBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	taskMu.Lock()
-	if activeTask != nil && activeTask.Running() {
+	if activeTask != nil {
 		taskMu.Unlock()
-		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行中"})
+		writeJSON(w, map[string]any{"ok": false, "error": "已有任务运行或停止清理中，请等待完成后再开始"})
 		return
 	}
 
@@ -3784,6 +3847,9 @@ func handleSkinOnlineHead(w http.ResponseWriter, r *http.Request) {
 
 // handleMapScan 扫描指定区域中的物品展示框，返回地图网格信息。
 func handleMapScan(w http.ResponseWriter, r *http.Request) {
+	if !mapRequestForm(w, r) {
+		return
+	}
 	if r.Method != "POST" {
 		writeJSON(w, map[string]any{"ok": false, "error": "仅支持 POST"})
 		return
@@ -3812,6 +3878,9 @@ func handleMapScan(w http.ResponseWriter, r *http.Request) {
 	player := NewMapPlayer(bm)
 	player.grid = grid
 	player.mapCfg.IsConfigured = true
+	if mapPlayer != nil {
+		mapPlayer.Stop()
+	}
 	mapPlayer = player
 
 	writeJSON(w, map[string]any{
@@ -3824,6 +3893,9 @@ func handleMapScan(w http.ResponseWriter, r *http.Request) {
 
 // handleMapDisplay 在物品展示框上显示一张图片。
 func handleMapDisplay(w http.ResponseWriter, r *http.Request) {
+	if !mapRequestForm(w, r) {
+		return
+	}
 	if r.Method != "POST" {
 		writeJSON(w, map[string]any{"ok": false, "error": "仅支持 POST"})
 		return
@@ -3842,8 +3914,9 @@ func handleMapDisplay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	player := mapPlayer
 	go func() {
-		if err := mapPlayer.PlayImage(path); err != nil {
+		if err := player.PlayImage(path); err != nil {
 			hub.Emit("map_error", mustJSON(map[string]any{"error": err.Error()}))
 			return
 		}
@@ -3855,6 +3928,9 @@ func handleMapDisplay(w http.ResponseWriter, r *http.Request) {
 
 // handleMapPlay 在物品展示框上播放视频。
 func handleMapPlay(w http.ResponseWriter, r *http.Request) {
+	if !mapRequestForm(w, r) {
+		return
+	}
 	if r.Method != "POST" {
 		writeJSON(w, map[string]any{"ok": false, "error": "仅支持 POST"})
 		return
@@ -3876,15 +3952,16 @@ func handleMapPlay(w http.ResponseWriter, r *http.Request) {
 	cfg := MediaConfig{
 		MediaType:   "video",
 		MediaPath:   path,
-		VideoFPS:    getIntFromForm(r, "fps", 10),
+		VideoFPS:    getIntFromForm(r, "fps", 30),
 		VideoSpeed:  getFloatFromForm(r, "speed", 1.0),
 		StartFrame:  getIntFromForm(r, "start_frame", 0),
 		Concurrency: getIntFromForm(r, "concurrency", 4),
 		BatchSize:   getIntFromForm(r, "batch_size", 8),
 	}
 
+	player := mapPlayer
 	go func() {
-		if err := mapPlayer.PlayVideo(cfg); err != nil {
+		if err := player.PlayVideo(cfg); err != nil {
 			hub.Emit("map_error", mustJSON(map[string]any{"error": err.Error()}))
 			return
 		}
@@ -4342,6 +4419,9 @@ func handleFileScan(w http.ResponseWriter, r *http.Request) {
 	filter := r.URL.Query().Get("filter") // "building" or "music"
 	if rootPath == "" {
 		rootPath = "/storage/emulated/0"
+		if getPlatformName() != "android" && yyDataRoot != "" {
+			rootPath = yyDataRoot
+		}
 	}
 	// Prevent directory traversal: clean and ensure under allowed roots
 	clean := filepath.Clean(rootPath)
@@ -4377,6 +4457,8 @@ func handleFileScan(w http.ResponseWriter, r *http.Request) {
 		".png": true,
 	}
 	switch filter {
+	case "zip":
+		filterExts = map[string]bool{".zip": true}
 	case "building":
 		filterExts = buildingExts
 	case "music":
@@ -4471,13 +4553,23 @@ func handleFileScan(w http.ResponseWriter, r *http.Request) {
 	if filter == "building" {
 		deadline := time.Now().Add(500 * time.Millisecond)
 		var wg sync.WaitGroup
-		for i := range dirs {
+		jobs := make(chan int)
+		for n := 0; n < 8; n++ {
 			wg.Add(1)
-			go func(idx int) {
+			go func() {
 				defer wg.Done()
-				dirs[idx].HasBuilding = hasBuildingFile(dirs[idx].Path, 0, 6, deadline)
-			}(i)
+				for idx := range jobs {
+					dirs[idx].HasBuilding = hasBuildingFile(dirs[idx].Path, 0, 6, deadline)
+				}
+			}()
 		}
+		for i := range dirs {
+			if time.Now().After(deadline) {
+				break
+			}
+			jobs <- i
+		}
+		close(jobs)
 		wg.Wait()
 	}
 
@@ -4526,22 +4618,15 @@ func hasBuildingFile(path string, depth, maxDepth int, deadline time.Time) bool 
 	if len(subDirs) == 0 {
 		return false
 	}
-	// Scan subdirectories in parallel (max 32 concurrent)
-	type scanResult struct{ found bool }
-	ch := make(chan scanResult, len(subDirs))
-	sem := make(chan struct{}, 32)
-	for _, sd := range subDirs {
-		sem <- struct{}{}
-		go func(dir string) {
-			defer func() { <-sem }()
-			ch <- scanResult{hasBuildingFile(dir, depth+1, maxDepth, deadline)}
-		}(sd)
-	}
-	for range subDirs {
-		if (<-ch).found {
+	for _, dir := range subDirs {
+		if time.Now().After(deadline) {
+			break
+		}
+		if hasBuildingFile(dir, depth+1, maxDepth, deadline) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -4761,6 +4846,17 @@ func StartServer(port string, dataDir string) error {
 
 	mux := http.NewServeMux()
 	yyRegisterAPI(mux, dataDir)
+	yyProfilerRoute(mux)
+	for alias, target := range map[string]string{"/api/chains/list": "/api/youyuan/chains", "/api/youyuan/skills": "/api/ai/skills", "/api/youyuan/skills/list": "/api/ai/skills"} {
+		target := target
+		mux.HandleFunc(alias, func(w http.ResponseWriter, r *http.Request) {
+			clone := r.Clone(r.Context())
+			u := *r.URL
+			u.Path = target
+			clone.URL = &u
+			mux.ServeHTTP(w, clone)
+		})
+	}
 	mux.HandleFunc("/", handleIndex)
 	mux.HandleFunc("/draw", handleDrawPage)
 	mux.HandleFunc("/images/", handleStatic("/images/", "frontend/images/"))
@@ -4835,6 +4931,10 @@ func StartServer(port string, dataDir string) error {
 	// 外露入口，与 /api 控制面板路由分离；密码保护见插件配置 web_password。
 	mux.HandleFunc("/web/", handleWeb)
 	mux.HandleFunc("/api/config", handleConfig)
+	mux.HandleFunc("/api/youyuan/connection-policy", yyConnectionPolicy)
+	mux.HandleFunc("/api/youyuan/rooms", yyRoomDiscoveryHandler)
+	mux.HandleFunc("/api/youyuan/player/experience", yyPlayerExperienceHandler)
+	mux.HandleFunc("/api/youyuan/game-egress", yyGameEgressHandler)
 	mux.HandleFunc("/api/bot/connect", handleBotConnect)
 	mux.HandleFunc("/api/bot/disconnect", handleBotDisconnect)
 	mux.HandleFunc("/api/bot/status", handleBotStatus)
@@ -4918,6 +5018,7 @@ func StartServer(port string, dataDir string) error {
 	mux.HandleFunc("/api/map/display", handleMapDisplay)
 	mux.HandleFunc("/api/map/play", handleMapPlay)
 	mux.HandleFunc("/api/map/stop", handleMapStop)
+	mux.HandleFunc("/api/map/status", handleMapStatus)
 	mux.HandleFunc("/api/map/grid", handleMapGrid)
 	mux.HandleFunc("/api/skin/build", handleSkinBuild)
 	mux.HandleFunc("/api/skin/preview", handleSkinPreview)
@@ -4977,8 +5078,7 @@ func StartServer(port string, dataDir string) error {
 
 	corsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		yyDownloadCORS(w)
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)
 			return

@@ -33,3 +33,11 @@ listen_packet用真实Go类型名，未知名称或未连接明确失败。收�
 本轮Go回归：配置磁盘重载/失败回滚、聊天等待期间观察、跨账号订阅隔离、多词技能定位测试通过。Linux曾真实AI生成并发布Lua，读取计分7；工作区后来归档，测试插件停用。最新版本UI手机/桌面截图、真实玩家.help/死亡显示、普通Chat挂载MCP、完整混合Runtime与LinuxC++仍保留待办；见需求逐项验收表。
 
 确认查询修复：旧WS/玩家WithResp实际无限等待，宿主现改为5秒超时并明确报告反馈/权限/连接问题。R21A初始化用Fast保持sendcommandfeedback=true，commandblockoutput=false，避免关闭自己依赖的查询回包。该超时不限制Fast发包或整链Hz。此前最终构建复验在第9项getScore遇到35秒HTTP超时，已保留失败记录，修复后重新验收。
+
+0.10.16：外部POST /api/youyuan/game/call接受完整game.*和旧短名（sendCommandFast→game.sendCommandFast），基础函数调用真实Lua绑定，不再误报“方法未实现”。有回调/异步票据的API必须用常驻sdk/call。/api/*不存在返回404 JSON；技能/链旧列表路径映射到真实列表。控制台字段固定input。
+
+call_plugin_function已加入AI工作区真实默认工具目录，仍服从玩家明确禁用。/api/plugin/profiler?id=ID&account=main无须Lua锁即可观察active_handler/active_ms/队列；不要用反复调用忙插件判断卡点。终端CHAT_OUT是已提交，不等于玩家可见；最近2000行是显示窗口，不限FUNCTION发送频率。
+
+R21B回包入口曾把每个CommandOutput当心跳，死亡查询又产生回包；128项队列满、2090丢弃。适配删除回包入口心跳，保留背包回包处理与周期任务。有限Linux20项通过，.help回调3ms；死亡文本解析和离线样例通过，真人死亡/复活/屏幕显示/全部业务未验收。六提示词和两TXT保持原字节，无内置私人密钥，临时测试插件结束持久禁用。
+
+API注册表无固定数量上限；游园宽寄存器Lua内核单函数编译寄存器5120、VM数据栈初始5120按需增长（上限1310720）、调用栈256；旧预编译字节码不兼容，源码编译兼容。函数存在表示绑定已注册，不证明服务器能力/权限；查询plugin.capabilities()读取实际平台与限制。不要把“寄存器”误当命令链长度或Hz，不要猜未观测实体是唯一在线玩家。

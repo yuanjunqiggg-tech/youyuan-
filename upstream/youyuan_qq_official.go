@@ -181,7 +181,7 @@ func yyQQSendImage(cf yyQQConfig, image []byte, id string) error {
 	if e != nil {
 		return e
 	}
-	return yyQQOfficialPost(cf, token, "/messages", map[string]any{"content": "玩家资料", "msg_type": 7, "media": map[string]any{"file_info": upload.FileInfo}, "msg_id": id, "msg_seq": seq}, nil)
+	return yyQQOfficialPost(cf, token, "/messages", map[string]any{"content": "游园图片", "msg_type": 7, "media": map[string]any{"file_info": upload.FileInfo}, "msg_id": id, "msg_seq": seq}, nil)
 }
 func yyQQOfficialRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/qq/verify", func(w http.ResponseWriter, r *http.Request) {

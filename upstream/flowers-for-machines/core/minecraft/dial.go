@@ -14,9 +14,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"image/png"
 	"io"
+	"log/slog"
 	"math"
 	mathRand "math/rand"
 	"net"
@@ -32,6 +32,7 @@ import (
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/login"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
+	"github.com/OmineDev/flowers-for-machines/core/minecraft/raknet"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
@@ -47,6 +48,19 @@ type Authenticator interface {
 // Dialer allows specifying specific settings for connection to a Minecraft server.
 // The zero value of Dialer is used for the package level Dial function.
 type Dialer struct {
+	// UpstreamDialer routes RakNet UDP without changing authentication/identity.
+	UpstreamDialer raknet.UpstreamDialer
+	// DisablePharos preserves the authenticated server destination unchanged.
+	DisablePharos bool
+	// OnGameRoute reports whether an official Pharos candidate was selected.
+	OnGameRoute func(officialSelected bool)
+	// LoginOnly is for same-protocol gateways. Complete authentication and encryption,
+	// then expose resource packs and all world packets through ReadBytes without
+	// automatically acting as a game client. Normal bot sessions leave this false.
+	LoginOnly bool
+	// PreserveClientData retains the routed client's platform and skin. Only use
+	// this with actual client data and a new key-bound chain for the same identity.
+	PreserveClientData bool
 	// ErrorLog is a log.Logger that errors that occur during packet handling of
 	// servers are written to. By default, errors are not logged.
 	ErrorLog *slog.Logger
@@ -221,6 +235,12 @@ func (d Dialer) DialContext(ctx context.Context, network string) (conn *Conn, au
 	if !ok {
 		return nil, auth.AuthResponse{}, &net.OpError{Op: "dial", Net: "minecraft", Err: fmt.Errorf("无可用网络：未找到 id %v 对应的网络", network)}
 	}
+	if d.UpstreamDialer != nil {
+		if network != "raknet" {
+			return nil, auth.AuthResponse{}, fmt.Errorf("configured game UDP egress does not support network %s", network)
+		}
+		n = RakNet{l: d.ErrorLog, upstream: d.UpstreamDialer}
+	}
 
 	/*
 		Delete by Liliya233.
@@ -239,8 +259,15 @@ func (d Dialer) DialContext(ctx context.Context, network string) (conn *Conn, au
 	//
 	// Netease: pharos speed up
 	var netConn net.Conn
-	if addr, err := getPharosSpeedUpIP(authResponse.RentalServerIP); err == nil {
-		authResponse.RentalServerIP = addr
+	officialSelected := false
+	if !d.DisablePharos {
+		if addr, err := getPharosSpeedUpIPContext(ctx, authResponse.RentalServerIP); err == nil {
+			authResponse.RentalServerIP = addr
+			officialSelected = true
+		}
+	}
+	if d.OnGameRoute != nil {
+		d.OnGameRoute(officialSelected)
 	}
 	netConn, err = n.DialContext(ctx, authResponse.RentalServerIP)
 	if err != nil {
@@ -248,6 +275,7 @@ func (d Dialer) DialContext(ctx context.Context, network string) (conn *Conn, au
 	}
 
 	conn = newConn(netConn, key, d.ErrorLog, d.Protocol, d.FlushRate, false)
+	conn.loginOnly = d.LoginOnly
 	conn.pool = conn.proto.Packets(false)
 	conn.identityData = d.IdentityData
 	conn.clientData = d.ClientData
@@ -259,16 +287,26 @@ func (d Dialer) DialContext(ctx context.Context, network string) (conn *Conn, au
 	conn.maxDecompressedLen = math.MaxInt
 
 	defaultIdentityData(&conn.identityData)
-	defaultClientData(&conn.clientData, authResponse)
+	if d.PreserveClientData {
+		conn.clientData.ServerAddress = authResponse.RentalServerIP
+	} else {
+		defaultClientData(&conn.clientData, authResponse)
+	}
 
 	var request []byte
 	// We login as an Android device and this will show up in the 'titleId' field in the JWT chain, which
 	// we can't edit. We just enforce Android data for logging in.
-	setAndroidData(&conn.clientData)
+	if !d.PreserveClientData {
+		setAndroidData(&conn.clientData)
+	}
 
 	request = login.Encode(authResponse.ChainInfo, conn.clientData, key, d.EnableLegacyAuth)
 	identityData, _, _, err := login.Parse(request)
 	if err != nil {
+		if d.LoginOnly {
+			_ = conn.Close()
+			return nil, auth.AuthResponse{}, fmt.Errorf("代理登录链校验失败：%w", err)
+		}
 		fmt.Printf("WARNING: Identity data parsing error: %v\n", err)
 	}
 	// If we got the identity data from Minecraft auth, we need to make sure we set it in the Conn too, as
@@ -305,7 +343,7 @@ func (d Dialer) DialContext(ctx context.Context, network string) (conn *Conn, au
 			return nil, auth.AuthResponse{}, conn.closeErr("dial")
 		case <-connected:
 			// We've connected successfully. We return the connection and no error.
-			return conn, auth.AuthResponse{}, nil
+			return conn, authResponse, nil
 		}
 	}
 }
@@ -479,7 +517,11 @@ func defaultClientData(
 	// - CapeID 字段被网易复用为皮肤 item id（真实条目 CapeID=皮肤item_id，
 	//   服务器据此拼接 FullID = SkinID + CapeID）。
 	customID := strings.ReplaceAll(uuid.New().String(), "-", "")
-	d.SkinID = "c18e65aa-7b21-4637-9b63-8ad63622ef01.Custom" + customID
+	baseSkinID := "c18e65aa-7b21-4637-9b63-8ad63622ef01"
+	if skinLoaded && d.SkinID != "" {
+		baseSkinID = strings.Split(d.SkinID, ".Custom")[0]
+	}
+	d.SkinID = baseSkinID + ".Custom" + customID
 	d.CapeID = authResponse.BotSkin.ItemID
 	// 对齐真实客户端：无肤色、不覆盖本地皮肤
 	d.SkinColour = "#0"
@@ -558,13 +600,13 @@ func addressWithPongPort(pong []byte, address string) string {
 	return address
 }
 
-
 // loadBotSkin 网易皮肤下载与处理（参考 bot-filler minecraft_neo skin 模块）。
 // 普通皮肤返回 PNG；高级皮肤（如 4D）返回 ZIP 包，
 // 内含皮肤 PNG（排除 _bloom.png）、geometry.json 与 manifest.json。
 // 返回值均为 base64 编码，可直接写入 login.ClientData。
 func loadBotSkin(url string, isSlim bool) (skinData, geometry, resourcePatch string, width, height int, skinUUID string, err error) {
 	client := &http.Client{
+		Timeout: 20 * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
 				Resolver: &net.Resolver{
@@ -581,7 +623,13 @@ func loadBotSkin(url string, isSlim bool) (skinData, geometry, resourcePatch str
 		return "", "", "", 0, 0, "", fmt.Errorf("下载皮肤失败：%w", err)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", 0, 0, "", fmt.Errorf("皮肤资源返回HTTP%d", resp.StatusCode)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8*1024*1024+1))
+	if len(raw) > 8*1024*1024 {
+		return "", "", "", 0, 0, "", fmt.Errorf("皮肤资源超过8MiB")
+	}
 	if err != nil {
 		return "", "", "", 0, 0, "", fmt.Errorf("读取皮肤失败：%w", err)
 	}
@@ -603,6 +651,10 @@ func loadBotSkin(url string, isSlim bool) (skinData, geometry, resourcePatch str
 		resourcePatchData = patch
 	}
 
+	config, err := png.DecodeConfig(bytes.NewReader(imageData))
+	if err != nil || config.Width < 64 || config.Width > 1024 || config.Height < 16 || config.Height > 1024 {
+		return "", "", "", 0, 0, "", fmt.Errorf("皮肤PNG尺寸无效")
+	}
 	img, err := png.Decode(bytes.NewReader(imageData))
 	if err != nil {
 		return "", "", "", 0, 0, "", fmt.Errorf("解码皮肤 PNG 失败：%w", err)

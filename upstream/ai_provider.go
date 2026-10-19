@@ -38,6 +38,7 @@ type aiTurn struct {
 	ToolResults  []aiToolResult `json:"tool_results,omitempty"`
 	InputTokens  int            `json:"input_tokens,omitempty"`
 	OutputTokens int            `json:"output_tokens,omitempty"`
+	FinishReason string         `json:"finish_reason,omitempty"`
 }
 
 // ToolDef 暴露给模型的工具定义（JSON Schema parameters）。
@@ -607,11 +608,13 @@ func (m *AIModel) parseOpenAIResponse(data []byte) (aiTurn, error) {
 		return aiTurn{}, fmt.Errorf("空响应")
 	}
 	msg := resp.Choices[0].Message
-	turn := aiTurn{Role: "assistant", Text: msg.Content, Reasoning: msg.ReasoningContent, InputTokens: resp.Usage.PromptTokens, OutputTokens: resp.Usage.CompletionTokens}
+	turn := aiTurn{Role: "assistant", Text: msg.Content, Reasoning: msg.ReasoningContent, InputTokens: resp.Usage.PromptTokens, OutputTokens: resp.Usage.CompletionTokens, FinishReason: resp.Choices[0].FinishReason}
 	for _, tc := range msg.ToolCalls {
 		input := map[string]any{}
 		if strings.TrimSpace(tc.Function.Arguments) != "" {
-			_ = json.Unmarshal([]byte(tc.Function.Arguments), &input)
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
+				return turn, fmt.Errorf("模型工具参数不完整，未执行 %s: %w", tc.Function.Name, err)
+			}
 		}
 		turn.ToolCalls = append(turn.ToolCalls, aiToolCall{ID: tc.ID, Name: tc.Function.Name, Input: input})
 	}
@@ -662,6 +665,9 @@ func (m *AIModel) openAIStream(ctx context.Context, url, body string, headers ma
 			return
 		}
 		for _, ch := range ev.Choices {
+			if ch.FinishReason != "" {
+				turn.FinishReason = ch.FinishReason
+			}
 			if ch.Delta.ReasoningContent != "" {
 				turn.Reasoning += ch.Delta.ReasoningContent
 				if hooks.onThinking != nil {
@@ -708,7 +714,9 @@ func (m *AIModel) openAIStream(ctx context.Context, url, body string, headers ma
 			continue
 		}
 		if argsDone[p.index] && strings.TrimSpace(p.args.String()) != "" {
-			_ = json.Unmarshal([]byte(p.args.String()), &p.tc.Input)
+			if e := json.Unmarshal([]byte(p.args.String()), &p.tc.Input); e != nil {
+				return turn, fmt.Errorf("流式工具参数不完整，未执行 %s: %w", p.tc.Name, e)
+			}
 		}
 		turn.ToolCalls = append(turn.ToolCalls, *p.tc)
 		if hooks.onToolCall != nil {

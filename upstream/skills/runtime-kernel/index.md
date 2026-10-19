@@ -1,6 +1,10 @@
 # 常驻内核、命令缓冲与资源重载
 
-这是游园0.10.9实际框架接口。入口语言由工作区/manifest决定，三种语言手册都可以多选；允许读取技能不等于给工具权限。正文按章节读取，没有自动联网动作。
+## 连接与创造飞行维护（0.10.36）
+
+设置的三项连接/维护开关即时保存，失败回退。`GET /api/youyuan/connection-policy`读取真实连接状态、暂停、连续失败轮数与`creative_confirmed`、`flying_confirmed`；`POST`部分更新`auto_connect`、`auto_reconnect`、`auto_creative`、`reconnect_seconds`，不会清空账号令牌。`{"resume":true}`恢复手动暂停。没有失败轮数上限；单次登录150秒超时并支持取消。新子账号维护默认开启，已有明确关闭保留。维护每2秒核对状态，发请求不视为服务器确认。改模式需OP；维持飞行与关闭控制面板独立。远端调用仍须相应账号权限。
+
+这是游园0.10.17实际框架接口。入口语言由工作区/manifest决定，三种语言手册都可以多选；允许读取技能不等于给工具权限。正文按章节读取，没有自动联网动作。
 
 ## 常驻与模块
 
@@ -42,7 +46,7 @@ Python用host.command_buffer().add(cmd).submitFast()；C++用yy::CommandBuffer b
 
 ## FUNCTION IR与文件监听
 
-TXT保存后parse成节点/控制点/行号IR，常驻调用，运行时不读TXT、不解析字符串。1,0,0脉冲；2,0,0 20为整个TXT实例20Hz；0,0,0连锁；0,1,0有条件；.独立链断开成功状态；!结束周期。未重新声明的属性继承。一个TXT实例只有一个整轮Hz；不同频率建独立TXT。第三位红石保留语法兼容，不在宿主做游戏红石门控。run_count=0持续，正数按完整文件轮次计数。
+TXT保存后parse成节点/控制点/行号IR，常驻调用，运行时不读TXT、不解析字符串。1,0,0脉冲；2,0,0 20为整个TXT实例20Hz；0,0,0连锁；0,1,0有条件；.独立链断开成功状态；!结束周期。未重新声明的属性继承。file调度使用整个TXT的整轮Hz；segments调度按“.”分隔独立链，每段可有独立Hz，段内仍按序执行，脉冲段只一次；同一顺序段不接受中途换Hz。不同独立段并行调度且分别防重入。第三位红石保留语法兼容，不在宿主做游戏红石门控。run_count=0持续，正数按完整文件轮次计数。
 
 固定目录插件数据文件/ds_ai_agent/command_txt/。外部改TXT后，宿主每秒检查mtime/size，只有修改才读文件重新编译；无效修改保留原IR和报错。chains.reload(name)可立即资源重载，当前轮旧IR、下轮新IR，计数和启停保留。修改config/module仍需相应实例重载；完整reloadConfig/reloadModule尚未实现，不能假装只改一份Lua就不重启。
 
@@ -64,9 +68,57 @@ transaction先验证所有操作，在同一锁内复制/更新，再同步写�
 
 ## 性能观察与未完成部分
 
-plugin.stats、util.listJobs和chains.list有实际调用数、耗时、missed、丢弃、队列和整轮统计。耗时是墙钟，不是CPU占用；逐插件CPU/内存/GC尚未归因，返回null。高速发送不逐条写命令日志。极端重复大链可能让RakNet/服务器承受不住，应实测最终计分；本地提交完成不等于服务端完成。可选每Tick命令预算/overflow carry、完整混合模块manifest、Linux C++适配器和native进程崩溃隔离尚未交付。
+plugin.stats、util.listJobs和chains.list有实际调用数、耗时、missed、丢弃、队列和整轮统计。耗时是墙钟，不是CPU占用；逐插件CPU/内存/GC尚未归因，返回null。高速发送不逐条写命令日志。极端重复大链可能让RakNet/服务器承受不住，应实测最终计分；本地提交完成不等于服务端完成。可选每Tick命令预算/overflow carry、完整混合模块manifest尚未交付。Linux 0.10.19 已接入常驻 C++ 子进程及崩溃/卡死回收；Android 原生仍在宿主进程中加载。
 
 
 ## 服务器关闭命令反馈时
 
 实服已验证：gamerule sendcommandfeedback false 会使 Confirmed/querytarget 等结果接口收不到回包，即使命令已经执行。Fast 不等待回包，模式维护也使用无等待创造命令和飞行输入。需要条件链、查询结果或确认时，要由服主确保服务器允许命令反馈；超时返回未知，不能把它当失败自动重发。高频无条件链不要为语法验证逐条增加确认。
+
+
+## 0.10.17 兼容接口与 AI 上下文修正
+
+常驻 Lua 在插件加载时编译一次，事件调用已有函数。终端显示队列满时只跳过显示消息，游戏 Text 包和插件事件仍继续分发；单个畸形包不会终止整个收包循环。不能把这个修复视为全部游戏数据包都已实测。
+
+### 原插件接口补充（Lua）
+
+`game.getOnlinePlayers()`：向已连接服务器实际查询 @a，返回玩家名数组；查询失败会报错，不用空数组伪造在线情况。
+
+`game.sendCommandWithResp(command, channel="ai", timeout_seconds=5)`：确认式命令，返回真实 CommandOutput 表。通道支持 ai/console/player。超时报错，表示结果未知，不能自动重发。高频无条件链继续用 sendCommand/sendCommandFast 或 CommandBuffer.submitFast，不要为每条命令套确认。
+
+`game.getServerTPS()`、`game.getTPS()`、`game.serverTPS()`、`game.getTickRate()`、`game.getServerTickRate()`：相同的服务器 SetTime 时钟观测值。连接前、尚无有效观测或观测过期返回 nil；不是客户端发送吞吐，也不保证等于服务器精确平均 TPS。
+
+`game.importBlocks(blocks, options)`：创建本机建筑导入任务。blocks 是数组，每项为 `{x=相对X,y=相对Y,z=相对Z,name="minecraft:stone",states=状态字符串或表,nbt=NBT表}`；相对坐标非负，绝对起点放在 options。options 支持 x/y/z、dimension、speed、region_mode、anti_loss。speed=0 无用户固定速率，正数为自定义速率；旧插件 -1 兼容映射到0。region_mode 为1/2/3，即16/32/64格区域；anti_loss=true 启用区块可查询探测，不等于每个方块收到确认。真实导入由本机宿主进行，不把结构传给原作者服务。插件停用取消任务。没有1000方块限制；内部坐标编码要求每轴相对坐标小于2^20。
+
+`game.importWait(job)`：等待上述任务，发送/导入错误明确报错；true 表示本机导入流程完成，不代表每个方块都有独立服务器确认。job 是 Lua 本实例的 userdata，不能直接跨语言 JSON 传递。Python/C++ 的结构任务请使用 building 工具接口，不能假装这个 userdata 可以跨语言序列化。
+
+```lua
+local job=game.importBlocks({
+ {x=0,y=0,z=0,name="minecraft:oak_stairs",states={facing_direction=2,upside_down_bit=false}},
+ {x=1,y=0,z=0,name="minecraft:stone"}
+},{x=100,y=70,z=100,dimension="overworld",speed=20,region_mode=1,anti_loss=true})
+assert(game.importWait(job))
+```
+
+### 寄存器、上下文和任务连续性
+
+本项目 Lua 编译器单函数寄存器上限为5120，指令格式扩展为64位。原 Lua 源码保持兼容，旧预编译字节码不兼容。此改动不等于游戏命令速度增加。
+
+压缩阈值只由 context_window × compression_percent 计算。356000、80% 得284800，不再减掉 max_output_tokens 后偷偷提前压缩。请求输出预算按剩余上下文另行计算，不覆盖用户保存的配置。上下文估算覆盖实际发送的提示、消息和工具定义；有供应商 input_tokens 时用于校准，界面明确标作估算，未声称精确 tokenizer。
+
+不再把消息或工具结果统一截到10000字符。压缩按输入预算分段覆盖全部选中历史，保留原始记录、文件、任务状态和工具结果。摘要保存为内部上下文，不作为普通聊天刷屏；压缩失败保留原历史。模型输出触及长度上限时显示等待继续，保留任务，不把截断的回复标为完成。工具调用参数 JSON 不完整会报错，不能当空参数执行。
+
+内置AI回复默认说明实际改动、验证结果和阻碍，避免重复计划、长篇自述和输出压缩摘要。工作区可读取实际文件、技能章节和 MCP 工具；玩家禁用的工具仍禁用。文件/技能分页接口的 offset 是读取协议，不是忽略尾部内容的理由。
+
+### 本轮验证范围
+
+Linux 全量 R21B 核心加载、原文件资源、原始两份 TXT、本机 MCP 派发、真实服务器回送 .help 到注册 onChat 均通过有限验收。真人屏幕是否显示全部菜单、真人死亡与击杀者、经济/公会等业务逐项测试尚未全部完成。
+
+MCP 服务端 OAuth+PKCE、initialize、tools/list、tools/call、resources/read、刷新令牌已实测；普通 Chat 客户端挂载仍需单独验证，不能用服务器通过代替客户端成功。
+
+
+## 游戏出口线路（0.10.73）
+
+`GET /api/youyuan/game-egress` 返回配置和当前连接的实际运行状态；POST仅保存下一次连接设置，不断开当前游戏。system使用机器人实际宿主网络（Android为手机，Linux为Linux），网页HTTP中继不等于游戏UDP出口。official选择Pharos候选，失败回落会在运行状态明确标记。socks5使用获授权自有节点的UDP ASSOCIATE，必须显式确认授权，失败不静默直连。TanLobby WebRTC暂不支持指定SOCKS5出口，明确拒绝而不是谎报生效。
+
+代理密码独立保存于私有配置，读取接口只返回has_password；普通配置及运行遥测不带密码。`udp_association_established`、`verified_game_session`、实际UDP字节和数据报计数分别核验；连通本地代理不等于外部节点或公网出口IP已通过。配置默认system，不把Linux网络宣称玩家手机网络。

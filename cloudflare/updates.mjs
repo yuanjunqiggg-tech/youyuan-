@@ -26,7 +26,10 @@ export async function updateRoute(request,env){
  if(request.method==='HEAD')return new Response(null,{status,headers});
  // Native pipeTo avoids executing a JS reader callback for every network
  // fragment. One asset body is live at a time; pipe cancellation propagates.
- const {readable,writable}=new TransformStream();
+ // Workers derives Content-Length from the body, ignoring a manually supplied
+ // length on an arbitrary TransformStream. Enforce the complete APK length so
+ // an interrupted stream cannot look like a successful shorter download.
+ const {readable,writable}=typeof FixedLengthStream==='function'?new FixedLengthStream(end-start+1):new TransformStream();
  (async()=>{
   let offset=0;
   for(const part of manifest.parts){

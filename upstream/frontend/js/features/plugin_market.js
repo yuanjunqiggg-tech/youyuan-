@@ -224,10 +224,10 @@ function pmFileGrid(list) {
 }
 
 // ── 详情页 ──
-async function pmOpenDetail(id) {
+async function pmOpenDetail(id, expectedOrigin) {
   var _b = pmBody(); if (_b) pmMkt.scrollY = _b.scrollTop;   // 记住离开前的滚动位置,返回时恢复
   pmOpenSub('插件详情');
-  var r = await APluginMarket('GET', '/api/plugin-market/files/' + id);
+  var r = await APluginMarket('GET', '/api/plugin-market/files/' + id,null,expectedOrigin?{'X-YouYuan-Market-Origin':expectedOrigin}:undefined);
   if (!r.ok) { pmRender('<div style="color:var(--phx-error)">' + escHtml(r.error || '加载失败') + '</div>'); return; }
   var f = r.file || {}, versions = r.versions || [], is_owner = !!r.is_owner;
   var h = '<div class="card" style="padding:12px">';
@@ -282,9 +282,12 @@ function pmCloseRiskModal() {
   document.querySelectorAll('.modal-overlay').forEach(function (x) { x.remove(); });
 }
 async function pmDoInstall(id) {
+  var installScope=typeof yyReadScope==='function'?yyReadScope():null;
   T('正在获取插件...', 'w');
   var r = await A('POST', '/api/plugin-market/install', { id: String(id) });
+  if(installScope!==null&&installScope!==yyReadScope())return;
   if (!r.ok) { T('获取失败: ' + (r.error || ''), 'e'); return; }
+  if(typeof yyPluginRecordSource==='function')yyPluginRecordSource(r.id,r.source_id||id,r.source_origin);
   T('已安装到本机 Lua 插件：' + (r.id||id), 'o');
   if (typeof Rplg === 'function') { Rplg(); if(typeof yyNavigate==='function')yyNavigate('tasks'); }
 }

@@ -1,0 +1,1413 @@
+[
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-33",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10253.796875,
+                  235.90000009536743,
+                  10176.12890625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-25",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10253.796875,
+                  235.90000009536743,
+                  10176.12890625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10253.8046875,
+                  235.43584299087524,
+                  10175.857421875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10254.056640625,
+                  235.40000009536743,
+                  10175.8916015625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973840": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10252.4345703125,
+                  235.90000009536743,
+                  10175.71484375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10254.0595703125,
+                  235.40000009536743,
+                  10175.4208984375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10253.8642578125,
+                  235.40000009536743,
+                  10175.1103515625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10251.08984375,
+                  235.90000009536743,
+                  10172.94140625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973838": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10247.9169921875,
+                  235.90000009536743,
+                  10173.763671875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            },
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-1",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10249.1767578125,
+                  235.90000009536743,
+                  10172.1806640625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {}
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-15",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10247.5419921875,
+                  235.90000009536743,
+                  10172.0380859375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-3",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10247.0439453125,
+                  235.90000009536743,
+                  10172.22265625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "Minecraft",
+        "vipEventSystem",
+        "PlayerKillMob828b7607-ef3d-44be-b566-cc99ee1e1724",
+        {
+          "playerId": "-8589934568",
+          "victim": "-133143973839"
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973839": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-9",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10246.7666015625,
+                  235.90000009536743,
+                  10171.9248046875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973840": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-24",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10245.4990234375,
+                  235.90000009536743,
+                  10173.2998046875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973840": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-25",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10245.908203125,
+                  235.90000009536743,
+                  10173.2998046875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973840": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-27",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10246.6865234375,
+                  235.90000009536743,
+                  10173.2998046875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973840": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-9",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10246.72265625,
+                  235.90000009536743,
+                  10174.26171875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973900": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-12",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10268.22265625,
+                  233.90000009536743,
+                  10182.943359375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973900": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-3",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10268.23828125,
+                  233.90000009536743,
+                  10182.7001953125
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973900": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-12",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10268.0478515625,
+                  233.90000009536743,
+                  10182.3681640625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973900": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-3",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10267.8720703125,
+                  233.90000009536743,
+                  10182.1396484375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "Minecraft",
+        "vipEventSystem",
+        "PlayerKillMob828b7607-ef3d-44be-b566-cc99ee1e1724",
+        {
+          "playerId": "-8589934568",
+          "victim": "-133143973900"
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973900": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-17",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10267.5205078125,
+                  233.90000009536743,
+                  10181.6806640625
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-12",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10274.193359375,
+                  233.90000009536743,
+                  10184.9326171875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-3",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10274.048828125,
+                  233.90000009536743,
+                  10185.0615234375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-17",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10273.3095703125,
+                  233.90000009536743,
+                  10185.623046875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-12",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10272.9599609375,
+                  233.90000009536743,
+                  10185.6357421875
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-12",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10272.0751953125,
+                  233.90000009536743,
+                  10185.611328125
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-3",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10271.8935546875,
+                  233.90000009536743,
+                  10185.505859375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-17",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10271.7900390625,
+                  233.90000009536743,
+                  10185.5380859375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-12",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10271.4599609375,
+                  233.90000009536743,
+                  10185.345703125
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "Minecraft",
+        "vipEventSystem",
+        "PlayerKillMob828b7607-ef3d-44be-b566-cc99ee1e1724",
+        {
+          "playerId": "-8589934568",
+          "victim": "-133143973837"
+        }
+      ],
+      null
+    ]
+  },
+  {
+    "operation_type": 32346342,
+    "value": [
+      "ModEventS2C",
+      [
+        "BREquipDamageEventServer",
+        "BREquipDamageEventServerSystem",
+        "GetBroadcastData",
+        {
+          "requestID": 1,
+          "targetInfo": {
+            "-133143973837": {
+              "color": {
+                "__type__": "tuple",
+                "value": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "damage": "-17",
+              "pos": {
+                "__type__": "tuple",
+                "value": [
+                  10271.349609375,
+                  233.90000009536743,
+                  10185.18359375
+                ]
+              },
+              "scale": {
+                "__type__": "tuple",
+                "value": [
+                  3.2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ],
+      null
+    ]
+  }
+]

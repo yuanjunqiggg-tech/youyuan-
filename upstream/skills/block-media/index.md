@@ -4,7 +4,7 @@
 
 固定轴须相等。XY水平沿X，上方为最大Y；YZ水平沿Z，上方为最大Y；XZ从最小X、Z递增。16色混凝土调色板；相邻横向同色合并 fill，单个像素用 setblock；下一帧仅写变化方块。同色多行仍各用一条fill，不宣称全局最小矩形划分。
 
-文件自动保存至命令链目录并预解析，默认不启动。每条命令至少20ms、帧等待最低20ms；帧间隔只表示期望，发送数量和真实命令响应决定实际速度，不能承诺原视频帧率。运行次数为整段视频的次数，0持续。运行过程中随时用 chains.stop；每轮第一帧完整重绘，其后的帧增量更新。
+文件自动保存至命令链目录并预解析，默认不启动。同帧命令默认无额外逐条延迟，仅在帧边界等待；帧间隔只表示期望，发送数量和真实命令响应决定实际速度，不能承诺原视频帧率。运行次数为整段视频的次数，0持续。运行过程中随时用 chains.stop；每轮第一帧完整重绘，其后的帧增量更新。
 
 API：POST `/api/youyuan/media/block-video`。
 1. `{action:"create",config:{name:"视频.txt",plane:"xy",a:[0,80,0],b:[15,95,0],frame_ms:1000,channel:"ai",run_count:1}}` → id,width,height。
@@ -26,3 +26,7 @@ TXT只保留方块指令，不能保留箱子物品NBT。MCStructure转换不还
 指令 API mode=direct/execute/scoreboard。execute 需要 selector（例如 @a 或 @e[tag=builder]），生成 execute as selector at @s run。scoreboard 需要 objective/entity/start，需要另行创建计分板、实体并推进分数。包装模式只允许纯指令，不能包装链状态行。output=txt 保留链语法，output=mcfunction 拒绝链属性、延迟、分链与周期标记，去掉指令开头的 /。生成结果返回 content/commands，界面可复制、导出、预解析、导入命令链，导入默认 disabled，不覆盖同名文件。
 
 JSON 方块实体另外含 nbt_base64，重新导入优先采用它以保留NBT数字类型。nbt 是阅读用投影；只修改 nbt 不会覆盖 nbt_base64。只编辑方块名、状态与坐标不影响该方块实体原始NBT。
+
+
+## 0.10.58 视频帧边界
+`@frame {"duration_ms":100}`是宿主控制行：等待上一帧开始之后剩余的时间，耗时已经超过目标则不额外补等、不积压旧帧；不向服务器发testfor。video生成TXT默认mode=fast、scheduling=file、delay_ms=0；同帧fill/setblock连续提交，只在帧边界等待。多帧保持原文顺序，不能设置segments并行播放不同视频帧。2D同色矩形合并与变化帧跳过保留每个像素，单fill体积不超过32768。颜色使用明确16色混凝土调色板和OKLab最近色，24位颜色缓存避免旧15位键碰撞；比例可选保留/裁切/拉伸。它不能还原原版不具备的颜色，也不承诺服务端按请求帧率完成。

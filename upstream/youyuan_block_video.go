@@ -47,8 +47,8 @@ func yyVideoBounds(c yyBlockVideoConfig) (int, int, error) {
 	if _, e := yyChainName(c.Name); e != nil {
 		return 0, 0, e
 	}
-	if c.FrameMS < 100 || c.FrameMS > 60000 {
-		return 0, 0, fmt.Errorf("帧间隔必须为 100..60000ms")
+	if c.FrameMS < 1 || c.FrameMS > 60000 {
+		return 0, 0, fmt.Errorf("帧间隔必须为 1..60000ms；实际帧率取决于服务端处理能力")
 	}
 	if _, e := normalizeCommandChannel(c.Channel); e != nil {
 		return 0, 0, e
@@ -106,16 +106,12 @@ func (j *yyBlockVideoJob) appendFrame(img image.Image) (map[string]any, error) {
 		for x := 0; x < j.Width; x++ {
 			r, g, b, _ := img.At(bounds.Min.X+x*bounds.Dx()/j.Width, bounds.Min.Y+y*bounds.Dy()/j.Height).RGBA()
 			rr, gg, bb := int(r>>8), int(g>>8), int(b>>8)
-			key := uint32(rr>>3)<<10 | uint32(gg>>3)<<5 | uint32(bb>>3)
+			key := uint32(rr)<<16 | uint32(gg)<<8 | uint32(bb)
 			index, ok := j.Cache[key]
 			if !ok {
-				best := int(^uint(0) >> 1)
-				for i, c := range yyVideoColors {
-					dr, dg, db := rr-c[0], gg-c[1], bb-c[2]
-					d := dr*dr + dg*dg + db*db
-					if d < best {
-						best, index = d, i
-					}
+				index = yyVideoNearest(rr, gg, bb)
+				if len(j.Cache) >= 65536 {
+					j.Cache = map[uint32]int{}
 				}
 				j.Cache[key] = index
 			}
@@ -125,39 +121,22 @@ func (j *yyBlockVideoJob) appendFrame(img image.Image) (map[string]any, error) {
 	var out strings.Builder
 	count := 0
 	changed := 0
-	fmt.Fprintf(&out, "#组:视频帧%d 通道=%s 速率=20\n1,0,0\n", j.Frames+1, j.Config.Channel)
-	for y := 0; y < j.Height; y++ {
-		for x := 0; x < j.Width; {
-			i := y*j.Width + x
-			if j.Previous != nil && j.Previous[i] == cells[i] {
-				x++
-				continue
-			}
-			end := x
-			for end+1 < j.Width && cells[y*j.Width+end+1] == cells[i] && (j.Previous == nil || j.Previous[y*j.Width+end+1] != cells[i]) {
-				end++
-			}
-			a, b := j.point(x, y), j.point(end, y)
-			block := "minecraft:" + yyVideoBlocks[cells[i]] + "_concrete"
-			if x == end {
-				fmt.Fprintf(&out, "setblock %d %d %d %s\n", a[0], a[1], a[2], block)
-			} else {
-				fmt.Fprintf(&out, "fill %d %d %d %d %d %d %s\n", a[0], a[1], a[2], b[0], b[1], b[2], block)
-			}
-			count++
-			changed += end - x + 1
-			x = end + 1
+	if j.Frames == 0 {
+		fmt.Fprintln(&out, "#组:视频逐帧 通道="+j.Config.Channel+" 速率=0\n1,0,0")
+	}
+	for _, r := range yyVideoRectangles(cells, j.Previous, j.Width, j.Height) {
+		a, b := j.point(r.X, r.Y), j.point(r.X+r.W-1, r.Y+r.H-1)
+		block := "minecraft:" + yyVideoBlocks[r.Color] + "_concrete"
+		if r.W*r.H == 1 {
+			fmt.Fprintf(&out, "setblock %d %d %d %s\n", a[0], a[1], a[2], block)
+		} else {
+			fmt.Fprintf(&out, "fill %d %d %d %d %d %d %s\n", a[0], a[1], a[2], b[0], b[1], b[2], block)
 		}
+		count++
+		changed += r.W * r.H
 	}
-	if count == 0 {
-		out.Reset()
-	}
-	wait := j.Config.FrameMS - count*20
-	if wait < 20 {
-		wait = 20
-	}
-	fmt.Fprintf(&out, "#组:视频等待%d 通道=%s 速率=%d\n1,0,0\ntestfor @s\n", j.Frames+1, j.Config.Channel, wait)
-	if j.Commands+count+1 > 32768 || j.Bytes+out.Len() > 8<<20 || j.Frames >= 6000 {
+	fmt.Fprintf(&out, "@frame {\"duration_ms\":%d}\n", j.Config.FrameMS)
+	if j.Bytes+out.Len() > 8<<20 || j.Frames >= 6000 {
 		return nil, fmt.Errorf("输出已到安全容量，请缩短片段、增大抽帧间隔或缩小范围；已有帧可完成导入")
 	}
 	f, e := os.OpenFile(j.Path, os.O_APPEND|os.O_WRONLY, 0600)
@@ -177,7 +156,7 @@ func (j *yyBlockVideoJob) appendFrame(img image.Image) (map[string]any, error) {
 	j.Frames++
 	j.Bytes += out.Len()
 	j.Updated = time.Now()
-	return map[string]any{"frames": j.Frames, "commands": j.Commands, "changed_blocks": changed, "frame_commands": count, "minimum_frame_ms": count*20 + wait, "requested_frame_ms": j.Config.FrameMS, "bytes": j.Bytes}, nil
+	return map[string]any{"frames": j.Frames, "commands": j.Commands, "changed_blocks": changed, "frame_commands": count, "minimum_frame_ms": j.Config.FrameMS, "requested_frame_ms": j.Config.FrameMS, "bytes": j.Bytes}, nil
 }
 func yyBlockVideoRoutes(mux *http.ServeMux, dataDir string) {
 	root := filepath.Join(dataDir, "conversion-jobs")
@@ -186,6 +165,7 @@ func yyBlockVideoRoutes(mux *http.ServeMux, dataDir string) {
 		var p struct {
 			Action, ID, Image string
 			Sequence          int                `json:"sequence"`
+			Images            []string           `json:"images"`
 			Config            yyBlockVideoConfig `json:"config"`
 		}
 		fail := func(e error) { writeJSON(w, map[string]any{"ok": false, "error": e.Error()}) }
@@ -240,6 +220,14 @@ func yyBlockVideoRoutes(mux *http.ServeMux, dataDir string) {
 		j.Lock()
 		defer j.Unlock()
 		switch p.Action {
+		case "append_batch":
+			result, e := j.appendImages(p.Sequence, p.Images)
+			if e != nil {
+				fail(e)
+				return
+			}
+			result["ok"] = true
+			writeJSON(w, result)
 		case "append":
 			if p.Sequence != j.Frames {
 				fail(fmt.Errorf("帧序号应为 %d；不要并发或重复提交", j.Frames))
@@ -287,7 +275,7 @@ func yyBlockVideoRoutes(mux *http.ServeMux, dataDir string) {
 				fail(e)
 				return
 			}
-			result, e := yyChainResult("POST", map[string]any{"action": "save", "name": j.Config.Name, "content": string(raw), "config": yyChainConfig{Name: j.Config.Name, Account: "main", Channel: j.Config.Channel, IntervalMS: 100, DelayMS: 20, RunCount: j.Config.RunCount}}, nil)
+			result, e := yyChainResult("POST", map[string]any{"action": "save", "name": j.Config.Name, "content": string(raw), "config": yyChainConfig{Name: j.Config.Name, Account: "main", Channel: j.Config.Channel, IntervalMS: 1, DelayMS: 0, Mode: "fast", Scheduling: "file", RunCount: j.Config.RunCount}}, nil)
 			if e != nil {
 				fail(e)
 				return

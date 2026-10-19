@@ -104,7 +104,9 @@ func TestSenseAbsoluteDeltaAndDimensions(t *testing.T) {
 	}
 	yySenseHandle(bm, &packet.UpdateBlock{Position: protocol.BlockPos{1, 2, 3}, NewBlockRuntimeID: 7})
 	v, e := yySenseCall(bm, "world.blockState", []any{float64(1), float64(2), float64(3)})
-	if e != nil || v.(map[string]any)["runtime_id"] != uint32(7) {
+	// Public observation copies normalize numbers through JSON; verify the
+	// actual unchanged API value rather than an internal packet field type.
+	if e != nil || v.(map[string]any)["runtime_id"] != float64(7) {
 		t.Fatal(v, e)
 	}
 }

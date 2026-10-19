@@ -1,4 +1,4 @@
-// YouYuan SDK 1.15; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
+// YouYuan SDK 1.16; AGPL-3.0. nlohmann/json is MIT (see third_party/json.hpp).
 #pragma once
 #include "third_party/json.hpp"
 #include <cstdlib>
@@ -15,12 +15,77 @@ class Client;
 class Namespace {
  Client* client_;std::string namespace_;
 public:
+ template<typename... A> json define(A&&... args)const{return _send("define",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onObservedAction(A&&... args)const{return _send("onObservedAction",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json catalog(A&&... args)const{return _send("catalog",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json patrolStart(A&&... args)const{return _send("patrolStart",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json patrolStatus(A&&... args)const{return _send("patrolStatus",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json patrolStop(A&&... args)const{return _send("patrolStop",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json add(A&&... args)const{return _send("add",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json bind(A&&... args)const{return _send("bind",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json acquire(A&&... args)const{return _send("acquire",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json release(A&&... args)const{return _send("release",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json bindings(A&&... args)const{return _send("bindings",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onServerObservation(A&&... args)const{return _send("onServerObservation",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json receiveTransport(A&&... args)const{return _send("receiveTransport",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onGlobalSwing(A&&... args)const{return _send("onGlobalSwing",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onGlobalHealthChange(A&&... args)const{return _send("onGlobalHealthChange",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json serverHistory(A&&... args)const{return _send("serverHistory",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json serverSnapshot(A&&... args)const{return _send("serverSnapshot",json::array({std::forward<A>(args)...}));}
  Namespace(Client* client,const char* name):client_(client),namespace_(name){}
+ template<typename... A> json events(A&&... args)const{return _send("events",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json create(A&&... args)const{return _send("create",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json sources(A&&... args)const{return _send("sources",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json revoke(A&&... args)const{return _send("revoke",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json attachSelf(A&&... args)const{return _send("attachSelf",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json swingAir(A&&... args)const{return _send("swingAir",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json inputStatus(A&&... args)const{return _send("inputStatus",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json detachSelf(A&&... args)const{return _send("detachSelf",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json rpcProbe(A&&... args)const{return _send("rpcProbe",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json rpcQuery(A&&... args)const{return _send("rpcQuery",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json rpcEvents(A&&... args)const{return _send("rpcEvents",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json coverage(A&&... args)const{return _send("coverage",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json worldEvents(A&&... args)const{return _send("worldEvents",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json localView(A&&... args)const{return _send("localView",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json locator(A&&... args)const{return _send("locator",json::array({std::forward<A>(args)...}));}
  template<typename... A> json sendMessage(A&&... args)const{return _send("sendMessage",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json visibility(A&&... args)const{return _send("visibility",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json requestViewDistance(A&&... args)const{return _send("requestViewDistance",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json nbtCapabilities(A&&... args)const{return _send("nbtCapabilities",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json normalizeNBT(A&&... args)const{return _send("normalizeNBT",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json containerData(A&&... args)const{return _send("containerData",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json placeContainer(A&&... args)const{return _send("placeContainer",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json nbtJob(A&&... args)const{return _send("nbtJob",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json planRegion(A&&... args)const{return _send("planRegion",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json exportRegion(A&&... args)const{return _send("exportRegion",json::array({std::forward<A>(args)...}));}
  template<typename... A> json callPlugin(A&&... args)const{return _send("callPlugin",json::array({std::forward<A>(args)...}));}
  template<typename... A> json connection(A&&... args)const{return _send("connection",json::array({std::forward<A>(args)...}));}
  template<typename... A> json tools(A&&... args)const{return _send("tools",json::array({std::forward<A>(args)...}));}
  template<typename... A> json resources(A&&... args)const{return _send("resources",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json attributes(A&&... args)const{return _send("attributes",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json equipment(A&&... args)const{return _send("equipment",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json inventory(A&&... args)const{return _send("inventory",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json rotation(A&&... args)const{return _send("rotation",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json trace(A&&... args)const{return _send("trace",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json combat(A&&... args)const{return _send("combat",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json monotonicMs(A&&... args)const{return _send("monotonicMs",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json serverTick(A&&... args)const{return _send("serverTick",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onEntityHurt(A&&... args)const{return _send("onEntityHurt",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onDamage(A&&... args)const{return _send("onDamage",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onHealthChanged(A&&... args)const{return _send("onHealthChanged",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onPlayerKill(A&&... args)const{return _send("onPlayerKill",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onEntityKill(A&&... args)const{return _send("onEntityKill",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onDamageDisplay(A&&... args)const{return _send("onDamageDisplay",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json moduleHistory(A&&... args)const{return _send("moduleHistory",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onPlayerRespawn(A&&... args)const{return _send("onPlayerRespawn",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onDimensionChange(A&&... args)const{return _send("onDimensionChange",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onSessionJoin(A&&... args)const{return _send("onSessionJoin",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onSessionLeave(A&&... args)const{return _send("onSessionLeave",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onEquipmentChanged(A&&... args)const{return _send("onEquipmentChanged",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onRotation(A&&... args)const{return _send("onRotation",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json update(A&&... args)const{return _send("update",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json remove(A&&... args)const{return _send("remove",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json increment(A&&... args)const{return _send("increment",json::array({std::forward<A>(args)...}));}
  json _send(const std::string& method,const json& args=json::array())const;
  template<typename... A> json sendPacket(A&&... args)const{return _send("sendPacket",json::array({std::forward<A>(args)...}));}
  template<typename... A> json subscribeAll(A&&... args)const{return _send("subscribeAll",json::array({std::forward<A>(args)...}));}
@@ -36,6 +101,10 @@ public:
  template<typename... A> json scheduleHz(A&&... args)const{return _send("scheduleHz",json::array({std::forward<A>(args)...}));}
  template<typename... A> json scheduleSeconds(A&&... args)const{return _send("scheduleSeconds",json::array({std::forward<A>(args)...}));}
  template<typename... A> json scheduleTick(A&&... args)const{return _send("scheduleTick",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json assignDimension(A&&... args)const{return _send("assignDimension",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json dimensionStatus(A&&... args)const{return _send("dimensionStatus",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json summary(A&&... args)const{return _send("summary",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json captureSummary(A&&... args)const{return _send("captureSummary",json::array({std::forward<A>(args)...}));}
  template<typename... A> json listJobs(A&&... args)const{return _send("listJobs",json::array({std::forward<A>(args)...}));}
  template<typename... A> json pauseJob(A&&... args)const{return _send("pauseJob",json::array({std::forward<A>(args)...}));}
  template<typename... A> json resumeJob(A&&... args)const{return _send("resumeJob",json::array({std::forward<A>(args)...}));}
@@ -63,6 +132,8 @@ public:
  template<typename... A> json tempDir(A&&... args)const{return _send("tempDir",json::array({std::forward<A>(args)...}));}
  template<typename... A> json readResource(A&&... args)const{return _send("readResource",json::array({std::forward<A>(args)...}));}
  template<typename... A> json listResources(A&&... args)const{return _send("listResources",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json listOutputs(A&&... args)const{return _send("listOutputs",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json exportFile(A&&... args)const{return _send("exportFile",json::array({std::forward<A>(args)...}));}
  template<typename... A> json existsResource(A&&... args)const{return _send("existsResource",json::array({std::forward<A>(args)...}));}
  template<typename... A> json extractResource(A&&... args)const{return _send("extractResource",json::array({std::forward<A>(args)...}));}
 
@@ -81,8 +152,21 @@ public:
  template<typename... A> json block(A&&... args)const{return _send("block",json::array({std::forward<A>(args)...}));}
  template<typename... A> json blockState(A&&... args)const{return _send("blockState",json::array({std::forward<A>(args)...}));}
  template<typename... A> json breakBlock(A&&... args)const{return _send("breakBlock",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json taskList(A&&... args)const{return _send("taskList",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json startImport(A&&... args)const{return _send("startImport",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json resumeImport(A&&... args)const{return _send("resumeImport",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json stopImport(A&&... args)const{return _send("stopImport",json::array({std::forward<A>(args)...}));}
  template<typename... A> json call(A&&... args)const{return _send("call",json::array({std::forward<A>(args)...}));}
  template<typename... A> json cancel(A&&... args)const{return _send("cancel",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json watchStart(A&&... args)const{return _send("watchStart",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json jobState(A&&... args)const{return _send("jobState",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json watchStatus(A&&... args)const{return _send("watchStatus",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json watchStop(A&&... args)const{return _send("watchStop",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json observationPlan(A&&... args)const{return _send("observationPlan",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json handoff(A&&... args)const{return _send("handoff",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json captureStatus(A&&... args)const{return _send("captureStatus",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json captureRoster(A&&... args)const{return _send("captureRoster",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json captureConfigure(A&&... args)const{return _send("captureConfigure",json::array({std::forward<A>(args)...}));}
  template<typename... A> json captureClear(A&&... args)const{return _send("captureClear",json::array({std::forward<A>(args)...}));}
  template<typename... A> json captureRead(A&&... args)const{return _send("captureRead",json::array({std::forward<A>(args)...}));}
  template<typename... A> json captureStart(A&&... args)const{return _send("captureStart",json::array({std::forward<A>(args)...}));}
@@ -181,6 +265,10 @@ public:
  template<typename... A> json round(A&&... args)const{return _send("round",json::array({std::forward<A>(args)...}));}
  template<typename... A> json save(A&&... args)const{return _send("save",json::array({std::forward<A>(args)...}));}
  template<typename... A> json scene(A&&... args)const{return _send("scene",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json sceneStats(A&&... args)const{return _send("sceneStats",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json getBlockTileAsync(A&&... args)const{return _send("getBlockTileAsync",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json containerState(A&&... args)const{return _send("containerState",json::array({std::forward<A>(args)...}));}
+ template<typename... A> json onContainerChange(A&&... args)const{return _send("onContainerChange",json::array({std::forward<A>(args)...}));}
  template<typename... A> json schedule(A&&... args)const{return _send("schedule",json::array({std::forward<A>(args)...}));}
  template<typename... A> json select(A&&... args)const{return _send("select",json::array({std::forward<A>(args)...}));}
  template<typename... A> json self(A&&... args)const{return _send("self",json::array({std::forward<A>(args)...}));}
@@ -236,9 +324,9 @@ public:explicit API(Client* c):Namespace(c,"api"),client_(c){}
 class Client {
  HostAPI host_;json context_;
 public:
- Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet,storage,accounts,mcp;API api;
+ Namespace game,system,plugin,util,bot,building,media,world,player,events,http,web,chains,packet,storage,accounts,accountsPool,mcp,entities,entity,diagnostics,hud,scoreboard,observerBridge;API api;
  Client(const char* context,HostAPI host):host_(host),context_(json::parse(context)),
- game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),storage(this,"storage"),accounts(this,"accounts"),mcp(this,"mcp"),api(this){}
+ game(this,"game"),system(this,"system"),plugin(this,"plugin"),util(this,"util"),bot(this,"bot"),building(this,"building"),media(this,"media"),world(this,"world"),player(this,"player"),events(this,"events"),http(this,"http"),web(this,"web"),chains(this,"chains"),packet(this,"packet"),storage(this,"storage"),accounts(this,"accounts"),accountsPool(this,"accountsPool"),mcp(this,"mcp"),entities(this,"entities"),entity(this,"entity"),diagnostics(this,"diagnostics"),hud(this,"hud"),scoreboard(this,"scoreboard"),observerBridge(this,"observerBridge"),api(this){}
  std::string account()const{return context_.at("account").get<std::string>();}
  std::string id()const{return context_.at("plugin_id").get<std::string>();}
  json root(const std::string& path,const json& body=nullptr)const{

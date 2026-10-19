@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	yyExtraMethods["plugin.has"] = "method或runtime.lua/runtime.python/runtime.cpp，查询宿主API是否提供；不代表服务器一定支持动作或已观测到血量。Linux C++当前false。"
+	yyExtraMethods["plugin.has"] = "method或runtime.lua/runtime.python/runtime.cpp，查询宿主API与运行器依赖；不代表服务器支持或已观测到血量。Linux C++为独立进程，需要Python3/YY_PYTHON及当前ABI的.so。"
 	yyExtraMethods["plugin.capabilities"] = "无参数，当前平台可用API名称和语言运行器能力；按需读取，不自动整库塞AI上下文。"
 }
 
@@ -51,7 +51,7 @@ func yyLanguageCapabilities() map[string]bool {
 			}
 		}
 	}
-	return map[string]bool{"runtime.lua": true, "runtime.python": python, "runtime.cpp": runtime.GOOS == "android"}
+	return map[string]bool{"runtime.lua": true, "runtime.python": python, "runtime.cpp": runtime.GOOS == "android" || (runtime.GOOS == "linux" && python)}
 }
 func yyHasCapability(method string) bool {
 	if strings.HasPrefix(method, "runtime.") {
@@ -62,7 +62,9 @@ func yyHasCapability(method string) bool {
 	return i < len(list) && list[i] == method
 }
 func yyCapabilities() any {
-	return map[string]any{"platform": runtime.GOOS, "methods": yyCapabilityList(), "languages": yyLanguageCapabilities(), "server_support_requires_validation": true}
+	return map[string]any{"platform": runtime.GOOS, "methods": yyCapabilityList(), "languages": yyLanguageCapabilities(), "server_support_requires_validation": true,
+		"method_status": "registered binding; not proof of server support or permission", "api_registration_count_limit": nil,
+		"lua_limits": map[string]any{"engine": "YouYuan wide-register fork of GopherLua 1.1.2 / Lua 5.1", "compiler_registers_per_function": lua.MaxRegisters, "instruction_word_bits": 64, "serialized_upstream_bytecode_compatible": false, "registry_initial": 5120, "registry_growth_enabled": true, "registry_max": 5120 * lua.CallStackSize, "call_stack": lua.CallStackSize}}
 }
 func registerCapabilityAPI(L *lua.LState) {
 	p := L.GetGlobal("plugin").(*lua.LTable)

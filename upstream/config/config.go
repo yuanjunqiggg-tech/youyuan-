@@ -8,19 +8,20 @@ import (
 )
 
 type AppConfig struct {
-	Token        string `json:"token"`
-	AuthURL      string `json:"auth_url"`
-	MarketURL    string `json:"market_url"`
-	MarketToken  string `json:"market_token"`
-	ServerCode   string `json:"server_code"`
-	ServerPass   string `json:"server_pass"`
-	BotName      string `json:"bot_name"`
-	ImportSpeed  int    `json:"import_speed"`
-	ExportSpeed  int    `json:"export_speed"`
-	MediaDisplay string `json:"media_display"`
-	MediaTarget  string `json:"media_target"`
-	ShowProgress bool   `json:"show_progress"`
-	DataDir      string `json:"data_dir"`
+	Token           string `json:"token"`
+	AuthURL         string `json:"auth_url"`
+	MarketURL       string `json:"market_url"`
+	MarketToken     string `json:"market_token"`
+	ServerCode      string `json:"server_code"`
+	ServerPass      string `json:"server_pass"`
+	BotName         string `json:"bot_name"`
+	MainAccountName string `json:"main_account_name,omitempty"` // Local remark for the first explicitly saved game credential.
+	ImportSpeed     int    `json:"import_speed"`
+	ExportSpeed     int    `json:"export_speed"`
+	MediaDisplay    string `json:"media_display"`
+	MediaTarget     string `json:"media_target"`
+	ShowProgress    bool   `json:"show_progress"`
+	DataDir         string `json:"data_dir"`
 
 	ImportCommands     bool `json:"import_commands"`
 	CmdDisabled        bool `json:"cmd_disabled"`
@@ -37,6 +38,11 @@ type AppConfig struct {
 	PreClearMode int `json:"pre_clear_mode"` // 0=关闭 1=一格 2=竖柱 3=区块
 
 	CustomDNS string `json:"custom_dns"` // 自定义 DNS 服务器，空=默认 223.5.5.5
+
+	// Game egress affects new rental-server UDP connections only. Proxy secrets
+	// live separately from AppConfig so /api/config cannot disclose them.
+	GameEgressMode            string `json:"game_egress_mode,omitempty"`
+	GameEgressProxyAuthorized bool   `json:"game_egress_proxy_authorized,omitempty"`
 
 	TLSSkipVerify *bool `json:"tls_skip_verify,omitempty"` // 跳过 TLS 证书验证，nil=默认 true
 
@@ -58,6 +64,7 @@ func PacketQueueSize(cfg *AppConfig) int {
 
 var cfgPath string
 var current *AppConfig
+var currentGameIdentity *authenticatedGameIdentity
 var configMu sync.Mutex
 
 func InitConfig(dataDir string) {
@@ -66,6 +73,7 @@ func InitConfig(dataDir string) {
 	os.MkdirAll(dataDir, 0755)
 	cfgPath = filepath.Join(dataDir, "config.json")
 	current = nil
+	currentGameIdentity = nil
 }
 func configDefaults() *AppConfig {
 	return &AppConfig{AuthURL: "https://susu.bot.cd", ImportSpeed: 10000, ExportSpeed: 10000, MediaDisplay: "actionbar", MediaTarget: "@a", ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, AutoCreative: true}
@@ -82,9 +90,14 @@ func cloneConfig(cfg *AppConfig) *AppConfig {
 func loadLocked(reload bool) *AppConfig {
 	if current == nil || reload {
 		c := configDefaults()
+		currentGameIdentity = nil
 		if b, e := os.ReadFile(cfgPath); e == nil {
-			if json.Unmarshal(b, c) == nil {
+			disk := diskConfig{AppConfig: c}
+			if json.Unmarshal(b, &disk) == nil {
 				current = c
+				if disk.GameIdentity != nil && disk.GameIdentity.CredentialBinding == gameCredentialBinding(c.Token, c.AuthURL) {
+					currentGameIdentity = disk.GameIdentity
+				}
 			}
 		}
 		if current == nil {
@@ -98,7 +111,16 @@ func ReloadConfig() *AppConfig { configMu.Lock(); defer configMu.Unlock(); retur
 func SaveConfig(cfg *AppConfig) error {
 	configMu.Lock()
 	defer configMu.Unlock()
-	data, e := json.MarshalIndent(cfg, "", "  ")
+	loadLocked(false)
+	identity := currentGameIdentity
+	if identity != nil && identity.CredentialBinding != gameCredentialBinding(cfg.Token, cfg.AuthURL) {
+		identity = nil
+	}
+	return saveLocked(cfg, identity)
+}
+
+func saveLocked(cfg *AppConfig, identity *authenticatedGameIdentity) error {
+	data, e := json.MarshalIndent(diskConfig{AppConfig: cfg, GameIdentity: identity}, "", "  ")
 	if e != nil {
 		return e
 	}
@@ -110,5 +132,6 @@ func SaveConfig(cfg *AppConfig) error {
 		return e
 	}
 	current = cloneConfig(cfg)
+	currentGameIdentity = identity
 	return nil
 }

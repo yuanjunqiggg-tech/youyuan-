@@ -11,11 +11,20 @@ const (
 	SupportNBTBlockTypeJukeBox
 	SupportNBTBlockTypeBrewingStand
 	SupportNBTBlockTypeCrafter
+	SupportNBTBlockTypeSkull
 )
 
 // 此表描述了现阶段已经支持了的方块实体。
 // 键代表方块名，而值代表这种方块应该归属的类型
 var SupportBlocksPool = map[string]uint8{
+	"minecraft:skeleton_skull":        SupportNBTBlockTypeSkull,
+	"minecraft:wither_skeleton_skull": SupportNBTBlockTypeSkull,
+	"minecraft:zombie_head":           SupportNBTBlockTypeSkull,
+	"minecraft:player_head":           SupportNBTBlockTypeSkull,
+	"minecraft:creeper_head":          SupportNBTBlockTypeSkull,
+	"minecraft:dragon_head":           SupportNBTBlockTypeSkull,
+	"minecraft:piglin_head":           SupportNBTBlockTypeSkull,
+	"minecraft:skull":                 SupportNBTBlockTypeSkull,
 	// 命令方块
 	"minecraft:command_block":           SupportNBTBlockTypeCommandBlock,
 	"minecraft:chain_command_block":     SupportNBTBlockTypeCommandBlock,

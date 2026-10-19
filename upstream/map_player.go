@@ -1,16 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
-	"io"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -49,21 +46,20 @@ type MapGridInfo struct {
 // ========== MapPlayer ==========
 
 type MapPlayer struct {
-	bm          *BotManager
-	grid        *MapGridInfo
-	mapCfg      MapConfig
-	mediaCfg    MediaConfig
-	hasCleared  bool
-	isPaused    atomic.Bool
-	stopChan    chan struct{}
-	wg          sync.WaitGroup
-	frameBuffer chan *ImageInfo
-	mu          sync.Mutex
-
-	ffmpegCmd    *exec.Cmd
-	ffmpegOutput io.ReadCloser
-	vidWidth     int
-	vidHeight    int
+	bm              *BotManager
+	grid            *MapGridInfo
+	mapCfg          MapConfig
+	mediaCfg        MediaConfig
+	hasCleared      bool
+	isPaused        atomic.Bool
+	setupMu         sync.Mutex
+	frameMu         sync.Mutex
+	cacheMu         sync.Mutex
+	session         *mapVideoSession
+	previous        map[int64][]color.RGBA
+	sendPixels      func(int64, []PixelRequest) error
+	framesSubmitted atomic.Uint64
+	pixelsSubmitted atomic.Uint64
 }
 
 type MapConfig struct {
@@ -87,9 +83,8 @@ type MediaConfig struct {
 
 func NewMapPlayer(bm *BotManager) *MapPlayer {
 	return &MapPlayer{
-		bm:          bm,
-		stopChan:    make(chan struct{}),
-		frameBuffer: make(chan *ImageInfo, 10),
+		bm:       bm,
+		previous: make(map[int64][]color.RGBA),
 	}
 }
 
@@ -269,17 +264,17 @@ func (mp *MapPlayer) scanViaStructure(minX, minY, minZ, maxX, maxY, maxZ int32) 
 		StructureName: structureName,
 		Position:      protocol.BlockPos{minX, minY, minZ},
 		Settings: protocol.StructureSettings{
-			PaletteName:             "default",
-			IgnoreEntities:          true,
-			IgnoreBlocks:            false,
-			Size:                    protocol.BlockPos{sizeX, sizeY, sizeZ},
-			Offset:                  protocol.BlockPos{0, 0, 0},
+			PaletteName:               "default",
+			IgnoreEntities:            true,
+			IgnoreBlocks:              false,
+			Size:                      protocol.BlockPos{sizeX, sizeY, sizeZ},
+			Offset:                    protocol.BlockPos{0, 0, 0},
 			LastEditingPlayerUniqueID: 0,
-			Rotation:                0,
-			Mirror:                  0,
-			Integrity:               100,
-			Seed:                    0,
-			AllowNonTickingChunks:   false,
+			Rotation:                  0,
+			Mirror:                    0,
+			Integrity:                 100,
+			Seed:                      0,
+			AllowNonTickingChunks:     false,
 		},
 		RequestType: packet.StructureTemplateRequestExportFromSave,
 	})
@@ -435,14 +430,25 @@ func (mp *MapPlayer) LoadAndResizeImage(path string) (*ImageInfo, error) {
 	}, nil
 }
 
-func (mp *MapPlayer) ProcessFrame(info *ImageInfo) {
+func (mp *MapPlayer) ProcessFrame(info *ImageInfo) error {
+	mp.frameMu.Lock()
+	defer mp.frameMu.Unlock()
+	if mp.grid == nil || info == nil || info.ScaledImage == nil || len(mp.grid.MapIDs) != mp.grid.Rows {
+		return errors.New("地图画布或帧数据无效")
+	}
+	for _, row := range mp.grid.MapIDs {
+		if len(row) != mp.grid.Cols {
+			return errors.New("展示框网格不完整，请重新扫描")
+		}
+	}
 	conc := mp.mediaCfg.Concurrency
 	if conc <= 0 {
 		conc = 4
 	}
 	sem := make(chan struct{}, conc)
 	var wg sync.WaitGroup
-
+	var errMu sync.Mutex
+	var firstErr error
 	for r := 0; r < mp.grid.Rows; r++ {
 		for c := 0; c < mp.grid.Cols; c++ {
 			mid := mp.grid.MapIDs[r][c]
@@ -451,21 +457,47 @@ func (mp *MapPlayer) ProcessFrame(info *ImageInfo) {
 			go func(row, col int, id int64) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				if mp.mapCfg.LockMap {
-					_ = mp.LockMap(id)
-				}
-				pixels := extractPixels(info, row, col, mp.hasCleared)
+				mp.cacheMu.Lock()
+				previous := mp.previous[id]
+				mp.cacheMu.Unlock()
+				pixels, next := mapFrameDifference(info, row, col, previous)
+				var err error
 				if len(pixels) > 0 {
-					_ = mp.SendMapPixels(id, pixels)
+					if mp.mapCfg.LockMap && previous == nil {
+						err = mp.LockMap(id)
+					}
+					if err == nil {
+						if mp.sendPixels != nil {
+							err = mp.sendPixels(id, pixels)
+						} else {
+							err = mp.SendMapPixels(id, pixels)
+						}
+					}
 				}
-				time.Sleep(15 * time.Millisecond)
+				if err != nil {
+					errMu.Lock()
+					if firstErr == nil {
+						firstErr = err
+					}
+					errMu.Unlock()
+					return
+				}
+				mp.pixelsSubmitted.Add(uint64(len(pixels)))
+				mp.cacheMu.Lock()
+				if mp.previous == nil {
+					mp.previous = make(map[int64][]color.RGBA)
+				}
+				mp.previous[id] = next
+				mp.cacheMu.Unlock()
 			}(r, c, mid)
 		}
 	}
 	wg.Wait()
-	if !mp.hasCleared {
+	if firstErr == nil {
 		mp.hasCleared = true
+		mp.framesSubmitted.Add(1)
 	}
+	return firstErr
 }
 
 func extractPixels(info *ImageInfo, row, col int, clear bool) []PixelRequest {
@@ -498,6 +530,9 @@ func extractPixels(info *ImageInfo, row, col int, clear bool) []PixelRequest {
 // ========== 图片模式 ==========
 
 func (mp *MapPlayer) PlayImage(path string) error {
+	mp.setupMu.Lock()
+	defer mp.setupMu.Unlock()
+	mp.stopSessionLocked()
 	if mp.grid == nil {
 		return errors.New("请先扫描地图区域")
 	}
@@ -505,179 +540,37 @@ func (mp *MapPlayer) PlayImage(path string) error {
 	if err != nil {
 		return err
 	}
-	mp.hasCleared = false
-	mp.ProcessFrame(info)
-	return nil
+	mp.resetPixels()
+	return mp.ProcessFrame(info)
 }
 
-// ========== 视频模式 ==========
-
-func (mp *MapPlayer) PlayVideo(cfg MediaConfig) error {
-	if mp.grid == nil {
-		return errors.New("请先扫描地图区域")
-	}
-	mp.stopAndReset(cfg)
-
-	ffmpegPath, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return fmt.Errorf("未找到 ffmpeg: %w", err)
-	}
-
-	probe := exec.Command("ffprobe", "-v", "error",
-		"-select_streams", "v:0",
-		"-show_entries", "stream=width,height",
-		"-of", "csv=p=0", cfg.MediaPath)
-	if out, err := probe.Output(); err == nil {
-		fmt.Sscanf(strings.TrimSpace(string(out)), "%d,%d", &mp.vidWidth, &mp.vidHeight)
-	}
-	if mp.vidWidth <= 0 {
-		mp.vidWidth = mp.grid.Cols * 128
-		mp.vidHeight = mp.grid.Rows * 128
-	}
-
-	fps := cfg.VideoFPS
-	if fps <= 0 {
-		fps = 10
-	}
-	startTime := float64(cfg.StartFrame) / float64(fps)
-	scaleW := mp.grid.Cols * 128
-	scaleH := mp.grid.Rows * 128
-
-	args := []string{
-		"-v", "error",
-		"-ss", fmt.Sprintf("%.2f", startTime),
-		"-i", cfg.MediaPath,
-		"-vf", fmt.Sprintf("scale=%d:%d:flags=lanczos", scaleW, scaleH),
-		"-f", "image2pipe", "-pix_fmt", "rgba",
-		"-sws_flags", "bicubic",
-		"-vcodec", "rawvideo", "-",
-	}
-	mp.ffmpegCmd = exec.Command(ffmpegPath, args...)
-	mp.ffmpegOutput, err = mp.ffmpegCmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("ffmpeg 管道失败: %w", err)
-	}
-	if err := mp.ffmpegCmd.Start(); err != nil {
-		return fmt.Errorf("ffmpeg 启动失败: %w", err)
-	}
-
-	mp.wg.Add(1)
-	go mp.readFrames()
-	mp.playLoop(cfg)
-	return nil
-}
-
-func (mp *MapPlayer) stopAndReset(cfg MediaConfig) {
-	mp.Stop()
-	mp.mu.Lock()
-	mp.stopChan = make(chan struct{})
-	mp.frameBuffer = make(chan *ImageInfo, 10)
-	mp.isPaused.Store(false)
-	mp.mediaCfg = cfg
-	mp.hasCleared = false
-	mp.ffmpegCmd = nil
-	mp.ffmpegOutput = nil
-	mp.vidWidth = 0
-	mp.vidHeight = 0
-	mp.mu.Unlock()
-}
-
-func (mp *MapPlayer) readFrames() {
-	defer mp.wg.Done()
-	defer mp.ffmpegOutput.Close()
-
-	frameSize := mp.vidWidth * mp.vidHeight * 4
-	buf := make([]byte, frameSize)
-	br := bufio.NewReaderSize(mp.ffmpegOutput, frameSize*2)
-	totalW := mp.grid.Cols * 128
-	totalH := mp.grid.Rows * 128
-
-	for {
-		select {
-		case <-mp.stopChan:
-			mp.killFFmpeg()
-			return
-		default:
-		}
-		n, err := io.ReadFull(br, buf)
-		if err != nil {
-			return
-		}
-		if n != frameSize {
-			continue
-		}
-		img := image.NewRGBA(image.Rect(0, 0, mp.vidWidth, mp.vidHeight))
-		copy(img.Pix, buf[:n])
-		scaled := imaging.Fit(img, totalW, totalH, imaging.Lanczos)
-		bounds := scaled.Bounds()
-		select {
-		case mp.frameBuffer <- &ImageInfo{
-			ScaledImage: scaled,
-			ContentWidth: bounds.Dx(), ContentHeight: bounds.Dy(),
-			OffsetX: (totalW - bounds.Dx()) / 2,
-			OffsetY: (totalH - bounds.Dy()) / 2,
-			TotalWidth: totalW, TotalHeight: totalH,
-		}:
-		case <-mp.stopChan:
-			return
-		}
-	}
-}
-
-func (mp *MapPlayer) playLoop(cfg MediaConfig) {
-	fps := cfg.VideoFPS
-	if fps <= 0 {
-		fps = 10
-	}
-	speed := cfg.VideoSpeed
-	if speed <= 0 {
-		speed = 1.0
-	}
-	dur := time.Duration(float64(time.Second) / (float64(fps) * speed))
-	ticker := time.NewTicker(dur)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-mp.stopChan:
-			return
-		case <-ticker.C:
-			for mp.isPaused.Load() {
-				select {
-				case <-mp.stopChan:
-					return
-				case <-time.After(100 * time.Millisecond):
-				}
-			}
-			select {
-			case info := <-mp.frameBuffer:
-				mp.ProcessFrame(info)
-			case <-mp.stopChan:
-				return
-			default:
-			}
-		}
-	}
-}
-
+// Stop terminates the decoder before waiting for its reader. Each playback
+// owns its channels; replacing a video cannot redirect an old reader into the
+// new playback or leave its loop waiting forever after EOF.
 func (mp *MapPlayer) Stop() {
-	mp.mu.Lock()
-	defer mp.mu.Unlock()
-	select {
-	case <-mp.stopChan:
-		return
-	default:
-		close(mp.stopChan)
-	}
-	mp.wg.Wait()
-	mp.isPaused.Store(false)
-	mp.killFFmpeg()
+	mp.setupMu.Lock()
+	defer mp.setupMu.Unlock()
+	mp.stopSessionLocked()
 }
 
-func (mp *MapPlayer) killFFmpeg() {
-	if mp.ffmpegCmd != nil && mp.ffmpegCmd.Process != nil {
-		mp.ffmpegCmd.Process.Kill()
+func (mp *MapPlayer) stopSessionLocked() {
+	if mp.session != nil {
+		mp.session.shutdown()
+		<-mp.session.done
+		mp.session = nil
 	}
+	mp.frameMu.Lock()
+	mp.frameMu.Unlock()
+	mp.isPaused.Store(false)
+}
+
+func (mp *MapPlayer) resetPixels() {
+	mp.frameMu.Lock()
+	mp.cacheMu.Lock()
+	mp.previous = make(map[int64][]color.RGBA)
+	mp.hasCleared = false
+	mp.cacheMu.Unlock()
+	mp.frameMu.Unlock()
 }
 
 func minI32(a, b int32) int32 {

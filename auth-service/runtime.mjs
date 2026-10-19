@@ -1,5 +1,7 @@
 import './wasm_exec.js';
 import wasm from './kernel.wasm';
+import {connect} from 'cloudflare:sockets';
+import {createTCPBridge} from './tcp-bridge.mjs';
 export async function runKernel(input){
  // Each invocation owns its Cloudflare request I/O context. A retained Go
  // instance would keep the first request's timers and fetch continuation.
@@ -8,7 +10,10 @@ export async function runKernel(input){
  const running=go.run(instance);
  const invoke=globalThis.youyuanAuthKernel;
  if(typeof invoke!=='function')throw new Error('认证运行时未就绪');
- const result=await invoke(JSON.stringify(input));
- await running;
- return JSON.parse(result);
+ const tcp=createTCPBridge(connect);
+ try {
+  const result=await invoke(JSON.stringify(input),tcp.dial);
+  await running;
+  return JSON.parse(result);
+ } finally {tcp.close();}
 }

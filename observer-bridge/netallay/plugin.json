@@ -1,0 +1,8 @@
+{
+  "entrance": "org.youyuan.bridge.YouyuanObserverPlugin",
+  "name": "YouyuanObserver",
+  "version": "0.10.29",
+  "authors": ["Youyuan"],
+  "description": "Optional authenticated NetAllay observer bridge; actual engine events only",
+  "dependencies": [{"name":"NetAllay", "version":">=0.1.1", "optional":false}]
+}

@@ -100,7 +100,7 @@ function RimpHTML(){
     '<div class="mode-cap gone" id="imp-mode-cap">'+
     '<div class="mode-cap-thumb" id="imp-mode-thumb"></div>'+
     '<button class="mode-cap-btn active" data-mode="import" onclick="setImpMode(\'import\')">导入模式</button>'+
-    (cfgBotTokens.length>0?'<button class="mode-cap-btn" data-mode="multi" onclick="setImpMode(\'multi\')">多机器人</button>':'')+
+    '<button class="mode-cap-btn" data-mode="multi" onclick="setImpMode(\'multi\')">多机器人 / 多区块</button>'+
     '<button class="mode-cap-btn" data-mode="repair" onclick="setImpMode(\'repair\')">修补模式</button>'+
     '</div>'+
     '<div id="imp-info" class="gone"></div>'+
@@ -219,6 +219,7 @@ function RexpHTML(){
     '<label>起点</label><div class="row"><input id="exp-x1" type="number" placeholder="X"><input id="exp-y1" type="number" placeholder="Y"><input id="exp-z1" type="number" placeholder="Z"></div>'+
     '<label>终点</label><div class="row"><input id="exp-x2" type="number" placeholder="X"><input id="exp-y2" type="number" placeholder="Y"><input id="exp-z2" type="number" placeholder="Z"></div>'+
     '<label>格式</label><div class="picker-btn" id="exp-fmt-picker" data-value="mcstructure" onclick="showExpFmtPicker()"><span class="picker-label">MCStructure</span><span class="picker-arrow">▾</span></div>'+
+    '<label>协作机器人数量</label><input id="exp-workers" type="number" min="1" value="1"><div class="dim" style="font-size:12px;margin-bottom:10px">使用已配置的同服多机器人；单账号保持顺序读取，缺块时中止。</div>'+
     '<label>文件名</label><input id="exp-name" value="" placeholder="文件名称" oninput="onExpFmtChange()">'+
     '<div class="dim" id="exp-name-preview" style="font-size:11px;margin:4px 0;color:var(--phx-text-secondary)"></div>'+
     '<div class="row"><button class="btn" onclick="doExpGo()" id="exp-go">开始导出</button>'+
@@ -246,7 +247,7 @@ function toggleSub(cbId, subId){
 // ═══ 修补模式 ═══
 var impMode='import';
 function setImpMode(mode){
-  impMode=mode;
+  impMode=mode;if(mode==='multi')yyImportWorkerOptions();else document.getElementById('yy-import-workers')?.remove();
   // 坐标同步：切换模式时保留"放置坐标"，避免切换后需重新输入
   // （单↔多机器人共用 imp-x/y/z，天然保留；此处额外覆盖修补模式 rep-x/y/z 这一会丢的场景）
   var sx=document.getElementById('imp-x'),sy=document.getElementById('imp-y'),sz=document.getElementById('imp-z');
@@ -373,7 +374,7 @@ function toggleDimInput(){
   if(el)el.classList.toggle('gone',!picker||picker.getAttribute('data-value')!='dm')
 }
 async function doPick(){
-  var p=useBuiltinPicker?await fpicker('building'):await pick('building');if(!p)return;impPath=p;var isMCWorld=p.toLowerCase().endsWith('.mcworld');
+  var p=await fpicker('building');if(!p)return;impPath=p;var isMCWorld=p.toLowerCase().endsWith('.mcworld');
   if(isMCWorld){
     var m=p.match(/\[(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)\]\s*~\s*\[(-?\d+)[,\s]+(-?\d+)[,\s]+(-?\d+)\]/);
     if(m){document.getElementById('imp-x1').value=m[1];document.getElementById('imp-y1').value=m[2];document.getElementById('imp-z1').value=m[3];
@@ -463,21 +464,22 @@ async function doReanalyze(){
 async function doImp(){
   if(checkUpdateLock())return;
   var btn=document.getElementById('imp-go');if(!btn)return;
+  var spd=Number(document.getElementById('imp-spd').value);if(!Number.isSafeInteger(spd)||spd<1){T('导入速度请填写正整数','e');return}
+  var isMulti=impMode==='multi';var selectedWorkers=[...document.querySelectorAll('#yy-import-workers input:checked')].map(x=>x.value);if(isMulti&&!selectedWorkers.length){T('请先选择参与作业的机器人','e');return}
   btn.disabled=true;btn.innerHTML='<span class="spin"></span> 启动中...';
   document.getElementById('imp-stop').classList.remove('gone');
   document.getElementById('imp-pg').classList.remove('gone');
   document.getElementById('imp-log-card').classList.remove('gone');
   document.getElementById('imp-bar').style.width='0%';
 
-  var spd=Number(document.getElementById('imp-spd').value);if(!Number.isSafeInteger(spd)||spd<1){T('导入速度请填写正整数','e');return}
   document.getElementById('imp-spd').value=spd;
   var cmdOpts={};
   if(document.getElementById('imp-cmds').checked){
     cmdOpts.cmd_disabled=document.getElementById('imp-cmd-disabled').checked
   }
-  var isMulti=impMode==='multi';
   var body={
     type:isMulti?'import_multi':'import',params:{
+      ...(isMulti?{bot_names:selectedWorkers}:{}),
       path:impPath,
       x:parseInt(document.getElementById('imp-x').value)||0,
       y:parseInt(document.getElementById('imp-y').value)||0,
@@ -643,7 +645,7 @@ async function doExpGo(){
   var b=document.getElementById('exp-go');L(b,true,'导出中...');
   var path=expBuildPath();
   if(!path){L(b,false,'开始导出');T('请填写文件名','e');return}
-  var r=await A('POST','/api/task/start',{type:'export',params:{format:document.getElementById('exp-fmt-picker').getAttribute('data-value'),output:path,x1:I('exp-x1',0),y1:I('exp-y1',0),z1:I('exp-z1',0),x2:I('exp-x2',64),y2:I('exp-y2',32),z2:I('exp-z2',64)}});
+  var r=await A('POST','/api/task/start',{type:'export',params:{workers:Math.max(1,I('exp-workers',1)),format:document.getElementById('exp-fmt-picker').getAttribute('data-value'),output:path,x1:I('exp-x1',0),y1:I('exp-y1',0),z1:I('exp-z1',0),x2:I('exp-x2',64),y2:I('exp-y2',32),z2:I('exp-z2',64)}});
   L(b,false,'开始导出');if(!r.ok){T('失败: '+r.error,'e');return}
   expRunning=true;
   document.getElementById('exp-go').classList.add('gone');
@@ -672,3 +674,5 @@ function resetTaskButtons(){
   ['imp-pg','clear-pg','exp-pg','md-pg'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.add('gone')});
   expRunning=false
 }
+
+async function yyImportWorkerOptions(){document.getElementById('yy-import-workers')?.remove();const host=document.getElementById('imp-params');if(!host)return;const box=document.createElement('section');box.id='yy-import-workers';box.className='card';box.innerHTML='<h3>参与此作业的机器人</h3><p class="yy-hint">只列出当前账号内核已连接同服的机器人；可多选。未选账号不会被此作业传送。共享账号须先投放为子连接；不重复登录其他独立控制台的在线账号。</p><div role="status">正在读取…</div>';host.prepend(box);const r=await A('GET','/api/fleet/status');if(!box.isConnected||impMode!=='multi')return;box.querySelector('[role=status]').remove();if(!r.ok){box.append(document.createTextNode(r.error||'读取失败'));return}for(const w of r.workers||[]){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.checked=true;input.value=w.name;label.className='yy-worker-option';label.style.cssText='display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--phx-border-light);border-radius:8px';input.style.width='20px';label.append(input,document.createTextNode(w.name+(w.main?' · 当前主连接':' · 子连接')+' · '+w.server));box.append(label)}if(!r.workers?.length)box.append(document.createTextNode('没有就绪的机器人，请先在设置中连接子机器人。'))}

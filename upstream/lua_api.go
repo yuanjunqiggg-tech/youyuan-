@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -12,6 +14,22 @@ import (
 // registerAllLuaAPI 注册插件可用的全部 Lua 全局 API（game/system/api/plugin/util/bot/building/media/world）。
 func registerAllLuaAPI(L *lua.LState, bm *BotManager) {
 	registerGameAPI(L, bm)
+	registerLegacyGameAPI(L)
+	// Original plugins probe these synonymous names. They share the native TPS
+	// interface, and return nil when the host has no server-reported measurement.
+	g := L.GetGlobal("game")
+	observedTPS := L.NewFunction(func(L *lua.LState) int {
+		value, known := abot(L).observedTPS()
+		if known {
+			L.Push(lua.LNumber(value))
+		} else {
+			L.Push(lua.LNil)
+		}
+		return 1
+	})
+	for _, name := range []string{"getTPS", "getServerTPS", "serverTPS", "getTickRate", "getServerTickRate"} {
+		L.SetField(g, name, observedTPS)
+	}
 	registerSystemAPI(L)
 	registerCrossPluginAPI(L, bm)
 	registerUtilAPI(L)
@@ -31,13 +49,25 @@ func registerAllLuaAPI(L *lua.LState, bm *BotManager) {
 	registerPacketAPI(L)
 	registerStorageAPI(L)
 	registerAccountBridgeAPI(L)
+	registerAccountPoolAPI(L)
 }
 
 // newLuaState 创建一个已注册全部插件 API 的 Lua 状态。
 func newLuaState(bm *BotManager) *lua.LState {
-	L := lua.NewState()
+	L := newYYLuaVM()
 	registerAllLuaAPI(L, bm)
 	return L
+}
+
+// A function can now use 5120 registers; nested calls need more than one
+// frame's data stack. Allocate only the initial frame and grow on demand.
+func newYYLuaVM() *lua.LState {
+	return lua.NewState(lua.Options{
+		RegistrySize:     5120,
+		RegistryGrowStep: 5120,
+		RegistryMaxSize:  5120 * lua.CallStackSize,
+		CallStackSize:    lua.CallStackSize,
+	})
 }
 
 // registerGameAPI 把游戏便捷 API 注册为 Lua 全局表 game。
@@ -76,7 +106,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// 调用名为 handlerName 的全局 Lua 函数 (player, args)。
 	L.SetField(g, "registerTrigger", L.NewFunction(func(L *lua.LState) int {
 		wordsTbl := L.CheckTable(1)
-		handlerName := L.CheckString(2)
+		handlerName := yySenseLuaHandler(L, 2)
 		var words []string
 		wordsTbl.ForEach(func(_, v lua.LValue) {
 			words = append(words, lua.LVAsString(v))
@@ -90,14 +120,15 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		}
 		pid := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 		debugLog("[Lua] registerTrigger 注册 插件=%q 触发词=%v handler=%q", pid, words, handlerName)
-		abot(L).AddChatTrigger(&ChatTrigger{
+		owner := abot(L)
+		owner.AddChatTrigger(&ChatTrigger{
 			Plugin:       pid,
 			TriggerWords: words,
 			Usage:        "Lua插件触发词",
 			RawArgs:      true, // 触发词后的全部参数按空格传给 Lua handler
 			Func: func(player string, args []any) {
 				debugLog("[Lua] 执行 handler 插件=%q handler=%q player=%s", pid, handlerName, player)
-				if _, err := yyCallResident(abot(L), pid, handlerName, []any{player, args}, false, false); err != nil {
+				if _, err := yyCallResident(owner, pid, handlerName, []any{player, args}, false, false); err != nil {
 					debugLog("[插件] 常驻回调失败 %s.%s: %v", pid, handlerName, err)
 				}
 			},
@@ -110,7 +141,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "getScore", L.NewFunction(func(L *lua.LState) int {
 		scb := L.CheckString(1)
 		target := L.CheckString(2)
-		v, err := abot(L).GetScore(scb, target)
+		bm := abot(L)
+		v, err := yyLuaWaitValue(L, func(_ context.Context) (int, error) { return bm.GetScore(scb, target) })
 		if err != nil {
 			L.RaiseError("getScore: %v", err)
 		}
@@ -120,7 +152,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getMultiScore(target) → table {player={board=score}}
 	L.SetField(g, "getMultiScore", L.NewFunction(func(L *lua.LState) int {
 		target := L.CheckString(1)
-		m, err := abot(L).GetMultiScore(target)
+		m, err := yyLuaWait1(L, abot(L).GetMultiScore, target)
 		if err != nil {
 			L.RaiseError("getMultiScore: %v", err)
 		}
@@ -130,7 +162,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getPlayerPos(target) → table {x,y,z,dimension}
 	L.SetField(g, "getPlayerPos", L.NewFunction(func(L *lua.LState) int {
 		target := L.CheckString(1)
-		p, err := abot(L).GetPlayerPos(target)
+		p, err := yyLuaWait1(L, abot(L).GetPlayerPos, target)
 		if err != nil {
 			L.RaiseError("getPlayerPos: %v", err)
 		}
@@ -145,13 +177,13 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getPlayerPosXYZ(target) → x,y,z
 	L.SetField(g, "getPlayerPosXYZ", L.NewFunction(func(L *lua.LState) int {
 		target := L.CheckString(1)
-		x, y, z, err := abot(L).GetPlayerPosXYZ(target)
+		p, err := yyLuaWait1(L, abot(L).GetPlayerPos, target)
 		if err != nil {
 			L.RaiseError("getPlayerPosXYZ: %v", err)
 		}
-		L.Push(lua.LNumber(x))
-		L.Push(lua.LNumber(y))
-		L.Push(lua.LNumber(z))
+		L.Push(lua.LNumber(p.Position.X))
+		L.Push(lua.LNumber(p.Position.Y))
+		L.Push(lua.LNumber(p.Position.Z))
 		return 3
 	}))
 	// game.getPlayerItem(target, itemName, specialID) → number
@@ -159,7 +191,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		target := L.CheckString(1)
 		item := L.CheckString(2)
 		special := L.OptInt(3, 0)
-		v, err := abot(L).GetPlayerItem(target, item, special)
+		bm := abot(L)
+		v, err := yyLuaWaitValue(L, func(_ context.Context) (int, error) { return bm.GetPlayerItem(target, item, special) })
 		if err != nil {
 			L.RaiseError("getPlayerItem: %v", err)
 		}
@@ -170,7 +203,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// 用 GetBlockTileSafe：传送加载区块再查询，避免远处区块未加载返回 outOfWorld。
 	L.SetField(g, "getBlockTile", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
-		name, err := abot(L).GetBlockTileSafe(x, y, z)
+		bm := abot(L)
+		name, err := yyLuaWaitValue(L, func(_ context.Context) (string, error) { return bm.GetBlockTileSafe(x, y, z) })
 		if err != nil {
 			L.RaiseError("getBlockTile: %v", err)
 		}
@@ -180,7 +214,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getTarget(selector) → table of player names
 	L.SetField(g, "getTarget", L.NewFunction(func(L *lua.LState) int {
 		sel := L.CheckString(1)
-		names, err := abot(L).GetTarget(sel)
+		names, err := yyLuaWait1(L, abot(L).GetTarget, sel)
 		if err != nil {
 			L.RaiseError("getTarget: %v", err)
 		}
@@ -195,7 +229,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "waitMsg", L.NewFunction(func(L *lua.LState) int {
 		player := L.CheckString(1)
 		to := time.Duration(float64(L.OptNumber(2, 30)) * float64(time.Second))
-		msg, err := abot(L).WaitMsg(player, to)
+		bm := abot(L)
+		msg, err := yyLuaWait(L, func(ctx context.Context) (string, error) { return bm.WaitMsgContext(ctx, player, to) })
 		if err != nil {
 			L.RaiseError("waitMsg: %v", err)
 		}
@@ -220,7 +255,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		to := time.Duration(float64(L.OptNumber(4, 30)) * float64(time.Second))
 		menu := &ChatMenu{Title: title}
 		optTbl.ForEach(func(_, v lua.LValue) { menu.Options = append(menu.Options, MenuOption{Label: lua.LVAsString(v)}) })
-		idx, err := abot(L).PromptChoice(player, menu, to)
+		bm := abot(L)
+		idx, err := yyLuaWaitValue(L, func(_ context.Context) (int, error) { return bm.PromptChoice(player, menu, to) })
 		if err != nil {
 			L.RaiseError("promptChoice: %v", err)
 		}
@@ -287,7 +323,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.httpGet(url) → string
 	L.SetField(g, "httpGet", L.NewFunction(func(L *lua.LState) int {
 		url := L.CheckString(1)
-		body, err := httpGetText(url)
+		body, err := yyLuaWait(L, func(ctx context.Context) (string, error) { return httpGetTextContext(ctx, url) })
 		if err != nil {
 			L.RaiseError("httpGet: %v", err)
 		}
@@ -302,7 +338,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		if t := L.OptTable(3, nil); t != nil {
 			t.ForEach(func(k, v lua.LValue) { headers[lua.LVAsString(k)] = lua.LVAsString(v) })
 		}
-		resp, err := httpPostText(url, body, headers)
+		resp, err := yyLuaWait(L, func(ctx context.Context) (string, error) { return httpPostTextContext(ctx, url, body, headers) })
 		if err != nil {
 			L.RaiseError("httpPost: %v", err)
 		}
@@ -333,7 +369,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getBlockTileRaw(x,y,z) → string（不走传送加载）
 	L.SetField(g, "getBlockTileRaw", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
-		name, err := abot(L).GetBlockTile(x, y, z)
+		bm := abot(L)
+		name, err := yyLuaWaitValue(L, func(_ context.Context) (string, error) { return bm.GetBlockTile(x, y, z) })
 		if err != nil {
 			L.RaiseError("getBlockTileRaw: %v", err)
 		}
@@ -342,7 +379,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	}))
 	// game.getTickingAreaList() → table {name={...}}
 	L.SetField(g, "getTickingAreaList", L.NewFunction(func(L *lua.LState) int {
-		m, err := abot(L).GetTickingAreaList()
+		bm := abot(L)
+		m, err := yyLuaWaitValue(L, func(_ context.Context) (map[string]*TickingAreaInfo, error) { return bm.GetTickingAreaList() })
 		if err != nil {
 			L.RaiseError("getTickingAreaList: %v", err)
 		}
@@ -362,7 +400,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.queryInventory(selector) → {items={...}}
 	L.SetField(g, "queryInventory", L.NewFunction(func(L *lua.LState) int {
 		sel := L.CheckString(1)
-		inv, err := abot(L).QueryPlayerInventory(sel)
+		inv, err := yyLuaWait1(L, abot(L).QueryPlayerInventory, sel)
 		if err != nil {
 			L.RaiseError("queryInventory: %v", err)
 		}
@@ -383,7 +421,7 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.isCmdSuccess(cmd) → boolean
 	L.SetField(g, "isCmdSuccess", L.NewFunction(func(L *lua.LState) int {
 		cmd := L.CheckString(1)
-		ok, err := abot(L).IsCmdSuccess(cmd)
+		ok, err := yyLuaWait1(L, abot(L).IsCmdSuccess, cmd)
 		if err != nil {
 			L.RaiseError("isCmdSuccess: %v", err)
 		}
@@ -464,6 +502,10 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 
 	// ---- 机器人移动 / 飞行（fly.go）----
 	L.SetField(g, "teleport", L.NewFunction(func(L *lua.LState) int {
+		if e := yyPluginMovementAllowed(abot(L)); e != nil {
+			L.RaiseError("%v", e)
+			return 0
+		}
 		x, y, z := float32(L.CheckNumber(1)), float32(L.CheckNumber(2)), float32(L.CheckNumber(3))
 		if err := abot(L).TeleportTo(x, y, z); err != nil {
 			L.RaiseError("teleport: %v", err)
@@ -471,6 +513,10 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		return 0
 	}))
 	L.SetField(g, "move", L.NewFunction(func(L *lua.LState) int {
+		if e := yyPluginMovementAllowed(abot(L)); e != nil {
+			L.RaiseError("%v", e)
+			return 0
+		}
 		dx, dy, dz := float32(L.CheckNumber(1)), float32(L.CheckNumber(2)), float32(L.CheckNumber(3))
 		if err := abot(L).MoveRelative(dx, dy, dz); err != nil {
 			L.RaiseError("move: %v", err)
@@ -556,7 +602,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getBlockData(x,y,z) → {name=..., states={...}, nbt={...}}
 	L.SetField(g, "getBlockData", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
-		bd, err := abot(L).GetBlockData(x, y, z)
+		bm := abot(L)
+		bd, err := yyLuaWaitValue(L, func(_ context.Context) (*BlockData, error) { return bm.GetBlockData(x, y, z) })
 		if err != nil {
 			L.RaiseError("getBlockData: %v", err)
 		}
@@ -574,7 +621,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getBlockNBT(x,y,z) → table（命令方块指令/箱子物品/告示牌文本/旗帜图案等）
 	L.SetField(g, "getBlockNBT", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
-		nbt, err := abot(L).GetBlockNBT(x, y, z)
+		bm := abot(L)
+		nbt, err := yyLuaWaitValue(L, func(_ context.Context) (map[string]any, error) { return bm.GetBlockNBT(x, y, z) })
 		if err != nil {
 			L.RaiseError("getBlockNBT: %v", err)
 		}
@@ -588,14 +636,15 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// game.getBlockState(x,y,z) → {name=..., states={...}}
 	L.SetField(g, "getBlockState", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
-		name, states, err := abot(L).GetBlockState(x, y, z)
+		bm := abot(L)
+		bd, err := yyLuaWaitValue(L, func(_ context.Context) (*BlockData, error) { return bm.GetBlockData(x, y, z) })
 		if err != nil {
 			L.RaiseError("getBlockState: %v", err)
 		}
 		t := L.NewTable()
-		t.RawSetString("name", lua.LString(name))
-		if states != nil {
-			t.RawSetString("states", goToLua(L, states))
+		t.RawSetString("name", lua.LString(bd.Name))
+		if bd.States != nil {
+			t.RawSetString("states", goToLua(L, bd.States))
 		}
 		L.Push(t)
 		return 1
@@ -604,9 +653,9 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "getRegionBlockData", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
 		sx, sy, sz := L.CheckInt(4), L.CheckInt(5), L.CheckInt(6)
-		region, err := abot(L).GetRegionBlockData(
-			[3]int32{int32(x), int32(y), int32(z)},
-			[3]int32{int32(sx), int32(sy), int32(sz)})
+		bm := abot(L)
+		pos, size := [3]int32{int32(x), int32(y), int32(z)}, [3]int32{int32(sx), int32(sy), int32(sz)}
+		region, err := yyLuaWaitValue(L, func(_ context.Context) (map[string]*BlockData, error) { return bm.GetRegionBlockData(pos, size) })
 		if err != nil {
 			L.RaiseError("getRegionBlockData: %v", err)
 		}
@@ -648,7 +697,12 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 				L.RaiseError("placeNBTBlock: nbtTable 必须是表")
 			}
 		}
-		if err := abot(L).PlaceNBTBlock(x, y, z, name, states, nbt); err != nil {
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) {
+			release := yyBeginSpatialJob(bm, "plugin-placeNBTBlock")
+			defer release()
+			return true, bm.PlaceNBTBlock(x, y, z, name, states, nbt)
+		}); err != nil {
 			L.RaiseError("placeNBTBlock: %v", err)
 		}
 		return 0
@@ -661,7 +715,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		if !ok {
 			L.RaiseError("setBlockState: statesTable 必须是表")
 		}
-		if err := abot(L).SetBlockState(x, y, z, states); err != nil {
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) { return true, bm.SetBlockState(x, y, z, states) }); err != nil {
 			L.RaiseError("setBlockState: %v", err)
 		}
 		return 0
@@ -679,10 +734,24 @@ func goToLua(L *lua.LState, v any) lua.LValue {
 		return lua.LBool(x)
 	case float64:
 		return lua.LNumber(x)
+	case float32:
+		return lua.LNumber(x)
 	case int:
 		return lua.LNumber(x)
 	case int64:
 		return lua.LNumber(float64(x))
+	case int32:
+		return lua.LNumber(x)
+	case *float32:
+		if x == nil {
+			return lua.LNil
+		}
+		return lua.LNumber(*x)
+	case *float64:
+		if x == nil {
+			return lua.LNil
+		}
+		return lua.LNumber(*x)
 	case uint32:
 		return lua.LNumber(x)
 	case uint64:
@@ -717,6 +786,41 @@ func goToLua(L *lua.LState, v any) lua.LValue {
 		}
 		return t
 	default:
+		// Protocol values include narrower numbers, optional pointers, and
+		// fixed-size vectors. Keep their types without a JSON round trip.
+		value := reflect.ValueOf(v)
+		switch value.Kind() {
+		case reflect.Pointer:
+			if value.IsNil() {
+				return lua.LNil
+			}
+			return goToLua(L, value.Elem().Interface())
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return lua.LNumber(value.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return lua.LNumber(value.Uint())
+		case reflect.Float32, reflect.Float64:
+			return lua.LNumber(value.Float())
+		case reflect.String:
+			return lua.LString(value.String())
+		case reflect.Bool:
+			return lua.LBool(value.Bool())
+		case reflect.Array, reflect.Slice:
+			t := L.NewTable()
+			for i := 0; i < value.Len(); i++ {
+				t.RawSetInt(i+1, goToLua(L, value.Index(i).Interface()))
+			}
+			return t
+		case reflect.Map:
+			if value.Type().Key().Kind() == reflect.String {
+				t := L.NewTable()
+				iter := value.MapRange()
+				for iter.Next() {
+					t.RawSetString(iter.Key().String(), goToLua(L, iter.Value().Interface()))
+				}
+				return t
+			}
+		}
 		return lua.LString(fmt.Sprintf("%v", x))
 	}
 }
@@ -732,18 +836,7 @@ func argsToTable(L *lua.LState, args []any) *lua.LTable {
 
 // toLuaValue 把 Go 值转成 Lua 值。
 func toLuaValue(L *lua.LState, v any) lua.LValue {
-	switch x := v.(type) {
-	case int:
-		return lua.LNumber(x)
-	case float64:
-		return lua.LNumber(x)
-	case bool:
-		return lua.LBool(x)
-	case string:
-		return lua.LString(x)
-	default:
-		return lua.LString("")
-	}
+	return goToLua(L, v)
 }
 
 // luaToGo 把 Lua 值转成 Go any（table/number/bool/string），供写入 JSON 配置与 web 数据。
@@ -817,7 +910,7 @@ func LoadLuaPluginSource(bm *BotManager, src string) error {
 }
 
 // LoadLuaPlugin 加载一段 Lua 插件源码，并用 id 标记其触发项（用于生命周期管理/移除）。
-func LoadLuaPlugin(bm *BotManager, id, src string) error {
-	rememberPluginSource(id, src)
-	return yyLoadResident(bm, id, src, false)
+func LoadLuaPlugin(bm *BotManager, id, src string, sourceDirs ...string) error {
+	rememberPluginSource(id, src, sourceDirs...)
+	return yyLoadResident(bm, id, src, false, sourceDirs...)
 }

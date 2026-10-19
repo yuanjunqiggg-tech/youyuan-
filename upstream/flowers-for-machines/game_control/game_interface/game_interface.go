@@ -3,6 +3,7 @@ package game_interface
 import (
 	"fmt"
 
+	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/game_control/resources_control"
 )
@@ -29,6 +30,7 @@ type GameInterface struct {
 	itemCopy              *ItemCopy
 	itemTransition        *ItemTransition
 	maintainer            Maintainer
+	structureReader       func(protocol.BlockPos, protocol.BlockPos) (map[string]any, error)
 }
 
 // NewResourcesWrapper 基于 resources 创建一个新的游戏交互器
@@ -92,6 +94,20 @@ func (g *GameInterface) initMaintainer() error {
 }
 
 // GetBotInfo 返回机器人的基本信息
+// SetStructureReader lets the host reuse its verified structure/subchunk path.
+// Configure once before using the interface; nil retains the standalone reader.
+func (g *GameInterface) SetStructureReader(reader func(protocol.BlockPos, protocol.BlockPos) (map[string]any, error)) {
+	g.structureReader = reader
+}
+
+func (g *GameInterface) ReadHostStructure(pos, size protocol.BlockPos) (map[string]any, bool, error) {
+	if g.structureReader == nil {
+		return nil, false, nil
+	}
+	data, err := g.structureReader(pos, size)
+	return data, true, err
+}
+
 func (g *GameInterface) GetBotInfo() resources_control.BotInfo {
 	return g.wrapper.BotInfo
 }

@@ -11,6 +11,7 @@ import (
 type UserSettingListEntity struct {
 	SkinData struct {
 		ItemID string `json:"item_id"`
+		IsSlim *bool  `json:"is_slim,omitempty"`
 	} `json:"skin_data"`
 	ScreenConfig map[string]struct {
 		ItemID        string    `json:"item_id"`

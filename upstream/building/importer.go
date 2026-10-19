@@ -142,6 +142,8 @@ func (t *ImportTask) keepNBTPlaceable(x, y, z int32) bool {
 // RunUnit 让导入只跑一个任务单元：只放该单元的区块列，跳过被抠出的位置（§8.1），
 // 不做预清空（多机器人预清空由一台机器人先整图做一次）。单元共享同一份 data（§11.1）。
 func (t *ImportTask) RunUnit(u *Unit) error {
+	// A transport error cannot promote this unit into the pool's completed set.
+	t.StopOnError = true
 	t.PlaceOnly = make(map[[2]int]bool, len(u.Chunks))
 	for _, c := range u.Chunks {
 		t.PlaceOnly[c] = true
@@ -196,6 +198,26 @@ func (t *ImportTask) checkOpError(err error) {
 	}
 }
 
+func (t *ImportTask) interrupted() error {
+	if t.importErr != nil {
+		return t.importErr
+	}
+	select {
+	case <-t.StopCh:
+		return fmt.Errorf("导入已取消，当前区域尚未提交完成")
+	default:
+		return nil
+	}
+}
+
+func worldChunk(v int32) int32 {
+	q := v / ChunkSize
+	if v < 0 && v%ChunkSize != 0 {
+		q--
+	}
+	return q
+}
+
 // clampInt32 将 v 限制在 [min, max] 范围内。
 func clampInt32(v, min, max int32) int32 {
 	if v < min {
@@ -234,7 +256,7 @@ func (t *ImportTask) shouldRepairBlock(x, y, z int32) bool {
 		return true
 	}
 	if t.RepairUseCircle {
-		return t.isChunkCoveredByCircle(x/ChunkSize, z/ChunkSize)
+		return t.isChunkCoveredByCircle(worldChunk(x), worldChunk(z))
 	}
 	return x >= t.RepairRect[0] && x <= t.RepairRect[3] &&
 		y >= t.RepairRect[1] && y <= t.RepairRect[4] &&
@@ -247,6 +269,30 @@ type ImportCheckpointData struct {
 	LastCX       int `json:"last_cx"`
 	LastCZ       int `json:"last_cz"`
 	BlocksPlaced int `json:"blocks_placed"`
+}
+
+// ImportResumeStart rewinds in the actual serpentine region order, never in
+// row-major chunk order. Region imports replay whole regions conservatively.
+func ImportResumeStart(cx, cz, sizeX, sizeZ, regionMode, rewind int) (int, int, error) {
+	rc := (&ImportTask{RegionMode: regionMode}).regionChunks()
+	nx, nz := (sizeX+15)/16, (sizeZ+15)/16
+	if cx < 0 || cz < 0 || cx >= nx || cz >= nz {
+		return 0, 0, fmt.Errorf("导入断点区块超出当前建筑范围")
+	}
+	rx, rz := cx/rc, cz/rc
+	rowsZ := (nz + rc - 1) / rc
+	if rx%2 != 0 {
+		rz = rowsZ - 1 - rz
+	}
+	index := rx*rowsZ + rz - max(0, rewind)
+	if index < 0 {
+		index = 0
+	}
+	rx, rz = index/rowsZ, index%rowsZ
+	if rx%2 != 0 {
+		rz = rowsZ - 1 - rz
+	}
+	return rx * rc, rz * rc, nil
 }
 
 func (t *ImportTask) regionChunks() int {
@@ -283,9 +329,15 @@ func (t *ImportTask) Run() error {
 		if err := t.doPreClear(t.Dimension); err != nil {
 			return err
 		}
+		if err := t.interrupted(); err != nil {
+			return err
+		}
 		if t.OnClearDone != nil && t.PreClearMode != 0 {
 			t.OnClearDone()
 		}
+	}
+	if err := t.interrupted(); err != nil {
+		return err
 	}
 
 	t.chunkSolid = make(map[[2]int]int)
@@ -316,6 +368,7 @@ func (t *ImportTask) Run() error {
 	}
 
 	blocksPlaced := 0
+	processedChunks := 0
 	skippedRegions := 0
 	startRegionX := t.StartCX / rc
 	startRegionZ := t.StartCZ / rc
@@ -329,8 +382,9 @@ func (t *ImportTask) Run() error {
 		}
 
 		for rz := rzStart; rz != rzEnd; rz += rzStep {
-			if rx < startRegionX || (rx == startRegionX && rz < startRegionZ) {
+			if rx < startRegionX || (rx == startRegionX && (rx%2 == 0 && rz < startRegionZ || rx%2 != 0 && rz > startRegionZ)) {
 				skippedRegions++
+				processedChunks += min(rc, totalChunksX-rx*rc) * min(rc, totalChunksZ-rz*rc)
 				continue
 			}
 			select {
@@ -377,8 +431,10 @@ func (t *ImportTask) Run() error {
 			// 加载跟不上尤为明显。用 testforblock 探测，确认当前列已加载再放置（§10 注意 5）。
 			// 单机 ChunkLoaded 为 nil 时 waitChunksLoaded 直接返回，不影响单机行为。
 			// 注：ChunkLoaded 内部以"区块列×16+8"当世界坐标探测，故必须传世界坐标（含 BaseX/BaseZ）。
-			t.waitChunksLoaded(int32(t.BaseX+blockStartX), int32(t.BaseZ+blockStartZ),
-				int32(t.BaseX+blockEndX), int32(t.BaseZ+blockEndZ))
+			if err := t.waitChunksLoaded(int32(t.BaseX+blockStartX), int32(t.BaseZ+blockStartZ),
+				int32(t.BaseX+blockEndX), int32(t.BaseZ+blockEndZ)); err != nil {
+				return err
+			}
 
 			// 修补模式不铺 deny、不铺 border
 			if !t.RepairMode {
@@ -389,7 +445,7 @@ func (t *ImportTask) Run() error {
 					fillZ1 := int32(t.BaseZ + blockStartZ)
 					fillX2 := int32(t.BaseX + blockEndX)
 					fillZ2 := int32(t.BaseZ + blockEndZ)
-					t.FillRegion(fillX1, int32(denyWorldY), fillZ1, fillX2, int32(denyWorldY), fillZ2, "minecraft:deny", "[]")
+					t.checkOpError(t.FillRegion(fillX1, int32(denyWorldY), fillZ1, fillX2, int32(denyWorldY), fillZ2, "minecraft:deny", "[]"))
 					time.Sleep(10 * time.Millisecond)
 				}
 
@@ -399,21 +455,21 @@ func (t *ImportTask) Run() error {
 					// 只有小区在建筑边缘时才需要放置
 					if rx == 0 || rx == totalRegionsX-1 || rz == 0 || rz == totalRegionsZ-1 {
 						if rx == 0 {
-							t.FillRegion(int32(t.BaseX-1), int32(bWorldY), int32(t.BaseZ+blockStartZ), int32(t.BaseX-1), int32(bWorldY), int32(t.BaseZ+blockEndZ), t.BorderBlock, "[]")
+							t.checkOpError(t.FillRegion(int32(t.BaseX-1), int32(bWorldY), int32(t.BaseZ+blockStartZ), int32(t.BaseX-1), int32(bWorldY), int32(t.BaseZ+blockEndZ), t.BorderBlock, "[]"))
 							time.Sleep(10 * time.Millisecond)
 						}
 						if rx == totalRegionsX-1 {
 							wx := t.BaseX + t.Data.SizeX
-							t.FillRegion(int32(wx), int32(bWorldY), int32(t.BaseZ+blockStartZ), int32(wx), int32(bWorldY), int32(t.BaseZ+blockEndZ), t.BorderBlock, "[]")
+							t.checkOpError(t.FillRegion(int32(wx), int32(bWorldY), int32(t.BaseZ+blockStartZ), int32(wx), int32(bWorldY), int32(t.BaseZ+blockEndZ), t.BorderBlock, "[]"))
 							time.Sleep(10 * time.Millisecond)
 						}
 						if rz == 0 {
-							t.FillRegion(int32(t.BaseX+blockStartX), int32(bWorldY), int32(t.BaseZ-1), int32(t.BaseX+blockEndX), int32(bWorldY), int32(t.BaseZ-1), t.BorderBlock, "[]")
+							t.checkOpError(t.FillRegion(int32(t.BaseX+blockStartX), int32(bWorldY), int32(t.BaseZ-1), int32(t.BaseX+blockEndX), int32(bWorldY), int32(t.BaseZ-1), t.BorderBlock, "[]"))
 							time.Sleep(10 * time.Millisecond)
 						}
 						if rz == totalRegionsZ-1 {
 							wz := t.BaseZ + t.Data.SizeZ
-							t.FillRegion(int32(t.BaseX+blockStartX), int32(bWorldY), int32(wz), int32(t.BaseX+blockEndX), int32(bWorldY), int32(wz), t.BorderBlock, "[]")
+							t.checkOpError(t.FillRegion(int32(t.BaseX+blockStartX), int32(bWorldY), int32(wz), int32(t.BaseX+blockEndX), int32(bWorldY), int32(wz), t.BorderBlock, "[]"))
 							time.Sleep(10 * time.Millisecond)
 						}
 					}
@@ -423,11 +479,15 @@ func (t *ImportTask) Run() error {
 			// 放置方块：区域模式（跨区块合并）或逐区块模式
 			if rc > 1 {
 				p := t.placeRegion(rx, rz, rc, sleeptime)
+				if err := t.interrupted(); err != nil {
+					return err
+				}
 				blocksPlaced += p
 				// 报告区域内所有区块完成，用于进度条和断点
 				for cx := chunkStartX; cx < chunkEndX; cx++ {
 					for cz := chunkStartZ; cz < chunkEndZ; cz++ {
-						chunkNum := cx*totalChunksZ + cz + 1
+						processedChunks++
+						chunkNum := processedChunks
 						if t.OnProgress != nil {
 							t.OnProgress(cx, cz, chunkNum, totalChunks, blocksPlaced)
 						}
@@ -453,8 +513,12 @@ func (t *ImportTask) Run() error {
 						cxs := min(ChunkSize, t.Data.SizeX-cx*ChunkSize)
 						czs := min(ChunkSize, t.Data.SizeZ-cz*ChunkSize)
 						p := t.placeChunk(cx, cz, cxs, czs, sleeptime)
+						if err := t.interrupted(); err != nil {
+							return err
+						}
 						blocksPlaced += p
-						chunkNum := cx*totalChunksZ + cz + 1
+						processedChunks++
+						chunkNum := processedChunks
 						if t.OnProgress != nil {
 							t.OnProgress(cx, cz, chunkNum, totalChunks, blocksPlaced)
 						}
@@ -463,12 +527,15 @@ func (t *ImportTask) Run() error {
 			}
 
 			regionIdx := rx*totalRegionsZ + rz + 1
+			if rx%2 != 0 {
+				regionIdx = rx*totalRegionsZ + totalRegionsZ - rz
+			}
 			if t.OnRegionProgress != nil {
 				t.OnRegionProgress(regionIdx-skippedRegions, t.totalRegions-skippedRegions, rx, rz)
 			}
 		}
 	}
-	return nil
+	return t.interrupted()
 }
 
 // placeRegion 对整片区域应用与 placeChunk 相同的立体优化（跨区块）。
@@ -798,9 +865,9 @@ func (t *ImportTask) placeRegion(rx, rz, rc int, sleeptime time.Duration) int {
 				}
 
 				runEnd := x + 1
-				for runEnd < regionXSize {
+				for runEnd < regionXSize && (t.nbtSkip() || len(block.NBT) == 0) {
 					nb := t.Data.Get(regionStartX*ChunkSize+runEnd, y, wz)
-					if nb == nil || nb.Name != block.Name || nb.States != block.States {
+					if nb == nil || nb.Name != block.Name || nb.States != block.States || (!t.nbtSkip() && len(nb.NBT) > 0) || !t.placeable(regionStartX*ChunkSize+runEnd, y, wz) || !t.shouldRepairBlock(bx+int32(regionStartX*ChunkSize+runEnd), by+int32(y), bz+int32(wz)) {
 						break
 					}
 					runEnd++
@@ -1025,11 +1092,11 @@ func (t *ImportTask) placeChunkRectPass(cx, cz, chunkXSize, chunkZSize int, slee
 				// Normal blocks: use FillRegion for large cuboids
 				canFill := mode != placeGravity && totalBlocks >= 3 && t.FillRegion != nil && totalBlocks <= maxFillVolume
 				if canFill {
-					t.FillRegion(
+					t.checkOpError(t.FillRegion(
 						bx+int32(cx*ChunkSize+x), by+int32(y), bz+int32(cz*ChunkSize+z),
 						bx+int32(cx*ChunkSize+x+rw-1), by+int32(maxY), bz+int32(cz*ChunkSize+z+rd-1),
 						block.Name, block.States,
-					)
+					))
 				} else {
 					for dy := 0; dy < cuboidH; dy++ {
 						cy := y + dy
@@ -1038,7 +1105,10 @@ func (t *ImportTask) placeChunkRectPass(cx, cz, chunkXSize, chunkZSize int, slee
 								px := cx*ChunkSize + x + dx
 								py := cy
 								pz := cz*ChunkSize + z + dz
-								t.SetBlock(bx+int32(px), by+int32(py), bz+int32(pz), block.Name, block.States)
+								t.checkOpError(t.SetBlock(bx+int32(px), by+int32(py), bz+int32(pz), block.Name, block.States))
+								if t.importErr != nil {
+									return placed
+								}
 							}
 						}
 					}
@@ -1224,9 +1294,11 @@ func (t *ImportTask) placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize int, sl
 
 				// Find consecutive same blocks
 				runEnd := x + 1
-				for runEnd < chunkXSize {
+				// NBT belongs to a position, never to the shared block palette.
+				// Do not copy the first container's inventory into its neighbours.
+				for runEnd < chunkXSize && (t.nbtSkip() || len(block.NBT) == 0) {
 					nb := data.Get(cx*ChunkSize+runEnd, y, wz)
-					if nb == nil || nb.Name != block.Name || nb.States != block.States {
+					if nb == nil || nb.Name != block.Name || nb.States != block.States || (!t.nbtSkip() && len(nb.NBT) > 0) || !t.placeable(cx*ChunkSize+runEnd, y, wz) || !t.shouldRepairBlock(bx+int32(cx*ChunkSize+runEnd), by+int32(y), bz+int32(wz)) {
 						break
 					}
 					runEnd++
@@ -1240,9 +1312,10 @@ func (t *ImportTask) placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize int, sl
 					continue
 				}
 				if n >= 3 && t.FillRegion != nil && !hasNBT {
-					t.FillRegion(bx+int32(wx), by+int32(y), bz+int32(wz),
+					err := t.FillRegion(bx+int32(wx), by+int32(y), bz+int32(wz),
 						bx+int32(cx*ChunkSize+runEnd-1), by+int32(y), bz+int32(wz),
 						block.Name, block.States)
+					t.checkOpError(err)
 				} else {
 					skipNBT := !t.ImportCommands && block.NBT != nil && block.IsCommand
 					for i := 0; i < n; i++ {
@@ -1250,7 +1323,8 @@ func (t *ImportTask) placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize int, sl
 						if !t.keepNBTPlaceable(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz)) {
 							continue
 						}
-						t.SetBlock(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz), block.Name, block.States)
+						err := t.SetBlock(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz), block.Name, block.States)
+						t.checkOpError(err)
 						// 单元模式（IgnoreNBTInUnit）：不逐块 TP 补发 NBT（磁石/空容器等按普通方块放）
 						if t.OnNBT != nil && block.NBT != nil && len(block.NBT) > 0 && !skipNBT && !t.nbtSkip() {
 							t.OnNBT(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz), block.NBT, block.Name, block.States)
@@ -1457,6 +1531,9 @@ func (t *ImportTask) doPreClear(dim string) error {
 
 // clearBoundingBox 模式1：清空建筑矩形空间（从 Base 到 Base+Size）
 func (t *ImportTask) clearBoundingBox(segs [][2]int32) error {
+	if err := t.interrupted(); err != nil {
+		return err
+	}
 	wx1, wy1, wz1 := int32(t.BaseX), int32(t.BaseY), int32(t.BaseZ)
 	wx2 := int32(t.BaseX + t.Data.SizeX - 1)
 	wy2 := int32(t.BaseY + t.Data.SizeY - 1)
@@ -1469,7 +1546,9 @@ func (t *ImportTask) clearBoundingBox(segs [][2]int32) error {
 	cx := (wx1 + wx2) / 2
 	cz := (wz1 + wz2) / 2
 	if t.Teleport != nil {
-		t.Teleport(int(cx), int(wy1), int(cz))
+		if err := t.Teleport(int(cx), int(wy1), int(cz)); err != nil {
+			return fmt.Errorf("预清空传送失败，尚未清空当前区域: %w", err)
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -1483,6 +1562,9 @@ func (t *ImportTask) clearBoundingBox(segs [][2]int32) error {
 		// 按 maxFillVolume 切分 Y
 
 		cleared += t.fillSegments(wx1, wz1, wx2, wz2, sMin, sMax, totalBlocks, cleared)
+		if err := t.interrupted(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1523,6 +1605,9 @@ func (t *ImportTask) clearChunkColumnsOptimized(segs [][2]int32, subSize int, fu
 		}
 
 		for rz := rzStart; rz != rzEnd; rz += rzStep {
+			if err := t.interrupted(); err != nil {
+				return err
+			}
 			x1 := int32(t.BaseX + cx*subSize)
 			z1 := int32(t.BaseZ + rz*subSize)
 			cols := min(subSize, t.Data.SizeX-cx*subSize)
@@ -1534,7 +1619,9 @@ func (t *ImportTask) clearChunkColumnsOptimized(segs [][2]int32, subSize int, fu
 			tpX := t.BaseX + cx*subSize + cols/2
 			tpZ := t.BaseZ + rz*subSize + rows/2
 			if t.Teleport != nil {
-				t.Teleport(tpX, t.BaseY, tpZ)
+				if err := t.Teleport(tpX, t.BaseY, tpZ); err != nil {
+					return fmt.Errorf("预清空传送失败，尚未清空当前区域: %w", err)
+				}
 				time.Sleep(50 * time.Millisecond)
 			}
 
@@ -1544,6 +1631,9 @@ func (t *ImportTask) clearChunkColumnsOptimized(segs [][2]int32, subSize int, fu
 					continue
 				}
 				cleared += t.fillSegments(x1, z1, x2, z2, sMin, sMax, totalBlocks, cleared)
+				if err := t.interrupted(); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -1563,38 +1653,60 @@ func clearYRange(seg [2]int32, baseY int32, full bool) (int32, int32) {
 // waitChunksLoaded 等待指定 XZ 矩形覆盖的区块全部加载。
 // 区块未加载时 fill 命令会失败导致区域清不掉，故清空前需校验。
 // ChunkLoaded 未实现时直接返回（不等待）。
-func (t *ImportTask) waitChunksLoaded(x1, z1, x2, z2 int32) {
+func (t *ImportTask) waitChunksLoaded(x1, z1, x2, z2 int32) error {
 	if t.ChunkLoaded == nil {
-		return
+		return t.interrupted()
 	}
-	cx1, cx2 := x1/ChunkSize, x2/ChunkSize
-	cz1, cz2 := z1/ChunkSize, z2/ChunkSize
-	// 最多等待约 3 秒（30 次 × 100ms），防止死循环
+	cx1, cx2 := worldChunk(x1), worldChunk(x2)
+	cz1, cz2 := worldChunk(z1), worldChunk(z2)
+	loaded := map[[2]int32]bool{}
+	// Up to 30 attempts, plus the callback's own bounded command timeout.
+	// A confirmed column need not be re-probed while waiting for another one
+	// in this same region. There is no cache across teleports or regions.
 	for attempt := 0; attempt < 30; attempt++ {
+		if err := t.interrupted(); err != nil {
+			return err
+		}
 		allLoaded := true
 		for cx := cx1; cx <= cx2; cx++ {
 			for cz := cz1; cz <= cz2; cz++ {
+				if err := t.interrupted(); err != nil {
+					return err
+				}
+				key := [2]int32{cx, cz}
+				if loaded[key] {
+					continue
+				}
 				if !t.ChunkLoaded(int(cx), int(cz)) {
 					allLoaded = false
 					break
 				}
+				loaded[key] = true
 			}
 			if !allLoaded {
 				break
 			}
 		}
 		if allLoaded {
-			return
+			return t.interrupted()
 		}
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-t.StopCh:
+			return t.interrupted()
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
+	return fmt.Errorf("等待区块加载超时，区域(%d,%d)-(%d,%d)未提交；保留断点后重试", cx1, cz1, cx2, cz2)
 }
 
 // fillSegments 对指定 XZ 矩形覆盖的 Y 范围分段 fill air
 // areaPerLayer 从 x1/x2/z1/z2 推导，无需外部传入。
 func (t *ImportTask) fillSegments(x1, z1, x2, z2, yMin, yMax int32, totalBlocks, alreadyCleared int32) int32 {
 	// 清空前强制校验区块加载，避免 fill 过快导致区域未清掉
-	t.waitChunksLoaded(x1, z1, x2, z2)
+	if err := t.waitChunksLoaded(x1, z1, x2, z2); err != nil {
+		t.importErr = err
+		return 0
+	}
 
 	areaPerLayer := (x2 - x1 + 1) * (z2 - z1 + 1)
 	maxLayers := maxFillVolume / int(areaPerLayer)
@@ -1605,8 +1717,15 @@ func (t *ImportTask) fillSegments(x1, z1, x2, z2, yMin, yMax int32, totalBlocks,
 	y := yMin
 	var segCleared int32
 	for y <= yMax {
+		if err := t.interrupted(); err != nil {
+			t.importErr = err
+			return segCleared
+		}
 		endY := min32(y+int32(maxLayers)-1, yMax)
-		t.FillRegion(x1, y, z1, x2, endY, z2, "minecraft:air", "[]")
+		t.checkOpError(t.FillRegion(x1, y, z1, x2, endY, z2, "minecraft:air", "[]"))
+		if t.importErr != nil {
+			return segCleared
+		}
 		time.Sleep(10 * time.Millisecond)
 		layerCount := endY - y + 1
 		segCleared += areaPerLayer * layerCount

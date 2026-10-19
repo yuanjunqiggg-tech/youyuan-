@@ -7,6 +7,8 @@ import (
 	"syscall"
 )
 
+func isPathMTUError(err error) bool { return errors.Is(err, syscall.Errno(10040)) }
+
 // Winsock error codes for transient UDP errors.
 const (
 	wsaeConnRefused = syscall.Errno(10061) // ECONNREFUSED

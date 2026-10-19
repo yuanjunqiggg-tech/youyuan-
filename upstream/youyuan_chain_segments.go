@@ -112,6 +112,7 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 				}
 				w.Lock()
 				w.Config.IntervalMS = cfg.IntervalMS
+				w.Config.Hz = cfg.Hz
 				w.Unlock()
 			}
 			previous = append([]yyChain(nil), plan.Chains...)
@@ -143,6 +144,9 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 				hz = float64(w.Cycles) / elapsed
 			}
 			targetHz := w.Plan.Hz
+			if targetHz == 0 {
+				targetHz = w.Config.Hz
+			}
 			if targetHz == 0 && w.Config.IntervalMS > 0 {
 				targetHz = 1000 / float64(w.Config.IntervalMS)
 			}

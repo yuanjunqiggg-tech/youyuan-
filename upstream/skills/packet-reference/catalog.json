@@ -1,5 +1,5 @@
 {
-  "version": "0.10.9",
+  "version": "0.10.34",
   "packets": [
     {
       "fields": [
@@ -3059,6 +3059,12 @@
           "children": []
         },
         {
+          "name": "data",
+          "type": "float32",
+          "note": "1.21.120固定动画参数，所有Animate都带；不是伤害或生命值。",
+          "children": []
+        },
+        {
           "name": "boat_rowing_time",
           "type": "float32",
           "note": "BoatRowingTime ...",
@@ -3073,7 +3079,7 @@
       "usage": "action_type=1通常是挥臂。能做挥臂触发技能，不能证明打中了谁。优先events.onSwing。",
       "description": "Animate is sent by the server to send a player animation from one player to all viewers of that player. It is used for a couple of actions, such as arm swimming and critical hits.",
       "source": "flowers-for-machines/core/minecraft/protocol/packet/animate.go",
-      "content": "## 44 · Animate · 挥臂与暴击动画\n\n- 分组：实体动作\n- 方向：服务器→观察客户端（也可提交自身动画请求）\n- 用法与边界：action_type=1通常是挥臂。能做挥臂触发技能，不能证明打中了谁。优先events.onSwing。\n- 本内核原始说明：Animate is sent by the server to send a player animation from one player to all viewers of that player. It is used for a couple of actions, such as arm swimming and critical hits.\n\n| 字段 | 当前类型 | 语义与约束 |\n|---|---|---|\n| `action_type` | `int32` | 动作枚举，具体编号使用本内核定义。 ActionType is the ID of the animation action to execute. It is one of the action type constants that may be found above. |\n| `entity_runtime_id` | `uint64` | 当前会话实体运行ID，不同会话不能复用；64位ID建议传十进制字符串。 EntityRuntimeID is the runtime ID of the player that the animation should be played upon. The runtime ID is unique for each world session, and entities are generally identified in packets using this runtime ID. |\n| `boat_rowing_time` | `float32` | BoatRowingTime ... |\n"
+      "content": "## 44 · Animate · 挥臂与暴击动画\n\n- 分组：实体动作\n- 方向：服务器→观察客户端（也可提交自身动画请求）\n- 用法与边界：action_type=1通常是挥臂。能做挥臂触发技能，不能证明打中了谁。优先events.onSwing。\n- 本内核原始说明：Animate is sent by the server to send a player animation from one player to all viewers of that player. It is used for a couple of actions, such as arm swimming and critical hits.\n\n| 字段 | 当前类型 | 语义与约束 |\n|---|---|---|\n| `action_type` | `int32` | 动作枚举，具体编号使用本内核定义。 ActionType is the ID of the animation action to execute. It is one of the action type constants that may be found above. |\n| `entity_runtime_id` | `uint64` | 当前会话实体运行ID，不同会话不能复用；64位ID建议传十进制字符串。 EntityRuntimeID is the runtime ID of the player that the animation should be played upon. The runtime ID is unique for each world session, and entities are generally identified in packets using this runtime ID. |\n| `data` | `float32` | 1.21.120固定动画参数，所有Animate都带；不是伤害或生命值。 |\n| `boat_rowing_time` | `float32` | BoatRowingTime ... |\n"
     },
     {
       "fields": [

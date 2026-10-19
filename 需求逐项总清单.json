@@ -1,0 +1,1373 @@
+{
+  "updated_at": "2026-10-19T16:19:16.440657+08:00",
+  "scope": "本会话可见原始用户需求与已有压缩记录；不声称恢复未取得的外部聊天/仓库正文",
+  "all_complete": false,
+  "completion_rule": "同一项全部验收条件通过并有对应证据才关闭；构建/源码/单场样本不等于整项端到端通过",
+  "requirements": [
+    {
+      "id": "A01",
+      "module": "执行与记录",
+      "priority": "P0",
+      "request": "回顾完整可见上下文；全部要求进备忘录，压缩后不丢任务；每次继续先读清单",
+      "status": "部分完成／待验收",
+      "stage": "同一总账增量维护；AGENTS强制每次读活动清单、交接和编号证据",
+      "remaining": "持续更新当前原编号；未取得的外部对话不可声称恢复",
+      "verification": "工作流程已落盘",
+      "evidence": [
+        "project/AGENTS.md",
+        "project/协作交接/维护入口.md"
+      ]
+    },
+    {
+      "id": "A02",
+      "module": "执行与记录",
+      "priority": "P0",
+      "request": "不止语法过关；所有原有功能保持可用，完成后自己体验并给实际例子",
+      "status": "未完成",
+      "stage": "有局部回归和真服样本",
+      "remaining": "原宿主全部插件业务/手机端/云端完整回归未通过",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "A03",
+      "module": "执行与记录",
+      "priority": "P0",
+      "request": "先核工作区、说明、源码、原APK、既有实现；不重复添加功能",
+      "status": "未完成",
+      "stage": "当前源码和原APK已做部分对照",
+      "remaining": "按模块继续补覆盖矩阵与实景结果",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "A04",
+      "module": "执行与记录",
+      "priority": "P1",
+      "request": "完成项/未完成项/阻塞项清单，文件日志证据、精确剩余步骤与验证级别",
+      "status": "未完成",
+      "stage": "本轮逐项总表和独立证据审计",
+      "remaining": "每个关闭项附当次运行时点；不拿构建冒充端到端",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "A05",
+      "module": "执行与记录",
+      "priority": "P1",
+      "request": "交付可恢复迁移包、源码和历史工作；公开与私有资料分开",
+      "status": "未完成",
+      "stage": "有版本产物和部分开发资料包",
+      "remaining": "完整私有源码/历史迁移包与恢复演练尚未完成",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "A06",
+      "module": "执行与记录",
+      "priority": "P1",
+      "request": "借鉴Prism新版各功能，实际点击账号、头像、接口、服务、商店；不只看首页",
+      "status": "未完成",
+      "stage": "已有部分页面、原APK和公开源码对照",
+      "remaining": "全部参考交互尚未逐项体验，不称已完整照做",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "B01",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "云Linux整体中断、图片上传和创造维护等操作被拒；找真实原因并修复",
+      "status": "部分完成／待验收",
+      "stage": "0.10.69默认授权relay；18日确认域名默认UA1010与真实产品UA200；中继32慢请求阻塞心跳缺陷已修源码",
+      "remaining": "新版部署后验证；用户给定2026-10-17 09:00—14:00时段重查，区分攻击归因与服务故障",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": [
+        "outputs/2026-10-18-Linux域名中断现场.json",
+        "outputs/2026-10-18-中继非阻塞准入修复.md",
+        "outputs/2026-10-18-域名API客户端特征复核.json"
+      ]
+    },
+    {
+      "id": "B02",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "区分浏览器/中继/网关/认证HTTP/游戏UDP故障；错误不能一律叫Linux离线",
+      "status": "部分完成／待验收",
+      "stage": "独立识别服务器过期1005026，不再因HTTP400误导为凭据失效",
+      "remaining": "上线提示和用户实际操作验收；跨层trace继续补齐",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": []
+    },
+    {
+      "id": "B03",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "通道堵塞、慢同步查询不阻塞战斗；独立高优先级事件、AI和UI队列",
+      "status": "未完成",
+      "stage": "0.10.72部署后18次只读域名/授权中继采样，状态/插件列表/运行列表P50约548/561/569ms，最高1.35s；机器人已在线、收包队列0。此为管理通道，Lua回调尚未计时",
+      "remaining": "复杂插件+联机房间逐层延迟和长跑未闭环；19日用户追加：同一插件不同时段性能差异大，机器人进服/在线状态不明显，需分离网络RTT/TPS、收包队列、插件事件排队和处理耗时，复现实测后优化",
+      "verification": "部分静态/历史证据，尚未全项验收",
+      "evidence": [
+        "outputs/0.10.72-只读管理API时延基线.json",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "B04",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "插件启用/停用/删除有状态、确认和结果；大文件不假死，状态不回退",
+      "status": "未完成",
+      "stage": "0.10.74已发布：真实Python启停/目录/删除确认取消已验；修复完整目录main.lua丢失源码根，两原Lua运行无加载错误；实际完整备份含23模块；散文件导出/删除功能保留且保护邻居",
+      "remaining": "全部语言/大资源长期启停删除和业务回调、同main多包ID迁移、元数据格式兼容仍需完成",
+      "verification": "构建部署、真实页面和原目录插件加载/完整备份通过；长期及全部业务待验",
+      "evidence": [
+        "outputs/0.10.68-大资源插件启停删除真机验收.json",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "B05",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "启动刷新账号；设置/插件/页面切换减少串行云请求，资料本地持久化",
+      "status": "未完成",
+      "stage": "68账号summary和69前端缓存/失效代码及回归",
+      "remaining": "当前版本浏览器/手机视觉与时延对比；不把未知状态写离线",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "B06",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "设置保存按钮随鼠标/滚动漂移、页面快速切换上下串页全部修复",
+      "status": "未完成",
+      "stage": "有旧CSS/生命周期改动，用户后续仍复现",
+      "remaining": "桌面/手机高速切页和滚动截图复验，逐个移除残留定位层",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "B07",
+      "module": "Linux与性能",
+      "priority": "P1",
+      "request": "内存/储存定期清理且不损坏账号、插件、作业或用户文件",
+      "status": "未完成",
+      "stage": "有有限资源诊断和有界扫描",
+      "remaining": "安全保留策略、长期内存/磁盘曲线和自动清理验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "B08",
+      "module": "Linux与性能",
+      "priority": "P1",
+      "request": "全链路运行速度/稳定性优化；用户提出约200倍目标，不能损功能；2026-10-19追加：单列运行器性能与稳定性清单，至少20倍目标，全部功能保留且稳定性不能退步；历史整体200倍目标未证明",
+      "status": "未完成",
+      "stage": "0.10.73修复runtime/list全局锁内磁盘与HTTP写出；本地8插件事件争锁等待0.941ms→0.00324ms，1000条逐序无丢弃；整对耗时未提升，整体20倍尚未达到或证明",
+      "remaining": "整体200倍未达到也未证明，不承诺靠扩缓存实现；19日用户追加：同一插件不同时段性能差异大，机器人进服/在线状态不明显，需分离网络RTT/TPS、收包队列、插件事件排队和处理耗时，复现实测后优化；用同机器/版本/插件/输入速率的基线测P50/P95/P99、吞吐、CPU/RSS、队列、丢弃/失败/恢复，禁止减少功能或丢事件充当提速",
+      "verification": "0.10.73部署；本地同负载局部基准和18项回归通过；Linux长跑/整体20倍未通过",
+      "evidence": [
+        "project/运行器性能与稳定性专项清单.md",
+        "outputs/2026-10-19-运行器性能基线与改进.md",
+        "work/01073-runtime-contention-benchmark.log",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "B09",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "断线自动重连开关真实可用；核实用户报告的10次/20次失败后停止现象，取消与关闭开关必须生效",
+      "status": "部分完成／待验收",
+      "stage": "无20次重连上限，本地30失败轮继续通过；72启动R2末尾零字节缺陷热修，10:40实际单次进服恢复，关闭开关保留",
+      "remaining": "真实长期网络恢复与子机逐项验收；单次成功不能称稳定性全部完成",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "evidence": [
+        "outputs/2026-10-18-连接现场只读.json",
+        "outputs/2026-10-18-Link重试上限核对.log",
+        "outputs/2026-10-19-Workers真实TCP修复验收.md",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "B10",
+      "module": "Linux与性能",
+      "priority": "P1",
+      "request": "机器人不强制长期创造；维护创造/飞行可关且保存有效",
+      "status": "未完成",
+      "stage": "现有开关与部分实现",
+      "remaining": "修好权限路由后核开关读写和实际模式；不能无意干扰无OP测试",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C01",
+      "module": "平台与认证",
+      "priority": "P0",
+      "request": "QQ邮箱真实发码、收件、验证码校验；注销后能重新注册",
+      "status": "已修复（历史验收）",
+      "stage": "66邮箱完整链路旧样本通过",
+      "remaining": "新发布回归；区分平台邮箱验证码与网易游戏认证",
+      "verification": "2026-10-16端到端样本；新版本仍应关联回归",
+      "evidence": [
+        "outputs/0.10.66-邮箱完整链路实测.json"
+      ]
+    },
+    {
+      "id": "C02",
+      "module": "平台与认证",
+      "priority": "P0",
+      "request": "注册页返回/打开工作台不丢平台登录，不强制跳云实例或锁应用",
+      "status": "未完成",
+      "stage": "66来源返回和Android窗口关闭代码已改",
+      "remaining": "新用户真机从注册→返回→再进入全流程仍待验",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C03",
+      "module": "平台与认证",
+      "priority": "P0",
+      "request": "应用内更新版本清单、APK versionCode和签名一致，可覆盖升级",
+      "status": "部分完成／待验收",
+      "stage": "0.10.74 APK1074原签名，公网83,194,709字节完整SHA与manifest匹配，Linux实际74/二进制SHA一致",
+      "remaining": "手机覆盖升级和应用内下载安装仍待验收",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "evidence": [
+        "outputs/0.10.70-公网APK完整下载验收.json",
+        "outputs/0.10.70-Linux实机验收.json",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "C04",
+      "module": "平台与认证",
+      "priority": "P0",
+      "request": "有效yy游戏Bearer由持有人连接，不要求属于其平台账号；管理权限独立",
+      "status": "未完成",
+      "stage": "69game_only、权威Token复核/索引及29项回归",
+      "remaining": "线上真实Token只读validate和实际登录分别验收，不泄露其他账号资料",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C05",
+      "module": "平台与认证",
+      "priority": "P0",
+      "request": "认证HTTP等待响应头超时；本人安全认证输入后无响应要解决",
+      "status": "未完成",
+      "stage": "69整库串行解除/按账号锁、客户端ctx和阶段超时本地通过",
+      "remaining": "线上官方认证/取消/结果未知语义；需本人验证环节明确标注",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C06",
+      "module": "平台与认证",
+      "priority": "P1",
+      "request": "4399登录/注册错误、缺跳转地址、密码清空、空游戏列表和教程",
+      "status": "未完成",
+      "stage": "现显示渠道暂不可用；部分错误反馈/凭据保留已改",
+      "remaining": "官方渠道恢复前不能称4399注册可用；不能把游戏列表当注册成功",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C07",
+      "module": "平台与认证",
+      "priority": "P1",
+      "request": "批量账号数量可选、无强制前缀；每成功一个逐个设置昵称和官方头像",
+      "status": "未完成",
+      "stage": "已有批次状态机/逐个昵称暂停",
+      "remaining": "真实限额、失败恢复及官方头像设置；不能承诺一条短信可注册十个",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C08",
+      "module": "平台与认证",
+      "priority": "P1",
+      "request": "要求实名时提示用途并让本人完成官方实名/验证码",
+      "status": "未完成",
+      "stage": "现有待验证任务与本人验证入口",
+      "remaining": "真实本人验证→继续→成功入库验收；不批量冒用他人身份证",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C09",
+      "module": "平台与认证",
+      "priority": "P1",
+      "request": "每个成功账号自动进入账号管理，状态明确registered/launcher_bound/can_join/fleet_ready",
+      "status": "未完成",
+      "stage": "部分凭据/账号状态和入池逻辑",
+      "remaining": "来源一致性、官方游戏档案/进服就绪完整成功路径",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "C10",
+      "module": "平台与认证",
+      "priority": "P1",
+      "request": "管理员调用已添加项目账号为固定托管策略，不再给普通用户关闭选项",
+      "status": "未完成",
+      "stage": "现有项目托管说明和admin后端",
+      "remaining": "跨账号调用/撤销/审计实际验收，普通账号不可越权看他人资料",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D01",
+      "module": "账号与UI",
+      "priority": "P0",
+      "request": "全应用设置大模块分组、内部小模块可展开收起；不乱堆控件",
+      "status": "未完成",
+      "stage": "已有settings_groups和部分账号details",
+      "remaining": "逐页实际点击；设置/插件/账号均覆盖，展开状态稳定",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D02",
+      "module": "账号与UI",
+      "priority": "P0",
+      "request": "用户管理搜索、分类、紧凑头像姓名行，点开才有详情",
+      "status": "未完成",
+      "stage": "69源码和目录UI回归通过",
+      "remaining": "线上手机搜索/分类/分页/详情保存与权限实测",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D03",
+      "module": "账号与UI",
+      "priority": "P0",
+      "request": "我的/共享账号紧凑统一；云端游戏账号与设备同账号精确合并，点击原位展开，进入/配置主连接不重复卡片，非管理员不暴露托管管理",
+      "status": "部分完成／待验收",
+      "stage": "70已部署：真实浏览器云端与设备按UID合并，儒雅猎杀者同一行展开所有动作；19日主连接上线后布汲岛UID与官方头像合并，消除在线重复主号行。",
+      "remaining": "离线主号持久身份、首次账号绑定合同；全部手机宽度与共享/主连接动作逐项验收。",
+      "verification": "真实线上读取/点击；云端与设备合并已运行",
+      "evidence": [
+        "outputs/2026-10-18-统一账号与官方头像界面修复.md",
+        "outputs/2026-10-18-主账号首次添加语义-只读合同缺口.md",
+        "outputs/0.10.70-线上界面验收.json"
+      ]
+    },
+    {
+      "id": "D04",
+      "module": "账号与UI",
+      "priority": "P1",
+      "request": "共享账号添加/取消共享、删除/新增、令牌查看复制、查询和权限隔离",
+      "status": "未完成",
+      "stage": "部分池API/资料管理与令牌按钮",
+      "remaining": "完整共享添加→取用→撤销→连接隔离流程未通过",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D05",
+      "module": "账号与UI",
+      "priority": "P1",
+      "request": "账号保护、优先级、昵称与官方头像编辑，服主身份有真实创建服/管理API依据",
+      "status": "未完成",
+      "stage": "有部分身份/资料接口",
+      "remaining": "不能仅改标签称服主；官方管理能力/账号保护真实验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D06",
+      "module": "账号与UI",
+      "priority": "P1",
+      "request": "头像使用网易游戏账号真实头像；2026-10-18用户明确更正：不再用史蒂夫默认，注册后与编辑时提供真正官方头像选择，未知头像中性占位；头像与皮肤分开",
+      "status": "部分完成／待验收",
+      "stage": "70已部署，线上真实官方头像按UID匹配，未知用中性占位；不再默认Steve。注册后/资料编辑的官方头像选择接口明确未接入。",
+      "remaining": "官方头像列表与选择/写入仍须取得正确接口并真实验收；新账号同步与离线缓存补齐。",
+      "verification": "真实线上显示；官方选择未完成",
+      "evidence": [
+        "outputs/2026-10-18-统一账号与官方头像界面修复.md",
+        "outputs/0.10.70-线上界面验收.json"
+      ]
+    },
+    {
+      "id": "D07",
+      "module": "账号与UI",
+      "priority": "P1",
+      "request": "原有皮肤进服保留，可输入已有组件码；3D旋转/预览/添加皮肤，动作自然",
+      "status": "未完成",
+      "stage": "原APK对照、皮肤预览和组件选择源码/部分网页读回",
+      "remaining": "实际应用官方已拥有皮肤并进服；重做用户不满意的走路动画",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D08",
+      "module": "账号与UI",
+      "priority": "P0",
+      "request": "认证网站和应用内UI同步，背景清楚紧凑，操作在应用内完成",
+      "status": "未完成",
+      "stage": "auth-entry背景和紧凑账号行源码，旧截图部分通过",
+      "remaining": "新发布与Android验证窗口全流程；不跳系统浏览器丢状态",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D09",
+      "module": "账号与UI",
+      "priority": "P0",
+      "request": "聊天历史按时间/玩家筛选，可点时段条形汇总，分页且手机看得到正文",
+      "status": "未完成",
+      "stage": "69目录UI实现与回归通过",
+      "remaining": "真实历史数据、时区、手机窄屏和导出验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "D10",
+      "module": "账号与UI",
+      "priority": "P1",
+      "request": "无用重复按钮/API目录/任务工具不向普通界面堆放",
+      "status": "未完成",
+      "stage": "若干重复入口已移除",
+      "remaining": "全页面逐项复核；保持必要功能可达，不能为了精简删正常功能",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "E01",
+      "module": "连接与出口",
+      "priority": "P0",
+      "request": "单一连接框自动识别租赁服、山头邀请码、固定长数字room_id和分享链接",
+      "status": "未完成",
+      "stage": "66统一normalize；完整数字路径和@路径已区分",
+      "remaining": "真实联机房间登录、长跑、血量包链路；不能拿山头记录代替",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "E02",
+      "module": "连接与出口",
+      "priority": "P0",
+      "request": "房间ID获取教程简明整洁：房间二维码分享到微信、扫码取完整数字",
+      "status": "未完成",
+      "stage": "69精简教程源码",
+      "remaining": "线上实际文案/布局与输入识别验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "E03",
+      "module": "连接与出口",
+      "priority": "P1",
+      "request": "山头列表终端/加入处显示，多山头邀请码后缀_n选择第n个",
+      "status": "未完成",
+      "stage": "部分server-code/index解析已有",
+      "remaining": "真实列表与选中正确山头，不误入默认服",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "E04",
+      "module": "连接与出口",
+      "priority": "P0",
+      "request": "连接过程可关闭提示留后台，也可真正取消/退出",
+      "status": "部分完成／待验收",
+      "stage": "0.10.69 TanLobby认证/拨号取消上下文已贯通并部署",
+      "remaining": "实际联机房间取消和稳定性验收；不能以取消回归替代成功进服",
+      "verification": "源码/构建/已部署，真房间待验",
+      "evidence": []
+    },
+    {
+      "id": "E05",
+      "module": "连接与出口",
+      "priority": "P0",
+      "request": "联机房间稳定性、http400/撞墙、协议/接口/重连原因逐层修复",
+      "status": "部分完成／待验收",
+      "stage": "新版beta14/code134确有3.10开关；当前宿主860/1.21.120未适配新分支。真实修复租赁服认证js/wasm fake TCP问题，补Workers sockets桥与请求级取消/有界官方候选；98014267成功进服。",
+      "remaining": "新版1.21.130/3.10数值协议与数据包差异；真实联机房间长跑/血量/跨维度仍待验收，租赁服成功不能替代房间。",
+      "verification": "新版APK只读对照；真实租赁服连接；新协议未完成",
+      "evidence": [
+        "outputs/2026-10-18-新版APK-beta14-只读对照.md",
+        "outputs/2026-10-18-Link认证拒绝诊断与传输修复.md",
+        "outputs/2026-10-19-Workers真实TCP修复验收.md"
+      ]
+    },
+    {
+      "id": "E06",
+      "module": "连接与出口",
+      "priority": "P1",
+      "request": "默认用户出口节点、可选官方出口；实际路由证据与UI说明",
+      "status": "部分完成／待验收",
+      "stage": "0.10.73授权SOCKS5 UDP与系统/官方线路设置已部署；本地实际SOCKS5/RakNet通过；当前真服明确Linux系统UDP，个人代理未配置",
+      "remaining": "外部获授权代理、手机自身出口、联机WebRTC、IP跳板/内网穿透分别实测，不能把网页relay或Linux默认网络当玩家手机出口",
+      "verification": "当前源码只读核实；自有出口未完成",
+      "evidence": [
+        "outputs/2026-10-18-E06默认游戏出口只读核对.md",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "F01",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "全局抓包开关在自动连接下方；普通用户简化，高级参数只管理员",
+      "status": "部分完成／待验收",
+      "stage": "普通观测界面简化为启用与额外账号多选，零额外账号允许；高级参数管理员才可见",
+      "remaining": "新版浏览器普通用户实际点击；用途/授权和影响告知保留",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": [
+        "outputs/2026-10-18-账号与观测界面修复.md"
+      ]
+    },
+    {
+      "id": "F02",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "默认镜头高6格、向下90度、朝向默认；普通用户只摄像机跟随",
+      "status": "未完成",
+      "stage": "68固定world-up/height/pitch默认与参数回归",
+      "remaining": "实际高速移动目标持续覆盖；不误用玩家低头的局部坐标",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F03",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "默认15ms、错峰开启；不能只设UI值；需要测最低遗漏区间",
+      "status": "未完成",
+      "stage": "300.48格多个间隔三轮真实受控样本已有",
+      "remaining": "不能称15ms最低丢包；高低负载、多目标长期统计与实际生效频率",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F04",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "至少三个机器人分别主世界/下界/末地常驻，跨维度独立负责",
+      "status": "未完成",
+      "stage": "3维度resident规划和runtime_idle源码",
+      "remaining": "三维度真实无OP固定位置测量、子机自动启动与返岗，不称已全验",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F05",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "真人触发调度，机器人排除，不观察机器人，不递归增派",
+      "status": "未完成",
+      "stage": "68身份未知时暂停自动增派，存储/在线机器人排除",
+      "remaining": "失败/离线/改名/共享池账号仍正确排除；真实多人数回归",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F06",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "多机器人不是双机器人；按真人负载加机、候选替补、闲维度协助、错峰交接",
+      "status": "未完成",
+      "stage": "fleet_steps和最多32槽规划/模拟已有",
+      "remaining": "多台独立游戏账号实际并发，封禁/凭据失效替补、真实负载分担",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F07",
+      "module": "全局观测",
+      "priority": "P1",
+      "request": "可选择账号数量/具体自身与共享账号、阈值可改；纯观测子机不单开控制台",
+      "status": "未完成",
+      "stage": "已有候选、captureOnly与人数阶梯配置",
+      "remaining": "资源和账号数实景验收，32配置槽不等于1.6GB主机可跑32台",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F08",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "子机抓到包汇总给主机/插件处理；保留来源、去重，不只单机自己可见",
+      "status": "未完成",
+      "stage": "worldEvents按需聚合与68远端血量3子机来源有证据",
+      "remaining": "自动推送/主插件统一缓存和业务HUD消费未完成，不能称全局链路已通",
+      "verification": "部分静态/历史证据，尚未全项验收",
+      "evidence": [
+        "outputs/0.10.68-固定远端镜头实体血量与子机汇总实测.json"
+      ]
+    },
+    {
+      "id": "F09",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "近远对照真实无OP；准备可传送，测量不传送；排除跟随插件干扰",
+      "status": "未完成",
+      "stage": "68约300格/1500/10万固定位置部分样本",
+      "remaining": "30万请求实际没达到目标距离，不能记通过；真人手机/多维度仍待验",
+      "verification": "部分静态/历史证据，尚未全项验收",
+      "evidence": [
+        "outputs/0.10.67-无OP固定身体远距与切换实测-复核.json",
+        "outputs/0.10.68-切换间隔多轮实测.json"
+      ]
+    },
+    {
+      "id": "F10",
+      "module": "全局观测",
+      "priority": "P1",
+      "request": "20地点、5～6动作账号同时对照；快速轮巡与固定目标比较",
+      "status": "未完成",
+      "stage": "2观察者+1发送者与多轮间隔实测",
+      "remaining": "20点及5～6独立有效账号并行动作未通过，不用过期令牌冒充",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F11",
+      "module": "全局观测",
+      "priority": "P0",
+      "request": "导入导出期间默认暂停镜头/自动跟随/必要插件传送，结束恢复",
+      "status": "未完成",
+      "stage": "位置租约/部分真实单方块导出暂停恢复证据",
+      "remaining": "多账号、多机器人、失败/取消/重启后恢复与互不干扰",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F12",
+      "module": "全局观测",
+      "priority": "P1",
+      "request": "受伤/方块事件原生注册，按维度调最近机器人重点观测",
+      "status": "未完成",
+      "stage": "原生hurt/block事件已有",
+      "remaining": "事件驱动最近可用观测机聚焦未完成；没收到的事件不能假装全服广播",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "F13",
+      "module": "全局观测",
+      "priority": "P1",
+      "request": "最多22名真人，第23名拒绝；正式提示文案，机器人不计真人；人数限制默认关闭，不覆盖用户已经保存的明确选择",
+      "status": "部分完成／待验收",
+      "stage": "真人人数上限移至服务器连接独立配置；不依赖观测开关；未知身份和不完整名单不踢，已有玩家建立基线",
+      "remaining": "新版部署、真服第23人授权验收，机器人排除；不得拿本地列表当实机踢人通过",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": [
+        "outputs/2026-10-18-独立人数准入与主号UID.md"
+      ]
+    },
+    {
+      "id": "F14",
+      "module": "全局观测",
+      "priority": "P1",
+      "request": "实现原理私有维护可查，普通界面少技术细节，不暴露源码和内部API",
+      "status": "未完成",
+      "stage": "若干普通入口收敛；私有维护资料部分存在",
+      "remaining": "全打包/公开资源泄露审查；不能承诺可分发客户端无法逆向",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G01",
+      "module": "实体与战斗API",
+      "priority": "P0",
+      "request": "UpdateAttributes原生血量管理：当前/最大/上次/伤害/护甲/更新时间/known/stale",
+      "status": "未完成",
+      "stage": "真实20→17.9、来源包与缓存样本通过",
+      "remaining": "多实体类型、过期/复用/消失和护甲未知行为全验；不默认所有20血",
+      "verification": "部分静态/历史证据，尚未全项验收",
+      "evidence": [
+        "outputs/0.10.68-固定远端镜头实体血量与子机汇总实测.json"
+      ]
+    },
+    {
+      "id": "G02",
+      "module": "实体与战斗API",
+      "priority": "P0",
+      "request": "entity.onDamage/onEntityHurt含受害者、攻击者、来源、血量、唯一ID；合并重复",
+      "status": "未完成",
+      "stage": "已有事件与attacker_known边界",
+      "remaining": "攻击者真实证据、连续攻击/多来源去重和业务显示完整验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G03",
+      "module": "实体与战斗API",
+      "priority": "P0",
+      "request": "玩家死亡/击杀/重生独立；不混入服退服；一次击杀只记一次",
+      "status": "未完成",
+      "stage": "已有部分生命周期/死亡RPC实现",
+      "remaining": "QQ和游戏完整死亡→重生→真退出链路、离线死者计分未终验",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G04",
+      "module": "实体与战斗API",
+      "priority": "P1",
+      "request": "player.equipment真实六槽物品ID/附魔/有效时间，宿主翻译网络ID",
+      "status": "未完成",
+      "stage": "部分装备缓存/接口",
+      "remaining": "快速换甲/网络ID映射/未知与过期、本人与他人完整场景",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G05",
+      "module": "实体与战斗API",
+      "priority": "P1",
+      "request": "player.rotation俯仰/朝向/最后收到时间，不移动也更新真实视角",
+      "status": "未完成",
+      "stage": "部分视角事件与缓存",
+      "remaining": "静止低头/旋转真实时间戳与显示稳定性",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G06",
+      "module": "实体与战斗API",
+      "priority": "P1",
+      "request": "bot.self/entity.health可信名称、RuntimeID、生命值和过期标记",
+      "status": "未完成",
+      "stage": "已有API及68远端读数",
+      "remaining": "多连接/断线/旧对象不把地址字符串传Lua，全部语言一致",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G07",
+      "module": "实体与战斗API",
+      "priority": "P1",
+      "request": "统一RuntimeID/UniqueID/UUID/XUID、位置/维度；MoveActorDelta、重生/复用正确",
+      "status": "未完成",
+      "stage": "已有身份/位置缓存处理",
+      "remaining": "全生命周期和实体ID复用/跨维度/离开视野压力验证",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G08",
+      "module": "实体与战斗API",
+      "priority": "P1",
+      "request": "所有可用包尽量结构化注册，包目录/字段/来源/限制可查；容量上限可自定义",
+      "status": "未完成",
+      "stage": "已有packet-reference目录、动态订阅和队列配置",
+      "remaining": "按实际协议逐包覆盖矩阵和真实包验收，不编造未知字段或强行收未广播包",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G09",
+      "module": "实体与战斗API",
+      "priority": "P1",
+      "request": "entities.get/attributes/nearby/类型与统计定义，scoreboard和高精度tick调度",
+      "status": "未完成",
+      "stage": "部分API与注册机制",
+      "remaining": "逐项能力对照；未知能力不能只写文档称已实现",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "G10",
+      "module": "实体与战斗API",
+      "priority": "P0",
+      "request": "diagnostics.trace/entity/combat、慢回调/队列/内存/踢出/重连原因",
+      "status": "未完成",
+      "stage": "已有trace/队列/连接诊断部分接口",
+      "remaining": "每次失败与执行阶段关联；日志含首次原因而非仅closed network connection",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "H01",
+      "module": "战斗显示",
+      "priority": "P0",
+      "request": "玩家真实攻击/射击+生物受伤匹配，18格内只给可靠攻击者显示名称/护甲/血量/约伤害",
+      "status": "未完成",
+      "stage": "底层血量样本通过，不等于业务显示",
+      "remaining": "原插件攻击归因/显示路径和真人屏幕验收未完成，不能随便选最近人",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "H02",
+      "module": "战斗显示",
+      "priority": "P0",
+      "request": "HUD通道优先级、持续更新不重复动画；战斗后TTL清屏，不长期占屏",
+      "status": "未完成",
+      "stage": "部分HUD接口/插件逻辑",
+      "remaining": "真实连续命中/切目标/死亡/离开/断线清屏及<0.5秒端到端测量",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "H03",
+      "module": "战斗显示",
+      "priority": "P0",
+      "request": "远处玩家打怪也显示，子机合并后主业务及时消费",
+      "status": "未完成",
+      "stage": "受控远端数据可获取",
+      "remaining": "自动聚合→可靠归因→主插件HUD尚未闭环",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "I01",
+      "module": "方块与NBT",
+      "priority": "P0",
+      "request": "方块放置/更新/清除注册事件；区块边缘箱子/木桶快速放置不残留",
+      "status": "未完成",
+      "stage": "有onBlockChange/异步tile ticket等接口",
+      "remaining": "连续同格/区块边界/不同维度真实回执、清理确认；测试前暂停干扰插件",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "I02",
+      "module": "方块与NBT",
+      "priority": "P1",
+      "request": "实体数量只要轻量计数，不为计数读/保留全实体详情",
+      "status": "未完成",
+      "stage": "game.sceneStats及计数路径已有",
+      "remaining": "规模/时延验证；明确只是已同步可见实体，非全服真实总数",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "J01",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "新版NBT不仅头颅：命名/附魔/容器等更多类型，对照APK原理与接口文档",
+      "status": "未完成",
+      "stage": "原APK对照、头颅局部验收和NBT宿主代码",
+      "remaining": "完整类型矩阵、真实命名附魔往返回读，不能拿只支持头颅代表全NBT",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "J02",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "网易受限NBT通过平台/铁砧/箱子/木桶交互实现并加速",
+      "status": "未完成",
+      "stage": "部分原生NBT交互实现",
+      "remaining": "官方交互结果、物品实际NBT、资源复用与失败清理真实验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "J03",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "建筑作业有持久断点续跑；最近任务可醒目续跑/重新设参/保留旧参数",
+      "status": "部分完成／待验收",
+      "stage": "0.10.73已修预清空传送/清空失败立即停止；恢复读取缺失/损坏/字段无效在任何解析/游戏写入前拒绝，不再退化新任务，真实BoltDB行为测试通过",
+      "remaining": "真实用户34区块建筑恢复、单机源SHA/筛选参数/布局绑定、NBT明确失败合同与最终内容确认仍待完成",
+      "verification": "0.10.73构建部署；断点安全本地行为通过，用户原建筑真服未验",
+      "evidence": [
+        "outputs/2026-10-18-导入现有与改进算法.md",
+        "outputs/2026-10-18-恢复断点交接测试.log",
+        "outputs/2026-10-19-原生TPS与导入续跑核查.md",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "J04",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "很多机器人共同导入，按作业选参与账号；主号/未选账号不被带走",
+      "status": "部分完成／待验收",
+      "stage": "已选worker执行错误不再Complete；不自动拉未选主号；已有多机器人而非仅双机",
+      "remaining": "多台真实在线、掉线接管、参与/未参与账号位置和负载验收",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": [
+        "outputs/2026-10-18-导入恢复宿主测试.log"
+      ]
+    },
+    {
+      "id": "J05",
+      "module": "建筑导入导出",
+      "priority": "P1",
+      "request": "多区块并行导入/导出优化算法，保持正确不堵网络",
+      "status": "部分完成／待验收",
+      "stage": "核实普通命令走fill/setblock合并；同一区域只重查未知加载列；没有每步全图回读路径",
+      "remaining": "有界命令窗口、共享区域计划、区域结果核对尚待实现与真服性能测试；不承诺200倍；评估有界常加载区域预热、多区块窗口、fill/setblock细节和可用NBT原生方式，不以调高速度冒充吞吐。",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": [
+        "outputs/2026-10-18-导入现有与改进算法.md"
+      ]
+    },
+    {
+      "id": "J06",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "Linux插件导出的建筑/NBT/日志等原文件有受保护下载网址，非仅插件备份ZIP",
+      "status": "未完成",
+      "stage": "已有文件导出中心和68下载校验",
+      "remaining": "各插件真实导出文件、账号权限和手机原格式下载；完整备份选择失败复验",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "J07",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "建筑选择器只查原APK支持格式目录，避免全盘读；格式根目录正确",
+      "status": "未完成",
+      "stage": "原APK五格式核对和有界扫描已改",
+      "remaining": "Android根目录/QQ目录与Linux当前文件选择实点验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "J08",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "导入上传中断能续传，但上传修复不替代Linux全局稳定性",
+      "status": "部分完成／待验收",
+      "stage": "真实40MiB文件17日中断38MiB，18日同票据偏移和38份SHA保存；续传最后2MiB与整文件提交通过",
+      "remaining": "手机实际文件、异常重启/多用户长跑；上传成功不能代替Linux所有故障修复",
+      "verification": "公网真实续传通过，业务总项未关闭",
+      "evidence": [
+        "outputs/2026-10-18-昨日中断文件续传实测.json"
+      ]
+    },
+    {
+      "id": "J09",
+      "module": "建筑导入导出",
+      "priority": "P1",
+      "request": "进度面板借鉴参考，展示本项目TPS/速度/命令/区域/耗时/预计剩余",
+      "status": "未完成",
+      "stage": "0.10.74已发布：已移除世界时间推算TPS；Go/Lua/JSON/HUD/悬浮窗unknown合同，真实MCP game.getTPS返回null；可信原生实际TPS仍未取得",
+      "remaining": "真实导入导出场景游戏HUD/手机截图；未知TPS不能默认20",
+      "verification": "0.10.73已发布；原生实际TPS接口缺失，unknown合同本地通过；游戏HUD/真机完整验收待续",
+      "evidence": [
+        "outputs/2026-10-19-原生TPS与导入续跑核查.md",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "J10",
+      "module": "建筑导入导出",
+      "priority": "P0",
+      "request": "最近任务占满底部，点击进入对应操作/详细进度，断点入口醒目",
+      "status": "未完成",
+      "stage": "部分dashboard/tasks改动",
+      "remaining": "真实失败作业从首页定位并续跑，完整保留历史",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "K01",
+      "module": "市场",
+      "priority": "P1",
+      "request": "插件市场与建筑文件市场认证、展示、下载和同步",
+      "status": "未完成",
+      "stage": "授权Token路径一致性已改；本地拒绝验证",
+      "remaining": "有效授权提供商真实列表/下载/安装；缺权限资源明确不可用，不模拟令牌/付费绕过",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "L01",
+      "module": "视频与地图画",
+      "priority": "P1",
+      "request": "按真实画布大小做整平面快速迭代，预储/差分优化，争取30fps",
+      "status": "未完成",
+      "stage": "有视频方块化/画布代码",
+      "remaining": "30fps与准确率未证明；真实分辨率/吞吐/延迟对比",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "L02",
+      "module": "视频与地图画",
+      "priority": "P1",
+      "request": "视频结束只清理本次面板、实体与相关计分板，不误删其他资源",
+      "status": "未完成",
+      "stage": "部分作业资源管理",
+      "remaining": "取消/失败/重启恢复和清理实景验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "M01",
+      "module": "QQ群互通",
+      "priority": "P0",
+      "request": "Linux群服双向消息/设置真实有效；死亡不是退出、重生不是进入",
+      "status": "未完成",
+      "stage": "部分旧实现与fixture回归；缺完整当前真人链路",
+      "remaining": "真实QQ群消息/游戏事件/昵称与生命周期全链路验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "M02",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "不显示难懂openid，尽量群名片/昵称；游戏查询有头像、皮肤和玩家列表",
+      "status": "未完成",
+      "stage": "成员昵称映射/部分查询卡片实现",
+      "remaining": "官方没下发昵称时正确未知，不从openid编造QQ号；真实群卡片",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "M03",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "普通群消息可看、自动自然回复，不显示AI陪聊标签",
+      "status": "未完成",
+      "stage": "已有上下文/触发策略和旧文本模型样本",
+      "remaining": "当前QQ事件授权、真实普通消息、自主回答边界与并发",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "M04",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "可配置图像生成服务并发送图片；表情包识别使用、合并聊天记录功能",
+      "status": "未完成",
+      "stage": "独立绘图配置/API部分实现",
+      "remaining": "本人配置合法模型后真实生成发送；视觉/表情/转发历史按QQ实际支持能力验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "M05",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "参考开源全服互通功能补齐有效功能，不堆无用入口",
+      "status": "未完成",
+      "stage": "部分开源/接口对照",
+      "remaining": "逐功能适配表和真实可用演示",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N01",
+      "module": "MCP与宿主",
+      "priority": "P0",
+      "request": "宿主兼容原接口/注册形式，Lua/Python/C++能力和文档同步；不只改插件",
+      "status": "未完成",
+      "stage": "三语言技能/SDK目录及部分兼容测试",
+      "remaining": "原插件完整导入运行、语言差异/异常/取消及业务功能矩阵",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N02",
+      "module": "MCP与宿主",
+      "priority": "P0",
+      "request": "工具参数语义统一；body/query/account、通道、动作表、返回已提交/已确认明确",
+      "status": "未完成",
+      "stage": "已有规范化和trace元数据",
+      "remaining": "每个常用工具成功/失败/超时/账号选择真实调用",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N03",
+      "module": "MCP与宿主",
+      "priority": "P0",
+      "request": "长NBT/背包/导入用异步任务ID，超时unknown与not_sent可辨，503合理重试",
+      "status": "未完成",
+      "stage": "部分ticket/异步命令/错误元数据",
+      "remaining": "写操作不重复执行；跨断线任务持久化与清晰回执",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N04",
+      "module": "MCP与宿主",
+      "priority": "P1",
+      "request": "sense默认摘要/类型计数/距离桶/实体筛选，避免MB输出截断",
+      "status": "未完成",
+      "stage": "已有summary/过滤接口",
+      "remaining": "真实AI联调不再靠抓全量；全量导出可选",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N05",
+      "module": "MCP与宿主",
+      "priority": "P1",
+      "request": "fleet最小成功路径：账号入库→connect→非空status→同服，插件/MCP可直接调用",
+      "status": "未完成",
+      "stage": "已有fleet/账号调用与部分真子机样本",
+      "remaining": "多账号状态语义、过期凭据/空游戏档案与fleet_ready全程",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N06",
+      "module": "MCP与宿主",
+      "priority": "P1",
+      "request": "普通Chat客户端MCP真实挂载/调用，运行技能可读，公开接口不连私人GitHub源码",
+      "status": "未完成",
+      "stage": "部分服务端/OAuth/技能读回证据",
+      "remaining": "目标Chat客户端实际工具调用/修改与权限验收",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "N07",
+      "module": "MCP与宿主",
+      "priority": "P1",
+      "request": "联调模式、事件trace/战斗仪表盘、插件加载状态与最近错误",
+      "status": "未完成",
+      "stage": "已有各类局部状态接口",
+      "remaining": "固定稳定字段、一次调用关联所有阶段，文档不靠猜文件路径",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "O01",
+      "module": "协作工具",
+      "priority": "P0",
+      "request": "WorkBuddy国际版恢复并实际执行测试/抓包复核；root统筹UI，交接前提充分",
+      "status": "部分完成／待验收",
+      "stage": "WorkBuddy国际版已有真实桌面验收记录；18日子AI完成后端/前端分工；额度限制后root接手",
+      "remaining": "真游戏/真群验收仍缺，不拿桌面回归冒充抓包成功",
+      "verification": "源码与本地运行；线上未验收",
+      "evidence": []
+    },
+    {
+      "id": "O02",
+      "module": "协作工具",
+      "priority": "P1",
+      "request": "OpenCode实际部署用于检查，Antigravity用于网络/适配，中文输出与合理授权",
+      "status": "未完成",
+      "stage": "OpenCode和签名CLI安装/诊断已运行；无OpenCode凭据",
+      "remaining": "模型审查需官方登录；不复制云/Google密码或假称选了模型",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "O03",
+      "module": "协作工具",
+      "priority": "P0",
+      "request": "root亲自使用dsh-ops或做等效技能，减少重复读取/输出/额度",
+      "status": "已完成（验收归档）",
+      "stage": "dsh-ops原生FastCtx真实调用、7项验收与18日源码限定行读取通过；不承诺固定额度倍率",
+      "remaining": "无；后续回归失败时重新打开原编号",
+      "verification": "端到端通过",
+      "evidence": [
+        "outputs/高效操作技能-实测验收.json",
+        "work/ops-cache/510103423775f1f69ad9efd949e11eb51e93ace22a040653ccb93e5c7745ecdc.json"
+      ],
+      "closed_at": "2026-10-18T18:15:21.652608+08:00"
+    },
+    {
+      "id": "O04",
+      "module": "协作工具",
+      "priority": "P1",
+      "request": "安装REA并逆向原APK/参考站，借鉴NBT/皮肤/算法",
+      "status": "未完成",
+      "stage": "REA技能和原APK证据部分已有",
+      "remaining": "新版各模块完整对照与实际运行，不把反编译成功当功能完成",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "P01",
+      "module": "范围与边界",
+      "priority": "P0",
+      "request": "此前入侵网易后台要求已明确作废；后续只用获授权资源和正常API",
+      "status": "已撤回／不执行",
+      "stage": "撤回已记录并持续遵守",
+      "remaining": "不将第三方说法、截图或共享文档当执行授权",
+      "verification": "用户明确撤回，不列为待攻克目标"
+    },
+    {
+      "id": "P02",
+      "module": "范围与边界",
+      "priority": "P1",
+      "request": "自定义包/pyRPC/NetAllay/客户端采样桥等研究，以实际下发/获授权端点为准",
+      "status": "未完成",
+      "stage": "有有限探索，未证明普通真人全局广播",
+      "remaining": "不把仅受控客户端自报当任意真人代理；缺服务器广播不能强读",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "P03",
+      "module": "范围与边界",
+      "priority": "P1",
+      "request": "先前共享聊天与约30仓库内容要读取后再引用，不能假称全读",
+      "status": "未完成",
+      "stage": "当前可见对话/已压缩记录已纳入；外链正文仍有未确认",
+      "remaining": "能访问的原始资源逐项核实；缺失历史来源明确标记",
+      "verification": "部分静态/历史证据，尚未全项验收"
+    },
+    {
+      "id": "A07",
+      "module": "执行与记录",
+      "priority": "P1",
+      "request": "每次对话读取可交接备忘录；关闭任务移出活动清单并保留验收经验",
+      "status": "已完成（验收归档）",
+      "stage": "维护入口、每次读取约定与同源活动/归档清单已建立，三项真实流程测试通过；主线A01持续维护",
+      "remaining": "无；后续回归失败时重新打开原编号",
+      "verification": "端到端通过",
+      "evidence": [
+        "outputs/2026-10-18-维护清单与技能验收.md",
+        "project/协作交接/维护入口.md"
+      ],
+      "closed_at": "2026-10-18T18:13:08.548393+08:00"
+    },
+    {
+      "id": "D11",
+      "module": "界面与账号",
+      "priority": "P1",
+      "request": "带头像的凭证可用账号行点击原位展开，再点收起，避免进入新界面",
+      "status": "已完成（验收归档）",
+      "stage": "0.10.69线上实际点击头像/昵称/状态，收起与再次展开保留未保存输入",
+      "remaining": "无；以后回归失败重新打开",
+      "verification": "端到端通过",
+      "evidence": [
+        "outputs/0.10.69-认证行内展开验收.json",
+        "outputs/0.10.69-认证账号行内展开.png"
+      ],
+      "closed_at": "2026-10-17"
+    },
+    {
+      "id": "D12",
+      "module": "界面与账号",
+      "priority": "P1",
+      "request": "主账号是首次进入APK实际添加的游戏账号（如布汲岛），不额外占名额；云端/设备同身份合并并同步真实头像",
+      "status": "部分完成／待验收",
+      "stage": "0.10.71首个实际凭据可成为main且不占子号；UID私有持久绑定与官方云资料合并，真实UID3079938027已读回",
+      "remaining": "新装APK首次账号到主连接/离线重启全流程；旧数据不凭昵称或顺序擅自迁移",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "evidence": [
+        "outputs/2026-10-18-独立人数准入与主号UID.md",
+        "outputs/2026-10-18-主账号首次添加语义-只读合同缺口.md",
+        "outputs/0.10.70-线上界面验收.json",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "D13",
+      "module": "界面与账号",
+      "priority": "P0",
+      "request": "独立原创UI：保留全部功能并区别原APK，终端/内置选择器/导入导出/插件采用自己的设计，覆盖不同宽度，更整洁高效",
+      "status": "部分完成／待验收",
+      "stage": "0.10.74已发布：统一插件目录与分组导航，真实线上390/768/1280无横溢出；启停/行内展开/目录/删除确认取消实测，临时资源清理完",
+      "remaining": "全业务/手机手势软键盘、导入导出真实复杂任务逐项验收；新版页面三种宽度和真实启停/文件/更新入口验收；界面只提供用法/状态/下一步，原理与维护笔记不堆普通页面",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "evidence": [
+        "outputs/0.10.70-作业台浏览器本地验收.json",
+        "outputs/0.10.70-线上插件工作台.png",
+        "outputs/0.10.70-线上界面验收.json",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    },
+    {
+      "id": "D14",
+      "module": "界面与账号",
+      "priority": "P1",
+      "request": "插件增加检查更新按钮与自动检查开关；同步已授权来源，建设自有市场",
+      "status": "部分完成／待验收",
+      "stage": "70线上插件页已显示检查更新与自动检查开关；来源绑定、版本对照和跨来源保护已有；检查不自动覆盖本地插件。",
+      "remaining": "真实有权来源升级/本地改动保护与自有公开市场完整链路未全部验收。",
+      "verification": "源码与本地浏览器；线上入口可见",
+      "evidence": [
+        "outputs/0.10.70-线上插件工作台.png",
+        "outputs/0.10.70-作业台浏览器本地验收.json"
+      ]
+    },
+    {
+      "id": "B11",
+      "module": "Linux与性能",
+      "priority": "P0",
+      "request": "查明此前延迟与中断是否被攻击，以北京时间故障段证据为准",
+      "status": "部分完成／待验收",
+      "stage": "已取得用户指定2026-10-17 09–14时段journal，09:11主服务与09:25–26隧道重启对应我方发布；精确Worker指标合法认证刷新后200但budget限流，未取得数据",
+      "remaining": "精确时段日志、安全事件/边缘数据；没有证据不判断攻击",
+      "verification": "待验收",
+      "evidence": [
+        "outputs/2026-10-18-域名边缘请求分析.json",
+        "outputs/2026-10-18-昨日故障时段独立复核.md",
+        "outputs/2026-10-18-故障窗边缘指标复核.json"
+      ]
+    },
+    {
+      "id": "M06",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "群AI及时清理/有界压缩上下文；持久RAG向量库与清空",
+      "status": "部分完成／待验收",
+      "stage": "按群TTL/预算和代际清空，复用真实embedding配置；默认关闭，缺配置词法回退",
+      "remaining": "真实服务密钥/授权群验证、长期质量与资源曲线；UI配置验收",
+      "verification": "源码与本地回环HTTP/并发测试",
+      "evidence": [
+        "outputs/2026-10-18-群聊AI身份与记忆改进.md"
+      ]
+    },
+    {
+      "id": "M07",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "AI准确区分谁说了什么，保留群/用户/消息/引用的稳定身份",
+      "status": "部分完成／待验收",
+      "stage": "按adapter/bot/group/sender分桶，OneBot长整数ID不丢精度；模型有结构化引用",
+      "remaining": "真实官方QQ和现有OneBot授权群、同名并发与模型实际归因验证",
+      "verification": "源码与本地回归",
+      "evidence": [
+        "outputs/2026-10-18-群聊AI测试结果.json"
+      ]
+    },
+    {
+      "id": "M08",
+      "module": "QQ群互通",
+      "priority": "P1",
+      "request": "官方和已有非官方适配共享记忆与能力，表情包及自然群聊；不冒充真人",
+      "status": "部分完成／待验收",
+      "stage": "保留原官方验签与OneBot传输，稳定来源身份；表达风格不改变助手身份",
+      "remaining": "合法真群表情/图片/合并记录送达；没有收到的群历史不能补造",
+      "verification": "部分源码/本地夹具",
+      "evidence": []
+    },
+    {
+      "id": "O05",
+      "module": "外部AI与工程工具",
+      "priority": "P1",
+      "request": "把已验证经验整理成可复用skill，避免上下文丢失与重复排查",
+      "status": "已完成（验收归档）",
+      "stage": "维护技能结构验证、真实清单关闭/归档边界3项测试通过；只关闭本维护工具子项",
+      "remaining": "无；后续回归失败时重新打开原编号",
+      "verification": "端到端通过",
+      "evidence": [
+        "outputs/2026-10-18-维护清单与技能验收.md"
+      ],
+      "closed_at": "2026-10-18T18:13:08.451475+08:00"
+    },
+    {
+      "id": "Q01",
+      "module": "AI帮写工作区",
+      "priority": "P1",
+      "request": "AI帮写采用Codex/Claude Code式紧凑工作台，自有视觉；不同宽度、模型选择、技能与配置分组整洁",
+      "status": "部分完成／待验收",
+      "stage": "0.10.72已部署自有AI工作台；会话栏/紧凑模型/配置分组；三宽度与线上打开已验",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "remaining": "真实手机软键盘、长内容和模型管理完整编辑回归",
+      "evidence": [
+        "project/协作交接/AI工作区改造方案.md",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "Q02",
+      "module": "AI帮写工作区",
+      "priority": "P1",
+      "request": "用户可添加MCP、测试连接、启停并明确查看可用工具；技能可搜索/加载/管理",
+      "status": "部分完成／待验收",
+      "stage": "复用已有MCP真实HTTP实现，配置分组；技能搜索/按需加载；本地握手/会话/停用回归通过",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "remaining": "用户授权外部MCP真实只读调用、失败提示和手机全流程",
+      "evidence": [
+        "project/协作交接/AI工作区改造方案.md",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "Q03",
+      "module": "AI帮写工作区",
+      "priority": "P1",
+      "request": "产品AI工作区内置dsh节省Token能力，按需读取、分页和缓存，并说明实际作用",
+      "status": "部分完成／待验收",
+      "stage": "0.10.72内置efficient-context；实际Linux技能读取与关闭尊重已验；root本机仍用真实dsh适配器",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "remaining": "Android/Linux实任务usage和正确性对照；产品技能不等于跨平台dsh原生程序",
+      "evidence": [
+        "project/协作交接/AI工作区改造方案.md",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "Q04",
+      "module": "AI帮写工作区",
+      "priority": "P1",
+      "request": "AI不因固定轮次/工具数/连续三次失败机械结束；提供明确停止、继续、恢复和可见预算",
+      "status": "部分完成／待验收",
+      "stage": "0.10.72移除固定24轮/32工具/3失败结束；预算可配并保存；37轮36工具/3错误后完成、停止取消HTTP及落盘通过",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "remaining": "真实模型长期运行、刷新/网络中断恢复与复杂写工具结果核对",
+      "evidence": [
+        "project/协作交接/AI工作区改造方案.md",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "Q05",
+      "module": "AI帮写工作区",
+      "priority": "P1",
+      "request": "先展示AI改造思路和实际作用；研究开源实现，控制内存，不丢正常Agent能力",
+      "status": "部分完成／待验收",
+      "stage": "已给方案与截图，复用Go宿主不新增常驻OpenCode；首开AI不初始化编辑器，三宽度证明0文件读取",
+      "verification": "已构建部署；本地回归与部分线上实际验收",
+      "remaining": "RSS/heap/首屏P50/P95与真实Token对照；未声称固定节省倍数",
+      "evidence": [
+        "project/协作交接/AI工作区改造方案.md",
+        "outputs/2026-10-19-AI工作区与连接修复验收.md"
+      ]
+    },
+    {
+      "id": "D15",
+      "module": "账号与界面",
+      "priority": "P1",
+      "request": "显示当前机器人真实游戏角色等级、经验条及修改结果；与平台权限/网易成长等级区分",
+      "status": "部分完成／待验收",
+      "stage": "0.10.73已构建部署；真服布汲岛0→1属性verified，同请求ID重放不重复加级，恢复0 verified；线上UI读回0/0.0%；74真实MCP和页面读回仍0，工具注册实际可调用",
+      "remaining": "add_points/自然升级/跨账号真实场景与异常权限全验；total_xp无可信来源保持unknown",
+      "verification": "真实受控角色等级修改/恢复、线上界面读回通过；经验点等边界尚待全验",
+      "evidence": [
+        "work/01073-experience-go.log",
+        "outputs/2026-10-19-统一插件与运行器阶段验收.md",
+        "outputs/2026-10-19-目录插件修复与最终交付验收.md"
+      ]
+    }
+  ],
+  "evidence_base": ".."
+}

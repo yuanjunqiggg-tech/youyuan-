@@ -89,6 +89,7 @@ func splitStringArgs(rest string) []any {
 
 // ChatTrigger 聊天栏触发项：命中触发词后调用 Func。
 type ChatTrigger struct {
+	owner        *BotManager
 	Plugin       string                          // 归属插件 ID（用于热停止/热重载按插件移除）
 	TriggerWords []string                        // 触发词列表
 	Args         []ArgHint                       // 参数提示
@@ -118,7 +119,9 @@ func releasePluginExec() { <-pluginExecSem }
 func (bm *BotManager) AddChatTrigger(t *ChatTrigger) {
 	debugLog("[触发] AddChatTrigger 注册 插件=%q 触发词=%v usage=%q", t.Plugin, t.TriggerWords, t.Usage)
 	chatTriggers.Lock()
-	chatTriggers.list = append(chatTriggers.list, t)
+	copy := *t
+	copy.owner = bm
+	chatTriggers.list = append(chatTriggers.list, &copy)
 	chatTriggers.Unlock()
 }
 
@@ -129,7 +132,7 @@ func (bm *BotManager) RemovePluginTriggers(plugin string) int {
 	kept := chatTriggers.list[:0]
 	removed := 0
 	for _, t := range chatTriggers.list {
-		if t.Plugin == plugin {
+		if t.Plugin == plugin && (bm == nil || t.owner == nil || t.owner == bm) {
 			removed++
 			continue
 		}
@@ -146,6 +149,9 @@ func (bm *BotManager) ActivePluginIDs() []string {
 	seen := map[string]bool{}
 	var ids []string
 	for _, t := range chatTriggers.list {
+		if t.owner != nil && t.owner != bm {
+			continue
+		}
 		if t.Plugin != "" && !seen[t.Plugin] {
 			seen[t.Plugin] = true
 			ids = append(ids, t.Plugin)
@@ -220,9 +226,12 @@ func toPlayerSelector(p string) string {
 // ShowTriggers 向玩家定向展示所有可用触发项（仅 OP 项对 OP 可见）。
 func (bm *BotManager) ShowTriggers(player string, op bool) {
 	chatTriggers.Lock()
-	triggers := chatTriggers.list
+	triggers := append([]*ChatTrigger(nil), chatTriggers.list...)
 	chatTriggers.Unlock()
 	for _, t := range triggers {
+		if t.owner != nil && t.owner != bm {
+			continue
+		}
 		if t.OpOnly && !op {
 			continue
 		}
@@ -241,10 +250,13 @@ func (bm *BotManager) handleChat(player, msg string) {
 	}
 	debugLog("[触发] handleChat 进入 player=%s msg=%q", player, msg)
 	chatTriggers.Lock()
-	triggers := chatTriggers.list
+	triggers := append([]*ChatTrigger(nil), chatTriggers.list...)
 	chatTriggers.Unlock()
 	debugLog("[触发] 注册表触发词数量: %d", len(triggers))
 	for _, t := range triggers {
+		if t.owner != nil && t.owner != bm {
+			continue
+		}
 		if t.OpOnly && !isPlayerOp(player) {
 			debugLog("[触发] 跳过仅OP触发词 %v (玩家 %s 非OP)", t.TriggerWords, player)
 			continue
@@ -277,7 +289,7 @@ func (bm *BotManager) handleChat(player, msg string) {
 						pid = "(无归属)"
 					}
 					msg := fmt.Sprintf("[插件] 插件 %s 崩溃(致命): %v", pid, r)
-					bm.logCh <- msg
+					yyReceiveLog(bm.logCh, msg)
 					debugLog("%s", msg)
 				}
 			}()

@@ -1,6 +1,8 @@
 package building
 
 import (
+	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -39,11 +41,11 @@ type WorkItem struct {
 // 本层只管理"谁领哪个单元、状态怎么流转"，不执行放置；执行由调用方注入的 worker 完成
 // （package main 里每个 BotManager 一个 goroutine 循环 Claim→执行→Complete）。
 type WorkPool struct {
-	mu      sync.Mutex
-	normals    []*WorkItem
-	nbt        []*WorkItem
-	signs      []*WorkItem
-	lightNBTs  []*WorkItem
+	mu        sync.Mutex
+	normals   []*WorkItem
+	nbt       []*WorkItem
+	signs     []*WorkItem
+	lightNBTs []*WorkItem
 
 	// 进度聚合（按任务算，§6）：每类单元已完成 / 总数方块。
 	totalNormal, doneNormal int
@@ -176,6 +178,9 @@ func unitCentroidInt(u *Unit) (int, int) {
 func (p *WorkPool) Complete(it *WorkItem, blocks int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if it == nil || it.state == UnitDone {
+		return
+	}
 	it.state = UnitDone
 	switch it.Unit.Kind {
 	case UnitNormal:
@@ -193,6 +198,67 @@ func (p *WorkPool) Complete(it *WorkItem, blocks int) {
 	}
 }
 
+// CompletedUnits snapshots only finished work. In-flight and failed units are
+// deliberately retried after a restart; they are never counted as completed.
+func (p *WorkPool) CompletedUnits() []int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ids := []int{}
+	for _, list := range [][]*WorkItem{p.normals, p.nbt, p.signs, p.lightNBTs} {
+		for _, it := range list {
+			if it.state == UnitDone {
+				ids = append(ids, it.Unit.ID)
+			}
+		}
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+func (p *WorkPool) RestoreCompleted(ids []int) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	items := map[int]*WorkItem{}
+	for _, list := range [][]*WorkItem{p.normals, p.nbt, p.signs, p.lightNBTs} {
+		for _, it := range list {
+			items[it.Unit.ID] = it
+		}
+	}
+	for _, id := range ids {
+		if items[id] == nil {
+			return fmt.Errorf("断点包含不存在的导入单元%d", id)
+		}
+	}
+	for _, id := range ids {
+		it := items[id]
+		if it.state == UnitDone {
+			continue
+		}
+		it.state = UnitDone
+		switch it.Unit.Kind {
+		case UnitNormal:
+			p.doneNormal += it.Unit.BlockCount
+		case UnitNBT:
+			p.doneNBT += it.Unit.BlockCount
+		case UnitSign:
+			p.doneSign += it.Unit.BlockCount
+		case UnitLightNBT:
+			p.doneLight += it.Unit.BlockCount
+		}
+	}
+	return nil
+}
+
+func (p *WorkPool) OverallProgress() float64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	total := p.totalNormal + p.totalNBT + p.totalSign + p.totalLight
+	if total == 0 {
+		return 1
+	}
+	return float64(p.doneNormal+p.doneNBT+p.doneSign+p.doneLight) / float64(total)
+}
+
 // Requeue 把执行失败的单元改回 pending（重做幂等，§14）。不做方块粒度位图。
 // 返回 false 表示该单元已连续失败超过 MaxUnitFails 次：此时它被标记为 UnitFailed，
 // **不会**被当成完成（§14.4 底线：不许"标记了却没放成"），后续完成上报会如实反映缺失。
@@ -200,6 +266,9 @@ func (p *WorkPool) Complete(it *WorkItem, blocks int) {
 func (p *WorkPool) Requeue(it *WorkItem) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if it.state == UnitDone {
+		return true
+	}
 	it.fails++
 	if it.fails >= MaxUnitFails {
 		p.markFailedLocked(it)

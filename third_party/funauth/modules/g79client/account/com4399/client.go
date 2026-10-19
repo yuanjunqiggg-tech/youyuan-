@@ -178,7 +178,12 @@ type LoginOptions struct {
 	Captcha   string
 	CaptchaID string
 	Retry     int
+	// ManualCaptcha leaves challenges to the account holder instead of OCR.
+	ManualCaptcha bool
 }
+
+// SetHTTPClient restores a saved device in a new request context.
+func (d *Device) SetHTTPClient(client *http.Client) { d.client = NewClient(client) }
 
 // LoginWithPassword 使用设备凭据登录 4399。
 func (d *Device) LoginWithPassword(ctx context.Context, username, password string) (*User, error) {
@@ -208,7 +213,7 @@ func (d *Device) LoginWithPasswordOptions(ctx context.Context, username, passwor
 	}
 
 	loginEndpoint := fmt.Sprintf("%s/oauth2/loginAndAuthorize.do?channel=&sdk=op&sdk_version=%s", d.client.loginURL, oauthSDKVersion)
-	body, _, headers, err := d.client.postForm(ctx, loginEndpoint, form)
+	body, statusCode, headers, err := d.client.postForm(ctx, loginEndpoint, form)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +221,7 @@ func (d *Device) LoginWithPasswordOptions(ctx context.Context, username, passwor
 	if strings.Contains(html, "验证码") {
 		captchaErr := newNeedCaptchaError(html)
 		// 尝试自动 OCR 识别
-		if needCaptcha, ok := captchaErr.(*NeedCaptchaError); ok && needCaptcha.CaptchaURL != "" {
+		if needCaptcha, ok := captchaErr.(*NeedCaptchaError); ok && needCaptcha.CaptchaURL != "" && !options.ManualCaptcha {
 			if ocrResult, ocrErr := RecognizeCaptcha(needCaptcha.CaptchaURL); ocrErr == nil {
 				log.Printf("[OCR] 登录验证码自动识别结果: %s", ocrResult)
 				options.Captcha = ocrResult
@@ -232,6 +237,9 @@ func (d *Device) LoginWithPasswordOptions(ctx context.Context, username, passwor
 
 	location := headers.Get("Location")
 	if location == "" {
+		if statusCode == http.StatusAccepted || statusCode == http.StatusTooManyRequests || statusCode >= 500 {
+			return nil, &LoginUnavailableError{StatusCode: statusCode}
+		}
 		message := extractHTMLMessage(html)
 		if isAccountNotFoundPage(html, message) {
 			return nil, &AccountNotFoundError{Username: username, Message: message}
@@ -239,11 +247,6 @@ func (d *Device) LoginWithPasswordOptions(ctx context.Context, username, passwor
 		if message == "" {
 			message = preview(html)
 		}
-		// 添加调试输出
-		log.Printf("[DEBUG] 登录失败,响应状态码: %d", 200)
-		log.Printf("[DEBUG] 响应头: %v", headers)
-		log.Printf("[DEBUG] HTML前500字符: %s", preview(html))
-		log.Printf("[DEBUG] 提取的错误消息: %s", message)
 		return nil, fmt.Errorf("com4399: 登录失败，响应缺少跳转地址: %s", message)
 	}
 	callbackURL, err := d.resolveLoginURL(location)

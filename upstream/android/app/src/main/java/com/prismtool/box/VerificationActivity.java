@@ -13,6 +13,16 @@ import android.content.Intent;
 /** A separate, bridge-free browser. Close always returns to the unchanged toolbox. */
 public class VerificationActivity extends Activity {
     private WebView browser;
+    private boolean handleNavigation(String address){
+        Uri u=Uri.parse(address);
+        // Returning from registration closes only this bridge-free browser.
+        // The local toolbox WebView, login and current page stay intact.
+        if(("https".equals(u.getScheme())&&"toolbox.youyuanqi.dpdns.org".equals(u.getHost())&&"1".equals(u.getQueryParameter("return_to_app")))||
+           ("http".equals(u.getScheme())&&"127.0.0.1".equals(u.getHost())&&u.getPort()==19429)){
+            finish();return true;
+        }
+        return ExternalLinks.handle(this,address);
+    }
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
@@ -23,8 +33,8 @@ public class VerificationActivity extends Activity {
         close.setTextColor(android.graphics.Color.rgb(20,108,94));close.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.rgb(220,239,232)));title.setTextColor(android.graphics.Color.rgb(35,60,54));
         root.addView(bar);browser=new WebView(this);browser.getSettings().setJavaScriptEnabled(true);browser.getSettings().setDomStorageEnabled(true);
         browser.setWebViewClient(new WebViewClient(){
-            @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){return ExternalLinks.handle(VerificationActivity.this,request.getUrl().toString());}
-            @Override public boolean shouldOverrideUrlLoading(WebView view,String url){return ExternalLinks.handle(VerificationActivity.this,url);}
+            @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){return request.isForMainFrame()&&handleNavigation(request.getUrl().toString());}
+            @Override public boolean shouldOverrideUrlLoading(WebView view,String url){return handleNavigation(url);}
         });
         root.addView(browser,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
         String address=getIntent().getStringExtra("url");if(address!=null&&address.startsWith("https://"))browser.loadUrl(address);

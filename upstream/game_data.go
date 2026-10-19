@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -493,6 +494,10 @@ func hasWaitMsg(playerName string) bool {
 // WaitMsg 等待指定玩家发送聊天消息。
 // 等效于 td_prism 的 waitMsg()。
 func (bm *BotManager) WaitMsg(playerName string, timeout time.Duration) (string, error) {
+	return bm.WaitMsgContext(context.Background(), playerName, timeout)
+}
+
+func (bm *BotManager) WaitMsgContext(ctx context.Context, playerName string, timeout time.Duration) (string, error) {
 	ch := make(chan string, 1)
 	playerWaitMsgMu.Lock()
 	playerWaitMsgCbs[playerName] = ch
@@ -510,6 +515,8 @@ func (bm *BotManager) WaitMsg(playerName string, timeout time.Duration) (string,
 		return "", fmt.Errorf("WaitMsg: 等待 %s 的消息超时", playerName)
 	case <-bm.stopCh:
 		return "", fmt.Errorf("连接已断开")
+	case <-ctx.Done():
+		return "", ctx.Err()
 	}
 }
 

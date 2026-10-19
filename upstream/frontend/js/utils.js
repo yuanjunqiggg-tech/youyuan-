@@ -123,6 +123,8 @@ function parseMCColor(text){
 }
 
 function parseRawtext(str){
+  var start=String(str).indexOf('{"rawtext"');
+  if(start>0){return String(str).slice(0,start)+parseRawtext(String(str).slice(start))}
   try{var j=JSON.parse(str);if(j.rawtext){var parts=[];j.rawtext.forEach(function(r){if(r.text)parts.push(r.text)});return parts.join('')}}catch(e){}
   return str
 }

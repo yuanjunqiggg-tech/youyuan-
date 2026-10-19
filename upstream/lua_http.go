@@ -27,8 +27,15 @@ func readHTTPBody(resp *http.Response) ([]byte, error) {
 
 // httpGetText 发起 GET 请求，返回响应体文本。
 func httpGetText(url string) (string, error) {
+	return httpGetTextContext(context.Background(), url)
+}
+func httpGetTextContext(ctx context.Context, url string) (string, error) {
 	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -75,7 +82,10 @@ func httpPostTextContext(ctx context.Context, url, body string, headers map[stri
 // httpRequestFull 发起任意方法 HTTP 请求，返回 (状态码, 响应头, 响应体, 错误)。
 // 传输错误（连不上/超时）才返回 err；非 2xx 状态码也正常返回，由调用方检查 status。
 func httpRequestFull(method, url, body string, headers map[string]string, timeout time.Duration) (int, map[string]string, string, error) {
-	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	return httpRequestFullContext(context.Background(), method, url, body, headers, timeout)
+}
+func httpRequestFullContext(ctx context.Context, method, url, body string, headers map[string]string, timeout time.Duration) (int, map[string]string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
 	if err != nil {
 		return 0, nil, "", err
 	}

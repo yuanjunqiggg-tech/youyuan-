@@ -44,6 +44,17 @@ func yyRPCString(v any) string {
 }
 
 func yySenseEventMatches(kind string, e map[string]any) bool {
+	if kind == "observed_action" {
+		switch e["type"] {
+		case "swing", "hurt", "equipment", "rotation", "entity_kill", "damage_display":
+			return true
+		}
+		return false
+	}
+
+	if kind == "player_respawn" {
+		return e["type"] == "respawn" && e["entity_type"] == "minecraft:player"
+	}
 	if kind == "player_death" {
 		return e["type"] == "death" && e["entity_type"] == "minecraft:player"
 	}

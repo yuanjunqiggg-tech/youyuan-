@@ -49,14 +49,14 @@ result = accounts.callPlugin("account_b", "target_plugin", "balance", ["Player"]
 ```
 Android 与 Linux 驻留宿主均提供 accounts 命名空间；异步插件请在自己的任务中 await host 提供的异步包装或 asyncio.to_thread，勿占住高频 Tick 回调等待远端返回。
 
-### C++（Android原生宿主）
+### C++（Android / Linux 原生宿主）
 ```cpp
 auto profiles = client.accounts.list();
 auto state = client.accounts.status("account_b");
 client.accounts.sendCommandsFast("account_b", yy::json::array({"say A","say B"}), yy::json{{"channel","ai"}});
 auto result = client.accounts.callPlugin("account_b","target_plugin","balance",yy::json::array({"Player"}));
 ```
-Linux 原生 C++ 插件宿主仍未接入；不要把安卓版 .so 当成 Linux 插件。
+Linux 0.10.19 已接入独立常驻原生子进程；需要对应 Linux 架构的 ELF 库和 Python3 传输桥。不要把安卓版 .so 当成 Linux 插件。Windows 不能直接加载 ELF。
 
 ## 防止互相等待
 

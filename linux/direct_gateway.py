@@ -41,21 +41,25 @@ class Server(ThreadingHTTPServer):
   finally:self.slots.release()
 class Handler(BaseHTTPRequestHandler):
  protocol_version='HTTP/1.1'
+ # ThreadingHTTPServer allocates one slot per TCP connection, not per HTTP
+ # message. Bound idle/body reads so abandoned clients cannot keep all 32 slots.
+ timeout=30
  def log_message(self,*args):pass
  def cors(self):
   origin=self.headers.get('Origin','')
   if origin in ALLOWED_ORIGINS:self.send_header('Access-Control-Allow-Origin',origin);self.send_header('Vary','Origin')
  def respond(self,status,data):
-  raw=json.dumps(data,ensure_ascii=False).encode();self.send_response(status);self.cors();self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+  raw=json.dumps(data,ensure_ascii=False).encode();self.send_response(status);self.cors();self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Connection','close');self.close_connection=True;self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
  def do_OPTIONS(self):
   if self.headers.get('Origin')not in ALLOWED_ORIGINS:self.respond(403,{'ok':False});return
-  self.send_response(204);self.cors();self.send_header('Access-Control-Allow-Methods','GET,POST,PUT,DELETE,HEAD,OPTIONS');self.send_header('Access-Control-Allow-Headers','Authorization,Content-Type,X-YouYuan-Device,X-YouYuan-Market-Authorization,MCP-Protocol-Version,Accept');self.send_header('Access-Control-Max-Age','600');self.send_header('Content-Length','0');self.end_headers()
+  self.send_response(204);self.cors();self.send_header('Access-Control-Allow-Methods','GET,POST,PUT,DELETE,HEAD,OPTIONS');self.send_header('Access-Control-Allow-Headers','Authorization,Content-Type,X-YouYuan-Device,X-YouYuan-Market-Authorization,X-YouYuan-Trace-ID,X-Youyuan-Observer-Token,MCP-Protocol-Version,Accept');self.send_header('Access-Control-Max-Age','600');self.send_header('Connection','close');self.close_connection=True;self.send_header('Content-Length','0');self.end_headers()
  def do_GET(self):self.proxy()
  def do_HEAD(self):self.proxy()
  def do_POST(self):self.proxy()
  def do_PUT(self):self.proxy()
  def do_DELETE(self):self.proxy()
  def proxy(self):
+  headers_sent=False
   with lock:metrics['requests']+=1
   origin=self.headers.get('Origin');token=self.headers.get('Authorization','').removeprefix('Bearer ')
   if origin and origin not in ALLOWED_ORIGINS:self.respond(403,{'ok':False,'error':'来源未授权'});return
@@ -64,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
   login=path.split('?')[0]=='/api/identity/login' and self.command=='POST'
   if protected and not login and not authenticate(token):
    with lock:metrics['denied']+=1
-   self.respond(401,{'ok':False,'error':'请以幽怨qi登录；此Linux入口只允许项目所有者'});return
+   self.respond(401,{'ok':False,'error':'当前身份不能使用Linux直连，请通过已授权的云端中继访问','code':'DIRECT_ACTOR_UNSUPPORTED','outcome':'not_sent','retry_via':'relay'});return
   if path=='/api/cloud/direct-metrics':self.respond(200,{'ok':True,**metrics});return
   if path.startswith('/api/identity/register'):self.respond(403,{'ok':False,'error':'当前为单账号运行，注册请联系管理员'});return
   try:
@@ -76,16 +80,16 @@ class Handler(BaseHTTPRequestHandler):
     body=json.loads(data or b'{}')
     if body.get('username','').strip().lower()!=CONFIG['owner_username']:self.respond(403,{'ok':False,'error':'仅保留幽怨qi账号'});return
    target=(CLOUD if path.startswith('/api/identity/')else CORE)+path
-   headers={name:self.headers[name]for name in ['Content-Type','Accept','Authorization','MCP-Protocol-Version','X-YouYuan-Market-Authorization']if name in self.headers};headers['User-Agent']='YouYuan-LinuxGateway/0.10.14'
+   headers={name:self.headers[name]for name in ['Content-Type','Accept','Authorization','MCP-Protocol-Version','X-YouYuan-Market-Authorization','X-YouYuan-Trace-ID','X-Youyuan-Observer-Token']if name in self.headers};headers['User-Agent']='YouYuan-LinuxGateway/0.10.25'
    if not target.startswith(CLOUD)and path.startswith('/mcp'):headers['Authorization']='Bearer '+CONFIG['mcp_key']
    req=urllib.request.Request(target,data=data,method=self.command,headers=headers)
    try:response=urllib.request.urlopen(req,timeout=155)
    except urllib.error.HTTPError as error:response=error
    with response:
     self.send_response(response.status);self.cors()
-    for key in ['Content-Type','Content-Disposition','Content-Length','X-Content-SHA256','Retry-After']:
+    for key in ['Content-Type','Content-Disposition','Content-Length','X-Content-SHA256','X-YouYuan-Trace-ID','Retry-After']:
      if key in response.headers:self.send_header(key,response.headers[key])
-    self.send_header('Cache-Control','no-store');self.send_header('Connection','close');self.end_headers();self.close_connection=True
+    self.send_header('Cache-Control','no-store');self.send_header('Access-Control-Expose-Headers','Content-Disposition,Content-Length,X-Content-SHA256,X-YouYuan-Trace-ID,Retry-After');self.send_header('Connection','close');self.end_headers();headers_sent=True;self.close_connection=True
     if self.command!='HEAD':
      while True:
       chunk=response.read(65536)
@@ -94,5 +98,9 @@ class Handler(BaseHTTPRequestHandler):
    if path.startswith('/api/identity/logout'):
     with lock:cache.pop(hashlib.sha256(token.encode()).hexdigest(),None)
   except (BrokenPipeError,ConnectionResetError):pass
-  except Exception:self.respond(502,{'ok':False,'error':'Linux本机接口响应失败'})
+  except Exception:
+   # Once response headers/body were sent, appending a new HTTP 502 would
+   # corrupt downloads. Closing marks an incomplete Content-Length as failed.
+   if headers_sent:self.close_connection=True
+   else:self.respond(502,{'ok':False,'error':'Linux本机接口响应失败'})
 if __name__=='__main__':Server(('127.0.0.1',19430),Handler).serve_forever()

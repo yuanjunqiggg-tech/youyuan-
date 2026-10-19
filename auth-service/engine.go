@@ -6,9 +6,12 @@ import (
 	"fmt"
 	auth "github.com/Yeah114/FunAuth/auth"
 	g79 "github.com/Yeah114/g79client"
+	"github.com/Yeah114/g79client/account/com4399"
 	"github.com/Yeah114/g79client/account/mpay"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +25,7 @@ type kernelInput struct {
 	Server         string          `json:"server"`
 	ServerID       string          `json:"server_id"`
 	Nickname       string          `json:"nickname"`
+	ItemID         string          `json:"item_id"`
 	ServerPassword string          `json:"server_password"`
 	PublicKey      string          `json:"public_key"`
 	Data           string          `json:"data"`
@@ -30,14 +34,45 @@ type kernelInput struct {
 	Patch          string          `json:"patch_version"`
 	IsPC           bool            `json:"is_pc"`
 	Keyword        string          `json:"keyword"`
+	RoomID         string          `json:"room_id"`
 	Offset         int             `json:"offset"`
+	Username       string          `json:"username"`
+	Device4399     *com4399.Device `json:"device_4399"`
+	Captcha        string          `json:"captcha"`
+	CaptchaID      string          `json:"captcha_id"`
 }
 type contextTransport struct{ ctx context.Context }
 
 func (t contextTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return http.DefaultTransport.RoundTrip(req.Clone(t.ctx))
+	// Preserve the operation's shorter deadline, while also respecting the
+	// enclosing kernel request. Replacing req.Context lost discovery timeouts.
+	ctx, cancel := context.WithCancel(req.Context())
+	stop := context.AfterFunc(t.ctx, cancel)
+	if t.ctx.Err() != nil {
+		cancel()
+	}
+	response, err := http.DefaultTransport.RoundTrip(req.Clone(ctx))
+	if err != nil {
+		stop()
+		cancel()
+		return nil, err
+	}
+	response.Body = &kernelResponseBody{ReadCloser: response.Body, release: func() { stop(); cancel() }}
+	return response, nil
 }
+
+type kernelResponseBody struct {
+	io.ReadCloser
+	once    sync.Once
+	release func()
+}
+
+func (b *kernelResponseBody) Close() error { defer b.once.Do(b.release); return b.ReadCloser.Close() }
 func kernel(raw string) (out map[string]any) {
+	return kernelWithContext(context.Background(), raw)
+}
+
+func kernelWithContext(parent context.Context, raw string) (out map[string]any) {
 	defer func() {
 		if recover() != nil {
 			out = map[string]any{"ok": false, "error": "认证计算失败"}
@@ -47,7 +82,7 @@ func kernel(raw string) (out map[string]any) {
 	if e := json.Unmarshal([]byte(raw), &p); e != nil {
 		return map[string]any{"ok": false, "error": "请求格式错误"}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
 	fail := func(e error) map[string]any {
 		message := e.Error()
@@ -62,11 +97,42 @@ func kernel(raw string) (out map[string]any) {
 			result["verification_url"] = v.VerifyURL
 			result["verification_required"] = v.VerifyURL != ""
 		}
+		if v, ok := e.(*com4399.NeedCaptchaError); ok {
+			result["verification_required"] = true
+			result["verification_kind"] = "captcha_4399"
+			result["captcha_id"] = v.CaptchaID
+			result["captcha_url"] = v.CaptchaURL
+		}
+		if v, ok := e.(*com4399.LoginUnavailableError); ok {
+			result["provider_status"] = v.StatusCode
+			result["retryable"] = true
+			result["phase"] = "channel_login"
+		}
 		return result
 	}
 	switch p.Action {
 	case "capabilities":
-		return map[string]any{"ok": true, "provider": "direct-netease", "actions": []string{"device_create", "email_login", "guest_login", "authenticate", "refresh", "nickname", "game_login", "transfer_start_type", "transfer_check_num"}}
+		return map[string]any{"ok": true, "provider": "direct-netease", "actions": []string{"device_create", "email_login", "guest_login", "device_4399_create", "login_4399", "authenticate", "refresh", "nickname", "game_login", "tan_lobby_login", "room_discover", "transfer_start_type", "transfer_check_num"}, "official_bulk_sms_registration_guaranteed": false}
+	case "device_4399_create":
+		d, e := com4399.NewClient(&http.Client{Timeout: 12 * time.Second, Transport: contextTransport{ctx}}).RegisterDevice(ctx)
+		if e != nil {
+			return fail(e)
+		}
+		return map[string]any{"ok": true, "device_4399": d}
+	case "login_4399":
+		if p.Device4399 == nil {
+			return fail(fmt.Errorf("缺少4399设备凭据"))
+		}
+		p.Device4399.SetHTTPClient(&http.Client{Timeout: 12 * time.Second, Transport: contextTransport{ctx}})
+		u, e := p.Device4399.LoginWithPasswordOptions(ctx, p.Username, p.Password, com4399.LoginOptions{Captcha: p.Captcha, CaptchaID: p.CaptchaID, ManualCaptcha: true})
+		if e != nil {
+			return fail(e)
+		}
+		cookie, e := u.CookieString()
+		if e != nil {
+			return fail(e)
+		}
+		return map[string]any{"ok": true, "cookie": cookie, "sdk_uid": u.Sauth.SDKUID}
 	case "device_create":
 		d, e := mpay.NewClient(&http.Client{Timeout: 12 * time.Second, Transport: contextTransport{ctx}}).GenerateDevice(ctx)
 		if e != nil {
@@ -116,6 +182,42 @@ func kernel(raw string) (out map[string]any) {
 		}
 	}
 	switch p.Action {
+	case "skin", "skin_info", "skin_preview":
+		if p.Action == "skin" {
+			if len(p.ItemID) < 1 || len(p.ItemID) > 32 || strings.Trim(p.ItemID, "0123456789") != "" {
+				return fail(fmt.Errorf("请输入本账号已有皮肤的数字组件码"))
+			}
+			// Selection only: do not purchase an item on behalf of the account.
+			selected, err := cli.SetUserSettingList(p.ItemID)
+			if err != nil {
+				return fail(err)
+			}
+			if selected.Code != 0 {
+				return fail(fmt.Errorf("皮肤选择失败：%s(%d)", selected.Message, selected.Code))
+			}
+		}
+		skin, err := currentAccountSkin(cli)
+		if err != nil && skin.ItemID == "" {
+			return fail(err)
+		}
+		warning := ""
+		if err != nil {
+			warning = err.Error()
+		}
+		if p.Action == "skin_preview" {
+			preview, e := skinPreview(ctx, skin)
+			if e != nil {
+				return fail(e)
+			}
+			preview["skin_info"] = skin
+			preview["body_type_known"] = warning == ""
+			preview["warning"] = warning
+			preview["ok"] = true
+			preview["client"] = p.Client
+			return preview
+		}
+		snapshot, _ := json.Marshal(cli)
+		return map[string]any{"ok": true, "skin_info": skin, "warning": warning, "body_type_known": warning == "", "client": json.RawMessage(snapshot)}
 	case "authenticate":
 		if e = cli.G79AuthenticateWithCookie(p.Cookie); e != nil {
 			return fail(e)
@@ -132,6 +234,8 @@ func kernel(raw string) (out map[string]any) {
 		if _, e = cli.UpdateToken(); e != nil {
 			return fail(e)
 		}
+	case "room_discover":
+		return discoverRooms(cli, p.Keyword, p.Offset)
 	case "room_list":
 		if len([]rune(p.Keyword)) > 64 || p.Offset < 0 || p.Offset > 100000 {
 			return fail(fmt.Errorf("房间搜索参数无效"))
@@ -157,8 +261,8 @@ func kernel(raw string) (out map[string]any) {
 			return fail(fmt.Errorf("读取山头列表失败：%s(%d)", list.Message, list.Code))
 		}
 		rows := []map[string]any{}
-		for _, v := range list.Entities {
-			rows = append(rows, map[string]any{"id": v.Sid, "name": v.Name, "type": "domain", "status": v.Status})
+		for i, v := range list.Entities {
+			rows = append(rows, map[string]any{"index": i + 1, "id": v.Sid, "name": v.Name, "type": "domain", "status": v.Status})
 		}
 		return map[string]any{"ok": true, "servers": rows}
 	case "domain_prepare":
@@ -187,6 +291,16 @@ func kernel(raw string) (out map[string]any) {
 			return fail(e)
 		}
 		cli.UserDetail = &detail.Entity
+	case "tan_lobby_login":
+		if cli.UserDetail == nil || cli.UserDetail.Name == "" { return fail(fmt.Errorf("账号尚未设置游戏昵称，请先设置昵称")) }
+		if strings.TrimSpace(p.RoomID) == "" || len(p.RoomID)>128 { return fail(fmt.Errorf("本地房间标识无效")) }
+		result, err := auth.TanLobbyLogin(ctx, cli, auth.TanLobbyLoginParams{RoomID:p.RoomID})
+		if err != nil { return fail(err) }
+		snapshot, err := json.Marshal(cli); if err != nil { return fail(err) }
+		skin, skinErr := currentAccountSkin(cli)
+		response := map[string]any{"ok":true,"client":json.RawMessage(snapshot),"result":tanLobbyWireResult(result),"skin_info":skin,"engine_version":cli.EngineVersion,"patch_version":cli.G79LatestVersion}
+		if skinErr != nil { response["skin_error"] = "未能读取当前账号皮肤" }
+		return response
 	case "game_login":
 		if cli.UserDetail == nil || cli.UserDetail.Name == "" {
 			return fail(fmt.Errorf("账号尚未设置游戏昵称，请先设置昵称"))
@@ -208,7 +322,12 @@ func kernel(raw string) (out map[string]any) {
 		if e != nil {
 			return fail(e)
 		}
-		return map[string]any{"ok": true, "client": json.RawMessage(snapshot), "result": result}
+		skin, skinErr := currentAccountSkin(cli)
+		response := map[string]any{"ok": true, "client": json.RawMessage(snapshot), "result": result, "skin_info": skin}
+		if skinErr != nil {
+			response["skin_error"] = skinErr.Error()
+		}
+		return response
 	default:
 		return fail(fmt.Errorf("暂未开放的认证操作"))
 	}
@@ -222,4 +341,35 @@ func kernel(raw string) (out map[string]any) {
 		}
 		return ""
 	}(), "engine_version": cli.EngineVersion, "patch_version": cli.G79LatestVersion}
+}
+
+// Preserve the account's selected skin. Unlike the upstream fallback helper,
+// this never changes the selection when it is missing or cannot be read.
+func currentAccountSkin(cli *g79.Client) (auth.SkinInfo, error) {
+	s, e := cli.GetUserSettingList()
+	if e != nil {
+		return auth.SkinInfo{}, e
+	}
+	if s.Code != 0 {
+		return auth.SkinInfo{}, fmt.Errorf("读取皮肤设置：%s(%d)", s.Message, s.Code)
+	}
+	id := s.Entity.SkinData.ItemID
+	if id == "" || strings.HasPrefix(id, "-") {
+		return auth.SkinInfo{}, nil
+	}
+	d, e := cli.GetDownloadInfo(id)
+	if e != nil {
+		return auth.SkinInfo{}, e
+	}
+	if d.Code != 0 {
+		return auth.SkinInfo{}, fmt.Errorf("读取皮肤资源：%s(%d)", d.Message, d.Code)
+	}
+	skin := auth.SkinInfo{ItemID: id, SkinDownloadURL: d.Entity.ResURL}
+	if s.Entity.SkinData.IsSlim != nil {
+		skin.SkinIsSlim = *s.Entity.SkinData.IsSlim
+		return skin, nil
+	}
+	slim, bodyErr := cli.GetSkinBodyType(id)
+	skin.SkinIsSlim = slim
+	return skin, bodyErr
 }

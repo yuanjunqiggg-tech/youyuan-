@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -116,6 +117,24 @@ func yyMergeCommandOptions(base yyCommandOptions, override any) (yyCommandOption
 }
 
 func yyPluginCommandCall(bm *BotManager, method string, args []any, defaults yyCommandOptions) (any, error) {
+	if active, _ := yySpatialJobState(bm); active && len(args) > 0 {
+		commands := []string{}
+		if c, ok := args[0].(string); ok {
+			commands = append(commands, c)
+		}
+		if cs, ok := args[0].([]any); ok {
+			for _, v := range cs {
+				if c, ok := v.(string); ok {
+					commands = append(commands, c)
+				}
+			}
+		}
+		for _, c := range commands {
+			if yyPluginTeleportCommand(bm, c) {
+				return nil, yyPluginMovementAllowed(bm)
+			}
+		}
+	}
 	if method == "game.sendCommandConfirmed" {
 		method = "game.execute"
 	}
@@ -270,7 +289,7 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 		L.Push(goToLua(L, yyCommandOptionsMap(options)))
 		return 1
 	}))
-	for _, method := range []string{"game.sendCommand", "game.sendCommandFast", "game.sendCommandsFast", "game.sendCommandConfirmed", "game.sendCommandAsync", "game.commandResult", "game.execute", "game.executeBatch"} {
+	for _, method := range []string{"game.sendCommand", "game.sendCommandFast", "game.sendCommandsFast", "game.sendCommandConfirmed", "game.sendCommandAsync", "game.getBlockTileAsync", "game.commandResult", "game.execute", "game.executeBatch"} {
 		method := method
 		L.SetField(game, strings.TrimPrefix(method, "game."), L.NewFunction(func(L *lua.LState) int {
 			if method == "game.sendCommand" && L.GetTop() == 1 && L.GetGlobal("__YY_COMMAND_OPTIONS__") == lua.LNil {
@@ -303,8 +322,13 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 			var err error
 			if _, ok := yyAsyncDocs[method]; ok {
 				result, err = yyAsyncCommandCall(yyAsyncCommandKey{abot(L), lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))}, method, args, yyLuaCommandDefaults(L))
-			} else {
+			} else if method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommand" {
 				result, err = yyPluginCommandCall(abot(L), method, args, yyLuaCommandDefaults(L))
+			} else {
+				bm, options := abot(L), yyLuaCommandDefaults(L)
+				result, err = yyLuaWaitValue(L, func(_ context.Context) (any, error) {
+					return yyPluginCommandCall(bm, method, args, options)
+				})
 			}
 			if err != nil {
 				L.RaiseError("%s: %v", method, err)

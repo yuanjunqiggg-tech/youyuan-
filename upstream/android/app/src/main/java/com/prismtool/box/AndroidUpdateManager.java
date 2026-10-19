@@ -31,6 +31,9 @@ final class AndroidUpdateManager {
  void start(String address,String hash,long size,int version){
   if(!busy.compareAndSet(false,true)){emit("busy","更新下载正在进行",0,size);return;}
   new Thread(()->{try{
+   PackageInfo installed=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0);
+   long installedCode=Build.VERSION.SDK_INT>=28?installed.getLongVersionCode():installed.versionCode;
+   if(version<=installedCode){emit("up_to_date","当前已是此版本或更新版本，无需重复安装",0,size);return;}
    URL url=new URL(address);
    if(!"https".equals(url.getProtocol())||!"updates.youyuanqi.dpdns.org".equals(url.getHost())||url.getPort()!=-1||url.getUserInfo()!=null||!"/updates/android/latest.apk".equals(url.getPath())||!hash.matches("[a-f0-9]{64}")||size<=0||size>256L*1024*1024)throw new IOException("更新地址或校验信息无效");
    File directory=new File(activity.getCacheDir(),"updates");if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("无法创建更新缓存");
@@ -82,7 +85,8 @@ final class AndroidUpdateManager {
   if(archive==null||!activity.getPackageName().equals(archive.packageName))throw new IOException("更新包不是游园工具箱");
   long code=Build.VERSION.SDK_INT>=28?archive.getLongVersionCode():archive.versionCode;
   long installed=Build.VERSION.SDK_INT>=28?current.getLongVersionCode():current.versionCode;
-  if(code!=version||code<=installed)throw new IOException("更新版本必须高于已安装版本");
+  if(code!=version)throw new IOException("更新清单版本与APK实际版本不一致，请刷新更新信息后重试");
+  if(code<=installed)throw new IOException("当前已安装相同或更新版本，无需重复安装");
   if(!signatures(archive).equals(signatures(current)))throw new IOException("更新包签名与当前应用不一致");
  }
  void requestInstall(){

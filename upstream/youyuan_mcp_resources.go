@@ -35,6 +35,7 @@ func yyMCPResources() []any {
 		}
 	}
 	list = append(list, map[string]any{"uri": "youyuan://skills/catalog", "name": "技能加载库与章节目录", "mimeType": "application/json"})
+	list = append(list, map[string]any{"uri": "youyuan://packets/catalog", "name": "已注册协议包简短目录", "mimeType": "application/json"})
 	return list
 }
 func yyMCPReadResource(uri string) (map[string]any, error) {
@@ -59,6 +60,8 @@ func yyMCPReadResource(uri string) (map[string]any, error) {
 	content := ""
 	mime := "application/json"
 	switch uri {
+	case "youyuan://packets/catalog":
+		content = mustJSON(yyPacketCatalog())
 	case "youyuan://skills/catalog":
 		content = mustJSON(yyAllSkillCatalog())
 	case "youyuan://docs/command-chain-control":

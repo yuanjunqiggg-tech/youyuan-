@@ -14,8 +14,7 @@ func yyLuaPluginSource(id string) (string, string, error) {
 	if pluginController == nil || !validPluginID(id) {
 		return "", "", fmt.Errorf("插件标识无效")
 	}
-	root := filepath.Join(pluginController.privateDir, "插件文件")
-	dir, e := yyProjectPath(root, id)
+	dir, e := pluginController.isolatedCodeDir(id)
 	if e != nil {
 		return "", "", e
 	}

@@ -9,5 +9,5 @@ async function yySaveAppearance(){var r=await yyRootAPI('POST','/api/youyuan/app
 function yyClearBackground(){yyAppearanceConfig.background='';yySaveAppearance()}
 async function yyRemoveCover(index){yyAppearanceConfig.covers.splice(index,1);await yySaveAppearance();yyDrawCoverGallery()}
 var yyHomeAppearanceBase=Rhome;Rhome=async function(){await yyHomeAppearanceBase();yyCoverShow()};
-var yySettingsAppearanceBase=Rcfg;Rcfg=async function(){await yySettingsAppearanceBase();var anchor=document.getElementById('cfg-library-card');if(anchor){var card=document.createElement('section');card.className='card';card.innerHTML=yyCardHead('背景与封面','image')+'<p class="yy-hint">自定义界面背景和多张工作台封面。</p><button class="btn-s" onclick="yyAppearancePage()">管理自己的图片</button>';anchor.before(card)}};
+var yySettingsAppearanceBase=Rcfg;Rcfg=async function(){var yySettingsStillLive=yySettingsViewGuard();await yySettingsAppearanceBase();if(!yySettingsStillLive())return;var anchor=document.getElementById('cfg-library-card');if(anchor){var card=document.createElement('section');card.className='card';card.innerHTML=yyCardHead('背景与封面','image')+'<p class="yy-hint">自定义界面背景和多张工作台封面。</p><button class="btn-s" onclick="yyAppearancePage()">管理自己的图片</button>';anchor.before(card)}};
 yyApplyAppearance().catch(function(e){console.debug(e.message)});

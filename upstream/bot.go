@@ -60,18 +60,18 @@ func runBot(token, server, auth string, logCh chan string, cmdCh chan string, st
 		AuthServerToken:      token,
 	}
 
-	logCh <- fmt.Sprintf("[*] 连接 %s ...", server)
+	yyReceiveLog(logCh, fmt.Sprintf("[*] 连接 %s ...", server))
 
 	c, err := client.LoginRentalServer(cfg)
 	if err != nil {
-		logCh <- fmt.Sprintf("[-] %v", err)
+		yyReceiveLog(logCh, fmt.Sprintf("[-] %v", err))
 		return
 	}
 
 	conn := c.Conn()
 	id := conn.IdentityData()
-	logCh <- fmt.Sprintf("[+] 连接成功!")
-	logCh <- fmt.Sprintf("[+] 玩家: %s", id.DisplayName)
+	yyReceiveLog(logCh, fmt.Sprintf("[+] 连接成功!"))
+	yyReceiveLog(logCh, fmt.Sprintf("[+] 玩家: %s", id.DisplayName))
 
 	bc := &botConn{
 		conn:    conn,
@@ -133,21 +133,21 @@ func runBot(token, server, auth string, logCh chan string, cmdCh chan string, st
 						},
 						Version: 105,
 					})
-					logCh <- fmt.Sprintf("[命令] %s", line)
+					yyReceiveLog(logCh, fmt.Sprintf("[命令] %s", line))
 				} else {
 					bc.sendChat(line)
-					logCh <- fmt.Sprintf("[发送] %s", line)
+					yyReceiveLog(logCh, fmt.Sprintf("[发送] %s", line))
 				}
 			}
 		}
 	}()
 
-	logCh <- "[*] 就绪"
+	yyReceiveLog(logCh, "[*] 就绪")
 
 	for {
 		pk, err := conn.ReadPacket()
 		if err != nil {
-			logCh <- fmt.Sprintf("[-] %v", err)
+			yyReceiveLog(logCh, fmt.Sprintf("[-] %v", err))
 			return
 		}
 		select {
@@ -164,29 +164,29 @@ var cmdLastTs time.Time
 func processPacket(pk packet.Packet, logCh chan string, bc *botConn) {
 	switch p := pk.(type) {
 	case *packet.Text:
-		logCh <- fmt.Sprintf("[聊天] %s: %s", p.SourceName, p.Message)
+		yyReceiveLog(logCh, fmt.Sprintf("[聊天] %s: %s", p.SourceName, p.Message))
 
 	case *packet.Disconnect:
-		logCh <- fmt.Sprintf("[-] 被踢: %s", p.Message)
+		yyReceiveLog(logCh, fmt.Sprintf("[-] 被踢: %s", p.Message))
 
 	case *packet.Respawn:
 		bc.pos = p.Position
-		logCh <- fmt.Sprintf("[重生] 位置: (%.1f, %.1f, %.1f)", p.Position[0], p.Position[1], p.Position[2])
+		yyReceiveLog(logCh, fmt.Sprintf("[重生] 位置: (%.1f, %.1f, %.1f)", p.Position[0], p.Position[1], p.Position[2]))
 
 	case *packet.PlayerList:
 		if p.ActionType == packet.PlayerListActionAdd {
 			for _, e := range p.Entries {
-				logCh <- fmt.Sprintf("[加入] %s", e.Username)
+				yyReceiveLog(logCh, fmt.Sprintf("[加入] %s", e.Username))
 			}
 		} else if p.ActionType == packet.PlayerListActionRemove {
 			for _, e := range p.Entries {
-				logCh <- fmt.Sprintf("[退出] EID=%d", e.EntityUniqueID)
+				yyReceiveLog(logCh, fmt.Sprintf("[退出] EID=%d", e.EntityUniqueID))
 			}
 		}
 
 	case *packet.AddPlayer:
-		logCh <- fmt.Sprintf("[加入] %s 位置:(%.0f,%.0f,%.0f)",
-			p.Username, p.Position[0], p.Position[1], p.Position[2])
+		yyReceiveLog(logCh, fmt.Sprintf("[加入] %s 位置:(%.0f,%.0f,%.0f)",
+			p.Username, p.Position[0], p.Position[1], p.Position[2]))
 
 	case *packet.CommandOutput:
 		// 服务器命令广播，对用户无意义，不输出日志

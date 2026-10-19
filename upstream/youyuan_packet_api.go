@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -20,6 +21,22 @@ import (
 var yyPacketSequence atomic.Uint64
 var yyPacketIDsOnce sync.Once
 var yyPacketIDs map[string]uint32
+
+func yyPacketIntegerText(input any) (string, error) {
+	if n, ok := input.(float64); ok {
+		if math.IsNaN(n) || math.IsInf(n, 0) || n != math.Trunc(n) || math.Abs(n) > 9007199254740991 {
+			return "", fmt.Errorf("需要精确整数；64位ID请用十进制字符串")
+		}
+		return strconv.FormatFloat(n, 'f', -1, 64), nil
+	}
+	if n, ok := input.(float32); ok {
+		return yyPacketIntegerText(float64(n))
+	}
+	if n, ok := input.(json.Number); ok {
+		return string(n), nil
+	}
+	return fmt.Sprint(input), nil
+}
 
 // Map snake_case fields back to the actual protocol types. Values are validated
 // before touching the connection; invalid/unsupported unions are never zeroed.
@@ -146,14 +163,22 @@ func yyFillPacketValue(dst reflect.Value, input any, path string) error {
 		dst.SetBool(value)
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		value, e := strconv.ParseInt(fmt.Sprint(input), 10, dst.Type().Bits())
+		text, e := yyPacketIntegerText(input)
+		if e != nil {
+			return fmt.Errorf("%s: %w", path, e)
+		}
+		value, e := strconv.ParseInt(text, 10, dst.Type().Bits())
 		if e != nil {
 			return fmt.Errorf("%s 整数超范围或非整数: %w", path, e)
 		}
 		dst.SetInt(value)
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		value, e := strconv.ParseUint(fmt.Sprint(input), 10, dst.Type().Bits())
+		text, e := yyPacketIntegerText(input)
+		if e != nil {
+			return fmt.Errorf("%s: %w", path, e)
+		}
+		value, e := strconv.ParseUint(text, 10, dst.Type().Bits())
 		if e != nil {
 			return fmt.Errorf("%s 无符号整数超范围或非整数: %w", path, e)
 		}

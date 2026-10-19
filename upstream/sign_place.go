@@ -101,10 +101,16 @@ func (bm *BotManager) getGameInterface() (*game_interface.GameInterface, error) 
 	// 依赖 querytarget 查自身坐标，首次进服/刚传送/多机并发时命令不稳会整块失败。
 	// 兜底顺序：委托兄弟机器人代为查询 → 本地数据包坐标（与 handleFlyPosition 降级一致）。
 	gi.Movement().SetLocalPositionProvider(bm.querySelfFallback)
+	gi.SetStructureReader(func(pos, size protocol.BlockPos) (map[string]any, error) {
+		return bm.RequestStructure([3]int32(pos), [3]int32(size), 5*time.Second)
+	})
 
 	bm.mu.Lock()
 	bm.gameInterface = gi
 	bm.mu.Unlock()
+	if m, ok := gi.Maintainer().(*yyBotMaintainer); ok {
+		m.startWatchdog(gi)
+	}
 	// A reconnect may already be in survival and never send another mode-change
 	// packet. Apply the user's enabled maintenance policy once on initialization.
 	go func() {
@@ -188,19 +194,19 @@ func (bm *BotManager) ensureGameInterfaceWithRetry() int {
 	for attempt := 0; attempt < 5; attempt++ {
 		if _, err := bm.getGameInterface(); err == nil {
 			if attempt > 0 {
-				bm.logCh <- fmt.Sprintf("[动作接口] 重试第%d次后恢复", attempt+1)
+				yyReceiveLog(bm.logCh, fmt.Sprintf("[动作接口] 重试第%d次后恢复", attempt+1))
 			} else {
-				bm.logCh <- "[动作接口] 机器人动作接口就绪，游戏模式按设置保留或维护"
+				yyReceiveLog(bm.logCh, "[动作接口] 机器人动作接口就绪，游戏模式按设置保留或维护")
 			}
 			return failures
 		} else {
 			failures++
-			bm.logCh <- fmt.Sprintf("[动作接口] 初始化失败(第%d次): %v", attempt+1, err)
+			yyReceiveLog(bm.logCh, fmt.Sprintf("[动作接口] 初始化失败(第%d次): %v", attempt+1, err))
 		}
 		// 间隔递增重试，给网络/通道一个恢复窗口
 		time.Sleep(time.Duration(attempt+1) * time.Second)
 	}
-	bm.logCh <- "[动作接口] 多次初始化仍失败，将跳过需动作接口的方块(告示牌/NBT)"
+	yyReceiveLog(bm.logCh, "[动作接口] 多次初始化仍失败，将跳过需动作接口的方块(告示牌/NBT)")
 	return failures
 }
 
@@ -215,25 +221,11 @@ func (bm *BotManager) getNBTAssigner(center protocol.BlockPos) (*nbt_assigner.NB
 	}
 	bm.mu.Unlock()
 
-	if center == (protocol.BlockPos{}) {
-		center = protocol.BlockPos{9999, 100, 9999}
-	}
-
-	gi, err := bm.getGameInterface()
+	console, err := bm.getNBTConsole(center)
 	if err != nil {
-		return nil, fmt.Errorf("获取游戏接口: %v", err)
+		return nil, fmt.Errorf("创建NBT操作台: %w", err)
 	}
 
-	bm.mu.Lock()
-	dim := bm.commandDimension
-	bm.mu.Unlock()
-
-	dimID := uint8(dimNameToID(dim))
-
-	console, err := nbt_console.NewConsole(gi, dimID, center)
-	if err != nil {
-		return nil, fmt.Errorf("创建NBT操作台: %v", err)
-	}
 	cache := nbt_cache.NewNBTCacheSystem(console)
 	assigner := nbt_assigner.NewNBTAssigner(console, cache)
 

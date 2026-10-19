@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 
@@ -30,6 +31,25 @@ type PacketListener struct {
 	ctx                     context.Context
 	anyPacketListeners      []singleListener
 	specificPacketListeners map[uint32][]singleListener
+	snapshot                atomic.Pointer[packetListenerSnapshot]
+}
+
+type packetListenerSnapshot struct {
+	any      []singleListener
+	specific map[uint32][]singleListener
+}
+
+// Publish immutable lists while holding mu: an in-flight packet keeps its
+// original any→specific callback order even if a callback changes subscriptions.
+func (p *PacketListener) publishListeners() {
+	next := &packetListenerSnapshot{
+		any:      append([]singleListener(nil), p.anyPacketListeners...),
+		specific: make(map[uint32][]singleListener, len(p.specificPacketListeners)),
+	}
+	for id, listeners := range p.specificPacketListeners {
+		next.specific[id] = append([]singleListener(nil), listeners...)
+	}
+	p.snapshot.Store(next)
 }
 
 // NewPacketListener 基于 ctx 创建并返回一个新的 NewPacketListener
@@ -91,6 +111,7 @@ func (p *PacketListener) listenPacket(packetID []uint32, filter func(packet.Pack
 
 	if len(packetID) == 0 {
 		p.anyPacketListeners = append(p.anyPacketListeners, listener)
+		p.publishListeners()
 		return
 	}
 
@@ -100,6 +121,7 @@ func (p *PacketListener) listenPacket(packetID []uint32, filter func(packet.Pack
 		}
 		p.specificPacketListeners[pkID] = append(p.specificPacketListeners[pkID], listener)
 	}
+	p.publishListeners()
 	return
 }
 
@@ -139,6 +161,7 @@ func (p *PacketListener) DestroyListener(uniqueID string) {
 			}
 
 			p.anyPacketListeners = newListeners
+			p.publishListeners()
 			return
 		}
 	}
@@ -174,31 +197,30 @@ func (p *PacketListener) DestroyListener(uniqueID string) {
 
 		}
 	}
+	p.publishListeners()
 }
 
 // onPacket ..
 func (p *PacketListener) onPacket(pk packet.Packet) {
-	p.mu.Lock()
-
 	select {
 	case <-p.ctx.Done():
-		p.mu.Unlock()
 		return
 	default:
 	}
-
-	listeners := make([]singleListener, 0, len(p.anyPacketListeners)+len(p.specificPacketListeners[pk.ID()]))
-	listeners = append(listeners, p.anyPacketListeners...)
-	listeners = append(listeners, p.specificPacketListeners[pk.ID()]...)
-	p.mu.Unlock()
-	for _, listener := range listeners {
-		if listener.filter != nil && !listener.filter(pk) {
-			continue
-		}
-		if listener.ordered {
-			listener.callback(pk, nil)
-		} else {
-			go listener.callback(pk, nil)
+	snapshot := p.snapshot.Load()
+	if snapshot == nil {
+		return
+	}
+	for _, listeners := range [2][]singleListener{snapshot.any, snapshot.specific[pk.ID()]} {
+		for _, listener := range listeners {
+			if listener.filter != nil && !listener.filter(pk) {
+				continue
+			}
+			if listener.ordered {
+				listener.callback(pk, nil)
+			} else {
+				go listener.callback(pk, nil)
+			}
 		}
 	}
 }
@@ -223,4 +245,5 @@ func (p *PacketListener) handleConnClose(err error) {
 
 	p.anyPacketListeners = nil
 	p.specificPacketListeners = nil
+	p.snapshot.Store(nil)
 }

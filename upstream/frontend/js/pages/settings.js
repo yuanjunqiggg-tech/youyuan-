@@ -77,8 +77,9 @@ async function Rcfg(){
   _toolboxPollTimer = setInterval(pollToolboxInfo, 30000);
 }
 
-async function refreshCfg(){
+async function refreshCfg(checkLive){
   var c=await A('GET','/api/config');
+  if(checkLive&&!checkLive())return c;
   if(c.ok&&c.config){
     cfgToken=c.config.token||'';
     if(c.config.auth_url){curServerUrl=c.config.auth_url;applyServerSelection()}
@@ -103,6 +104,7 @@ async function refreshCfg(){
   refreshCfgStatus();
   refreshCfgAccount();
   pollToolboxInfo();
+  return c;
 }
 
 async function refreshCfgStatus(){
@@ -148,12 +150,14 @@ function checkUpdateManual(){
 function openQA(){yyCatalogPage()}
 
 function showConnModal(){
+  hideConnModal();
   var m=document.createElement('div');m.id='conn-modal';m.className='modal-overlay';
   m.innerHTML='<div class="modal-box" style="text-align:center">'+
     '<span class="spin" style="width:32px;height:32px;display:block;margin:0 auto 14px;color:var(--phx-primary)"></span>'+
     '<div style="font-size:15px;font-weight:800">正在连接服务器</div>'+
     '<div style="font-size:12px;color:var(--phx-text-secondary);margin-top:6px" id="conn-stage">正在连接服务器...</div>'+
-    '<div class="log" id="conn-log" style="margin-top:10px;max-height:140px;text-align:left"></div></div>';
+    '<div class="log" id="conn-log" style="margin-top:10px;max-height:140px;text-align:left"></div>'+
+    '<div class="yy-actions" style="margin-top:16px"><button type="button" class="btn-s" onclick="hideConnModal()">关闭提示 · 后台继续连接</button><button type="button" class="btn-d" onclick="hideConnModal();doDisc()">取消本次连接</button></div></div>';
   document.body.appendChild(m)
 }
 

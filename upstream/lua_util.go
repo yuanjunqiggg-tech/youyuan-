@@ -102,11 +102,11 @@ func cancelSchedJob(id int64) bool {
 }
 
 // RemovePluginSchedules 取消某插件的全部定时任务（插件停止时调用）。
-func RemovePluginSchedules(plugin string) {
+func RemovePluginSchedules(plugin string, owners ...*BotManager) {
 	schedMu.Lock()
 	var toCancel []*schedJob
 	for _, job := range schedJobs {
-		if job.plugin == plugin {
+		if job.plugin == plugin && (len(owners) == 0 || job.bm == owners[0]) {
 			toCancel = append(toCancel, job)
 		}
 	}
@@ -141,7 +141,7 @@ func registerUtilAPI(L *lua.LState) {
 	// ---- 文件 / JSON ----
 	// util.json_load(path) → table / nil
 	L.SetField(u, "json_load", L.NewFunction(func(L *lua.LState) int {
-		path := L.CheckString(1)
+		path := yyLegacyFilePath(L, L.CheckString(1), false)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			L.RaiseError("json_load: %v", err)
@@ -157,7 +157,7 @@ func registerUtilAPI(L *lua.LState) {
 	}))
 	// util.json_write(path, data) → true（自动建目录）
 	L.SetField(u, "json_write", L.NewFunction(func(L *lua.LState) int {
-		path := L.CheckString(1)
+		path := yyLegacyFilePath(L, L.CheckString(1), true)
 		data := luaToGo(L.Get(2))
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			L.RaiseError("json_write: %v", err)
@@ -174,7 +174,7 @@ func registerUtilAPI(L *lua.LState) {
 	}))
 	// util.read_file(path) → string
 	L.SetField(u, "read_file", L.NewFunction(func(L *lua.LState) int {
-		path := L.CheckString(1)
+		path := yyLegacyFilePath(L, L.CheckString(1), false)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			L.RaiseError("read_file: %v", err)
@@ -184,7 +184,7 @@ func registerUtilAPI(L *lua.LState) {
 	}))
 	// util.write_file(path, content) → true
 	L.SetField(u, "write_file", L.NewFunction(func(L *lua.LState) int {
-		path := L.CheckString(1)
+		path := yyLegacyFilePath(L, L.CheckString(1), true)
 		content := L.CheckString(2)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			L.RaiseError("write_file: %v", err)
@@ -282,11 +282,11 @@ func registerUtilAPI(L *lua.LState) {
 		}
 		interval := float64(L.CheckNumber(1))
 		// 校验间隔：≤0 会让 time.NewTicker panic（未恢复的 panic 会杀死整个进程）；
-		// 太小会被转成 0 duration 同样 panic，过大则 duration 溢出。钳制在 [0.001s, 1年]。
-		if interval < 0.001 || interval > maxSchedIntervalSec {
-			L.RaiseError("schedule: 间隔需在 0.001~%d 秒之间", maxSchedIntervalSec)
+		// Reject zero/nonfinite/overflow, without an artificial 1ms minimum.
+		if math.IsNaN(interval) || math.IsInf(interval, 0) || interval <= 0 || interval > maxSchedIntervalSec || interval*float64(time.Second) < 1 {
+			L.RaiseError("schedule: 需可表示为正数的宿主时间间隔，最长%d秒", maxSchedIntervalSec)
 		}
-		handler := L.CheckString(2)
+		handler := yySenseLuaHandler(L, 2)
 		plugin := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 		id := newSchedJob(plugin, handler, time.Duration(interval*float64(time.Second)), false, schedBot(L))
 		L.Push(lua.LNumber(id))
@@ -300,10 +300,10 @@ func registerUtilAPI(L *lua.LState) {
 		}
 		sec := float64(L.CheckNumber(1))
 		// 0 允许（立即触发）；负数或过大（duration 溢出）非法。
-		if sec < 0 || sec > maxSchedIntervalSec {
+		if math.IsNaN(sec) || math.IsInf(sec, 0) || sec < 0 || sec > maxSchedIntervalSec {
 			L.RaiseError("setTimeout: 延时需在 0~%d 秒之间", maxSchedIntervalSec)
 		}
-		handler := L.CheckString(2)
+		handler := yySenseLuaHandler(L, 2)
 		plugin := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 		id := newSchedJob(plugin, handler, time.Duration(sec*float64(time.Second)), true, schedBot(L))
 		L.Push(lua.LNumber(id))

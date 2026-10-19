@@ -53,7 +53,10 @@ func (pc *PluginController) WriteConfig(id string, cfg map[string]any) error {
 // UpdateMeta 更新插件 manifest 里的展示名与简介（用于「重命名插件 / 改小描述」）。
 // name 非空才覆盖展示名；description 为空则清空。写入后重扫刷新列表。
 func (pc *PluginController) UpdateMeta(id, name, description string) error {
-	dir := filepath.Join(pc.privateDir, "插件文件", id)
+	dir, err := pc.CodeDir(id)
+	if err != nil {
+		return err
+	}
 	manPath := filepath.Join(dir, id+".manifest.json")
 	var man pluginManifest
 	if data, err := os.ReadFile(manPath); err == nil {

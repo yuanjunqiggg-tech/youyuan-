@@ -19,20 +19,22 @@ type yyPacketFilter struct {
 	EveryMS int            `json:"every_ms"`
 }
 type yyCaptureConfig struct {
-	Types    []string       `json:"types"`
-	Exclude  []string       `json:"exclude"`
-	Filter   yyPacketFilter `json:"filter"`
-	Capacity int            `json:"capacity"`
-	MaxBytes int            `json:"max_bytes"`
+	Types      []string       `json:"types"`
+	Exclude    []string       `json:"exclude"`
+	Filter     yyPacketFilter `json:"filter"`
+	Capacity   int            `json:"capacity"`
+	MaxBytes   int            `json:"max_bytes"`
+	TotalBytes int            `json:"total_bytes"`
 }
 type yyCaptureState struct {
-	Active     bool
-	Config     yyCaptureConfig
-	Records    []map[string]any
-	Seq        uint64
-	Dropped    uint64
-	SampledOut uint64
-	Last       map[string]time.Time
+	Active                     bool
+	Config                     yyCaptureConfig
+	Records                    []map[string]any
+	Seq                        uint64
+	Dropped                    uint64
+	SampledOut                 uint64
+	Last                       map[string]time.Time
+	Head, Count, RetainedBytes int
 }
 
 func yyPacketName(pk packet.Packet) string {
@@ -136,10 +138,10 @@ func yyFilterMatch(f yyPacketFilter, data map[string]any) bool {
 }
 func yyCaptureStart(bm *BotManager, c yyCaptureConfig) (map[string]any, error) {
 	if len(c.Types) == 0 {
-		c.Types = []string{"UpdateAttributes", "ActorEvent", "MovePlayer", "UpdateBlock", "Respawn"}
+		c.Types = []string{"UpdateAttributes", "ActorEvent", "Animate", "MovePlayer", "UpdateBlock", "Respawn"}
 	}
-	if len(c.Types) > 32 || len(c.Exclude) > 32 {
-		return nil, fmt.Errorf("类型过滤最多 32 项")
+	if len(c.Types) > len(packet.ListAllPackets())+1 || len(c.Exclude) > len(packet.ListAllPackets())+1 {
+		return nil, fmt.Errorf("类型过滤不能超过协议目录数量")
 	}
 	for _, v := range append(append([]string{}, c.Types...), c.Exclude...) {
 		if !yyPacketTypeKnown(v) {
@@ -155,8 +157,8 @@ func yyCaptureStart(bm *BotManager, c yyCaptureConfig) (map[string]any, error) {
 	if c.Capacity == 0 {
 		c.Capacity = 256
 	}
-	if c.Capacity < 1 || c.Capacity > 2048 {
-		return nil, fmt.Errorf("容量应为 1..2048")
+	if c.Capacity < 1 || c.Capacity > 65536 {
+		return nil, fmt.Errorf("容量应为 1..65536")
 	}
 	if c.MaxBytes == 0 {
 		c.MaxBytes = 8192
@@ -164,11 +166,17 @@ func yyCaptureStart(bm *BotManager, c yyCaptureConfig) (map[string]any, error) {
 	if c.MaxBytes < 512 || c.MaxBytes > 65536 {
 		return nil, fmt.Errorf("单条大小应为 512..65536 字节")
 	}
+	if c.TotalBytes == 0 {
+		c.TotalBytes = 16 << 20
+	}
+	if c.TotalBytes < c.MaxBytes+1024 || c.TotalBytes > 256<<20 {
+		return nil, fmt.Errorf("total_bytes需至少max_bytes+1024且不超过256MiB；这是序列化留存预算，非Go堆内存上限")
+	}
 	s := yySenseFor(bm)
 	s.Lock()
-	s.Capture = yyCaptureState{Active: true, Config: c, Records: []map[string]any{}, Last: map[string]time.Time{}}
+	s.Capture = yyCaptureState{Active: true, Config: c, Records: make([]map[string]any, c.Capacity), Last: map[string]time.Time{}}
 	s.Unlock()
-	return yyCaptureRead(bm, 0, 0), nil
+	return yyCaptureStatus(bm), nil
 }
 func yyCaptureWants(bm *BotManager, name string) bool {
 	s := yySenseFor(bm)
@@ -212,12 +220,44 @@ func yyCapturePacket(bm *BotManager, pk packet.Packet) {
 	}
 	c.Seq++
 	row := map[string]any{"sequence": c.Seq, "time": now.Format(time.RFC3339Nano), "direction": "server_to_bot", "server": server, "type": name, "packet_id": pk.ID(), "bytes": len(encoded), "truncated": truncated, "data": payload}
-	if len(c.Records) >= c.Config.Capacity {
-		copy(c.Records, c.Records[1:])
-		c.Records = c.Records[:len(c.Records)-1]
-		c.Dropped++
+	retained := len(encoded) + 512
+	if truncated {
+		retained = c.Config.MaxBytes + 512
 	}
-	c.Records = append(c.Records, row)
+	row["retained_bytes"] = retained
+	for c.Count > 0 && (c.Count >= c.Config.Capacity || c.RetainedBytes+retained > c.Config.TotalBytes) {
+		c.evict()
+	}
+	if len(c.Records) != c.Config.Capacity {
+		c.Records = make([]map[string]any, c.Config.Capacity)
+		c.Count = 0
+		c.Head = 0
+		c.RetainedBytes = 0
+	}
+	c.Records[(c.Head+c.Count)%len(c.Records)] = row
+	c.Count++
+	c.RetainedBytes += retained
+}
+func (c *yyCaptureState) evict() {
+	if c.Count == 0 {
+		return
+	}
+	if row := c.Records[c.Head]; row != nil {
+		if n, ok := row["retained_bytes"].(int); ok {
+			c.RetainedBytes -= n
+		}
+	}
+	c.Records[c.Head] = nil
+	c.Head = (c.Head + 1) % len(c.Records)
+	c.Count--
+	c.Dropped++
+}
+func (c *yyCaptureState) clear() {
+	c.Records = make([]map[string]any, c.Config.Capacity)
+	c.Head = 0
+	c.Count = 0
+	c.RetainedBytes = 0
+	c.Dropped = 0
 }
 func yyCaptureRead(bm *BotManager, after uint64, limit int) map[string]any {
 	connected := bm != nil && bm.IsConnected()
@@ -226,10 +266,11 @@ func yyCaptureRead(bm *BotManager, after uint64, limit int) map[string]any {
 	defer s.Unlock()
 	c := &s.Capture
 	rows := []map[string]any{}
-	if limit < 1 || limit > 2048 {
+	if limit < 1 || limit > 65536 {
 		limit = 256
 	}
-	for _, r := range c.Records {
+	for i := 0; i < c.Count; i++ {
+		r := c.Records[(c.Head+i)%len(c.Records)]
 		if r["sequence"].(uint64) > after {
 			rows = append(rows, r)
 			if len(rows) >= limit {
@@ -237,9 +278,14 @@ func yyCaptureRead(bm *BotManager, after uint64, limit int) map[string]any {
 			}
 		}
 	}
-	return map[string]any{"ok": true, "active": c.Active, "connected": connected, "waiting_for_connection": c.Active && !connected, "config": c.Config, "cursor": c.Seq, "records": rows, "overwritten": c.Dropped, "sampled_out": c.SampledOut, "scope": "decoded incoming game packets for this account; not device-wide TCP/TLS capture"}
+	return map[string]any{"ok": true, "active": c.Active, "connected": connected, "waiting_for_connection": c.Active && !connected, "config": c.Config, "cursor": c.Seq, "retained_count": c.Count, "retained_serialized_bytes_estimate": c.RetainedBytes, "records": yyObservationCopyRows(rows), "overwritten": c.Dropped, "sampled_out": c.SampledOut, "scope": "decoded incoming game packets for this account; not device-wide TCP/TLS capture"}
 }
+
+// Control operations return metadata only. Packet payloads can be megabytes;
+// they belong to explicit cursor reads, not every start/stop tool response.
+func yyCaptureStatus(bm *BotManager) map[string]any { return yyCaptureRead(bm, ^uint64(0), 1) }
 func yySenseRoutes(mux *http.ServeMux, dataDir string) {
+	yyLoadObservationSettings(dataDir)
 	mux.HandleFunc("/api/youyuan/game/call", func(w http.ResponseWriter, r *http.Request) {
 		var p struct {
 			Account string `json:"account"`
@@ -259,15 +305,16 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 			writeJSON(w, map[string]any{"ok": false, "error": "账号不存在"})
 			return
 		}
-		if _, ok := yyExtraMethods[p.Method]; !ok {
-			writeJSON(w, map[string]any{"ok": false, "error": "方法未实现"})
+		p.Method = yyCanonicalGameMethod(p.Method)
+		if _, ok := yyExtraMethods[p.Method]; !ok && !strings.HasPrefix(p.Method, "game.") {
+			writeJSON(w, map[string]any{"ok": false, "error": "API未注册", "code": "not_registered", "method": p.Method, "catalog": "/api/youyuan/sdk/catalog"})
 			return
 		}
 		if _, ok := yySenseEvents[p.Method]; ok || p.Method == "events.subscribeFiltered" {
 			writeJSON(w, map[string]any{"ok": false, "error": "事件订阅需要常驻插件回调；公网使用抓包/事件游标读取"})
 			return
 		}
-		v, e := yySenseCall(bm, p.Method, p.Args)
+		v, e := yyPublicGameCall(bm, p.Method, p.Args)
 		if e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 			return
@@ -281,6 +328,10 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 			writeJSON(w, map[string]any{"ok": false, "error": "目标账号不存在"})
 			return
 		}
+		if r.URL.Query().Get("view") == "summary" {
+			writeJSON(w, yyObservationSummary(bm, yySummaryFromQuery(r), false))
+			return
+		}
 		writeJSON(w, map[string]any{"ok": true, "scene": yySenseSnapshot(bm)})
 	})
 	mux.HandleFunc("/api/youyuan/sense/events", func(w http.ResponseWriter, r *http.Request) {
@@ -288,6 +339,10 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 		bm := yyAccountBot(account)
 		if account != "" && account != "main" && bm == nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "目标账号不存在"})
+			return
+		}
+		if r.URL.Query().Get("view") == "summary" {
+			writeJSON(w, yyObservationSummary(bm, yySummaryFromQuery(r), false))
 			return
 		}
 		s := yySenseFor(bm)
@@ -298,6 +353,16 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 		writeJSON(w, map[string]any{"ok": true, "events": rows, "cursor": seq})
 	})
 	mux.HandleFunc("/api/youyuan/packets/schema", func(w http.ResponseWriter, r *http.Request) {
+		if name := r.URL.Query().Get("name"); name != "" {
+			rows := []map[string]any{}
+			for _, row := range yyPacketSchema() {
+				if row["name"] == name {
+					rows = append(rows, row)
+				}
+			}
+			writeJSON(w, map[string]any{"ok": true, "packets": rows})
+			return
+		}
 		writeJSON(w, map[string]any{"ok": true, "packets": yyPacketSchema()})
 	})
 	mux.HandleFunc("/api/youyuan/packets/capture", func(w http.ResponseWriter, r *http.Request) {
@@ -308,6 +373,10 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 			return
 		}
 		if r.Method == "GET" {
+			if r.URL.Query().Get("view") == "summary" {
+				writeJSON(w, yyObservationSummary(bm, yySummaryFromQuery(r), true))
+				return
+			}
 			writeJSON(w, yyCaptureRead(bm, 0, 256))
 			return
 		}
@@ -333,11 +402,10 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 			if p.Action == "stop" {
 				s.Capture.Active = false
 			} else {
-				s.Capture.Records = []map[string]any{}
-				s.Capture.Dropped = 0
+				s.Capture.clear()
 			}
 			s.Unlock()
-			writeJSON(w, yyCaptureRead(bm, 0, 256))
+			writeJSON(w, yyCaptureStatus(bm))
 		default:
 			writeJSON(w, map[string]any{"ok": false, "error": "action 应为 start/stop/clear"})
 		}
@@ -349,7 +417,7 @@ func yySenseRoutes(mux *http.ServeMux, dataDir string) {
 			writeJSON(w, map[string]any{"ok": false, "error": "目标账号不存在"})
 			return
 		}
-		v := yyCaptureRead(bm, 0, 2048)
+		v := yyCaptureRead(bm, 0, 65536)
 		if r.Method == "POST" {
 			path := filepath.Join(dataDir, "packet_exports", "youyuan-packets.ndjson")
 			if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
@@ -393,12 +461,13 @@ func yyCaptureTransfer(old, next *BotManager) {
 	from := yySenseFor(old)
 	from.Lock()
 	copyState := from.Capture
+	copyState.Records = nil // new connection must not erase the old ring through shared backing arrays.
 	from.Capture.Active = false
 	from.Unlock()
 	if !copyState.Active {
 		return
 	}
-	copyState.Records = []map[string]any{}
+	copyState.clear()
 	copyState.Seq = 0
 	copyState.Dropped = 0
 	copyState.SampledOut = 0

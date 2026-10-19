@@ -97,6 +97,12 @@ func yyRuntimeExport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "使用 GET 或 POST", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, err := yyExportActor(r, true); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+	yyPluginExportMu.Lock()
+	defer yyPluginExportMu.Unlock()
 	id := r.URL.Query().Get("id")
 	path, err := yyRuntimeExportPackage(yyRuntimeRoot, id)
 	if err != nil {
@@ -104,7 +110,7 @@ func yyRuntimeExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPost {
-		writeJSON(w, map[string]any{"ok": true, "src_path": path, "name": id + ".zip"})
+		yyExportResponse(w, r, path, id, "runtime")
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")

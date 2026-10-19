@@ -3,6 +3,7 @@ package main
 // Shared plugin API adapter. Python/C++ code stays in its resident runtime;
 // one persistent binding state per instance reuses the existing Go game API.
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet", "storage", "accounts"}
+var yySDKNames = []string{"game", "system", "api", "plugin", "util", "bot", "building", "media", "world", "player", "events", "http", "web", "chains", "packet", "storage", "accounts", "accountsPool", "entities", "entity", "diagnostics", "hud", "scoreboard", "observerBridge"}
 
 func yySDKWebID(key string) string {
 	hash := sha256.Sum256([]byte(key))
@@ -33,6 +34,7 @@ type yySDKContext struct {
 	BindingMu           sync.Mutex
 	Instance            *yyRuntimeInstance
 	Dir                 string
+	Code                string
 	L                   *lua.LState
 	Listeners           []yySDKListener
 	Timers              map[int64]chan struct{}
@@ -55,7 +57,7 @@ var yySDKCalls = struct {
 func yySDKPrepare(instance *yyRuntimeInstance, dir string) {
 	yySDKContexts.Lock()
 	defer yySDKContexts.Unlock()
-	s := &yySDKContext{Instance: instance, Dir: filepath.Join(dir, "data", instance.Account), Timers: map[int64]chan struct{}{}, CommandOptions: yyDefaultCommandOptions()}
+	s := &yySDKContext{Instance: instance, Code: dir, Dir: filepath.Join(dir, "data", instance.Account), Timers: map[int64]chan struct{}{}, CommandOptions: yyDefaultCommandOptions()}
 	if data, err := os.ReadFile(filepath.Join(dir, "command-options.json")); err == nil {
 		var options map[string]any
 		s.CommandOptionsError = json.Unmarshal(data, &options)
@@ -72,6 +74,10 @@ func yySDKGet(key string) *yySDKContext {
 }
 func yySDKClose(key string) {
 	if s := yySDKGet(key); s != nil {
+		yyPatrolStopOwner(yyAccountBot(s.Instance.Account), "sdk:"+key)
+	}
+	if s := yySDKGet(key); s != nil {
+		yyHudClearOwner(yyAccountBot(s.Instance.Account), "sdk:"+key)
 		yyClearCommandTickets(yyAsyncCommandKey{yyAccountBot(s.Instance.Account), key})
 	}
 	yySDKContexts.Lock()
@@ -170,7 +176,7 @@ func yySDKEmit(bm *BotManager, event map[string]any) {
 					s.enqueue(h.Handler, []any{event["packet_type"], event["data"]})
 				}
 			default:
-				if yySenseEventMatches(h.Kind, event) && (kind == "death" || kind == "health" || kind == "hurt" || kind == "move" || kind == "respawn" || kind == "block_change" || kind == "swing" || kind == "entity_spawn" || kind == "entity_remove" || kind == "item_pickup") {
+				if yySenseEventMatches(h.Kind, event) {
 					s.enqueue(h.Handler, []any{event})
 				}
 			}
@@ -279,7 +285,7 @@ func yySDKRoutes(mux *http.ServeMux) {
 		out["game"] = append(out["game"], "execute")
 		out["web"] = append(out["web"], "invoke")
 		out["plugin"] = append(out["plugin"], "state", "save")
-		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.15", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
+		writeJSON(w, map[string]any{"ok": true, "sdk_version": "1.17", "namespaces": out, "event_callback": "sdk_callback", "binding_lifetime": "one per resident plugin instance", "game_execution": "requires connected account and server permissions"})
 	})
 	mux.HandleFunc("/api/youyuan/sdk/call", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -343,7 +349,7 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		return yySendPacket(yyAccountBot(s.Instance.Account), args)
 	}
 	if _, ok := yyResourceDocs[method]; ok {
-		return yyResourceCall(yyResourceRoots{Code: filepath.Join(yyRuntimeRoot, s.Instance.Manifest.ID), Data: s.Dir, Config: filepath.Join(s.Dir, "config")}, method, args)
+		return yyResourceCall(yyResourceRoots{Code: s.Code, Data: s.Dir, Config: filepath.Join(s.Dir, "config"), Kind: "runtime"}, method, args)
 	}
 	if method == "plugin.stats" {
 		return map[string]any{"processed": s.Instance.Processed.Load(), "failures": s.Instance.Failures.Load(), "dropped": s.Instance.Dropped.Load(), "queue_depth": len(s.Instance.Queue), "queue_capacity": cap(s.Instance.Queue), "cpu_ms": nil, "memory_bytes": nil, "gc_ms": nil}, nil
@@ -375,8 +381,14 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		}
 		return yySchedulerControl("sdk:"+s.Instance.Key, nil, method, args)
 	}
-	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.sendCommandAsync" || method == "game.commandResult" || method == "game.execute" || method == "game.executeBatch" {
+	if _, async := yyAsyncDocs[method]; async {
 		return s.pluginCommandCall(method, args)
+	}
+	if method == "game.setCommandOptions" || method == "game.getCommandOptions" || method == "game.sendCommand" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" || method == "game.execute" || method == "game.executeBatch" {
+		return s.pluginCommandCall(method, args)
+	}
+	if _, ok := yyAccountPoolMethods[method]; ok {
+		return yyPoolSDKCall(method, args)
 	}
 	if _, ok := yyAccountBridgeMethods[method]; ok {
 		return yyBridgeSDKCall(s.Instance.Manifest.ID, method, args)
@@ -503,8 +515,8 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 		if !ok || seconds < 0 || seconds > maxSchedIntervalSec || seconds != seconds {
 			return nil, fmt.Errorf("无效的定时秒数")
 		}
-		if method == "util.schedule" && seconds < 0.001 {
-			return nil, fmt.Errorf("重复任务最短 0.001 秒")
+		if method == "util.schedule" && (seconds <= 0 || seconds*float64(time.Second) < 1) {
+			return nil, fmt.Errorf("重复任务需可表示为正数的宿主时间间隔")
 		}
 		handler, e := yySDKString(args, 1)
 		if e != nil {
@@ -602,6 +614,7 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	main := yyAccountBot(s.Instance.Account)
 	cancelLuaCtx(L)
 	setLuaBotCtx(L, main)
+	L.SetContext(context.WithValue(L.Context(), yyLegacyRootsKey{}, yyResourceRoots{Code: s.Code, Data: s.Dir, Config: filepath.Join(s.Dir, "config"), Kind: "runtime"}))
 	if old != nil && old.IsConnected() {
 		if c, ok := L.Context().Value(luaBotCtxKey{}).(*luaBotCtx); ok {
 			c.active = old
@@ -625,6 +638,9 @@ func (s *yySDKContext) call(method string, args []any) (value any, err error) {
 	}
 	if yySDKGameRequired(method) && (abot(L) == nil || !abot(L).IsConnected()) {
 		return nil, fmt.Errorf("目标游戏账号未连接，不能执行 %s", method)
+	}
+	if method == "game.importBlocks" || method == "game.importWait" {
+		return nil, fmt.Errorf("%s 使用 Lua 本实例任务句柄，不能经 JSON 桥传递；跨语言请使用 building 导入工具接口", method)
 	}
 	if method == "game.execute" {
 		command, e := yySDKString(args, 0)
@@ -762,16 +778,11 @@ func (s *yySDKContext) crossCall(args []any) (any, error) {
 		}
 	}
 	key := s.Instance.Account + ":" + target
-	yySDKCalls.Lock()
-	for cursor := key; cursor != ""; cursor = yySDKCalls.Edges[cursor] {
-		if cursor == s.Instance.Key {
-			yySDKCalls.Unlock()
-			return nil, fmt.Errorf("拒绝跨插件循环调用")
-		}
+	release, e := yyEnterPluginCall(s.Instance.Key, key)
+	if e != nil {
+		return nil, e
 	}
-	yySDKCalls.Edges[s.Instance.Key] = key
-	yySDKCalls.Unlock()
-	defer func() { yySDKCalls.Lock(); delete(yySDKCalls.Edges, s.Instance.Key); yySDKCalls.Unlock() }()
+	defer release()
 	yyRuntimeMu.Lock()
 	instance := yyRuntimeInstances[key]
 	yyRuntimeMu.Unlock()
@@ -789,14 +800,25 @@ func (s *yySDKContext) crossCall(args []any) (any, error) {
 		}
 		return reply["result"], nil
 	}
-	data, _ := json.Marshal(values)
-	text, e := callPluginFunction(yyAccountBot(s.Instance.Account), target, handler, string(data))
+	value, e := yyCallResident(yyAccountBot(s.Instance.Account), target, handler, values, true, false)
 	if e != nil {
 		return nil, e
 	}
-	var reply any
-	e = json.Unmarshal([]byte(text), &reply)
-	return reply, e
+	return value, nil
+}
+
+func yyEnterPluginCall(from, to string) (func(), error) {
+	yySDKCalls.Lock()
+	defer yySDKCalls.Unlock()
+	seen := map[string]bool{}
+	for cursor := to; cursor != ""; cursor = yySDKCalls.Edges[cursor] {
+		if cursor == from || seen[cursor] {
+			return nil, fmt.Errorf("拒绝跨插件循环调用")
+		}
+		seen[cursor] = true
+	}
+	yySDKCalls.Edges[from] = to
+	return func() { yySDKCalls.Lock(); delete(yySDKCalls.Edges, from); yySDKCalls.Unlock() }, nil
 }
 
 // Web actions registered by a native/Python SDK instance use its resident handler.
@@ -844,11 +866,14 @@ func yySDKExport(bm *BotManager, id, handler, argsJSON string) (string, error, b
 	if s == nil {
 		return "", nil, false
 	}
-	var args []any
+	args := []any{}
 	if argsJSON != "" {
 		if e := json.Unmarshal([]byte(argsJSON), &args); e != nil {
 			return "", e, true
 		}
+	}
+	if args == nil {
+		args = []any{}
 	}
 	text, e := s.Instance.rpcEvent(map[string]any{"type": "sdk_rpc", "handler": handler, "args": args})
 	if e != nil {

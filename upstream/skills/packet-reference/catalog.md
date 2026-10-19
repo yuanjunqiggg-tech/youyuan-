@@ -894,6 +894,7 @@
 |---|---|---|
 | `action_type` | `int32` | 动作枚举，具体编号使用本内核定义。 ActionType is the ID of the animation action to execute. It is one of the action type constants that may be found above. |
 | `entity_runtime_id` | `uint64` | 当前会话实体运行ID，不同会话不能复用；64位ID建议传十进制字符串。 EntityRuntimeID is the runtime ID of the player that the animation should be played upon. The runtime ID is unique for each world session, and entities are generally identified in packets using this runtime ID. |
+| `data` | `float32` | 1.21.120固定动画参数，所有Animate都带；不是伤害或生命值。 |
 | `boat_rowing_time` | `float32` | BoatRowingTime ... |
 
 ## 45 · Respawn · 重生状态同步

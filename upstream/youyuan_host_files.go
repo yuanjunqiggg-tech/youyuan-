@@ -12,6 +12,7 @@ import (
 )
 
 func yyHostFilesRoutes(mux *http.ServeMux, dataDir string) {
+	yyUploadSessionRoutes(mux, dataDir)
 	yyLinuxLibraryRoot = filepath.Join(dataDir, "本地资料库")
 	root := filepath.Join(dataDir, "用户上传")
 	valid := func(name string) bool {

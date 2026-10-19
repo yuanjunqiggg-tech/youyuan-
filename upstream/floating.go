@@ -114,7 +114,7 @@ func snapshotStatus() map[string]any {
 	connected := botMgr != nil && botMgr.IsConnected()
 	isOP := false
 	server := ""
-	tps := 0.0
+	var tps *float64
 	if botMgr != nil {
 		isOP = botMgr.IsOP()
 		server = botMgr.ServerCode()

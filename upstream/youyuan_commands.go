@@ -239,8 +239,9 @@ func yyParseChains(text string) (yyChainPlan, error) {
 		if m := yyChainHeader.FindStringSubmatch(line); m != nil {
 			if m[4] != "" {
 				hz, err := strconv.ParseFloat(m[4], 64)
-				if err != nil || hz <= 0 || hz > 1000 || m[1] != "2" {
-					return plan, fmt.Errorf("第%d行：循环头Hz需0<hz<=1000", index+1)
+				_, durationErr := yyScheduleDuration("util.scheduleHz", hz)
+				if err != nil || durationErr != nil || m[1] != "2" {
+					return plan, fmt.Errorf("第%d行：循环头Hz需有限正数且可表示为宿主周期", index+1)
 				}
 				if len(chain.Nodes) > 0 && chain.Hz != hz {
 					return plan, fmt.Errorf("第%d行：更改段频率前用 . 分隔独立链", index+1)
@@ -284,18 +285,19 @@ var yyChainTestHeader = regexp.MustCompile(`^#\s*(?:定义|测试|规定)[：: �
 var yyChainExecHeader = regexp.MustCompile(`^#\s*(?:执行|运行)[：: 　]\s*(.+)$`)
 
 type yyChainConfig struct {
-	Name       string `json:"name"`
-	Account    string `json:"account"`
-	IntervalMS int    `json:"interval_ms"`
-	DelayMS    int    `json:"delay_ms"`
-	Channel    string `json:"channel,omitempty"`
-	RunCount   int    `json:"run_count"` // 0 means continuous; positive values count complete file rounds.
-	Enabled    bool   `json:"enabled"`
-	Mode       string `json:"mode,omitempty"`
-	Window     int    `json:"window,omitempty"`
-	RateCPS    int    `json:"rate_cps,omitempty"`
-	Scheduling string `json:"scheduling,omitempty"` // auto, file, segments
-	Bootstrap  bool   `json:"bootstrap,omitempty"`  // Leading pulse segments finish before loop workers are started.
+	Name       string  `json:"name"`
+	Account    string  `json:"account"`
+	IntervalMS int     `json:"interval_ms"`
+	Hz         float64 `json:"hz,omitempty"` // Whole-chain cadence; legacy interval_ms remains compatible.
+	DelayMS    int     `json:"delay_ms"`
+	Channel    string  `json:"channel,omitempty"`
+	RunCount   int     `json:"run_count"` // 0 means continuous; positive values count complete file rounds.
+	Enabled    bool    `json:"enabled"`
+	Mode       string  `json:"mode,omitempty"`
+	Window     int     `json:"window,omitempty"`
+	RateCPS    int     `json:"rate_cps,omitempty"`
+	Scheduling string  `json:"scheduling,omitempty"` // auto, file, segments
+	Bootstrap  bool    `json:"bootstrap,omitempty"`  // Leading pulse segments finish before loop workers are started.
 }
 type yyChainInstance struct {
 	sync.Mutex
@@ -449,9 +451,6 @@ func (in *yyChainInstance) run(ctx context.Context) {
 		roundStarted := time.Now()
 		in.Lock()
 		cfg := in.Config
-		if in.Plan.Hz > 0 {
-			cfg.IntervalMS = int(1000 / in.Plan.Hz)
-		}
 		plan := in.Plan
 		in.Unlock()
 		bm := getBotManagerLocked()
@@ -622,13 +621,9 @@ func (in *yyChainInstance) run(ctx context.Context) {
 				return
 			}
 		}
-		interval := cfg.IntervalMS
-		if interval < 1 {
-			interval = 1
-		}
 		// Hz describes whole-chain start cadence, not a per-node delay or an
 		// extra sleep after completion. Overruns continue without queued rounds.
-		if err := yyChainSleep(ctx, yyChainRoundWait(time.Duration(interval)*time.Millisecond, time.Since(roundStarted))); err != nil {
+		if err := yyChainSleep(ctx, yyChainRoundWait(yyChainPeriod(plan, cfg), time.Since(roundStarted))); err != nil {
 			return
 		}
 	}
@@ -639,6 +634,22 @@ func yyChainRoundWait(period, elapsed time.Duration) time.Duration {
 		return 0
 	}
 	return period - elapsed
+}
+
+func yyChainPeriod(plan yyChainPlan, cfg yyChainConfig) time.Duration {
+	hz := plan.Hz
+	if hz == 0 {
+		hz = cfg.Hz
+	}
+	if hz > 0 {
+		if d, e := yyScheduleDuration("util.scheduleHz", hz); e == nil {
+			return d
+		}
+	}
+	if cfg.IntervalMS > 0 {
+		return time.Duration(cfg.IntervalMS) * time.Millisecond
+	}
+	return time.Second
 }
 func yyChainStop(in *yyChainInstance) error {
 	in.Lock()

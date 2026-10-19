@@ -19,6 +19,7 @@ type yyBotMaintainer struct {
 	pending        atomic.Bool
 	lastAttempt    atomic.Int64
 	retryScheduled atomic.Bool
+	watching       atomic.Bool
 }
 
 func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) error {
@@ -37,24 +38,86 @@ func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) err
 		if !config.ReloadConfig().AutoCreative {
 			return nil
 		}
-		err := m.bm.SendCommandNoWait(ChannelAI, "gamemode creative @s")
-		if err != nil {
-			return err
+		if !m.bm.IsConnected() || !m.bm.IsOP() {
+			return nil
+		}
+		// AutomationPlayer's @s is not reliably the logged-in player on all
+		// NetEase servers. Target the actual account, just like construction.
+		m.bm.mu.Lock()
+		creative := m.bm.gameMode == packet.GameTypeCreative
+		m.bm.mu.Unlock()
+		var err error
+		if !creative {
+			if err = m.bm.SendCommandNoWait(ChannelAI, "gamemode creative "+m.bm.quotedName()); err != nil {
+				return err
+			}
 		}
 		// Maintenance must work with sendcommandfeedback=false. Avoid the
 		// querytarget/confirmation path used by interactive movement helpers.
 		m.bm.mu.Lock()
 		conn, pos := m.bm.conn, m.bm.pos
-		m.bm.isFlying, m.bm.flyRequested = true, true
+		flying := m.bm.isFlying
+		m.bm.flyRequested = true
+		stop := m.bm.stopCh
 		m.bm.mu.Unlock()
-		if conn == nil {
+		if conn == nil || flying {
 			return nil
+		}
+		select {
+		case <-stop:
+			return nil
+		default:
 		}
 		if err = m.bm.sendFlyingInput(conn, pos, true); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// Packet-triggered recovery alone loses changes received during startup or
+// flight setup. One watchdog per connection reconciles server-confirmed state;
+// it never marks an outbound command as a confirmed mode/flight change.
+func (m *yyBotMaintainer) startWatchdog(api *game_interface.GameInterface) {
+	if !m.watching.CompareAndSwap(false, true) {
+		return
+	}
+	m.bm.mu.Lock()
+	stop, conn := m.bm.stopCh, m.bm.conn
+	m.bm.mu.Unlock()
+	go func() {
+		defer m.watching.Store(false)
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				m.bm.mu.Lock()
+				current := m.bm.conn == conn && m.bm.connected
+				needs := m.bm.gameMode != packet.GameTypeCreative || !m.bm.isFlying
+				m.bm.mu.Unlock()
+				if !current {
+					return
+				}
+				if config.LoadConfig().AutoCreative && needs && !m.running.Load() {
+					if err := m.TouchMaintainer(api); err != nil {
+						debugLog("[模式维护] %v", err)
+					}
+				}
+			}
+		}
+	}()
+}
+
+func yyFlyingAbility(layers []protocol.AbilityLayer) (flying, known bool) {
+	for _, layer := range layers {
+		if layer.Abilities&protocol.AbilityFlying != 0 {
+			flying, known = layer.Values&protocol.AbilityFlying != 0, true
+		}
+	}
+	return
 }
 
 func (m *yyBotMaintainer) PacketToListen() map[uint32]bool {
@@ -64,7 +127,7 @@ func (m *yyBotMaintainer) PacketToListen() map[uint32]bool {
 }
 
 func (m *yyBotMaintainer) HandlePacket(pk packet.Packet, api *game_interface.GameInterface) {
-	if !config.ReloadConfig().AutoCreative {
+	if !config.LoadConfig().AutoCreative {
 		return
 	}
 	maintain := false
@@ -76,8 +139,9 @@ func (m *yyBotMaintainer) HandlePacket(pk packet.Packet, api *game_interface.Gam
 	case *packet.Respawn:
 		maintain = p.State == packet.RespawnStateReadyToSpawn
 	case *packet.UpdateAbilities:
-		if p.AbilityData.EntityUniqueID == api.GetBotInfo().EntityUniqueID && len(p.AbilityData.Layers) > 0 {
-			maintain = p.AbilityData.Layers[0].Values&protocol.AbilityFlying == 0
+		if p.AbilityData.EntityUniqueID == api.GetBotInfo().EntityUniqueID {
+			flying, known := yyFlyingAbility(p.AbilityData.Layers)
+			maintain = known && !flying
 		}
 	}
 	if maintain {

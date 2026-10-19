@@ -8,13 +8,13 @@ async function yyOpenSkillLibrary(){
  const render=()=>{
   const search=host.querySelector('#yy-skill-search').value.toLowerCase(),cards=host.querySelector('#yy-skill-cards');cards.replaceChildren();
   for(const sk of r.catalog.filter(s=>(s.name+' '+s.id+' '+s.description).toLowerCase().includes(search))){
-   const card=document.createElement('section');card.className='card';card.dataset.skillId=sk.id;
-   const head=document.createElement('strong');head.textContent=sk.name;
+   const card=document.createElement('section');card.className='card yy-multi-choice-card';card.dataset.skillId=sk.id;card.classList.toggle('is-selected',selected.has(sk.id));
+   const head=document.createElement('strong');head.textContent=sk.name;head.onclick=()=>{checkbox.checked=!checkbox.checked;checkbox.onchange()};
    const desc=document.createElement('p');desc.className='yy-hint';desc.textContent=sk.description+' · '+sk.sections.length+' 个章节';
    const actions=document.createElement('div');actions.className='yy-actions';
    const toggle=document.createElement('label');toggle.className='yy-skill-select';
    const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selected.has(sk.id);checkbox.setAttribute('aria-label','选择技能 '+sk.name);
-   checkbox.onchange=()=>{checkbox.checked?selected.add(sk.id):selected.delete(sk.id);status()};toggle.append(checkbox,document.createTextNode('允许 AI 按需读取'));
+   checkbox.onchange=()=>{checkbox.checked?selected.add(sk.id):selected.delete(sk.id);card.classList.toggle('is-selected',checkbox.checked);status()};toggle.append(checkbox,document.createTextNode('选择这份技能 · 可多选'));
    const preview=document.createElement('button');preview.className='btn-s';preview.textContent='查看章节';
    const details=document.createElement('div');details.hidden=true;
    preview.onclick=()=>{details.hidden=!details.hidden};

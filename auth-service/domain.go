@@ -4,12 +4,18 @@ import (
 	"fmt"
 	auth "github.com/Yeah114/FunAuth/auth"
 	g79 "github.com/Yeah114/g79client"
+	"strconv"
+	"strings"
 )
 
 // Joining preserves all existing memberships. Ambiguous existing memberships
 // require an explicit server ID rather than guessing which server to enter.
 func safeDomainLogin(cli *g79.Client, invite, selectedID, key string) (auth.LoginResult, error) {
 	result := auth.LoginResult{}
+	invite, selectedIndex, e := domainInviteSelection(invite)
+	if e != nil {
+		return result, e
+	}
 	before, e := cli.GetOtherDomainServers()
 	if e != nil {
 		return result, e
@@ -44,6 +50,12 @@ func safeDomainLogin(cli *g79.Client, invite, selectedID, key string) (auth.Logi
 		}
 	}
 	sid := selectedID
+	if selectedIndex > 0 {
+		if selectedIndex > len(after.Entities) {
+			return result, fmt.Errorf("山头序号%d超出已加入列表范围（共%d个），请刷新列表", selectedIndex, len(after.Entities))
+		}
+		sid = after.Entities[selectedIndex-1].Sid
+	}
 	if sid == "" {
 		sid = joinedID
 	}
@@ -100,4 +112,16 @@ func safeDomainLogin(cli *g79.Client, invite, selectedID, key string) (auth.Logi
 	result.IP = fmt.Sprintf("%s:%d", enter.Entity.ServerHost, enter.Entity.ServerPort.Int64())
 	result.ChainInfo = string(chain)
 	return result, nil
+}
+
+func domainInviteSelection(value string) (string, int, error) {
+	base, suffix, ok := strings.Cut(value, "_")
+	if !ok {
+		return value, 0, nil
+	}
+	n, err := strconv.Atoi(suffix)
+	if err != nil || n < 1 {
+		return "", 0, fmt.Errorf("山头序号必须是从1开始的正整数，例如邀请码_1")
+	}
+	return base, n, nil
 }

@@ -15,6 +15,17 @@ func yyTaskActionbar(kind, name, colour string, done, total, speed int, elapsed 
 	if done < 0 {
 		done = 0
 	}
+	tps, known := getBotManager().observedTPS()
+	return yyTaskActionbarMetrics(kind, name, colour, done, total, speed, elapsed, tps, known)
+}
+
+func yyTaskActionbarMetrics(kind, name, colour string, done, total, speed int, elapsed time.Duration, tps float64, tpsKnown bool) string {
+	if total < 0 {
+		total = 0
+	}
+	if done < 0 {
+		done = 0
+	}
 	filled := 0
 	if total > 0 {
 		filled = int(float64(done) / float64(total) * 18)
@@ -33,5 +44,9 @@ func yyTaskActionbar(kind, name, colour string, done, total, speed int, elapsed 
 	} else if elapsed > 0 {
 		metric += "  ·  已用 " + elapsed.Round(time.Second).String()
 	}
-	return fmt.Sprintf("§r§%s游园 · %s §7| §f%s\n§r%s\n§r%s", colour, kind, name, bar, metric)
+	tpsText := "§7TPS 暂不可用"
+	if tpsKnown {
+		tpsText = fmt.Sprintf("§7TPS §f%.1f", tps)
+	}
+	return fmt.Sprintf("§r§%s游园 · %s §7| §f%s\n§r%s  %s\n§r%s", colour, kind, name, bar, tpsText, metric)
 }

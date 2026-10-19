@@ -36,7 +36,14 @@ func (pc *PluginController) ExportPackage(id string) (string, error) {
 	if !validPluginID(id) {
 		return "", fmt.Errorf("插件 id 非法: %q", id)
 	}
-	source := filepath.Join(pc.privateDir, "插件文件", id)
+	source, err := pc.CodeDir(id)
+	if err != nil {
+		return "", err
+	}
+	looseFiles, loose, err := pc.looseCodeFiles(id)
+	if err != nil {
+		return "", err
+	}
 	info, err := os.Stat(source)
 	if err != nil || !info.IsDir() {
 		return "", fmt.Errorf("找不到插件目录: %s", id)
@@ -56,7 +63,22 @@ func (pc *PluginController) ExportPackage(id string) (string, error) {
 	}
 	if err == nil {
 		for _, root := range pluginBackupRoots {
+			if root == "插件文件" && loose {
+				for _, file := range looseFiles {
+					err = addZipFile(zw, root+"/"+id+"/"+filepath.Base(file), file)
+					if err != nil {
+						break
+					}
+				}
+				if err != nil {
+					break
+				}
+				continue
+			}
 			dir := filepath.Join(pc.privateDir, root, id)
+			if root == "插件文件" {
+				dir = source
+			}
 			if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
 				// Include the empty root so restoring the ZIP recreates all three directories.
 				_, err = zw.Create(root + "/" + id + "/")
@@ -77,7 +99,7 @@ func (pc *PluginController) ExportPackage(id string) (string, error) {
 					if !entry.IsDir() && !info.Mode().IsRegular() {
 						return fmt.Errorf("插件目录包含不支持的文件类型: %s", filePath)
 					}
-					rel, relErr := filepath.Rel(pc.privateDir, filePath)
+					rel, relErr := filepath.Rel(dir, filePath)
 					if relErr != nil {
 						return relErr
 					}
@@ -85,7 +107,10 @@ func (pc *PluginController) ExportPackage(id string) (string, error) {
 					if headerErr != nil {
 						return headerErr
 					}
-					header.Name = filepath.ToSlash(rel)
+					header.Name = root + "/" + id
+					if rel != "." {
+						header.Name += "/" + filepath.ToSlash(rel)
+					}
 					if entry.IsDir() {
 						header.Name += "/"
 						header.Method = zip.Store

@@ -4,7 +4,12 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
   var folderMode = mode === 'folder';
   var overlay = document.createElement('div');
   overlay.className = 'fp-overlay';
-  var currentPath = startPath || '/storage/emulated/0';
+  var currentPath = startPath === '' ? '' : (startPath || '/storage/emulated/0');
+  var scanEpoch=0, closed=false;
+  var pickerOwner=typeof yyReadScope==='function'?yyReadScope():'';
+  function pickerLive(){return !closed&&(typeof yyReadScope!=='function'||pickerOwner===yyReadScope())}
+  function closePicker(cancelled){closed=true;scanEpoch++;overlay.remove();if(cancelled&&onCancel)onCancel()}
+  var pickerEscape=function(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var selectedPath = '';
   var selectedName = '';
   var dataList = [];
@@ -38,7 +43,8 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
   };
 
   overlay.innerHTML =
-    '<div class="fp-modal">' +
+    '<div class="fp-modal" role="dialog" aria-modal="true" aria-label="选择文件">' +
+      '<div class="fp-studio-title"><div><h3>选择资源</h3><p>当前执行设备 · 内置文件选择器</p></div><button id="fp-close" aria-label="关闭文件选择器">×</button></div>' +
       '<div class="fp-header"><button class="fp-back" id="fp-nav-back">&#8592;</button><span class="fp-path" id="fp-path">' + currentPath + '</span></div>' +
       '<div class="fp-toolbar">' +
         '<div class="fp-search">' +
@@ -51,8 +57,9 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
           '<span class="fp-sort-label" id="fp-sort-label">' + sortShort[sortMode] + '</span>' +
         '</button>' +
       '</div>' +
+      '<div class="fp-upload-local">文件还在手机或电脑上？ <button id="fp-upload-local">上传到当前设备</button></div>' +
       '<div class="fp-body" id="fp-body"><div class="fp-loading">加载中...</div></div>' +
-      '<div class="fp-footer">' +
+      '<div class="fp-footer"><span class="fp-selected-label" id="fp-selected-label">尚未选择文件</span>' +
         '<button class="fp-btn fp-btn-cancel" id="fp-cancel">取消</button>' +
         '<button class="fp-btn fp-btn-ok" id="fp-ok"' + (folderMode ? '' : ' disabled') + '>' + (folderMode ? '确定' : '选择') + '</button>' +
       '</div>' +
@@ -68,7 +75,10 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
   var sortLabel = document.getElementById('fp-sort-label');
 
   function navigateTo(path) {
+    if(!pickerLive()){closePicker(true);return}
+    var epoch=++scanEpoch;
     currentPath = path;
+    document.getElementById('fp-selected-label').textContent=folderMode?'当前文件夹':'尚未选择文件';
     selectedPath = '';
     selectedName = '';
     searchTerm = '';
@@ -82,16 +92,19 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
     fetch('/api/files/scan?path=' + encodeURIComponent(currentPath) + '&filter=' + encodeURIComponent(filter))
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         if (data.ok) {
+          currentPath=data.path||path;pathEl.textContent=currentPath;
           dataList = data.entries || [];
           dataParent = data.parent || '';
           renderData(data);
           checkQQ();
         } else {
-          bodyEl.innerHTML = '<div class="fp-empty">无法读取目录: ' + (data.error || '') + '</div>';
+          bodyEl.innerHTML = '<div class="fp-empty">无法读取目录: ' + pickerEscape(data.error || '') + '</div>';
         }
       })
       .catch(function(err) {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         bodyEl.innerHTML = '<div class="fp-empty">网络错误</div>';
       });
   }
@@ -114,12 +127,14 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
 
   // 根目录下探测「qq文件」文件夹：能扫到且有符合选项才显示入口
   function checkQQ() {
+    var epoch=scanEpoch;
     qqAvailable = false;
     var isRoot = currentPath.replace(/\/+$/, '') === ROOT_PATH;
     if (!isRoot || !filter || folderMode) return;
     fetch('/api/files/scan?path=' + encodeURIComponent(QQ_PATH) + '&filter=' + encodeURIComponent(filter))
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         if (data.ok && hasMatching(data.entries || [])) {
           qqAvailable = true;
           // 仍在根目录才刷新（可能已导航离开）
@@ -178,6 +193,7 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
   }
 
   function renderData(data) {
+    if(!pickerLive())return;
     // 虚拟文件夹模式：直接渲染列表
     if (virtualMode) {
       if (filter === 'music') { renderMusicHot(); } else { renderVirtualPlayers(); }
@@ -244,9 +260,9 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
       } else {
         iconHtml = '<div class="fp-icon ' + iconClass + ' ' + extClass + '">' + iconSvg + '</div>';
       }
-      html += '<div class="fp-item" data-path="' + item.path + '" data-type="' + item.type + '">' +
+      html += '<div class="fp-item" data-path="' + pickerEscape(item.path) + '" data-type="' + pickerEscape(item.type) + '">' +
         iconHtml +
-        '<div class="fp-info"><div class="fp-name">' + item.name + '</div></div>' +
+        '<div class="fp-info"><div class="fp-name">' + pickerEscape(item.name) + '</div></div>' +
         (sizeStr ? '<span class="fp-size">' + sizeStr + '</span>' : '') +
         '</div>';
     }
@@ -254,6 +270,7 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
 
     bodyEl.querySelectorAll('.fp-item').forEach(function(el) {
       el.addEventListener('click', function() {
+        if(!pickerLive()){closePicker(true);return}
         var path = el.dataset.path;
         var type = el.dataset.type;
         if (el.dataset.virtual) {
@@ -269,6 +286,7 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
           el.style.background = 'var(--phx-primary-bg)';
           selectedPath = path;
           selectedName = el.querySelector('.fp-name').textContent;
+          document.getElementById('fp-selected-label').textContent=selectedName;
           okBtn.disabled = false;
         }
       });
@@ -277,6 +295,7 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
 
   // 进入「在线玩家皮肤」虚拟文件夹
   function enterVirtualFolder() {
+    if(!pickerLive()){closePicker(true);return}var epoch=++scanEpoch;
     virtualMode = true;
     selectedPath = '';
     selectedName = '';
@@ -289,16 +308,19 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
     fetch('/api/skin/online-list')
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         virtualPlayers = data.ok ? (data.players || []) : [];
         renderVirtualPlayers();  // 无玩家时也由它渲染「返回上级」+ 空提示
       })
       .catch(function() {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         bodyEl.innerHTML = '<div class="fp-empty">获取在线玩家失败</div>';
       });
   }
 
   // 渲染在线玩家皮肤列表（玩家名.png）
   function renderVirtualPlayers() {
+    if(!pickerLive())return;
     var list = searchTerm
       ? virtualPlayers.filter(function(p) { return p.name.toLowerCase().indexOf(searchTerm) !== -1; })
       : virtualPlayers;
@@ -312,9 +334,9 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
     }
     for (var i = 0; i < list.length; i++) {
       var pl = list[i];
-      html += '<div class="fp-item" data-virtual-player="' + pl.name + '">' +
+      html += '<div class="fp-item" data-virtual-player="' + pickerEscape(pl.name) + '">' +
         '<div class="fp-icon fp-head"><img src="/api/skin/online-head?player=' + encodeURIComponent(pl.name) + '" alt="" onerror="this.style.display=\'none\'"></div>' +
-        '<div class="fp-info"><div class="fp-name">' + pl.name + '.png</div></div>' +
+        '<div class="fp-info"><div class="fp-name">' + pickerEscape(pl.name) + '.png</div></div>' +
         '<span class="fp-size">' + (pl.width || '') + 'x' + (pl.height || '') + '</span>' +
         '</div>';
     }
@@ -343,6 +365,7 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
 
   // 进入「热门歌曲」虚拟文件夹（服务器按热度排序）
   function enterMusicHotFolder() {
+    if(!pickerLive()){closePicker(true);return}var epoch=++scanEpoch;
     virtualMode = true;
     selectedPath = '';
     selectedName = '';
@@ -355,16 +378,19 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
     fetch('/api/music-proxy/api/music/hot')
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         musicHot = data.ok ? (data.list || []) : [];
         renderMusicHot();
       })
       .catch(function() {
+        if(!pickerLive()||epoch!==scanEpoch)return;
         bodyEl.innerHTML = '<div class="fp-empty">获取热门歌曲失败</div>';
       });
   }
 
   // 渲染热门歌曲列表（只显示歌名 + 下载量）
   function renderMusicHot() {
+    if(!pickerLive())return;
     var list = searchTerm
       ? musicHot.filter(function(s) { return (s.name || '').toLowerCase().indexOf(searchTerm) !== -1; })
       : musicHot;
@@ -378,7 +404,7 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
     }
     for (var i = 0; i < list.length; i++) {
       var s = list[i];
-      html += '<div class="fp-item" data-music-song="' + s.name + '">' +
+      html += '<div class="fp-item" data-music-song="' + pickerEscape(s.name) + '">' +
         '<div class="fp-icon fp-icon-file">' + ICONS.musicNote + '</div>' +
         '<div class="fp-info"><div class="fp-name">' + escHtml(s.name) + '</div>' +
         '<div class="fp-meta">下载量:' + (s.heat || 0) + '</div></div>' +
@@ -477,15 +503,21 @@ function showFilePicker(startPath, filter, onSelect, mode, onCancel) {
     }
   });
 
-  document.getElementById('fp-cancel').addEventListener('click', function() { overlay.remove(); if (onCancel) onCancel(); });
+  document.getElementById('fp-cancel').addEventListener('click', function() { closePicker(true); });
+  document.getElementById('fp-close').addEventListener('click', function(){closePicker(true)});
+  document.getElementById('fp-upload-local').addEventListener('click',async function(){
+    if(!pickerLive()){closePicker(true);return}if(folderMode)return;var epoch=scanEpoch;var upload=typeof yyStudioUploadFile==='function'?yyStudioUploadFile:null;if(!upload)return;
+    var path=await upload(filter);if(!pickerLive()||epoch!==scanEpoch||!path)return;selectedPath=path;selectedName=path.split(/[\\/]/).pop();document.getElementById('fp-selected-label').textContent=selectedName;okBtn.disabled=false;
+  });
   okBtn.addEventListener('click', function() {
+    if(!pickerLive()){closePicker(true);return}
     if (folderMode) {
       if (onSelect) onSelect(currentPath);
     } else {
       if (!selectedPath) return;
       if (onSelect) onSelect(selectedPath);
     }
-    overlay.remove();
+    closePicker(false);
   });
 
   navigateTo(currentPath);

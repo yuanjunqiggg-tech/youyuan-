@@ -266,7 +266,14 @@ func (pc *PluginController) ExportMarketPackage(id string) (string, error) {
 	if !validPluginID(id) {
 		return "", fmt.Errorf("插件 id 非法: %q", id)
 	}
-	filesDir := filepath.Join(pc.privateDir, "插件文件", id)
+	filesDir, resolveErr := pc.CodeDir(id)
+	if resolveErr != nil {
+		return "", resolveErr
+	}
+	_, loose, resolveErr := pc.looseCodeFiles(id)
+	if resolveErr != nil {
+		return "", resolveErr
+	}
 	zipPath := filepath.Join(pc.privateDir, "插件文件", id+"-market.zip")
 	if err := os.MkdirAll(filesDir, 0755); err != nil {
 		return "", err
@@ -279,13 +286,11 @@ func (pc *PluginController) ExportMarketPackage(id string) (string, error) {
 
 	zw := zip.NewWriter(zf)
 	// 代码文件：优先 <id>.lua，其次 <id>词库.json
-	codePath := filepath.Join(filesDir, id+".lua")
-	if _, err := os.Stat(codePath); err != nil {
-		codePath = filepath.Join(filesDir, id+"词库.json")
-		if _, err := os.Stat(codePath); err != nil {
-			return "", fmt.Errorf("找不到插件代码文件 %s", id)
-		}
+	entry, found := pc.CodeFileName(id)
+	if !found {
+		return "", fmt.Errorf("找不到插件代码文件 %s", id)
 	}
+	codePath := filepath.Join(filesDir, entry)
 	codeName := filepath.Base(codePath)
 	if strings.HasSuffix(codeName, ".lua") {
 		codeName = "main.lua"
@@ -302,6 +307,12 @@ func (pc *PluginController) ExportMarketPackage(id string) (string, error) {
 		if err := addZipFile(zw, "docs.md", docsPath); err != nil {
 			return "", err
 		}
+	}
+	if loose {
+		if err := zw.Close(); err != nil {
+			return "", err
+		}
+		return zipPath, nil
 	}
 	if err := filepath.WalkDir(filesDir, func(path string, d os.DirEntry, e error) error {
 		if e != nil {

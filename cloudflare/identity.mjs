@@ -1,8 +1,17 @@
+import {normalizeEmail,validQQEmail,requestRegistrationCode,checkRegistrationCode,liveIndex} from './email-verification.mjs';
 const encode = bytes => [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');
 const randomToken = () => encode(crypto.getRandomValues(new Uint8Array(32)));
 const digest = async text => encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)));
 async function passwordHash(password,salt){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);return encode(await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},key,256));}
-function publicUser(user){const role=user.legacy_owner?'admin':user.role||'member',expires=Number(user.subscription_until)||0;return {id:user.id,username:user.username,qq:user.qq,qq_verified:false,qq_binding_status:'已登记，尚未验证归属',legacy_owner:!!user.legacy_owner,created:user.created,role,subscription_until:expires,cloud_allowed:role==='admin'||expires>Date.now(),assigned_devices:user.assigned_devices||[]};}
+function publicUser(user){const role=user.legacy_owner?'admin':user.role||'member',expires=Number(user.subscription_until)||0;return {id:user.id,username:user.username,email:user.email||'',email_verified:!!user.email_verified,qq:user.qq,qq_verified:false,qq_binding_status:user.email_verified?'邮箱已验证':'旧版 QQ 登记，邮箱未验证',legacy_owner:!!user.legacy_owner,created:user.created,role,subscription_until:expires,cloud_allowed:role==='admin'||expires>Date.now(),assigned_devices:user.assigned_devices||[]};}
+async function removeAccount(store,target,actor,now){
+ const records=await store.list();
+ const keys=[...records].filter(([k,v])=>k==='user:'+target.id||((k.startsWith('name:')||k.startsWith('email:'))&&v===target.id)||v?.user===target.id||v?.user_id===target.id).map(([k])=>k);
+ if(keys.length)await store.delete(keys);
+ if(await store.get('legacy-owner')===target.id)await store.delete('legacy-owner');
+ await store.put('account-delete-audit:'+now+':'+crypto.randomUUID(),{actor,target:target.id,username:target.username,timestamp:now,revoked:keys.length});
+ return keys.length;
+}
 const response=(data,status=200)=>Response.json(data,{status});
 function registry(env){return env.RELAY.get(env.RELAY.idFromName('identity-registry-v1'));}
 export async function identityResolve(env,token,purpose='session'){
@@ -12,7 +21,7 @@ export async function identityResolve(env,token,purpose='session'){
 }
 export async function identityRoute(request,env){
  const url=new URL(request.url),action=url.pathname.split('/').pop();
- if(!['register','login','me','logout','claim','delete','users','entitlement','password','reset-password','mcp-links','backup','delete-user'].includes(action))return response({ok:false,error:'未知账号操作'},404);
+ if(!['register-code','register','login','me','binding','logout','claim','delete','users','entitlement','password','reset-password','mcp-links','backup','delete-user'].includes(action))return response({ok:false,error:'未知账号操作'},404);
  const ip=request.headers.get('CF-Connecting-IP')||'local';
  const body=request.method==='GET'?'{}':await request.text();if(body.length>16384)return response({ok:false,error:'请求过大'},413);
  return registry(env).fetch(new Request('https://identity.internal/__identity/'+action,{method:'POST',headers:{'Authorization':request.headers.get('Authorization')||'','X-Identity-IP':ip},body}));
@@ -20,6 +29,7 @@ export async function identityRoute(request,env){
 export async function identityHandle(request,ctx,env){
  let input;try{input=await request.json()}catch{return response({ok:false,error:'JSON 无效'},400)}
  const action=new URL(request.url).pathname.split('/').pop(),now=Date.now();
+ if(action==='register-code')return requestRegistrationCode(request,input,ctx,env);
  if(action==='resolve'){
   const hash=await digest(String(input.token||''));
   if(input.purpose==='mcp'){
@@ -36,6 +46,7 @@ export async function identityHandle(request,ctx,env){
  const bearer=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');
  let user=null,sessionHash=null;
  if(bearer){sessionHash=await digest(bearer);const session=await ctx.storage.get('session:'+sessionHash);if(session&&session.expires>now)user=await ctx.storage.get('user:'+session.user);}
+ if(action==='binding'&&!user&&bearer){const binding=await ctx.storage.get('control:'+sessionHash);if(binding)user=await ctx.storage.get('user:'+binding.user);}
  if(action==='me'&&env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN)return response({ok:true,user:{username:'项目管理员',role:'admin',cloud_allowed:true,subscription_until:0,assigned_devices:['linux-server'],legacy_owner:true}});
  if(action==='backup'||action==='delete-user'){
   const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN||!!user?.legacy_owner;
@@ -45,10 +56,8 @@ export async function identityHandle(request,ctx,env){
   return ctx.storage.transaction(async store=>{
    const target=await store.get('user:'+id);if(!target)return response({ok:false,error:'账号不存在'},404);
    if(target.legacy_owner||await store.get('legacy-owner')===id)return response({ok:false,error:'不能删除项目所有者'},403);
-   const records=await store.list();const keys=[...records].filter(([k,v])=>k==='user:'+id||k==='name:'+target.username||v?.user===id||v?.user_id===id).map(([k])=>k);
-   if(keys.length)await store.delete(keys);
-   await store.put('account-delete-audit:'+now+':'+crypto.randomUUID(),{actor:user?.id||'project-owner',target:id,username:target.username,timestamp:now,revoked:keys.length});
-   return response({ok:true,username:target.username,revoked:keys.length});
+   const revoked=await removeAccount(store,target,user?.id||'project-owner',now);
+   return response({ok:true,username:target.username,revoked});
   });
  }
  if(action==='mcp-links'){
@@ -98,10 +107,15 @@ export async function identityHandle(request,ctx,env){
   }
   const index=await ctx.storage.get('name:'+name);
   if(action==='register'){
-   const qq=String(input.qq||'').trim();if(!/^[1-9][0-9]{4,11}$/.test(qq))return response({ok:false,error:'请填写有效 QQ 号'},400);
-   if(index)return response({ok:false,error:'账号已存在'},409);
-   const salt=randomToken();user={id:crypto.randomUUID(),username:name,qq,created:now,salt,password_hash:await passwordHash(password,salt),device_token:randomToken(),control_token:randomToken()};
-   try{await ctx.storage.transaction(async store=>{if(await store.get('name:'+name))throw new Error('账号已存在');await store.put('user:'+user.id,user);await store.put('name:'+name,user.id);await store.put('device:'+await digest(user.device_token),{user:user.id});await store.put('control:'+await digest(user.control_token),{user:user.id});});}catch{return response({ok:false,error:'账号已存在'},409);}
+   const email=normalizeEmail(input.email);if(!validQQEmail(email))return response({ok:false,error:'请填写有效 QQ 邮箱，例如 123456@qq.com'},400);
+   const salt=randomToken();user={id:crypto.randomUUID(),username:name,email,email_verified:true,created:now,salt,password_hash:await passwordHash(password,salt),device_token:randomToken(),control_token:randomToken()};
+   const rejected=await ctx.storage.transaction(async store=>{
+    if(await liveIndex(store,'name:'+name))return {status:409,error:'账号已存在；退出登录不会注销账号，请登录或在平台账号中办理注销'};
+    if(await liveIndex(store,'email:'+email))return {status:409,error:'该 QQ 邮箱已绑定账号，请登录原账号'};
+    const verified=await checkRegistrationCode(store,name,email,String(input.email_code||''),now);if(verified.error)return verified;
+    await store.put('user:'+user.id,user);await store.put('name:'+name,user.id);await store.put('email:'+email,user.id);await store.put('device:'+await digest(user.device_token),{user:user.id});await store.put('control:'+await digest(user.control_token),{user:user.id});await store.delete(verified.key);return null;
+   });
+   if(rejected)return response({ok:false,error:rejected.error},rejected.status);
   }else{
    user=index?await ctx.storage.get('user:'+index):null;
    const actual=await passwordHash(password,user?.salt||'unknown-user-salt');
@@ -119,7 +133,7 @@ export async function identityHandle(request,ctx,env){
   const sessions=await ctx.storage.list({prefix:'session:'});const old=[...sessions].filter(([k,v])=>v.user===user.id&&k!=='session:'+sessionHash).map(([k])=>k);if(old.length)await ctx.storage.delete(old);
   return response({ok:true,other_sessions_revoked:true});
  }
- if(action==='me')return response({ok:true,user:publicUser(user)});
+ if(action==='me'||action==='binding')return response({ok:true,user:publicUser(user)});
  if(action==='logout'){await ctx.storage.delete('session:'+sessionHash);return response({ok:true});}
  if(action==='claim'){
   if(!env.DEVICE_TOKEN||input.device_key!==env.DEVICE_TOKEN)return response({ok:false,error:'既有设备证明不正确'},403);
@@ -127,9 +141,8 @@ export async function identityHandle(request,ctx,env){
  }
  if(action==='delete'){
   if(await passwordHash(String(input.password||''),user.salt)!==user.password_hash)return response({ok:false,error:'密码不正确'},403);
-  await ctx.storage.delete(['user:'+user.id,'name:'+user.username,'device:'+await digest(user.device_token),'control:'+await digest(user.control_token),'session:'+sessionHash]);
-  if(await ctx.storage.get('legacy-owner')===user.id)await ctx.storage.delete('legacy-owner');
-  return response({ok:true});
+  if(user.legacy_owner||await ctx.storage.get('legacy-owner')===user.id)return response({ok:false,error:'项目所有者不能自助注销，请先完成项目所有权交接'},403);
+  return ctx.storage.transaction(async store=>{const current=await store.get('user:'+user.id);if(!current)return response({ok:false,error:'账号已注销'},401);const revoked=await removeAccount(store,current,user.id,now);return response({ok:true,revoked,message:'平台账号已注销，账号名和邮箱可重新注册；本机插件与游戏文件保留'});});
  }
  return response({ok:false,error:'未知操作'},404);
 }

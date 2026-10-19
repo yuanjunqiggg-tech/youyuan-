@@ -1,0 +1,18 @@
+/* A quiet branded backdrop; no remote artwork, trackers or animation. */
+body{background-color:#eff5f4;background-image:radial-gradient(ellipse at 15% 5%,#c8e4de9c,transparent 50%),radial-gradient(ellipse at 95% 75%,#dce6f9a8,transparent 48%),radial-gradient(#557a711c .7px,transparent .7px);background-size:auto,auto,22px 22px;background-attachment:fixed}
+main>header{border-bottom-color:#c8d8d5a3;padding:12px 0 20px}
+main>header b{display:flex;align-items:center;gap:10px}
+main>header b:before{content:'游';display:grid;place-items:center;width:36px;height:36px;background:#08796c;color:#fff;border-radius:11px;font-size:19px;box-shadow:0 5px 14px #08796c22}
+main>header a{font-size:13px;padding:9px 13px;border:1px solid #c5d9d4;background:#ffffffb3;border-radius:10px;white-space:nowrap}
+main>h1{font-size:32px;margin-top:44px;line-height:1.35;letter-spacing:-.025em}
+main>p{font-size:14px;line-height:1.85;max-width:440px}
+#login{padding:28px 32px 24px;border-color:#fff;background:#ffffffed;box-shadow:0 24px 70px #264a4312,0 2px 6px #264a4306;border-radius:24px}
+#login>h2{font-size:22px;margin-bottom:8px}
+#login>p:first-of-type{font-size:13px;margin:0;line-height:1.8}
+#login label{font-size:13px;margin-top:19px}
+#login input{min-height:48px;background:#f8fbfa;border-color:#d3dfdc;border-radius:11px}
+#login button{min-height:46px;border-radius:11px}
+#login #identity-submit{box-shadow:0 6px 16px #08796c21}
+#identity-send-code{margin-top:10px}
+main>small{display:block;margin-top:30px;font-size:12px;text-align:center;color:#6b827b}
+@media(max-width:600px){main>h1{font-size:27px;margin-top:30px}main>header{gap:10px}main>header b{font-size:15px}#login{padding:24px 22px;border-radius:20px}main>p{padding:0 10px}}

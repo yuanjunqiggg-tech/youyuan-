@@ -19,10 +19,13 @@ func parseData(data []byte, conn *Conn) (*packetData, error) {
 	buf := bytes.NewBuffer(data)
 	header := &packet.Header{}
 	if err := header.Read(buf); err != nil {
+		conn.receiveAudit.headerErrors.Add(1)
 		// We don't return this as an error as it's not in the hand of the user to control this. Instead,
 		// we return to reading a new packet.
 		return nil, fmt.Errorf("读取数据包头失败：%w", err)
 	}
+	_, known := conn.pool[header.PacketID]
+	conn.receiveAudit.parsed(header.PacketID, buf.Len(), known)
 	if conn.packetFunc != nil {
 		// The packet func was set, so we call it.
 		conn.packetFunc(*header, buf.Bytes(), conn.RemoteAddr(), conn.LocalAddr())
@@ -40,6 +43,13 @@ func (err unknownPacketError) Error() string {
 
 // decode decodes the packet payload held in the packetData and returns the packet.Packet decoded.
 func (p *packetData) decode(conn *Conn) (pks []packet.Packet, err error) {
+	decodeFailed := false
+	defer func() {
+		conn.receiveAudit.entry(p.h.PacketID).returnedPackets.Add(uint64(len(pks)))
+		if decodeFailed || err != nil {
+			conn.receiveAudit.entry(p.h.PacketID).decodeErrors.Add(1)
+		}
+	}()
 	// Attempt to fetch the packet with the right packet ID from the pool.
 	pkFunc, ok := conn.pool[p.h.PacketID]
 	var pk packet.Packet
@@ -58,6 +68,7 @@ func (p *packetData) decode(conn *Conn) (pks []packet.Packet, err error) {
 	// Author: LNSSPsd, Happy2018new
 	defer func() {
 		if recoveredErr := recover(); recoveredErr != nil {
+			conn.receiveAudit.entry(p.h.PacketID).decodePanics.Add(1)
 			err = fmt.Errorf("解码数据包 %T 失败：%v", pk, recoveredErr)
 			conn.log.Warn("数据包解码失败", "packet", fmt.Sprintf("%T", pk), "error", err)
 			// fmt.Printf("%v\n", err)
@@ -74,7 +85,10 @@ func (p *packetData) decode(conn *Conn) (pks []packet.Packet, err error) {
 
 	r := conn.proto.NewReader(p.payload, conn.shieldID.Load(), conn.readerLimits)
 	pk.Marshal(r)
+	conn.receiveAudit.entry(p.h.PacketID).decodedFrames.Add(1)
 	if p.payload.Len() != 0 {
+		conn.receiveAudit.entry(p.h.PacketID).trailingFrames.Add(1)
+		decodeFailed = true
 		err = fmt.Errorf("解码数据包 %T 失败：剩余 %v 字节未读取：0x%x", pk, p.payload.Len(), p.payload.Bytes())
 	}
 	if conn.disconnectOnInvalidPacket && err != nil {

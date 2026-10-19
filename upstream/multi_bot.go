@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -19,10 +20,23 @@ import (
 // placeOneNBTBlock 对一个工作区NBT方块执行完整的"制作→保存→加载→删除"流程。
 // 与单机导入 OnNBT 里的 needsNBT 分支完全一致，保证单机/多机行为一致（§8.1）。
 func placeOneNBTBlock(bot *BotManager, x, y, z int32, blockName, blockStates string, nbtData map[string]any, consoleCenter protocol.BlockPos, nbtStructSeq *int) error {
+	lock := yyBlockOperationLock(bot)
+	lock.Lock()
+	defer lock.Unlock()
+	normalized, err := yyNormalizeNBT(nbtData)
+	if err != nil {
+		return fmt.Errorf("物品NBT类型检查: %w", err)
+	}
+	nbtData = normalized.(map[string]any)
 	statesMap := utils.ParseBlockStatesString(blockStates)
 
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
+		bot.mu.Lock()
+		if bot.nbtConsole != nil {
+			consoleCenter = bot.nbtConsole.Center()
+		}
+		bot.mu.Unlock()
 		// 跨块复用同一操作台与 NBT 缓存（相同方块命中缓存直接复用结构），
 		// 仅在失败重试时强制重建，避免每块都重走"传送到工作区"初始化导致卡死。
 		// 先 TP 到工作区并短暂等待，主动触发目标区块加载，降低首次进服/区块未加载时
@@ -42,6 +56,9 @@ func placeOneNBTBlock(bot *BotManager, x, y, z int32, blockName, blockStates str
 
 		canFast, uniqueID, _, nbtErr := assigner.PlaceNBTBlock(blockName, statesMap, nbtData)
 		if nbtErr != nil {
+			if normalizeBlockName(blockName) == "skull" || strings.HasSuffix(normalizeBlockName(blockName), "_skull") || strings.HasSuffix(normalizeBlockName(blockName), "_head") {
+				return fmt.Errorf("头颅制作未通过: %w", nbtErr)
+			}
 			lastErr = nbtErr
 			debugLog("NBT: PlaceNBTBlock 失败(第%d次): %v", attempt+1, nbtErr)
 			bot.cleanupNBTWorkspace() // 强制重建
@@ -171,13 +188,13 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 		regionMode = 3
 	}
 	return &building.ImportTask{
-		Data:   data,
-		BaseX:  getInt(params, "x", 0),
-		BaseY:  getInt(params, "y", 64),
-		BaseZ:  getInt(params, "z", 0),
-		Speed:  max(1, min(getInt(params, "speed", 9500), 20000)),
-		StartCX: 0,
-		StartCZ: 0,
+		Data:         data,
+		BaseX:        getInt(params, "x", 0),
+		BaseY:        getInt(params, "y", 64),
+		BaseZ:        getInt(params, "z", 0),
+		Speed:        getInt(params, "speed", 9500),
+		StartCX:      0,
+		StartCZ:      0,
 		PreClearMode: 0,
 		Dimension:    dimension,
 		RegionMode:   regionMode,
@@ -189,11 +206,11 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 			}
 			posX := cx*16 + 8
 			posZ := cz*16 + 8
-			_, isTimeout, err := bot.SendWSCommandWithTimeout(
+			response, isTimeout, err := bot.SendWSCommandWithTimeout(
 				fmt.Sprintf("testforblock %d 1 %d minecraft:air", posX, posZ),
 				1*time.Second,
 			)
-			return !(isTimeout || err != nil)
+			return yyImportChunkProbeLoaded(response, isTimeout, err)
 		},
 		SetBlock: func(x, y, z int32, name, states string) error {
 			nm, st := normalizeBlockName(name), normalizeBlockStates(name, states)
@@ -288,12 +305,12 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 				time.Sleep(10 * time.Millisecond)
 			}
 		},
-		ImportCommands:   importCmds,
-		CmdDisabled:      cmdDisabled,
-		ExcludeWater:     excludeWater,
+		ImportCommands:     importCmds,
+		CmdDisabled:        cmdDisabled,
+		ExcludeWater:       excludeWater,
 		ExcludeWaterlogged: excludeWaterlogged,
-		ExcludeLava:      excludeLava,
-		StopOnError:      false,
+		ExcludeLava:        excludeLava,
+		StopOnError:        true,
 	}
 }
 
@@ -301,7 +318,7 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 
 // MultiBotManager 持有 N 个 BotManager 和一个 WorkPool，驱动所有机器人工人循环。
 type MultiBotManager struct {
-	mu sync.Mutex
+	mu     sync.Mutex
 	bots   []*BotManager
 	pool   *building.WorkPool
 	data   *building.StructureData
@@ -564,10 +581,10 @@ func padBotCount(v, totalBots int) string {
 
 // buildMultiActionbar 渲染多机器人模式的 actionbar 进度条，风格与单机 buildV5Actionbar 统一
 // （旋转帧 + Importer 品牌 + §颜色 + buildParBar）。按文档 docs/多机器人导入行动栏进度条要求.md：
-//  - 表头：旋转帧 + "导入中" + prism（多机器人固定，不分是否购买命名）+ 文件名（无 {}）
-//  - 阶段一：NBT/命令/普通 各一行「类型 机器人数量 进度条 done/total」+「总共 总机器人 进度条 百分比」
-//  - 阶段一完成后：去掉 NBT/命令/普通三行，只留告示牌行
-//  - 底部：速度（上一秒方块数）+ 方块总数
+//   - 表头：旋转帧 + "导入中" + prism（多机器人固定，不分是否购买命名）+ 文件名（无 {}）
+//   - 阶段一：NBT/命令/普通 各一行「类型 机器人数量 进度条 done/total」+「总共 总机器人 进度条 百分比」
+//   - 阶段一完成后：去掉 NBT/命令/普通三行，只留告示牌行
+//   - 底部：速度（上一秒方块数）+ 方块总数
 func buildMultiActionbar(name string,
 	normalDone, normalTotal, nbtDone, nbtTotal, signDone, signTotal, lightDone, lightTotal,
 	normalFail, nbtFail, signFail, lightFail int,
@@ -1039,7 +1056,7 @@ func getFleetBots() []*BotManager {
 
 // runMultiImportTask 多机器人导入的完整编排：解析(共享 data) → 切岛 → 工人池 → 各机器人工人。
 // 与单机 runImportTask 并行，进度按任务聚合（§6），预清空由主机器人先整图做一次。
-func runMultiImportTask(tc *state.TaskController, p map[string]any, bots []*BotManager) {
+func runMultiImportTask(tc *state.TaskController, p map[string]any, bots []*BotManager, resumeID string) {
 	path := getString(p, "path", "")
 	if path == "" {
 		hub.Emit("task_error", mustJSON(map[string]any{"error": "缺少文件路径"}))
@@ -1050,12 +1067,22 @@ func runMultiImportTask(tc *state.TaskController, p map[string]any, bots []*BotM
 		return
 	}
 
+	// Pin the original split layout even when fewer workers are available on resume.
+	cp, saved, resumeErr := yyLoadMultiResume(resumeID, path, len(bots))
+	if resumeErr != nil {
+		hub.Emit("task_error", mustJSON(map[string]any{"error": resumeErr.Error()}))
+		return
+	}
+	cp.Params = rawParams(p)
+	cp.ServerCode = bots[0].ServerCode()
+	cp.Status = "running"
+
 	hub.Emit("task_start", mustJSON(map[string]any{"type": "多机器人导入: " + shortName(path)}))
 	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 0}))
 	hub.Emit("progress", mustJSON(map[string]any{"msg": "加载建筑文件: " + shortName(path)}))
 
 	// 共享一份解析后的 data（§11.1 内存红线：绝不复制给每个机器人）
-	data, err := loadStructureFileCached(path)
+	data, err := building.TakeStructureFileCached(path, yyImportRegion(p)...)
 	if err != nil {
 		hub.Emit("task_error", mustJSON(map[string]any{"error": "加载文件失败: " + err.Error()}))
 		return
@@ -1075,7 +1102,7 @@ func runMultiImportTask(tc *state.TaskController, p map[string]any, bots []*BotM
 	}))
 
 	// 切岛
-	res, err := building.SplitStructure(data, building.SplitOptions{BotCount: len(bots)})
+	res, err := building.SplitStructure(data, building.SplitOptions{BotCount: saved.SplitBots})
 	if err != nil {
 		hub.Emit("task_error", mustJSON(map[string]any{"error": "切岛失败: " + err.Error()}))
 		return
@@ -1091,9 +1118,47 @@ func runMultiImportTask(tc *state.TaskController, p map[string]any, bots []*BotM
 
 	// 工人池（工作窃取 + 阶段分离）
 	pool := building.NewWorkPool(res)
+	layoutHash := yyImportLayoutHash(res)
+	if saved.LayoutSHA256 != "" && saved.LayoutSHA256 != layoutHash {
+		hub.Emit("task_error", mustJSON(map[string]any{"error": "分区布局与旧断点不一致，已停止以避免跳过错误区域"}))
+		return
+	}
+	saved.LayoutSHA256 = layoutHash
+	if err = pool.RestoreCompleted(saved.Completed); err != nil {
+		hub.Emit("task_error", mustJSON(map[string]any{"error": err.Error()}))
+		return
+	}
+	persist := func(status, message string) {
+		saved.Completed = pool.CompletedUnits()
+		cp.Data, _ = json.Marshal(saved)
+		cp.Progress = pool.OverallProgress()
+		cp.Status = status
+		cp.Message = message
+		if err := state.SaveCheckpoint(cp); err != nil {
+			hub.Emit("progress", mustJSON(map[string]any{"msg": "保存导入断点失败：" + err.Error()}))
+		}
+	}
+	persist("running", "多机器人分区导入")
+	stopSave, saveDone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(saveDone)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopSave:
+				return
+			case <-ticker.C:
+				persist("running", "多机器人分区导入")
+			}
+		}
+	}()
+	finalStatus, finalMessage := "failed", "导入异常结束，已保留分区断点"
+	defer func() { close(stopSave); <-saveDone; persist(finalStatus, finalMessage); state.FlushCheckpoints() }()
+
 	pool.OnProgress = func(normal, nbt, sign, light float64) {
 		hub.Emit("task_progress", mustJSON(map[string]any{
-			"progress":     (normal + nbt + light) / 3 * 0.99, // 阶段一占主体，告示牌末位
+			"progress":     (normal + nbt + sign + light) / 4 * 0.99, // 阶段一占主体，告示牌末位
 			"sub_progress": 1.0,
 			"multi":        map[string]any{"normal": normal, "nbt": nbt, "sign": sign, "light": light},
 		}))
@@ -1115,19 +1180,28 @@ func runMultiImportTask(tc *state.TaskController, p map[string]any, bots []*BotM
 	// 完成后如实上报（§14.4 底线：不伪造完成）。有判失败单元（缺失）或未完成单元时，
 	// 必须明确告知用户缺口，而不是笼统报"导入完成"。主机器人/机器人中途断线时，
 	// 其未完成单元已被 Release 回收重做，但仍可能留下失败单元 → 在这里暴露。
+
+	if tc != nil && !tc.Running() {
+		finalStatus = "paused"
+		finalMessage = "作业已停止；正在执行及未完成分区将在续跑时重做"
+		hub.Emit("task_paused", mustJSON(map[string]any{"msg": finalMessage, "task_id": cp.TaskID}))
+		return
+	}
 	failed := pool.FailedBlocks()
 	remaining := pool.RemainingUnits()
 	if failed > 0 || remaining > 0 {
 		msg := fmt.Sprintf("多机器人导入结束，但有 %d 方块缺失、%d 个单元未完成（详见日志）",
 			failed, remaining)
+		finalMessage = msg
 		hub.Emit("task_progress", mustJSON(map[string]any{
-			"progress": 0.99, "sub_progress": 1.0,
-			"multi": map[string]any{"normal": 0.99, "nbt": 0.99, "sign": 0.99, "light": 0.99},
+			"progress": pool.OverallProgress(),
 		}))
-		hub.Emit("task_done", mustJSON(map[string]any{"msg": msg, "total": res.TotalSolid, "failed": failed, "remaining": remaining}))
+		hub.Emit("task_error", mustJSON(map[string]any{"error": msg, "task_id": cp.TaskID, "failed": failed, "remaining": remaining}))
 		hub.Emit("progress", mustJSON(map[string]any{"msg": msg}))
 		return
 	}
+
+	finalStatus, finalMessage = "done", "多机器人导入完成"
 
 	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 1.0, "sub_progress": 1.0}))
 	hub.Emit("task_done", mustJSON(map[string]any{"msg": "多机器人导入完成", "total": res.TotalSolid}))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bot-apk/config"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -52,6 +53,7 @@ func (bm *BotManager) startHeartbeat() {
 				yaw := bm.yaw
 				flying := bm.isFlying
 				flyReq := bm.flyRequested
+				heartbeatEnabled := bm.heartbeatEnabled
 				mFlags := bm.moveFlags
 				mVec := bm.moveVec
 				jump := bm.jumpPressed
@@ -146,9 +148,17 @@ func (bm *BotManager) startHeartbeat() {
 				// 只在 前端面板打开 + 无任务运行中 时发送 PlayerAuthInput
 				// 有任务运行时心跳不参与，避免干扰导入/导出等操作
 				// SSE 位置推送始终工作，让前端能看到机器人的位置
-				if bm.heartbeatEnabled && (activeTask == nil || !activeTask.Running()) {
+				if (heartbeatEnabled || flyReq && config.LoadConfig().AutoCreative) && (activeTask == nil || !activeTask.Running()) {
 					if bm.heartbeatWriteMu.TryLock() {
-						conn.WritePacket(&packet.PlayerAuthInput{
+						bm.mu.Lock()
+						missedSwing := bm.missedSwingPending
+						bm.tick++
+						tick := bm.tick
+						bm.mu.Unlock()
+						if missedSwing {
+							inputData.Set(packet.InputFlagMissedSwing)
+						}
+						err := conn.WritePacket(&packet.PlayerAuthInput{
 							Position:         pos,
 							Pitch:            pitch,
 							Yaw:              yaw,
@@ -158,9 +168,14 @@ func (bm *BotManager) startHeartbeat() {
 							InputMode:        packet.InputModeMouse,
 							PlayMode:         packet.PlayModeScreen,
 							InteractionModel: packet.InteractionModelCrosshair,
-							Tick:             0,
+							Tick:             tick,
 							Delta:            mgl32.Vec3{},
 						})
+						if err == nil && missedSwing {
+							bm.mu.Lock()
+							bm.missedSwingPending = false
+							bm.mu.Unlock()
+						}
 						bm.heartbeatWriteMu.Unlock()
 					}
 				}
@@ -600,7 +615,6 @@ func (bm *BotManager) Down() error {
 // StartFlying 开启飞行模式。
 func (bm *BotManager) StartFlying() error {
 	bm.mu.Lock()
-	bm.isFlying = true
 	bm.flyRequested = true
 	bm.mu.Unlock()
 
@@ -612,9 +626,6 @@ func (bm *BotManager) StartFlying() error {
 			pos := bm.pos
 			bm.mu.Unlock()
 			if conn == nil {
-				bm.mu.Lock()
-				bm.isFlying = false
-				bm.mu.Unlock()
 				return fmt.Errorf("未连接")
 			}
 			return bm.sendFlyingInput(conn, pos, true)
@@ -627,9 +638,6 @@ func (bm *BotManager) StartFlying() error {
 	pos := bm.pos
 	bm.mu.Unlock()
 	if conn == nil {
-		bm.mu.Lock()
-		bm.isFlying = false
-		bm.mu.Unlock()
 		return fmt.Errorf("未连接")
 	}
 	return bm.sendFlyingInput(conn, pos, true)
@@ -638,7 +646,6 @@ func (bm *BotManager) StartFlying() error {
 // StopFlying 关闭飞行模式。
 func (bm *BotManager) StopFlying() error {
 	bm.mu.Lock()
-	bm.isFlying = false
 	bm.flyRequested = false
 	bm.mu.Unlock()
 
@@ -672,6 +679,23 @@ func (bm *BotManager) StopFlying() error {
 // 用"双击跳"手势触发创造模式飞行切换：第一次跳离地后，再按第二次才真正起飞/降落。
 // 两次跳之间必须间隔足够久（~300ms），否则第一次跳还没离地、服务器当成单次跳跃。
 func (bm *BotManager) sendFlyingInput(conn *minecraft.Conn, pos mgl32.Vec3, start bool) error {
+	// All input writers share the same increasing tick sequence. Tick=0 was
+	// accepted at initial spawn but could be discarded after the bot had run.
+	// Serialize this gesture with heartbeat; do not interleave jump phases.
+	bm.heartbeatWriteMu.Lock()
+	defer bm.heartbeatWriteMu.Unlock()
+	write := func(inputData protocol.Bitset) error {
+		bm.mu.Lock()
+		if bm.conn != conn || !bm.connected {
+			bm.mu.Unlock()
+			return fmt.Errorf("飞行连接已关闭")
+		}
+		bm.tick++
+		tick, currentPos, pitch, yaw := bm.tick, bm.pos, bm.pitch, bm.yaw
+		bm.mu.Unlock()
+		return conn.WritePacket(&packet.PlayerAuthInput{Position: currentPos, Pitch: pitch, Yaw: yaw, HeadYaw: yaw, InputData: inputData,
+			InputMode: packet.InputModeMouse, PlayMode: packet.PlayModeScreen, InteractionModel: packet.InteractionModelCrosshair, Tick: tick})
+	}
 	flyFlag := packet.InputFlagStartFlying
 	if !start {
 		flyFlag = packet.InputFlagStopFlying
@@ -683,11 +707,7 @@ func (bm *BotManager) sendFlyingInput(conn *minecraft.Conn, pos mgl32.Vec3, star
 	input1.Set(packet.InputFlagJumping)
 	input1.Set(packet.InputFlagJumpPressedRaw)
 	input1.Set(flyFlag)
-	if err := conn.WritePacket(&packet.PlayerAuthInput{
-		Position: pos, InputData: input1,
-		InputMode: packet.InputModeMouse, PlayMode: packet.PlayModeScreen,
-		InteractionModel: packet.InteractionModelCrosshair, Tick: 0,
-	}); err != nil {
+	if err := write(input1); err != nil {
 		return err
 	}
 	time.Sleep(300 * time.Millisecond)
@@ -698,11 +718,7 @@ func (bm *BotManager) sendFlyingInput(conn *minecraft.Conn, pos mgl32.Vec3, star
 	input2.Set(packet.InputFlagJumping)
 	input2.Set(packet.InputFlagJumpCurrentRaw)
 	input2.Set(flyFlag)
-	if err := conn.WritePacket(&packet.PlayerAuthInput{
-		Position: pos, InputData: input2,
-		InputMode: packet.InputModeMouse, PlayMode: packet.PlayModeScreen,
-		InteractionModel: packet.InteractionModelCrosshair, Tick: 0,
-	}); err != nil {
+	if err := write(input2); err != nil {
 		return err
 	}
 	time.Sleep(300 * time.Millisecond)
@@ -711,11 +727,7 @@ func (bm *BotManager) sendFlyingInput(conn *minecraft.Conn, pos mgl32.Vec3, star
 	input3 := protocol.NewBitset(packet.PlayerAuthInputBitsetSize)
 	input3.Set(packet.InputFlagJumpReleasedRaw)
 	input3.Set(flyFlag)
-	return conn.WritePacket(&packet.PlayerAuthInput{
-		Position: pos, InputData: input3,
-		InputMode: packet.InputModeMouse, PlayMode: packet.PlayModeScreen,
-		InteractionModel: packet.InteractionModelCrosshair, Tick: 0,
-	})
+	return write(input3)
 }
 
 // ============================================================

@@ -10,6 +10,8 @@ for source in root.glob('*.go'):
     routes.update(re.findall(r'mux.HandleFunc\("(/api/[^\"]+)"',source.read_text(encoding='utf-8')))
 routes.discard('/api/qq/webhook') # 签名回调由 QQ 平台调用，不作为 Agent 操作工具。
 routes.discard('/api/youyuan/accounts/bridge/local') # 内部子进程交付，不给外部 MCP 调用。
+# These three endpoints share a loop-generated handler in youyuan_plugin_outputs.go.
+routes.update({'/api/youyuan/plugin-outputs','/api/youyuan/plugin-outputs/info','/api/youyuan/plugin-outputs/download'})
 code='package main\ntype yyAPIRoute struct { Name string `json:"name"`; Path string `json:"path"` }\nvar yyAPIRoutes=[]yyAPIRoute{\n'
 for path in sorted(routes):
     name='api_'+path[5:].strip('/').replace('/','_').replace('-','_')

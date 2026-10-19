@@ -70,7 +70,7 @@ func TestLuaHasSameCommandDefaultsWithoutGameConnection(t *testing.T) {
 
 func TestModelContextBudgetIncludesOutputAndSelectedCapacity(t *testing.T) {
 	small := &AIModel{ContextWindow: 32768, MaxOutputTokens: 8192, CompressionPercent: 90}
-	if small.compressionThreshold() != 24064 {
+	if small.compressionThreshold() != 29491 {
 		t.Fatal(small.compressionThreshold())
 	}
 	large := &AIModel{ContextWindow: 1048576, MaxOutputTokens: 8192, CompressionPercent: 80}

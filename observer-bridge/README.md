@@ -1,0 +1,54 @@
+# 游园观测桥集成说明
+
+## 0.10.25 接收交接与采集桥
+
+登录阶段使用同一个同步读包者完成认证，保留应用层 ModEventS2C；先安装宿主监听器再回放缓存和启动实时读取。认证挑战本身不重复投递。缓存满时明确报错，不默默丢包。`diagnostics.visibility()` 的 `login_ingress` 与 `ingress` 是两个有重叠的阶段，不能相加计算总包数。后者含登录缓存回放；前者只保留计数及 RPC 事件名称，不保留认证参数。
+
+新增命名空间 `observerBridge`，Lua、Python 和 C++ 通用调用同一宿主实现；插件仍须满足宿主授权配置。所有事件带来源，采集客户端报告不会写入服务器属性缓存。
+
+| API | 参数与作用 |
+|---|---|
+| create | `{name, source="player_input"或"game_server", server, player_id}`；玩家来源必须绑定身份。返回独立密钥一次，存储 SHA256 摘要。 |
+| sources | 无参数。来源清单、序号及最后上报时间，不返回密钥。 |
+| revoke | `source_id`；撤销密钥。 |
+| events | `after=0, limit=256`；分页读取采集桥事件与覆盖数。历史容量沿用可配置 EventHistory，重启清空内存历史，来源序号持久化。 |
+| attachSelf | `source_id, token`；采集当前机器人自身加密前的本地提交。server 与 UUID/XUID/名称必须匹配。异步队列容量沿用 EventQueue，50ms 聚合投递；不改变游戏命令频率。 |
+| inputStatus | 无参数。active/submitted/dropped/last_error/queue_capacity；submitted 是采集桥已接收，不是游戏执行成功。 |
+| detachSelf | 无参数。停止自身采集，不断开机器人。 |
+| rpcProbe | `timeout_ms=3000`；发送 YouyuanBridge/ObserverV1/Hello，只有匹配 request_id 的 Capabilities 才确认。 |
+| rpcQuery | `{query,target?}, timeout_ms=3000`；只查询已经安装的服务端 Provider。没有模块则没有凭空读取能力。 |
+| rpcEvents | `after=0,limit=256`；读取自定义 Observation，来源 server_module_reported，重连清空，独立于原生实体缓存。 |
+
+Lua 示例：
+```lua
+local state = bot.self()
+-- server 与 player_id 使用当前连接的真实服务器和身份，不填示例身份。
+local source = observerBridge.create({name="自身采集",source="player_input",server="94F195C41B5",player_id="当前机器人名称"})
+observerBridge.attachSelf(source.id, source.token)
+local status = observerBridge.inputStatus()
+local received = observerBridge.events(0,64)
+observerBridge.detachSelf()
+observerBridge.revoke(source.id)
+```
+Python 常驻 Host：`host.observerBridge.events(0,64)`；C++ 使用 `client.observerBridge.events(0,64)` 或通用 `client.invoke("observerBridge.events", yy::json::array({0,64}))`。密钥不写入公开文档、日志或插件发布包。
+
+入站真实血量继续从 `UpdateAttributes.attributes[].attribute_value` 的 `minecraft:health` 更新 `entities.health(runtimeId)`；未收到值保持未知。`bot.swingAir()` 在下一正常输入心跳加入一次 PlayerAuthInput.MissedSwing，复用位置与视角，输入 Tick 递增并在重连时归零；重复排队请求合并。心跳关闭时拒绝请求，导入导出任务占用时等待心跳恢复。queued/submitted/confirmed 分开，不能把输入当服务器已接受。直接发送旧式 Animate 在本次网易服测试中导致第二机器人断线，bot.attack 已去掉该发送。攻击输入来自 InventoryTransaction 的 UseItemOnEntity/Attack，仍不证明服务器扣血。
+
+认证交接后若服务器再次发送 StartType/GetMCPCheckNum，由同一个运行期读包者转交挑战处理器，已通过的认证不重复提交。该修正经0.10.24/0.10.25同账号对照定位，修正后 list/summon/tag/damage/kill 获服务器确认。
+
+外部客户端/代理把真实事件摘要作为 JSONL 输入 `observer-bridge/agent.py`，POST `/api/youyuan/observer/ingest`，请求头 `X-Youyuan-Observer-Token`。该程序是认证上报器，不能自动解密或拦截游戏。每批序号持久化，重试相同序号不重复记录；默认每行立即上报。远端网关若另有登录要求，配置额外 headers。
+
+NetAllay 集成源码及 YouyuanObserver 服务端插件入口位于 observer-bridge/netallay。协议核心5项本地回归通过；四个类已用真实 NetAllay0.1.1、Allay API0.28.0编译为Java21目标。入口读取 observer.properties 的 allowed_uuids（逗号分隔已认证UUID，默认空禁止接入），禁用时撤销监听；转发真实引擎健康变化、伤害、死亡、进退服。可取消事件明确标注阶段，不能把伤害请求视为最后扣血；攻击者无证据时返回未知。AllayReadOnlyProvider只声明在线玩家名单与指定玩家真实引擎血量，不把所有实体默认成20血。仍未在真实Allay服务器安装及运行，网易山头服不能凭OP安装Java插件；这不改变原服内核。
+
+服务端安装后可主动转发引擎事件给已授权观测机器人，转发适配器不按机器人距离筛选。但必须由真实事件监听产生，并在服务端验证身份；跨距离/跨维度全局效果以服务端实测为准。没有匹配回复只能判断该桥未响应，不能判断全部 PyRpc 不可用。不要猜测/循环发送其他模块事件名。
+
+## 2026-10-11 接入路线核查（研究状态）
+
+当前已实现的attachSelf只采集工具箱自己的机器人出站输入；agent.py只负责认证上报。不能告知用户普通玩家客户端已自动接入。两授权机器人实测24格Animate5/5、2000格0/5；远处自身输入向中心转发5/5是组末批量转发，没有真人客户端或实时延迟验收。
+
+0.10.34修复了本服Animate缺少float32 Data导致的协议错位；0.10.36在近距离直接提交Animate并收到真实同实体动画。上文0.10.25关于旧式Animate断线的记录是历史定位结果，不应解释为当前所有Animate都不可用。Animate本身只证明挥臂动画，不能保证每次都是空挥。
+
+新接入优先研究正常玩家加密前输入挂点，再将真实事件独立上传。替代内核NTvector固定a71da8d的结构化解码只有8类包，未内置Animate/UpdateAttributes；其engine协议回调是入站，不是出站Hook。Waterdog固定07910a2能接收网易客户端，但LoginData给后端重建SELF_SIGNED，不能据此宣称已能登录网易官方租赁服。官方后端需要有效网易登录和公钥绑定证书、运行期挑战。普通UDP转发密文不能提供明文动作。
+
+外部采集或代理只覆盖实际接入的玩家；未接入玩家仍依赖服务器同步范围。用户已取消侵入后台方向。不得把客户端报告改成服务器确认，不得把伤害/乐器演奏/陈旧快照当作远处空挥。保留现有三语言常驻、账号池、模块通信及快速命令路径；不为采集上传添加游戏命令CPS限速。具体设计见项目2026-10-11-连接方式重审与远处动作接入方案.md；这是研究设计，替代驱动和真人采集验收尚未完成。
+

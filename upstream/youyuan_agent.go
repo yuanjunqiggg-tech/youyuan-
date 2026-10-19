@@ -20,8 +20,6 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
-
-	lua "github.com/yuin/gopher-lua"
 )
 
 // 工作区、任务和文件修订分别落盘；页面关闭不取消任务。
@@ -40,31 +38,33 @@ type yyMCPServer struct {
 	Version string `json:"-"`
 }
 type yyWorkspace struct {
-	sync.Mutex    `json:"-"`
-	ID            string             `json:"id"`
-	Name          string             `json:"name"`
-	Language      string             `json:"language"`
-	CustomPrompt  string             `json:"custom_prompt"`
-	Skills        []string           `json:"skills"`
-	AllowedTools  []string           `json:"allowed_tools"`
-	Model         string             `json:"model"`
-	State         string             `json:"state"`
-	Error         string             `json:"error"`
-	Summary       string             `json:"summary"`
-	SummaryUntil  int                `json:"summary_until"`
-	Turns         []aiTurn           `json:"turns"`
-	Pending       []string           `json:"pending"`
-	Events        []yyAgentEvent     `json:"events"`
-	Seq           int                `json:"seq"`
-	InputTokens   int                `json:"input_tokens"`
-	OutputTokens  int                `json:"output_tokens"`
-	EstimatedCost float64            `json:"estimated_cost"`
-	Servers       []yyMCPServer      `json:"servers"`
-	PluginID      string             `json:"plugin_id"`
-	SourceEntry   string             `json:"source_entry,omitempty"`
-	SourceHashes  map[string]string  `json:"source_hashes,omitempty"`
-	cancel        context.CancelFunc `json:"-"`
-	mcpMu         sync.Mutex         `json:"-"`
+	sync.Mutex         `json:"-"`
+	ID                 string               `json:"id"`
+	Name               string               `json:"name"`
+	Language           string               `json:"language"`
+	CustomPrompt       string               `json:"custom_prompt"`
+	Skills             []string             `json:"skills"`
+	AllowedTools       []string             `json:"allowed_tools"`
+	RunBudget          *yyAgentRunBudget    `json:"run_budget,omitempty"`
+	Model              string               `json:"model"`
+	State              string               `json:"state"`
+	Error              string               `json:"error"`
+	Summary            string               `json:"summary"`
+	SummaryUntil       int                  `json:"summary_until"`
+	Turns              []aiTurn             `json:"turns"`
+	Pending            []string             `json:"pending"`
+	Events             []yyAgentEvent       `json:"events"`
+	Seq                int                  `json:"seq"`
+	InputTokens        int                  `json:"input_tokens"`
+	OutputTokens       int                  `json:"output_tokens"`
+	EstimatedCost      float64              `json:"estimated_cost"`
+	ContextMeasurement yyContextMeasurement `json:"context_measurement"`
+	Servers            []yyMCPServer        `json:"servers"`
+	PluginID           string               `json:"plugin_id"`
+	SourceEntry        string               `json:"source_entry,omitempty"`
+	SourceHashes       map[string]string    `json:"source_hashes,omitempty"`
+	cancel             context.CancelFunc   `json:"-"`
+	mcpMu              sync.Mutex           `json:"-"`
 }
 
 var yyAgentRoot string
@@ -331,8 +331,11 @@ func yyWorkspacePrompt(ws *yyWorkspace) string {
 	if ws.Summary != "" {
 		prompt += "\n先前上下文摘要（原始历史仍可检索）：\n" + ws.Summary
 	}
-	return prompt + yyAgentPreferencePrompt(ws)
+	return prompt + yyAgentPreferencePrompt(ws) + yyAgentReplyPolicy
 }
+
+const yyAgentReplyPolicy = "\n对玩家的表达：直接说明结果，默认用2到4个短句或要点，只有复杂问题或玩家要求时才展开。只讲实际修改、真实验证、必要的错误与下一步。不要复述需求、堆计划、赞美、客套、反复解释身份或罗列工具目录。工具过程使用工具调用记录，不在回复中重复粘贴参数、长日志和源码；需要代码时才给相关片段。上下文摘要属于内部任务记忆，不向玩家播报压缩、不展示摘要。诚实区分已保存、已发布、已重载和已实测；未完成就说明具体缺口。不要为了简短省略影响结果的错误。玩家提出闲聊或问题时直接回应，不强行改插件。\n"
+
 func yySchema(properties map[string]any, required ...string) map[string]any {
 	if required == nil {
 		required = []string{}
@@ -342,7 +345,7 @@ func yySchema(properties map[string]any, required ...string) map[string]any {
 func yyAgentToolDefs() []ToolDef {
 	str := func() map[string]any { return map[string]any{"type": "string"} }
 	defs := []ToolDef{
-		{Name: "game_scene", Description: "读取当前账号机器人的真实观测快照（位置/血量/死亡/实体），未知保留未知", Parameters: yySchema(map[string]any{})},
+		{Name: "game_scene", Description: "默认读真实观测摘要（机器人位置/血量、实体类型数量、最近事件），未知保留未知；单实体用game_call entities.get，必要时view=raw读取全部已观测快照", Parameters: yySchema(map[string]any{"view": str(), "entity_type": str(), "runtime_id": str()})},
 		{Name: "packet_schema", Description: "按 name 查询单个真实包的字段及玩法；省略 name 列简短包目录，可用 query 筛选", Parameters: yySchema(map[string]any{"name": str(), "query": str()})},
 		{Name: "skill_search", Description: "在已选离线技能中搜索功能或方法，返回章节和匹配行；再 load_skill 读取相关章节", Parameters: yySchema(map[string]any{"query": str()}, "query")},
 		{Name: "terminal_log", Description: "查看最近的游戏连接、插件状态和任务终端事件", Parameters: yySchema(map[string]any{"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200}})},
@@ -365,7 +368,7 @@ func yyAgentToolDefs() []ToolDef {
 	}
 	for _, def := range aiToolDefsAll() {
 		switch def.Name {
-		case "api_call", "network_request", "game_call", "wait_chat", "listen_packet", "list_packets", "system_shell", "shizuku_status":
+		case "api_call", "network_request", "game_call", "wait_chat", "listen_packet", "list_packets", "call_plugin_function", "system_shell", "shizuku_status":
 			defs = append(defs, def)
 		}
 	}
@@ -382,6 +385,9 @@ func yyWorkspaceTool(ctx context.Context, ws *yyWorkspace, name string, args map
 	str := func(k string) string { return aiArgStr(args, k) }
 	switch name {
 	case "game_scene":
+		if str("view") != "raw" {
+			return mustJSON(yyObservationSummary(yyAccountBot("main"), yySummaryOptions{EntityType: str("entity_type"), RuntimeID: str("runtime_id")}, false)), false
+		}
 		return mustJSON(yySenseSnapshot(yyAccountBot("main"))), false
 	case "packet_schema":
 		if str("name") != "" {
@@ -972,7 +978,8 @@ func yyRunWorkspace(ws *yyWorkspace, modelName string) error {
 	ws.Model = modelName
 	ws.State = "运行中"
 	ws.Error = ""
-	ctx, cancel := context.WithCancel(context.Background())
+	budget := yyEffectiveRunBudget(ws.RunBudget)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(budget.MaxMinutes)*time.Minute)
 	ws.cancel = cancel
 	ws.eventLocked("status", "任务开始 / 继续")
 	if e := ws.saveLocked(); e != nil {
@@ -981,10 +988,16 @@ func yyRunWorkspace(ws *yyWorkspace, modelName string) error {
 		cancel()
 		return e
 	}
-	go func() { defer func() { <-yyAgentSlots }(); ws.run(ctx, model) }()
+	go func() { defer func() { <-yyAgentSlots }(); ws.run(ctx, model, budget) }()
 	return nil
 }
-func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
+func (ws *yyWorkspace) run(ctx context.Context, model *AIModel, activeBudget ...yyAgentRunBudget) {
+	ws.Lock()
+	budget := yyEffectiveRunBudget(ws.RunBudget)
+	ws.Unlock()
+	if len(activeBudget) > 0 {
+		budget = activeBudget[0]
+	}
 	endState, endError := "已完成", ""
 	defer func() {
 		if p := recover(); p != nil {
@@ -1000,9 +1013,16 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		ws.Unlock()
 	}()
 	toolCount, consecutiveFailures := 0, 0
-	for iter := 0; iter < 24; iter++ {
+	for iter := 0; ; iter++ {
+		if budget.roundsReached(iter) {
+			endState, endError = "等待继续", fmt.Sprintf("达到本次设置的%d轮预算；已保存检查点，可调整预算后继续", budget.MaxRounds)
+			return
+		}
 		if ctx.Err() != nil {
 			endState = "已暂停"
+			if ctx.Err() == context.DeadlineExceeded {
+				endState, endError = "等待继续", "达到本次设置的运行时间；已保存检查点，可以继续"
+			}
 			return
 		}
 		ws.Lock()
@@ -1010,6 +1030,9 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 			ws.Turns = append(ws.Turns, aiTurn{Role: "user", Text: message, Time: time.Now().Format(time.RFC3339Nano)})
 		}
 		ws.Pending = nil
+		if ws.SummaryUntil < 0 || ws.SummaryUntil > len(ws.Turns) {
+			ws.SummaryUntil = 0
+		}
 		turns := append([]aiTurn(nil), ws.Turns[ws.SummaryUntil:]...)
 		prompt := yyWorkspacePrompt(ws)
 		previousSummary := ws.Summary
@@ -1019,37 +1042,40 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		// 长上下文由当前模型生成摘要；原始 Turns 永久保留并能按关键词检索。
 		tools := yyWorkspaceToolDefs(ws)
 		messages := append([]aiTurn{{Role: "system", Text: prompt}}, turns...)
-		if yyEstimateContextTokens(messages, tools) >= model.compressionThreshold() && len(turns) > 2 {
+		requestEstimate := model.contextEstimate(messages, tools)
+		ws.Lock()
+		contextTokens, _ := ws.contextTokensLocked(model, requestEstimate)
+		ws.Unlock()
+		if contextTokens >= model.compressionThreshold() && len(turns) > 2 {
 			cut := len(turns) - 2
 			for cut > 1 && (len(turns[cut-1].ToolCalls) > 0 || len(turns[cut].ToolResults) > 0) {
 				cut--
 			}
 			if cut > 1 {
-				source, _ := json.Marshal(turns[:cut])
-				summaryModel := *model
-				if summaryModel.outputBudget() > 2048 {
-					summaryModel.MaxOutputTokens = 2048
-				}
-				summaryLimit := summaryModel.contextWindow() - summaryModel.outputBudget() - 1024
-				if summaryLimit > 14000 {
-					summaryLimit = 14000
-				}
-				summary, e := summaryModel.complete(ctx, []aiTurn{{Role: "system", Text: "请压缩任务上下文，保留目标、已修改文件、工具真实结果、错误、未完成步骤和用户约束。不编造。精简只返回摘要。"}, {Role: "user", Text: yyAgentBoundText(previousSummary+"\n"+string(source), summaryLimit)}}, nil, aiStreamHooks{})
+				summary, e := ws.summarizeHistory(ctx, model, previousSummary, turns[:cut])
 				if e == nil {
 					ws.Lock()
-					ws.addUsageLocked(summary, model)
-					ws.Summary = summary.Text
+					ws.Summary = summary
 					ws.SummaryUntil += cut
-					ws.eventLocked("summary", summary.Text)
+					// New context composition needs fresh provider usage. Keep the
+					// summary privately in task state, out of conversation events.
+					ws.ContextMeasurement = yyContextMeasurement{}
 					_ = ws.saveLocked()
 					ws.Unlock()
 					continue
 				}
 			}
 		}
-		if yyEstimateContextTokens(messages, tools)+model.outputBudget() >= model.contextWindow() {
+		requestModel := *model
+		availableOutput := model.contextWindow() - contextTokens - 512
+		if availableOutput < 256 {
 			endState, endError = "等待继续", "当前消息或工具文档超出模型上下文预算，请缩小输入或调整该模型容量；原始任务已保存"
 			return
+		}
+		// Output reservation must not silently lower an 80% compression
+		// threshold. Fit this request's output into the remaining capacity.
+		if availableOutput < requestModel.outputBudget() {
+			requestModel.MaxOutputTokens = availableOutput
 		}
 		buffers := map[string]string{}
 		lastFlush := time.Now()
@@ -1068,11 +1094,14 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 				flush()
 			}
 		}
-		turn, e := model.complete(ctx, messages, tools, aiStreamHooks{onChunk: func(text string) { stream("chunk", text) }, onThinking: func(text string) { stream("thinking", text) }, onUsage: func(in, out int) { ws.event("usage", fmt.Sprintf("输入 %d / 输出 %d", in, out)) }})
+		turn, e := requestModel.complete(ctx, messages, tools, aiStreamHooks{onChunk: func(text string) { stream("chunk", text) }, onThinking: func(text string) { stream("thinking", text) }, onUsage: func(in, out int) { ws.event("usage", fmt.Sprintf("输入 %d / 输出 %d", in, out)) }})
 		flush()
 		if e != nil {
 			if ctx.Err() != nil {
 				endState = "已暂停"
+				if ctx.Err() == context.DeadlineExceeded {
+					endState, endError = "等待继续", "达到本次设置的运行时间；已保存检查点，可以继续"
+				}
 			} else {
 				endState = "出错"
 				endError = e.Error()
@@ -1081,12 +1110,17 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		}
 		ws.Lock()
 		ws.addUsageLocked(turn, model)
+		ws.recordContextLocked(model, requestEstimate, turn.InputTokens)
 		turn.Time = time.Now().Format(time.RFC3339Nano)
 		ws.Turns = append(ws.Turns, turn)
 		ws.eventLocked("assistant", turn.Text)
 		_ = ws.saveLocked()
 		ws.Unlock()
 		if len(turn.ToolCalls) == 0 {
+			if turn.FinishReason == "length" || turn.FinishReason == "max_tokens" {
+				endState, endError = "等待继续", "模型达到单次输出上限；任务、源码和原始历史已保存，可继续，尚未标记完成"
+				return
+			}
 			ws.Lock()
 			hasPending := len(ws.Pending) > 0
 			ws.Unlock()
@@ -1103,7 +1137,7 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		ws.Unlock()
 		budgetReached := false
 		for _, call := range turn.ToolCalls {
-			if toolCount >= 32 || consecutiveFailures >= 3 {
+			if budget.toolsReached(toolCount) {
 				results = append(results, aiToolResult{ID: call.ID, Content: "工具调用预算达到上限，本次未执行。任务已保存，玩家可以继续或缩小任务。", IsError: true})
 				budgetReached = true
 				continue
@@ -1120,6 +1154,9 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 			toolCount++
 			if isErr {
 				consecutiveFailures++
+				if consecutiveFailures == 3 {
+					ws.event("diagnostic", "连续3次工具失败，错误已交给模型；任务继续判断替代办法，不自动重放结果不明的写操作。")
+				}
 			} else {
 				consecutiveFailures = 0
 			}
@@ -1134,18 +1171,12 @@ func (ws *yyWorkspace) run(ctx context.Context, model *AIModel) {
 		ws.Turns[resultTurn].ToolResults = results
 		_ = ws.saveLocked()
 		ws.Unlock()
-		if budgetReached || consecutiveFailures >= 3 {
+		if budgetReached {
 			endState = "等待继续"
-			if consecutiveFailures >= 3 {
-				endError = fmt.Sprintf("连续%d次工具失败；已保存任务，请查看最后工具错误后继续", consecutiveFailures)
-			} else {
-				endError = fmt.Sprintf("本次已调用%d个工具，达到任务检查点；已保存进度，继续任务不会重建项目", toolCount)
-			}
+			endError = fmt.Sprintf("本次已请求%d个工具，达到用户设置的预算；已保存检查点，继续任务不会重建项目", toolCount)
 			return
 		}
 	}
-	endState = "等待继续"
-	endError = "已执行 24 轮模型请求；任务已保存，可继续"
 }
 func yyWorkspaceView(ws *yyWorkspace) map[string]any {
 	return yyWorkspaceViewMode(ws, false, 0)
@@ -1165,7 +1196,8 @@ func yyWorkspaceViewMode(ws *yyWorkspace, compact bool, after int) map[string]an
 		}
 		messages := append([]aiTurn{{Role: "system", Text: yyWorkspacePrompt(ws)}}, yyAgentContextTurns(ws.Turns[start:])...)
 		copy := &yyWorkspace{Language: ws.Language, AllowedTools: ws.AllowedTools}
-		contextInfo = map[string]any{"estimated_tokens": yyEstimateContextTokens(messages, yyWorkspaceToolDefs(copy)), "window": model.contextWindow(), "compression_threshold": model.compressionThreshold(), "output_reserved": model.outputBudget(), "estimate": true}
+		count, source := ws.contextTokensLocked(model, model.contextEstimate(messages, yyWorkspaceToolDefs(copy)))
+		contextInfo = map[string]any{"estimated_tokens": count, "window": model.contextWindow(), "compression_threshold": model.compressionThreshold(), "output_reserved": model.outputBudget(), "estimate": true, "source": source, "last_provider_input_tokens": ws.ContextMeasurement.InputTokens}
 	}
 	turns := append([]aiTurn(nil), ws.Turns...)
 	events := append([]yyAgentEvent(nil), ws.Events...)
@@ -1193,6 +1225,7 @@ func (ws *yyWorkspace) addUsageLocked(turn aiTurn, model *AIModel) {
 	ws.EstimatedCost += float64(turn.InputTokens)*model.InputPricePerMillion/1e6 + float64(turn.OutputTokens)*model.OutputPricePerMillion/1e6
 }
 func yyAgentRoutes(mux *http.ServeMux, dataDir string) {
+	yyAgentBudgetRoutes(mux)
 	yyAgentRoot = filepath.Join(dataDir, "插件数据文件", "ds_ai_agent", "workspaces")
 	yyAgentForkRoutes(mux)
 	yyAgentSessionRoutes(mux)
@@ -1389,7 +1422,14 @@ func yyAgentRoutes(mux *http.ServeMux, dataDir string) {
 			return
 		}
 		if !yyAgentAllowed(ws, p.Tool) {
-			writeJSON(w, map[string]any{"ok": false, "error": "玩家已关闭工具 " + p.Tool})
+			message := "工作区工具未注册 " + p.Tool
+			for _, def := range yyAgentToolDefs() {
+				if def.Name == p.Tool {
+					message = "玩家已关闭工具 " + p.Tool
+					break
+				}
+			}
+			writeJSON(w, map[string]any{"ok": false, "error": message})
 			return
 		}
 		result, isErr := yyWorkspaceTool(r.Context(), ws, p.Tool, p.Args)
@@ -1614,7 +1654,7 @@ func yyAgentRoutes(mux *http.ServeMux, dataDir string) {
 			var value any
 			e = json.Unmarshal([]byte(p.Content), &value)
 		case ".lua":
-			l := lua.NewState()
+			l := newYYLuaVM()
 			_, e = l.Load(strings.NewReader(p.Content), p.Path)
 			l.Close()
 		case ".txt", ".mcfunction":

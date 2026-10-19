@@ -1,3 +1,5 @@
+//go:build !js && !youyuan_manual_captcha
+
 package com4399
 
 import (

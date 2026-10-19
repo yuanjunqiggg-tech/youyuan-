@@ -22,6 +22,7 @@ type luaBotCtx struct {
 	main   *BotManager        // 默认主机器人
 	active *BotManager        // 当前活跃机器人（bot.select 可切换）
 	cancel context.CancelFunc // 执行超时定时器的取消函数（cancelLuaCtx 调用）
+	parent context.Context    // plugin lifetime; background jobs must survive a handler returning
 }
 
 // setLuaBotCtx 在 LState 上记录主机器人并置 active=main，同时挂上执行超时。
@@ -30,7 +31,7 @@ func setLuaBotCtx(L *lua.LState, main *BotManager) {
 }
 func setLuaBotCtxParent(L *lua.LState, main *BotManager, parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, luaExecTimeout)
-	L.SetContext(context.WithValue(ctx, luaBotCtxKey{}, &luaBotCtx{main: main, active: main, cancel: cancel}))
+	L.SetContext(context.WithValue(ctx, luaBotCtxKey{}, &luaBotCtx{main: main, active: main, cancel: cancel, parent: parent}))
 }
 
 // cancelLuaCtx 取消 LState 的执行超时定时器。状态关闭前调用，避免定时器残留到超时点。

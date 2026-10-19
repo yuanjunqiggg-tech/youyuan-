@@ -10,6 +10,28 @@ import (
 	"time"
 )
 
+func TestPythonObservationNamespaceInjectedBeforeSourceRuns(t *testing.T) {
+	if os.Getenv("YY_PYTHON") == "" {
+		t.Skip("设置 YY_PYTHON 以执行真实解释器检查")
+	}
+	root := t.TempDir()
+	entry := filepath.Join(root, "main.py")
+	source := "assert observerBridge is host.observerBridge\nassert accountsPool is host.accountsPool\ndef on_init(host):\n assert callable(observerBridge.watchStatus)\n assert callable(accountsPool.handoff)\n"
+	if err := os.WriteFile(entry, []byte(source), 0644); err != nil {
+		t.Fatal(err)
+	}
+	key := "main:observation-namespace-test"
+	start, err := yyPythonRuntime("start", map[string]any{"key": key, "account": "main", "entry": entry, "data_dir": filepath.Join(root, "data")})
+	if err != nil {
+		t.Fatal(start, err)
+	}
+	defer yyPythonRuntime("stop", map[string]any{"key": key})
+	var result map[string]any
+	if err := json.Unmarshal([]byte(start), &result); err != nil || result["ok"] != true {
+		t.Fatal("Python源码加载前未注入观察命名空间", start, err)
+	}
+}
+
 func TestYouYuanPythonGameEventDispatch(t *testing.T) {
 	if os.Getenv("YY_PYTHON") == "" {
 		t.Skip("设置 YY_PYTHON 以执行真实解释器检查")

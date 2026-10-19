@@ -1,19 +1,30 @@
+import {poolActor,encodePoolActor,signPoolActor,sharedPoolAllowed} from './pool-identity.mjs';
+import {isPrivateDistributionPath} from './private-distribution.mjs';
 import {updateRoute} from './updates.mjs';
 import {identityHandle,identityResolve,identityRoute} from './identity.mjs';
 import {readPacketAllowed,readTools} from './mcp-link-policy.mjs';
 import {oauthHandle,oauthRoute,oauthResolve,mcpChallenge} from './oauth.mjs';
+import {publicDiscoveryMethods,discoveryResponse,toolAuthRequired,oauthToolMetadata} from './mcp-discovery.mjs';
 // 自有域名中继。设备主动连接，所有请求仍由游园执行端真实执行。
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if(isPrivateDistributionPath(url.pathname))return new Response("Not found",{status:404,headers:{"Cache-Control":"no-store"}});
     const update=await updateRoute(request,env);if(update)return update;
     const oauthResponse=await oauthRoute(request,env);if(oauthResponse)return oauthResponse;
     if(url.pathname.startsWith('/api/identity/'))return identityRoute(request,env);
+    // The registration mail bridge is called only internally by identity DO.
+    if(url.pathname==='/api/youyuan/mail/send')return Response.json({ok:false,error:'内部邮件接口'},{status:404});
     let rawToken=(request.headers.get('Authorization')||'').replace(/^Bearer /,''),linkGrant=null,linkPacket=null;
     const oauthEndpoint=url.pathname.match(/^\/mcp\/oauth\/([A-Za-z0-9_-]{1,48})\/?$/);
     if(oauthEndpoint){
+      if(request.method==='POST'){try{linkPacket=await request.clone().json()}catch{return Response.json({error:'JSON无效'},{status:400})}}
+      // Discovery can precede linking in ChatGPT. Only shared Linux definitions
+      // are public; resources, status, projects and every tool remain protected.
+      if(!rawToken&&oauthEndpoint[1]==='linux-server'&&linkPacket&&publicDiscoveryMethods.has(linkPacket.method))return discoveryResponse(request,env,'linux-server',linkPacket);
       linkGrant=await oauthResolve(env,rawToken,url.origin+'/mcp/oauth/'+oauthEndpoint[1]);
-      if(!linkGrant)return mcpChallenge(request);
+      if(!linkGrant)return linkPacket?.method==='tools/call'?toolAuthRequired(request,linkPacket,readTools.has(linkPacket.params?.name)?'mcp:read':'mcp:control'):mcpChallenge(request);
+      if(linkGrant.scope==='read'&&linkPacket&&!readPacketAllowed(linkPacket))return linkPacket.method==='tools/call'?toolAuthRequired(request,linkPacket,'mcp:control','insufficient_scope'):Response.json({jsonrpc:'2.0',id:linkPacket.id??null,error:{code:-32003,message:'此授权仅可查询状态与开发文档'}},{status:200});
       url.pathname='/mcp/';url.search='';url.searchParams.set('device',linkGrant.device);
       const headers=new Headers(request.headers);headers.delete('X-YouYuan-Device');
       request=new Request(url,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,duplex:'half'});
@@ -79,12 +90,15 @@ export default {
     const expected = 'Bearer ' + (device ? env.DEVICE_TOKEN : env.CONSOLE_TOKEN);
     const library = url.pathname.startsWith('/api/library/');
     const libraryDevice = library && env.DEVICE_TOKEN && supplied==='Bearer '+env.DEVICE_TOKEN;
-    if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) return url.pathname.startsWith('/mcp')?mcpChallenge(request):Response.json({error:'中继密钥不正确'},{status:401});
+    if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) {
+      if(url.pathname.startsWith('/mcp'))return mcpChallenge(request);
+      return Response.json(url.pathname.startsWith('/api/')||url.pathname==='/health'?{ok:false,error:'登录状态已失效，请重新登录',code:'AUTH_REQUIRED'}:{error:'中继密钥不正确'},{status:401});
+    }
     if(url.pathname==='/api/game-auth/accounts'){
       if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
       const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
     }
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.15',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'默认 Linux；高频读写由 Linux 直连处理；Cloudflare 保留授权与兼容中继',user:identity?.user||null});
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.74',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'Linux执行；网页通过授权中继访问，管理员直连按已验证的部署配置启用',linux_transport:env.LINUX_DIRECT_MODE==='relay'?'relay':'owner_direct_available',user:identity?.user||(isOwner?{username:'项目管理员',role:'admin',cloud_allowed:true,legacy_owner:true,assigned_devices:['linux-server']}:null)});
     const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || (isOwner||identity?.user?.legacy_owner?'linux-server':'primary-device');
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     // Assigned control permission cannot replace the shared node connection.
@@ -93,6 +107,19 @@ export default {
     const relay = env.RELAY.get(env.RELAY.idFromName(deviceId));
     if(url.pathname==='/api/cloud/linux-direct'){
       if(request.method!=='GET')return Response.json({ok:false},{status:405});
+      // The direct gateway accepts the console key or an owner login session.
+      // resolve(session) also accepts personal control keys, which /identity/me
+      // intentionally does not. Keep those and shared subscribers on the relay
+      // so its validated tenant actor and assigned-device policy stay in force.
+      let directOwner=!!env.CONSOLE_TOKEN&&rawToken===env.CONSOLE_TOKEN;
+      if(!directOwner&&identity?.user?.legacy_owner){
+        try{
+          const session=await identityRoute(new Request(url.origin+'/api/identity/me',{headers:{Authorization:'Bearer '+rawToken}}),env);
+          const account=session.ok?await session.json():null;
+          directOwner=!!(account?.ok&&account.user?.legacy_owner&&account.user?.cloud_allowed&&account.user?.id&&account.user.id===identity.user.id);
+        }catch{/* A failed session check leaves authenticated relay available. */}
+      }
+      if(!directOwner||env.LINUX_DIRECT_MODE==='relay')return Response.json({ok:true,use_relay:true,device:requestedDevice},{headers:{'Cache-Control':'no-store'}});
       const probe=await relay.fetch(new Request(url.origin+'/health'));
       if(!probe.ok)return Response.json({ok:false,error:'Linux执行端未连接'},{status:503});
       const info=await probe.json(),origin=String(info.linux_direct_url||'');
@@ -100,12 +127,25 @@ export default {
       return Response.json({ok:true,origin,device:requestedDevice},{headers:{'Cache-Control':'no-store'}});
     }
     if (qqCallback) {const account=legacyAccount?.[1]||qqMatch?.[3];url.pathname=account&&account!=='main'?'/api/youyuan/accounts/invoke/'+account+'/api/qq/webhook':'/api/qq/webhook';request=new Request(url,request);}
+    const actor=poolActor(identity,isOwner,isLegacyDevice);
+    if(assigned&&actor&&!actor.admin&&!qqCallback){
+      let packet=linkPacket;
+      if(!packet&&url.pathname.startsWith('/mcp')&&request.method==='POST'){try{packet=await request.clone().json()}catch{return Response.json({error:'JSON无效'},{status:400})}}
+      if(!sharedPoolAllowed(url.pathname,request.method,packet))return Response.json({ok:false,error:'共享Linux节点只允许管理自己的机器人账号池；主机器人仅限管理员'},{status:403});
+    }
+    const actorHeaders=new Headers(request.headers);
+    for(const k of ['X-YouYuan-Actor','X-YouYuan-Actor-Signature','X-YouYuan-Pool-Source','X-YouYuan-Pool-Secret'])actorHeaders.delete(k);
+    if(actor&&!device&&!qqCallback)actorHeaders.set('X-YouYuan-Actor',encodePoolActor(actor));
+    request=new Request(request,{headers:actorHeaders});
     const response=await relay.fetch(request);
-    if(linkPacket?.method==='tools/list'&&response.ok){const result=await response.json();if(result.result?.tools){if(linkGrant.scope==='read')result.result.tools=result.result.tools.filter(t=>readTools.has(t.name));if(linkGrant.oauth)result.result.tools=result.result.tools.map(t=>({...t,securitySchemes:[{type:'oauth2',scopes:linkGrant.scope==='control'?['mcp:control']:['mcp:read']}]}));}return Response.json(result,{status:response.status})}
+    if(linkPacket?.method==='tools/list'&&response.ok){const result=await response.json();if(result.result?.tools){if(linkGrant.scope==='read')result.result.tools=result.result.tools.filter(t=>readTools.has(t.name));if(linkGrant.oauth)result.result.tools=result.result.tools.map(oauthToolMetadata);}return Response.json(result,{status:response.status})}
     return response;
   }
 };
 
+export function relayFailure(message,status,traceId,sent=false,readOnly=false){
+ return Response.json({ok:false,error:message,error_code:sent?'execution_result_unknown':'not_sent',trace_id:traceId,submitted:sent,confirmed:false,retryable:!sent||readOnly,auto_retried:false,outcome:sent?(readOnly?'read_interrupted':'write_result_unknown'):'not_sent'}, {status});
+}
 export class YouYuanRelay {
   constructor(ctx, env) {
     this.ctx=ctx;this.env=env;this.socket=ctx.getWebSockets?.()[0] || null;this.pending=new Map();
@@ -126,9 +166,12 @@ export class YouYuanRelay {
       // Pending writes are reported as unknown and never automatically replayed.
       if(this.socket){const old=this.socket;this.webSocketClose(old);try{old.close(1012,'device reconnected')}catch{}}
       const pair=new WebSocketPair();const [client,server]=Object.values(pair);this.ctx.acceptWebSocket(server,['device']);this.socket=server;
+      const secret=[...crypto.getRandomValues(new Uint8Array(32))].map(x=>x.toString(16).padStart(2,'0')).join('');
+      server.serializeAttachment({pool_secret:secret});server.send(JSON.stringify({kind:'pool_hello',secret}));
       return new Response(null,{status:101,webSocket:client});
     }
-    if(!this.socket||this.socket.readyState!==1)return Response.json({error:'游园执行端未连接'},{status:503});
+    const id=crypto.randomUUID();
+    if(!this.socket||this.socket.readyState!==1)return relayFailure('游园执行端未连接',503,id);
     // JSON MCP 与普通 API 转发；APK 内导入不受云端传输体积影响。
     if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/mcp')&&url.pathname!=='/health')return Response.json({error:'路径不可转发'},{status:404});
     if(this.pending.size>=64)return Response.json({error:'该设备待处理请求过多，请稍后重试'},{status:429,headers:{'Retry-After':'2'}});
@@ -137,12 +180,15 @@ export class YouYuanRelay {
     // Body reads can interleave; recheck immediately before reserving an entry.
     if(this.pending.size>=64)return Response.json({error:'该设备待处理请求过多，请稍后重试'},{status:429,headers:{'Retry-After':'2'}});
     const binary=new Uint8Array(body),chunks=[];for(let offset=0;offset<binary.length;offset+=32768)chunks.push(String.fromCharCode(...binary.subarray(offset,offset+32768)));const bytes=chunks.join('');
-    const id=crypto.randomUUID();
+    const actor=request.headers.get('X-YouYuan-Actor')||'';
+    let actorSignature='';if(actor){try{actorSignature=await signPoolActor(actor,this.socket.deserializeAttachment()?.pool_secret)}catch{return Response.json({error:'请重连执行端以建立账号池身份会话'},{status:503})}}
+    let readOnly=request.method==='GET';
+    if(url.pathname.startsWith('/mcp')){try{const rpc=JSON.parse(new TextDecoder().decode(binary));readOnly=['initialize','ping','tools/list','resources/list','resources/templates/list','resources/read'].includes(rpc.method)||(rpc.method==='tools/call'&&(rpc.params?.arguments?.method??'GET')==='GET');}catch{}}
     return new Promise(resolve=>{
-      const timer=setTimeout(()=>{this.pending.delete(id);resolve(Response.json({error:'执行端响应超时；结果可能未知，请查询日志'},{status:504}));},150000);
-      this.pending.set(id,{resolve,timer});
-      try{this.socket.send(JSON.stringify({id,method:request.method,path:url.pathname+url.search,body:btoa(bytes),headers:{'Content-Type':request.headers.get('Content-Type')??'application/json','X-YouYuan-Market-Authorization':url.pathname.includes('market-proxy')?(request.headers.get('X-YouYuan-Market-Authorization')??''):'','Accept':request.headers.get('Accept')??'application/json','MCP-Protocol-Version':request.headers.get('MCP-Protocol-Version')??'','X-Signature-Ed25519':request.headers.get('X-Signature-Ed25519')??'','X-Signature-Timestamp':request.headers.get('X-Signature-Timestamp')??'','X-Bot-Appid':request.headers.get('X-Bot-Appid')??''}}));}
-      catch(error){clearTimeout(timer);this.pending.delete(id);resolve(Response.json({error:'执行端连接失效'},{status:503}));}
+      const timer=setTimeout(()=>{this.pending.delete(id);resolve(relayFailure('执行端响应超时；结果可能未知，请查询日志',504,id,true,readOnly));},150000);
+      this.pending.set(id,{resolve,timer,id,readOnly});
+      try{this.socket.send(JSON.stringify({id,method:request.method,path:url.pathname+url.search,body:btoa(bytes),headers:{'X-YouYuan-Trace-ID':id,'X-YouYuan-Actor':actor,'X-YouYuan-Actor-Signature':actorSignature,'Content-Type':request.headers.get('Content-Type')??'application/json','X-YouYuan-Mail-Timestamp':url.pathname==='/api/youyuan/mail/send'?(request.headers.get('X-YouYuan-Mail-Timestamp')??''):'','X-YouYuan-Mail-Signature':url.pathname==='/api/youyuan/mail/send'?(request.headers.get('X-YouYuan-Mail-Signature')??''):'','X-YouYuan-Market-Authorization':url.pathname.includes('market-proxy')?(request.headers.get('X-YouYuan-Market-Authorization')??''):'','X-Youyuan-Observer-Token':url.pathname.endsWith('/api/youyuan/observer/ingest')?(request.headers.get('X-Youyuan-Observer-Token')??''):'','Accept':request.headers.get('Accept')??'application/json','MCP-Protocol-Version':request.headers.get('MCP-Protocol-Version')??'','X-Signature-Ed25519':request.headers.get('X-Signature-Ed25519')??'','X-Signature-Timestamp':request.headers.get('X-Signature-Timestamp')??'','X-Bot-Appid':request.headers.get('X-Bot-Appid')??''}}));}
+      catch(error){clearTimeout(timer);this.pending.delete(id);resolve(relayFailure('执行端连接失效',503,id,false,readOnly));}
     });
   }
   // 自建资料库实际写入 Durable Objects 持久存储，与原作者市场无关。
@@ -183,7 +229,8 @@ export class YouYuanRelay {
   }
   webSocketClose(socket) {
     if(socket!==this.socket)return;this.socket=null;
-    for(const waiter of this.pending.values()){clearTimeout(waiter.timer);waiter.resolve(Response.json({error:'APK 执行端离线，写操作未重试'},{status:503}));}this.pending.clear();
+    for(const waiter of this.pending.values()){clearTimeout(waiter.timer);waiter.resolve(relayFailure('APK 执行端离线，写操作未重试',503,waiter.id,true,waiter.readOnly));}this.pending.clear();
   }
   webSocketError(socket) {this.webSocketClose(socket);}
 }
+

@@ -14,8 +14,8 @@ window.EventSource=function(){
  self.close=function(){self.closed=true;clearTimeout(self.timer)};
  async function poll(){if(self.closed)return;if(self.account!==yyActiveAccount){self.account=yyActiveAccount;self.cursor=0;opened=false}
   var account=self.account;try{var r=await fetch('/api/youyuan/events?after='+self.cursor),data=await r.json();if(account!==yyActiveAccount){self.timer=setTimeout(poll,100);return}if(!r.ok||!data.ok)throw Error(data.error||'内核尚未上线');
-   failures=0;if(!opened){opened=true;self.cursor=data.cursor||0;if(self.onopen)self.onopen({})}
-   else (data.events||[]).forEach(function(event){self.cursor=Math.max(self.cursor,event.seq);var message={data:typeof event.data==='string'?event.data:JSON.stringify(event.data)};(self.listeners[event.type]||[]).forEach(function(cb){cb(message)})});
-  }catch(error){failures++;if(self.onerror)self.onerror(error)}self.timer=setTimeout(poll,failures?Math.min(60000,1500*Math.pow(2,Math.min(failures,6))):document.hidden?10000:1500)
+   if(self.closed)return;failures=0;if(!opened){opened=true;self.cursor=data.cursor||0;if(self.onopen)self.onopen({})}
+   else (data.events||[]).forEach(function(event){if(self.closed||event.seq<=self.cursor)return;self.cursor=event.seq;var message={data:typeof event.data==='string'?event.data:JSON.stringify(event.data)};(self.listeners[event.type]||[]).forEach(function(cb){cb(message)})});
+  }catch(error){if(self.closed)return;failures++;if(self.onerror)self.onerror(error)}if(!self.closed)self.timer=setTimeout(poll,failures?Math.min(60000,1500*Math.pow(2,Math.min(failures,6))):document.hidden?10000:1500)
  }self.timer=setTimeout(poll,100)
 };

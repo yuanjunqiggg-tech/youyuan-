@@ -49,6 +49,11 @@ func readPluginDocs(dir, id string) string {
 // 可选元数据：<id>.manifest.json（name/version/description/type/author）、<id>.docs.md（Docs）。
 // Load 闭包在 Run 时从磁盘读取代码并注册触发项（以 id 归属）。
 func BuildDefFromFile(path string) (*PluginDef, error) {
+	var err error
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 	ext := filepath.Ext(base)
@@ -94,6 +99,8 @@ func BuildDefFromFile(path string) (*PluginDef, error) {
 		Description: desc,
 		Docs:        docs,
 		PrePlugins:  prePlugins,
+		SourceDir:   dir,
+		SourceFile:  codePath,
 		Load: func(bm *BotManager) error {
 			if typ == "wordbank" {
 				data, err := os.ReadFile(codePath)
@@ -114,7 +121,7 @@ func BuildDefFromFile(path string) (*PluginDef, error) {
 			if err != nil {
 				return err
 			}
-			return LoadLuaPlugin(bm, loadID, string(src))
+			return LoadLuaPlugin(bm, loadID, string(src), dir)
 		},
 	}, nil
 }

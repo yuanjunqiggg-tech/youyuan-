@@ -3,6 +3,7 @@ package nethernet
 import (
 	"fmt"
 	"io"
+	"net"
 )
 
 // message represents the structure of remote messages sent in ReliableDataChannel.
@@ -40,7 +41,12 @@ func (c *Conn) handleMessage(b []byte) error {
 		return nil
 	}
 
-	c.packets <- c.message.data
-	c.message.data = nil
-	return nil
+	select {
+	case <-c.closed:
+		c.message.data = nil
+		return net.ErrClosed
+	case c.packets <- c.message.data:
+		c.message.data = nil
+		return nil
+	}
 }

@@ -9,7 +9,7 @@
   var usage=yyRenderAgentUsage;
   yyRenderAgentUsage=function(ws){
     usage(ws);var el=document.getElementById('yy-agent-usage'),c=ws&&ws.context;
-    if(el&&c&&c.window)el.textContent+=' · 上下文估算 '+c.estimated_tokens+' / '+c.window+' · 压缩阈值 '+c.compression_threshold+' · 输出预留 '+c.output_reserved;
+    if(el&&c&&c.window)el.textContent+=' · '+(c.source==='provider_usage_calibrated_estimate'?'上下文校准估算 ':'上下文估算 ')+c.estimated_tokens+' / '+c.window+' · '+Math.round(100*c.compression_threshold/c.window)+'% 压缩阈值 '+c.compression_threshold;
   };
   window.yyPluginCommandSettings=async function(){
     var id=yyWorkspaceActive.id;

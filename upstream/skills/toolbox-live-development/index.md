@@ -136,3 +136,6 @@ AI工作区附件入口在对话输入区，ZIP保留目录结构，长粘贴保
 快速接口无默认CPS等待，不逐条等待回包。`sendCommandsFast` 的 options 使用 channel/rate_cps；显式settings/pyrpc transport须用executeBatch的submit，不会静默忽略。新建TXT编辑页默认fast，已有文件保留原执行方式。fast窗口参数不控制TXT总长，界面隐藏无效窗口设置。fast统计的submitted是宿主接收量，executed是尝试节点量，cycles是已处理文件轮次，`results_confirmed=false`，不是服务器执行证明；管理页显示提交结束而非保证游戏成功。断线停止新发送，不自动重发。
 
 最终APK实际25条有顺序依赖命令×60轮，20Hz约3.08秒、40Hz约1.55秒，计分正确。3000×60@40Hz提交约12.86秒但服务端断线，重连仅确认17764分，不算通过，不用18万提交数计算执行吞吐。单次一万条通过不代表连续大链稳定，也不保证同一服务器Tick。
+
+## 0.10.35 可选观察与事件
+宿主统一events.on/catalog/onObservedAction/define与observerBridge.patrolStart/Status/Stop见各语言observation-patrol.md；默认不运行轮巡。账号池invoke可以给各独立机器人选择单玩家跟随；所有事件保留范围/来源，不能把受伤模拟为空挥。账号界面新增查看和复制令牌。

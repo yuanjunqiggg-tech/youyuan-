@@ -17,15 +17,18 @@ import (
 )
 
 type yyManagedAccount struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Token     string `json:"token,omitempty"`
-	AuthURL   string `json:"auth_url"`
-	Server    string `json:"server"`
-	Password  string `json:"password,omitempty"`
-	Enabled   bool   `json:"enabled"`
-	KeepAlive bool   `json:"keep_alive"`
-	Slot      int    `json:"slot"`
+	ID            string `json:"id"`
+	OwnerID       string `json:"owner_id,omitempty"`
+	Name          string `json:"name"`
+	Token         string `json:"token,omitempty"`
+	AuthURL       string `json:"auth_url"`
+	Server        string `json:"server"`
+	Password      string `json:"password,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	KeepAlive     bool   `json:"keep_alive"`
+	Slot          int    `json:"slot"`
+	SharedCapture bool   `json:"shared_capture"`
+	CaptureOnly   bool   `json:"capture_only"`
 }
 
 var yyAccounts = struct {
@@ -137,7 +140,10 @@ func yyWriteChildConfig(a yyManagedAccount, auto bool) error {
 	if e := os.WriteFile(filepath.Join(dir, "parent-port"), []byte(yyCorePort), 0600); e != nil {
 		return e
 	}
-	cfg := config.AppConfig{Token: a.Token, AuthURL: a.AuthURL, ServerCode: a.Server, ServerPass: a.Password, ImportSpeed: 10000, ExportSpeed: 10000, AutoConnect: auto, AutoReconnect: a.KeepAlive, ReconnectSeconds: 10, ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, MediaDisplay: "actionbar", MediaTarget: "@a"}
+	if e := yyPoolWriteChildIdentity(a, dir); e != nil {
+		return e
+	}
+	cfg := config.AppConfig{Token: a.Token, AuthURL: a.AuthURL, ServerCode: a.Server, ServerPass: a.Password, ImportSpeed: 10000, ExportSpeed: 10000, AutoConnect: auto, AutoReconnect: a.KeepAlive, ReconnectSeconds: 10, AutoCreative: true, ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, MediaDisplay: "actionbar", MediaTarget: "@a"}
 	path := filepath.Join(dir, "config.json")
 	if old, e := os.ReadFile(path); e == nil {
 		_ = json.Unmarshal(old, &cfg)
@@ -147,6 +153,14 @@ func yyWriteChildConfig(a yyManagedAccount, auto bool) error {
 		cfg.ServerPass = a.Password
 		cfg.AutoConnect = auto
 		cfg.AutoReconnect = a.KeepAlive
+	}
+	if a.CaptureOnly {
+		cfg.AutoCreative = false
+	}
+	if a.CaptureOnly {
+		_ = os.WriteFile(filepath.Join(dir, "capture-only"), []byte("1"), 0600)
+	} else {
+		_ = os.Remove(filepath.Join(dir, "capture-only"))
 	}
 	data, _ := json.MarshalIndent(cfg, "", "  ")
 	if e := os.WriteFile(path+".tmp", data, 0600); e != nil {
@@ -166,15 +180,49 @@ func yyStartManaged(a yyManagedAccount, auto bool) error {
 	}
 	return yyAccountProcessStart(a.Slot, a.ID, yyAccountDir(a.ID))
 }
-func yyAccountSummary(a yyManagedAccount) map[string]any {
+func yyAccountIdentitySummary(a yyManagedAccount) map[string]any {
 	item := map[string]any{"id": a.ID, "name": a.Name, "auth_url": a.AuthURL, "server": a.Server, "enabled": a.Enabled, "keep_alive": a.KeepAlive, "has_token": a.Token != "", "has_password": a.Password != "", "engine_ready": false, "connected": false, "plugins": []any{}, "online": nil}
+	item["owner_id"] = yyPoolOwner(a)
+	item["capture_only"], item["shared_capture"] = a.CaptureOnly, a.SharedCapture
+	item["fleet_ready"] = false
+	item["credential_state"] = "missing"
+	item["phase"] = "credential_missing"
+	item["launcher_registration_known"] = false
+	if a.Token != "" {
+		item["credential_state"] = "stored_unverified"
+		item["phase"] = "credential_stored"
+	}
+	yyPool.Lock()
+	if lease, ok := yyPool.Leases[a.ID]; ok {
+		item["pool_binding"] = lease
+	}
+	yyPool.Unlock()
+	for key, value := range yyAccountProfileView(a.ID, a.Name) {
+		item[key] = value
+	}
+	item["connected"], item["engine_ready"] = nil, nil
+	item["telemetry_loaded"], item["connection_known"] = false, false
+	item["phase"] = "status_unknown"
+	return item
+}
+func yyAccountSummary(a yyManagedAccount) map[string]any {
+	item := yyAccountIdentitySummary(a)
+	item["telemetry_loaded"], item["connection_known"] = true, true
+	item["connected"], item["engine_ready"] = false, false
 	status, e := yyChildJSON(a, "GET", "/api/bot/status", nil)
 	if e != nil {
 		item["status"] = "内核未启动"
 		return item
 	}
 	item["engine_ready"] = true
+	item["phase"] = "engine_ready"
 	item["connected"] = status["connected"]
+	if status["connected"] == true {
+		item["phase"] = "connected"
+		item["fleet_ready"] = true
+		item["credential_state"] = "verified_for_current_server"
+		item["server_join_verified_for"] = a.Server
+	}
 	item["connection"] = status
 	if data, e := yyChildJSON(a, "GET", "/api/youyuan/observations", nil); e == nil {
 		item["online"] = data["online"]
@@ -206,6 +254,10 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 		}
 		if strings.HasPrefix(parts[1], "api/youyuan/accounts") {
 			http.Error(w, "不允许嵌套账号管理", 400)
+			return
+		}
+		if e := yyPoolInvocationAllowed(r, parts[0]); e != nil {
+			http.Error(w, e.Error(), 403)
 			return
 		}
 		if parts[0] == "main" {
@@ -255,26 +307,67 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 			writeJSON(w, map[string]any{"ok": false, "error": "账号管理在主控制端使用"})
 			return
 		}
+		actor, actorErr := yyPoolActorRequest(r)
+		// Local owner sessions remain compatible; cloud sessions must retain tenant identity.
+		if yyPoolHasActor(r) && actorErr != nil {
+			http.Error(w, actorErr.Error(), 403)
+			return
+		}
 		if r.Method == "GET" {
 			yyAccounts.Lock()
 			items := append([]yyManagedAccount(nil), yyAccounts.Items...)
 			yyAccounts.Unlock()
+			if yyPoolHasActor(r) && !actor.Admin {
+				filtered := []yyManagedAccount{}
+				for _, a := range items {
+					if yyPoolCanUse(actor, a) {
+						filtered = append(filtered, a)
+					}
+				}
+				items = filtered
+			}
 			summaries := make([]map[string]any, len(items))
 			var wg sync.WaitGroup
 			for i, a := range items {
 				wg.Add(1)
-				go func(i int, a yyManagedAccount) { defer wg.Done(); summaries[i] = yyAccountSummary(a) }(i, a)
+				go func(i int, a yyManagedAccount) {
+					defer wg.Done()
+					if r.URL.Query().Get("view") == "summary" {
+						summaries[i] = yyAccountIdentitySummary(a)
+					} else {
+						summaries[i] = yyAccountSummary(a)
+					}
+				}(i, a)
 			}
 			wg.Wait()
-			writeJSON(w, map[string]any{"ok": true, "accounts": summaries, "process_slots": yyAccountProcessSlots, "profiles_consume_slots": false, "main": map[string]any{"id": "main", "name": "主账号", "configured": config.ReloadConfig().Token != ""}})
+			mainConfig := config.ReloadConfig()
+			mainName := mainConfig.MainAccountName
+			if mainName == "" {
+				mainName = "主账号"
+			}
+			mainProfile := yyAccountProfileView("main", mainName)
+			mainProfile["configured"] = mainConfig.Token != ""
+			if yyPoolHasActor(r) && !actor.Admin && actor.ID != yyPoolBoundActor().ID {
+				mainProfile = nil
+			}
+			if mainProfile != nil {
+				for key, value := range yyMainGameIdentityView() {
+					mainProfile[key] = value
+				}
+			}
+			writeJSON(w, map[string]any{"ok": true, "accounts": summaries, "process_slots": yyAccountProcessSlots, "profiles_consume_slots": false, "main": mainProfile})
 			return
 		}
 		yyAccountMutationMu.Lock()
 		defer yyAccountMutationMu.Unlock()
 		var p struct {
-			Action  string           `json:"action"`
-			Account yyManagedAccount `json:"account"`
-			ID      string           `json:"id"`
+			Action       string           `json:"action"`
+			Account      yyManagedAccount `json:"account"`
+			ID           string           `json:"id"`
+			Name         string           `json:"name"`
+			Role         string           `json:"profile_role"`
+			Avatar       *string          `json:"avatar"`
+			DeferConnect bool             `json:"defer_connect"`
 		}
 		if e := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&p); e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
@@ -283,7 +376,46 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 		if p.ID == "" {
 			p.ID = p.Account.ID
 		}
-		if !yyManagedAccountID(p.ID) || p.ID == "main" {
+		if yyPoolHasActor(r) {
+			old, exists := yyManagedFind(p.ID)
+			if (p.ID == "main" && !actor.Admin && actor.ID != yyPoolBoundActor().ID) || (exists && !yyPoolCanUse(actor, old)) {
+				http.Error(w, "该机器人不在你的账号池中", 403)
+				return
+			}
+			if r.Method != "POST" || actor.Scope == "read" {
+				http.Error(w, "需要控制授权", 403)
+				return
+			}
+		}
+		if p.Action == "token" {
+			if r.Method != "POST" {
+				http.Error(w, "POST required", 405)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			if p.ID == "main" {
+				c := config.ReloadConfig()
+				writeJSON(w, map[string]any{"ok": true, "token": c.Token, "auth_url": c.AuthURL})
+				return
+			}
+			a, exists := yyManagedFind(p.ID)
+			if !exists {
+				writeJSON(w, map[string]any{"ok": false, "error": "账号不存在"})
+				return
+			}
+			writeJSON(w, map[string]any{"ok": true, "token": a.Token, "auth_url": a.AuthURL})
+			return
+		}
+		if p.Action == "profile" {
+			e := yySaveAccountProfile(p.ID, p.Name, p.Role, p.Avatar)
+			if e != nil {
+				writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
+				return
+			}
+			writeJSON(w, map[string]any{"ok": true, "profile": yyAccountProfileView(p.ID, p.Name)})
+			return
+		}
+		if !yyManagedAccountID(p.ID) || p.ID == "main" && p.Action != "save" && p.Action != "" {
 			writeJSON(w, map[string]any{"ok": false, "error": "请使用独立账号 ID（字母、数字、下划线）"})
 			return
 		}
@@ -297,19 +429,27 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 		}
 		a := p.Account
 		a.ID = p.ID
+		a.OwnerID = actor.ID // Never accept an owner supplied by a client.
 		a.Slot = 0
 		a.Enabled = false
 		if p.Action == "save" || p.Action == "" {
 			if index >= 0 {
 				old := yyAccounts.Items[index]
+				a.OwnerID = old.OwnerID
 				a.Slot = old.Slot
 				a.Enabled = old.Enabled
+				if !actor.Admin {
+					a.SharedCapture = old.SharedCapture
+				}
 				if a.Token == "" {
 					a.Token = old.Token
 				}
 				if a.Password == "" {
 					a.Password = old.Password
 				}
+			}
+			if index < 0 && !actor.Admin {
+				a.SharedCapture = false
 			}
 			if a.AuthURL == "" {
 				a.AuthURL = "https://susu.bot.cd"
@@ -318,6 +458,24 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 			if e != nil || parsed.Scheme != "https" || parsed.Host == "" {
 				yyAccounts.Unlock()
 				writeJSON(w, map[string]any{"ok": false, "error": "验证服务需为 HTTPS 地址"})
+				return
+			}
+			if a.Name == "" {
+				a.Name = a.ID
+			}
+			canPrimary := !yyPoolHasActor(r) || actor.Admin || actor.ID != "" && actor.ID == yyPoolBoundActor().ID
+			if primary, primaryErr := yyTryPrimaryAccountSave(a, index >= 0, canPrimary); primary || primaryErr != nil {
+				yyAccounts.Unlock()
+				if primaryErr != nil {
+					writeJSON(w, map[string]any{"ok": false, "error": primaryErr.Error()})
+					return
+				}
+				writeJSON(w, map[string]any{"ok": true, "id": "main", "primary": true, "connection_requested": false})
+				return
+			}
+			if a.ID == "main" {
+				yyAccounts.Unlock()
+				writeJSON(w, map[string]any{"ok": false, "error": "已有主连接不会被账号添加操作替换，请在主连接设置中明确修改"})
 				return
 			}
 			if a.Token != "" {
@@ -346,7 +504,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 			yyAccounts.Unlock()
 			if e == nil {
 				e = yyWriteChildConfig(a, a.Enabled)
-				if e == nil && a.Enabled {
+				if e == nil && a.Enabled && !p.DeferConnect {
 					_, e = yyChildJSON(a, "POST", "/api/bot/connect", map[string]any{"token": a.Token, "auth": a.AuthURL, "server": a.Server, "password": a.Password})
 				}
 			}
@@ -386,6 +544,11 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 			}
 			if e == nil {
 				e = stopErr
+			}
+			if p.Action == "delete" {
+				if poolErr := yyPoolForgetAccount(a.ID); e == nil {
+					e = poolErr
+				}
 			}
 			if e != nil {
 				writeJSON(w, map[string]any{"ok": false, "error": e.Error()})

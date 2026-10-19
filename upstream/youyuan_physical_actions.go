@@ -113,9 +113,8 @@ func yyPhysicalAction(bm *BotManager, method string, args []any) (any, error) {
 		return nil, e
 	}
 	if method == "bot.attack" {
-		if e = conn.WritePacket(&packet.Animate{ActionType: packet.AnimateActionSwingArm, EntityRuntimeID: id}); e != nil {
-			return nil, e
-		}
+		// Animate is a server animation notification on the tested NetEase host.
+		// The actual attack transaction carries the input; do not inject Animate.
 		e = conn.WritePacket(&packet.InventoryTransaction{TransactionData: &protocol.UseItemOnEntityTransactionData{TargetEntityRuntimeID: target, ActionType: protocol.UseItemOnEntityActionAttack, HotBarSlot: int32(slot), HeldItem: held, Position: pos}})
 		if e != nil {
 			return nil, e

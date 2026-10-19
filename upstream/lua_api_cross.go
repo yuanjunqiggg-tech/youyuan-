@@ -7,20 +7,31 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// pluginSources 已加载 Lua 插件的源码注册表（id → 源码），供跨插件 api.require 重跑目标源码。
+// pluginSources 记录已加载插件的源码标识；跨插件调用复用常驻 Runtime，不重跑源码。
 var (
-	pluginSourcesMu sync.Mutex
-	pluginSources   = map[string]string{}
+	pluginSourcesMu  sync.Mutex
+	pluginSources    = map[string]string{}
+	pluginSourceDirs = map[string]string{}
 )
 
-// rememberPluginSource 记录插件源码到注册表（跨插件调用重跑用）。
-func rememberPluginSource(id, src string) {
+// rememberPluginSource 记录插件源码，用于加载状态与兼容接口查询。
+func rememberPluginSource(id, src string, sourceDirs ...string) {
 	if id == "" {
 		return
 	}
 	pluginSourcesMu.Lock()
 	defer pluginSourcesMu.Unlock()
 	pluginSources[id] = src
+	delete(pluginSourceDirs, id)
+	if len(sourceDirs) > 0 {
+		pluginSourceDirs[id] = sourceDirs[0]
+	}
+}
+
+func getPluginSourceDir(id string) string {
+	pluginSourcesMu.Lock()
+	defer pluginSourcesMu.Unlock()
+	return pluginSourceDirs[id]
 }
 
 // getPluginSource 取插件源码。
@@ -32,7 +43,7 @@ func getPluginSource(id string) (string, bool) {
 }
 
 // registerCrossPluginAPI 注册跨插件调用与插件上下文 API：
-//   - api.require(id) → 目标插件 plugin_api 表的懒生成 stub（跨 LState 用重跑调度器）
+//   - api.require(id) → 目标插件 plugin_api 表的懒生成代理（调用常驻实例）
 //   - plugin.id / plugin.dependencies（插件自身上下文，读 __PLUGIN_ID__ / plugin_dependencies）
 func registerCrossPluginAPI(L *lua.LState, bm *BotManager) {
 	api := L.NewTable()
@@ -77,8 +88,21 @@ func newCrossPluginStub(L *lua.LState, bm *BotManager, pluginID, funcName string
 			args = append(args, luaToGo(L.Get(i)))
 		}
 		active := abot(L)
+		caller := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
+		account := "main"
+		if ctx := yySDKPluginContext(active, pluginID); ctx != nil {
+			account = ctx.Instance.Account
+		}
+		if caller != "" {
+			release, e := yyEnterPluginCall(account+":"+caller, account+":"+pluginID)
+			if e != nil {
+				L.RaiseError("%v", e)
+				return 0
+			}
+			defer release()
+		}
 		if yySDKPluginContext(active, pluginID) == nil {
-			result, e := yyCallResident(active, pluginID, funcName, args, true, true)
+			result, e := yyCallResident(active, pluginID, funcName, args, true, caller == "")
 			if e != nil {
 				L.RaiseError("api.require(%q).%s: %v", pluginID, funcName, e)
 				return 0
@@ -105,8 +129,8 @@ func newCrossPluginStub(L *lua.LState, bm *BotManager, pluginID, funcName string
 	})
 }
 
-// callPluginFunction 在目标插件源码重跑的新 LState 里调用其全局 plugin_api[funcName]，
-// 参数/结果均以 JSON 跨 state 传递。目标插件须已加载（源码在注册表）。
+// callPluginFunction 调用目标常驻实例的 plugin_api[funcName]。
+// JSON 是此兼容入口的参数/结果格式；目标插件须已经加载。
 func callPluginFunction(bm *BotManager, pluginID, funcName, argsJSON string) (string, error) {
 	if text, e, handled := yySDKExport(bm, pluginID, funcName, argsJSON); handled {
 		return text, e

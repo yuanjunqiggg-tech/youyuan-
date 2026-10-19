@@ -1,11 +1,11 @@
 {
-  "framework_version": "0.10.15",
-  "public_version": "0.10.15",
+  "framework_version": "0.10.61",
+  "public_version": "0.10.61",
   "baseline_commit": "d6a64f1",
   "runtime": {
     "lua": "persistent per(bot,id); serialized callbacks",
     "python": "Persistent module and dedicated asyncio loop per Host; async init/event/stop/callback/RPC; Linux process / Android Chaquopy GIL",
-    "cpp": "Android resident create_v2; Linux unsupported; native SIGSEGV not isolated"
+    "cpp": "Linux: existing persistent ELF worker isolated in Python3 process, actual 01029 sample callbacks verified; Android: resident ABI v2 same-process native; Windows unsupported"
   },
   "features": {
     "persistent_runtime": "done",
@@ -22,29 +22,89 @@
     "profiler": "wall_clock_and_queue_metrics_done",
     "capability_query": "done",
     "lua_rpc_no_json": "done",
-    "ui_layout": "latest_01015_source_syntax_passed_screenshot_pending",
+    "ui_layout": "53 actual20 rapid switches all single target; save region static single; remaining hover/full-browser QA",
     "async_confirmation": "bounded_tickets_implemented",
     "worker_pool": "not_implemented",
     "file_watch": "txt_recompile_on_change_preserves_runtime",
     "memory_kv": "implemented_atomic_persistence",
     "transaction_storage": "implemented_multikey_rollback",
-    "release": "01015_signed_built_linux_deployed_game_connected_apk_install_pending",
+    "release": "57 same certificate APK1057, Windows/Linux2arch; public all10parts verified and actual Linux1057",
+    "camera_observation": "scope supersedes old cache-dimension results: old30/30 and46/60 provisional invalid; no global human lossless promise",
+    "secondary_tasks_01039": "after primary observation work: per-account original/custom skin preservation and component code; QQ player query skin avatar and online list",
     "ai_new_framework_skill": "actual_read_write_patch_publish_reload_async_verified",
     "android_cpp_sdk": "x86_64_emulator_actual_native_v2_resource_scheduler_stats_stop_verified",
     "conditional_chain": "actual_game_failed_predecessor_skips_conditional_tail_continues_verified",
-    "skills": "26_available_159_export_entries_multiselect_on_demand",
+    "skills": "27 available; player-actions added; observerBridge.events method chapters registered for three languages",
     "linux_web_upload": "public_route_and_hash_download_verified",
     "building_export": "actual_stone_gold_all_three_formats_verified",
     "cloud_entitlement": "server_side_admin_or_subscription_21_checks_passed",
     "packet_receive": "ordered_bounded_queue_default4096_user_configurable_cancellation_release",
     "command_branch": "actual_condition_one_child_then_return_code_regression_passed",
     "structure_topology": "static_direction_extraction_disabled_review_bundle_dynamic_wiring_not_auto_translated",
-    "android_background": "foreground_wakelock_task_recovery_network_callback_battery_settings_implemented"
+    "android_background": "foreground_wakelock_task_recovery_network_callback_battery_settings_implemented",
+    "world_observer_federation": "implemented_real_1600_block_health8of10_verified",
+    "global_locator": "received_far_playerlocation_uniqueid_cache_real_verified_dimension_unknown",
+    "self_position_identity": "fixed_other_playerlocation_overwrite_real_verified",
+    "full_global_swing": "not_proven_native_far_packet_absent",
+    "module_entity_kill": "implemented_actual_far_human_server_broadcast_verified",
+    "module_damage_display": "implemented_actual_far_server_report_not_health",
+    "module_combat_history": "resident_bounded_cursor_journal",
+    "module_position_lua": "numeric_table_binding_tested_01028_after_live_01027_string_bug",
+    "receive_transport_diagnostics": "predecode_metadata_and_unknown_error_counters_implemented_tests_passed",
+    "server_observation_callbacks": "01029_module_fixture_3_languages_plus_01034_actual_live_health_callbacks_all3_passed",
+    "server_observation_snapshots": "bounded_independent_cache_provenance_stale_reconnect_tested",
+    "optional_server_providers": "NetAllay_API029_compile_and_NetEase_SDK_contract_only_not_game_installed",
+    "registration_batch": "10_default_distinct_tasks_official_verification_pause_mock_tested_no_live_signup",
+    "auth_4399": "real_provided_account_official_HTTP202_refusal_classified_retryable_no_successful_login",
+    "account_profiles": "native_persistent_name_avatar_unique_owner_no_OP_change",
+    "admin_game_policy": "fixed_project_managed_real_admin_only",
+    "public_source_download": "removed_and_gateway_blocked_user_plugin_edit_export_preserved",
+    "account_pool": "ten_native_APIs_owner_scoped_persistent_bindings_actual_Linux_child_process_and_public_MCP_verified",
+    "account_center": "project_grouping_cloud_registered_rows_clickable_avatar_native_pool_controls",
+    "registration_resume": "persistent_verification_metadata_password_retained_80s_timeout_interactive_batch_naming",
+    "animate_protocol": "01034_live_near_human_action1_received_fixed_Data",
+    "receive_decode_diagnostics": "01034_live_AddActor30_extension_frames_returned_UpdateAttributes31_clean_GameRules_and_Biome_panic_confirmed",
+    "global_native_observation": "not_complete_valid_far_human90s_swing0_health0_RPC_kill6_damage9",
+    "lua_protocol_binding": "01034_live_Lua_Python_CPP_actual_health10_to8_same_max10_previous10_passed",
+    "optional_observation_patrol": "01035_real_1ms_4s_3671_submitted_311_missed_only1_position_update_not_global_coverage",
+    "normalized_custom_events": "01035_real_Lua_Python_CPP_health_and_events_define_hurt_callbacks_verified",
+    "account_token_reveal_copy": "implemented_owner_control_only_pending_UI",
+    "connection_maintenance": "01036_actual_survival_to_creative_and_flying_1.207s_manual_pause_resume_reconnect_16.078s_passed_30_simulated_failed_rounds_continue",
+    "cloud_account_recovery": "4 original SDK accounts recovered with same game_id/token; actual game login+concurrent nonOP actions verified",
+    "observer_cooperation": "optional watch primitives and six-account plan; actual3account fixedtarget camera/hybrid handoff and fault-preserves-old passed; six-node runtime/20regions/stockhuman/crossdimension/24h pending",
+    "python_observer_namespace": "source-load/on_init globals injected; actual Python regression passed",
+    "account_pool_lua_wait": "releases resident VM lock during network orchestration; original module bridge retained",
+    "secondary_tasks_01040": "login skin metadata/cache and avatar player-list PNG implemented/read visually; skin selection and QQ actual transmission/customPNG still pending",
+    "runtime_cooperation_docs": "selectable three-language guide+cooperation chapters registered, archive tested; real MCP reads and catalog verified",
+    "watch_follow_radius": "default16; follow/hybrid first teleport then only unknown/stale/outside radius/dimension mismatch; counters; camera never body TP; live stationary fewer repeats, moving coverage still poor",
+    "native_camera_support": "vanilla free pos + periodic updates; current NetEase attach_to_entity and targetEntity rejected; target_entity/facing accepted, look-at only, not movement attach",
+    "fixed_far_no_op": "2026-10-12T18:56:14..18:57:47+08:00 distance14450.755; two fixture accounts permission0 body displacement0; blind0/30 free30/30 target20/20 facing20/20 clear0/20; normal controlled protocol accounts, not unmodified phones",
+    "method_doc_routes": "three-language exact watch headings + accountsPool.md registered;24 route cases unit pass;6 fresh method and3 full observer section realMCP reads pass",
+    "remaining_tasks_table": "outputs/2026-10-12-剩余任务总表.md; prior no-new-test instruction superseded by user resume; no business plugin auto strategy packaged",
+    "plugin_export_center": "implemented/live complete350entryZIP server+public auth SHA/CRC pass; no anonymous download; real current-chat MCP metadata pass; GUI blocked Cua timeout",
+    "plugin_host_skill_sync": "R21B host_skills four docs added and read back; original business prompts/modules/TXT retained, still running; privateZIP not in publicSDK bundle",
+    "camera_view_parameters": "camera_height_blocks(default2),camera_pitch_degrees(optional -90..90),camera_yaw_degrees(default0),camera_facing_player(optional); API/UI/three-language docs synced; overhead reduction unproven",
+    "multi_camera_01042": "5 normal-permission bots connected in120second bootstrap; first phase aggregation used invalid timestamp key; raw server_to_bot capture time is RFC3339Nano string time; corrected scripts, no rerun after interrupt",
+    "cross_dimension_01042": "user approves legitimate dimension setup before measurement; during measurement no TP/body move, both normal accounts no OP; not started",
+    "release_01042": "signed APK1042+Windows/Linux2 built, Linux deployed; public UI+update42 firstpart verified; full10part SHA and integrated bundle pending",
+    "plugin_generated_outputs": "implemented; actual resident Lua creates TXT+ZIP; original bytes/CRC and existing R21B nbt_regions JSON verified; owner/account scoped; outside data absolute paths not automatically published; no new gameplay NBT success claim",
+    "plugin_output_skill_sync": "three-language namespace/full manual+plugin-outputs skill Sources/catalog; live R21B host_skills reference updated",
+    "plugin_management_duplicate_controls": "removed duplicate body directory/disable/delete; rendered each exactly once",
+    "settings_save_footer": "sticky removed; actual mouse/visual retest blocked Cua timeout",
+    "android_output_download": "authenticated HEAD+native GET stream to SAF, APK build/sign verified; phone picker acceptance pending",
+    "latency": "44 short-run pass did not hold; 45 filtered hot paths, 120s sample pass; long-run multiplayer screen acceptance pending",
+    "global_capture_configuration": "implemented owner-scoped persistent API + multi-select UI; live main-node selector/pause/stop verified; far/multi/crossdimension coverage not accepted",
+    "legacy_registration": "original names + functions; per-bot trigger/event/timer isolation and old ZIP module/command TXT callback tests passed; full business functionality remains pending",
+    "performance50": "before/after Linux median MapMove2.88x MapHealth2.06x Dispatch2.67x; old synchronous region query now permits112 heartbeat callbacks while preserving result; overall200x not achieved",
+    "mcp_engineering": "live9checks_pass; 215packet types; summary4971 vs raw19640; retryable classifications; no blind write replay",
+    "dimension_residents": "3 connected OP spectators, body0/1/2 native predicate matrix verified; controlled nonOP Nether swing20/20; crossdim exact-source0/20; single switch not verified",
+    "death_roster": "fixed list vs position failure; regression pass; actual kill17to0 followed by disconnect/reconnect, respawn QQ E2E pending",
+    "qq_group_logs": "received-history .群日志 1..80 implemented; real QQ send pending; vision/sticker library not implemented"
   },
   "known_issues": [
     "Repeated large fast traffic receives remote RakNet disconnect; 3000x60 submitted180000 but score17764 after reconnect; not verified stable",
     "Android same-process C++ native crash isolation unavailable",
-    "Reliable health/death real-event validation pending",
+    "Near real entity health and three-language callbacks passed; reliable death/attacker and far arbitrary entity health still incomplete",
     "Device exit node not implemented",
     "QQ companion real-user test pending",
     "Actual room_id join pending",
@@ -56,14 +116,19 @@
     "Original beta.9 downloaded but not compared: user paused testing",
     "Desktop/lock/task removal/overlay short emulator checks only; physical network switching not verified",
     "Static structure converter preserves/warns dynamic wiring; cannot automatically rewrite arbitrary gameplay",
-    "Installed ds_ai_agent is temporary probe-01, full R21A menu not current entry; do not override another tester before coordination"
+    "Current mountain protocol860 receive audit: unknown IDs208/210/230 and32 decode/trailing-byte records; GameRulesChanged type100 and BiomeDefinitionList malformed length remain unresolved; ordinary rental not tested",
+    "01030: official 4399 login/registration and one official SMS for ten distinct game accounts are not verified; user requested no live registration testing.",
+    "01031: global raw swing/health coverage remains unproven; follow policy belongs to plugin; official 4399 registration not newly verified."
   ],
   "next_tasks": [
-    "Engineering first; no new game pressure/original comparison tests until user resumes them",
-    "Real death/killer/health tests with controlled player scenarios",
-    "Same-account original APK sustained comparison; preserve failed 3000x60 samples",
-    "Full mixed runtime, stable ABI/native isolation and Linux C++ adapter",
-    "Real QQ companion/second group, room_id, 1h/6h multi-account pressure and device exits"
+    "P0 performance: profile live decoding/GC/allocation and login challenge phases; current connect trace18.120s, negotiated connection15.857s; not accepted as accelerated. Preserve full packet fields and function semantics;200x target remains unmet.",
+    "Interrupted01042: use corrected time parsing; rerun normal-account multi target low/overhead/phase-shift and approved setup-only crossdimension; do not fabricate failed aggregation counts; finish42bundle",
+    "P0 fixed-body normal-phone human experiment pending user availability; no TP/follow interference; both fixture accounts no OP; privileged controller receipts excluded",
+    "P0 moving coverage: current NetEase attach_to_entity unsupported; target_entity only look-at; investigate actual connection/interest retention before raising Hz",
+    "P0 live combat HUD, attacker/death lifecycle and full original Lua plugin compatibility",
+    "P0 ordinary Chat/Grok MCP client mounting and complete tool use remains pending; current chat MCP calls pass",
+    "P1 command chain sustained actual-score/RTT/budget benchmarks, AI memory/80% context/cost/UI and mixed runtimes",
+    "P1/P2 24h/mobile keepalive, email/4399/room registration, QQ, skins/NBT/media/cloud quotas and full source/chat migration; preserve historical failure samples"
   ],
   "benchmarks": {
     "3000x60_stream_window256": {
@@ -261,8 +326,8 @@
   },
   "release_state": "signed_built_linux_deployed_public_apk_complete_sha256_verified",
   "requirement_audit": "框架改造实施核对.md",
-  "tests_paused_by_user": true,
-  "publicly_deployed_version": "0.10.15",
+  "tests_paused_by_user": false,
+  "publicly_deployed_version": "0.10.36",
   "new_delivery_tasks": {
     "account_bridge": "25 isolated process and MCP checks passed; no new game effects tested",
     "mcp_url_links": "public no-header handshake, pinned node, read/control, revocation passed; actual Grok UI pending",
@@ -272,11 +337,11 @@
   "r21a_adaptation": "single resident Lua plugin + native Go FUNCTION segments",
   "new_tasks": "See 任务备忘录.md and R21A常驻与本机MCP开发说明.md",
   "chat_oauth": "Protocol verified; ordinary Chat still not_installed, real Chat tool execution pending",
-  "release": "0.10.15",
-  "native_mcp_live": "PC OAuth actual 245 tools, connected game, current resource docs verified",
+  "release": "0.10.36",
+  "native_mcp_live": "01036_current_connected_Linux_MCP_actual_new_policy_and_runtime_kernel_guide_read; ordinary Chat UI not retested",
   "local_ai_live": "actual generated/published/reloaded Lua; game score7/0.14s on final build; test plugin persistently disabled",
   "emulator": "not used; user requires Linux testing",
-  "previous_public_version": "0.10.14",
+  "previous_public_version": "0.10.35",
   "delivery_0108_historical": {
     "signed_apk_sha256": "6f99ad9ffb88f70470687271a0b438e6f73ecd7f4e9cb737199378ca150f9687",
     "apk_public_hash_verified": true,
@@ -287,21 +352,21 @@
     "sustained_fast_stress_passed": false,
     "ai_framework_test": "passed; temporary model/plugin/workspace removed"
   },
-  "current_release": "0.10.15",
-  "pending_release": null,
+  "current_release": "0.10.38",
+  "pending_release": "0.10.38 public update manifest not published; local signed APK ready, Linux deployed",
   "current_owner": "幽怨qi",
   "default_execution": "linux-server",
   "active_registered_users": 1,
   "linux_direct_transport": "temporary HTTPS tunnel with same-owner session authentication; verified 30 queries",
   "migration_archive": "paused until client MCP and plugin business acceptance",
   "current_release_artifacts": {
-    "apk": "outputs/youyuan-v0.10.15.apk",
-    "linux": "outputs/youyuan-v0.10.15-linux-x86_64.tar.gz",
-    "source": "outputs/youyuan-source-v0.10.15.zip",
-    "report": "outputs/0.10.15-公开发布验收.json",
-    "linux_acceptance": "outputs/0.10.15-Linux功能回归验收.json",
-    "mcp_acceptance": "outputs/0.10.15-MCP文档与真实接口验收.json",
-    "requirements": "outputs/需求逐项验收表.md"
+    "apk": "outputs/youyuan-v0.10.43.apk",
+    "web_generated_files": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server&exports=1",
+    "plugin_file_doc": "project/插件生成文件下载说明.md",
+    "report": "outputs/0.10.43-Linux插件生成文件下载实测.json",
+    "public_report": "outputs/0.10.43-公网生成文件下载实测.json",
+    "bundle": "outputs/游园-0.10.43-运行产物下载与管理修复.zip",
+    "full_source_chat_migration": "仍未完成；此包只是本轮交付，不冒充全源码/全聊天迁移"
   },
   "delivery_01013_historical": {
     "version": "0.10.13",
@@ -344,5 +409,301 @@
     "packet_roundtrip": "RequestChunkRadius -> ChunkRadiusUpdated",
     "ordinary_chat_verified": false,
     "all_gameplay_verified": false
-  }
+  },
+  "current_observation_upgrade": {
+    "document": "0.10.23-实体观测与容量配置.md",
+    "source_implemented": true,
+    "live_verified": true,
+    "attacker_guaranteed": false,
+    "capacities_customizable": true,
+    "cpp_linux_supported": false,
+    "all_gameplay_verified": false,
+    "acceptance_file": "outputs/0.10.23-实体观测验收.json",
+    "go_tests": 425,
+    "mcp_sdk_checks": 17,
+    "python_resident_observation_verified": true,
+    "cpp_header_compile_verified": true,
+    "capture_live_retained": 2048,
+    "capture_live_returned": 512
+  },
+  "current_nbt_visibility_upgrade": {
+    "document": "0.10.24-实体观测与容量配置.md",
+    "nbt_named_enchanted_roundtrip_verified": true,
+    "adjacent_container_nbt_fixed": true,
+    "multi_region_export_tiles": 3,
+    "cooperative_export_two_workers_verified": false,
+    "near_far_health_verified": true,
+    "far_distance_blocks": 1600,
+    "far_target_packets_received": 0,
+    "far_health_on_return": 8,
+    "radius16_32_confirmed": true,
+    "radius64_disconnect_cause_unknown": true,
+    "two_bot_test_completed": false,
+    "second_account_found_in_emulator": true,
+    "secondary_login_error": "登录凭据无效，请在网站中选择要使用的游戏账号",
+    "secondary_linux_profile_removed": true,
+    "far_swing_verified": false,
+    "server_global_entity_broadcast_verified": false,
+    "optional_skills": [
+      "nbt-workbench",
+      "network-observation"
+    ],
+    "go_test_events_passed": 529,
+    "go_test_events_skipped": 19,
+    "mcp_sdk_checks": 21,
+    "ordinary_chat_verified_this_release": false,
+    "apk_accounts_preserved": true,
+    "public_apk_sha256": "6a9636ce4e74b5cfa7eacacb2e278d03e28137bce019d13354645cfb55783d84",
+    "linux_main_connected_after_deploy": true
+  },
+  "observation_01025": {
+    "secondary_connected": true,
+    "near_teleport_confirmed": true,
+    "far_teleport_confirmed": true,
+    "separation_blocks": 1597,
+    "deop_confirmed": true,
+    "permission_after_deop": false,
+    "non_op_command_refused": true,
+    "near_incoming_animate": 0,
+    "far_incoming_animate": 0,
+    "own_missed_swing_inputs": 2,
+    "input_records": 227,
+    "input_drops": 0,
+    "secondary_online_after_far": true,
+    "op_and_position_restored": true,
+    "temporary_account_removed": true,
+    "main_still_connected": true,
+    "global_animate_verified": false,
+    "server_acceptance_of_swing_verified": false,
+    "cow_tests": {
+      "near_cow": {
+        "commands_confirmed": true,
+        "main_health_values": [
+          8,
+          10
+        ],
+        "secondary_health_values": [
+          8,
+          10
+        ]
+      },
+      "far_cow": {
+        "commands_confirmed": true,
+        "main_health_values": [],
+        "secondary_health_values": [
+          8,
+          10
+        ]
+      }
+    },
+    "netallay": "real SDK compiled Java21 target; not installed or runtime verified on mountain server",
+    "player_bridge": "authenticated ingest and own bot input hook; actual third-party clients not attached",
+    "mcp_sdk_checks": 25,
+    "public_ingest_checks": 5,
+    "apk_cover_install": "failed before installation; ADB timeout/offline"
+  },
+  "last_federation_evidence": "outputs/0.10.26-联合观测结果摘要.json",
+  "last_human_evidence": "outputs/0.10.27-真人远距离最新实测.json",
+  "primary_game_target": {
+    "type": "netease_rental",
+    "requires_game_server_addon": false,
+    "rental_connection_verified": false,
+    "current_game_test_server": "mountain_94F195C41B5",
+    "server_number_pending": true
+  },
+  "last_runtime_fixture_evidence": "outputs/0.10.35-Linux三语言统一事件实测-最终.json",
+  "last_regression": {
+    "pass": 523,
+    "skip": 19,
+    "fail": 0,
+    "packages": 6,
+    "web_pass": 51,
+    "switch_interaction_pass": 4
+  },
+  "last_receive_evidence": "outputs/0.10.29-实际接收链路核验.json",
+  "last_mcp_checks": 7,
+  "latest_registration_test": "4399_live_HTTP202_refusal_no_account_created_2026-10-10",
+  "last_registration_delivery": "outputs/0.10.30-公网发布核验.json",
+  "last_mcp_evidence": "outputs/0.10.36-MCP读取维护文档.json",
+  "last_pool_evidence": "outputs/0.10.32-Linux账号池实测.json",
+  "last_release_evidence": "outputs/0.10.36-公网发布核验.json",
+  "account_pool_policy": {
+    "follow_in_plugin": true,
+    "teleport_interval_enforced_by_host": false,
+    "ordinary_users": "own accounts on this execution host",
+    "administrators": "all hosted accounts",
+    "os_sandbox_complete": false,
+    "new_observer_game_login_test": false
+  },
+  "last_account_center_checks": 10,
+  "last_listening_evidence": "outputs/0.10.34-真实生物监听实测.json",
+  "last_live_evidence": "outputs/2026-10-12-固定身体无OP摄像机实测.json",
+  "last_far_evidence": "outputs/0.10.34-真人远处实测摘要.json",
+  "historical_current_release_artifacts_01015": {
+    "apk": "outputs/youyuan-v0.10.15.apk",
+    "linux": "outputs/youyuan-v0.10.15-linux-x86_64.tar.gz",
+    "source": "outputs/youyuan-source-v0.10.15.zip",
+    "report": "outputs/0.10.15-公开发布验收.json",
+    "linux_acceptance": "outputs/0.10.15-Linux功能回归验收.json",
+    "mcp_acceptance": "outputs/0.10.15-MCP文档与真实接口验收.json",
+    "requirements": "outputs/需求逐项验收表.md"
+  },
+  "last_connection_evidence": "outputs/0.10.38-Linux连接恢复.json",
+  "latest_scope": {
+    "unapproved_backend_intrusion": "cancelled_by_user_not_pursued",
+    "shared_chat_6acadb8f": "read_HTTP200_6013870_bytes_92_role_text_records_2026-10-11; work/references/shared-6acadb8f-messages.json",
+    "visual_web_acceptance": "computer_use_stopped_cannot_reliably_identify_browser_URL",
+    "global_native_events": "not_complete; unbroadcast_packets_still_unavailable",
+    "full_migration_with_chat_history": "pending",
+    "latest_swing_hypothesis_evidence": "outputs/0.10.36-分享猜想挥臂实测.json",
+    "latest_far_input_sampling_evidence": "outputs/0.10.36-远处输入采样实测.json",
+    "native_swing_near_far": "two authorized bots: 24 blocks 5/5, 2000 blocks 0/5; granted radius32 still0/5",
+    "far_input_bridge": "2000 blocks: actual sender inputs5, central bridge accepted5, native receive0; end-of-case batch, not real-human or realtime-latency acceptance",
+    "normal_player_far_swing": "pending_real_human_online_and_client_source; no fake global success",
+    "connection_architecture_audit": "2026-10-11-连接方式重审与远处动作接入方案.md; actual NTvector a71da8d and Waterdog 07910a2 source inspected; no alternate kernel runtime acceptance",
+    "new_ingress_priority": "2026-10-11 user correction: main target ordinary unmodified player far MissedSwing without proxy/sampler; investigate existing real server broadcast/subscription and connection adapter differences first; player proxy/self-sampler remain fallback only",
+    "proxy_auth_caveat": "Waterdog LoginData rebuild uses SELF_SIGNED; NetEase client acceptance is not proof of official rental upstream login",
+    "native_alternative_caveat": "NTvector structured decoder has 8 packet types, no Animate or UpdateAttributes; inbound callback is not outbound player hook",
+    "source_checkout_status": "NTvector sparse HEAD cloned; application blob fetch failed; key files retrieved by GitHub connector; no full build or production replacement",
+    "connection_audit_docs_deployment": "01038 source docs and embedded skills built; Linux actual MCP resource/skill and3language method reads passed; signed APK Windows ready",
+    "player_protocol_gateway": "standalone 0.10.37 implemented; authenticated same-UUID/UID upstream; original application frames; live NetEase world and challenge pass",
+    "latest_player_gateway_evidence": "outputs/0.10.37-玩家协议代理实测.json",
+    "gateway_far_input": "2026-10-11 19:26:56..19:27:40 Asia/Shanghai: main dimension2, routed protocol client dimension0; Animate10/10, MissedSwing5/5, health18/20; human UI not tested",
+    "gateway_delivery": "21 accepted,0 dropped,0 overwritten; same-host observation-to-receipt p50=7.907ms p95=11.881ms, not WAN/input-to-display latency",
+    "gateway_known_limit": "ItemRegistry162 observation decode failed1 (original forwarded); effect command failed; normal-phone routing/multiuser Transfer/24h stability pending",
+    "gateway_builds": "standalone gateway01037; main Linux deployed01038 and signed APK/Windows built01038",
+    "gateway_linux_install": "/opt/youyuan/player-gateway/0.10.37 private install unchanged; main01038 connected+OP after saved owner reauthentication; placeholder route not enabled",
+    "gateway_docs": "01038 embedded player-actions and new observer docs available on Linux MCP; APK and Windows built; no new normal-phone routing implementation",
+    "action_mcp_real": "actual MCP read previous21bridge records including5MissedSwing; resource youyuan://docs/player-actions read passed; Lua/Python/C++ method doc passed; not new gameplay pressure test",
+    "registration_connection_restore": "existing owned token refresh returned code10/please login; saved authorized email reauthenticate200 token_preserved=true; main94F195C41B5 connected+OP confirmed via MCP",
+    "ordinary_player_scope_audit": "2026-10-11-普通玩家全局观测路线纠正.md;33 provided repository URL candidates indexed, not all reviewed;8 primary source snapshots downloaded; Nukkit-MOT community docs fetched; no unmodified player far swing solution proven",
+    "latest_ingress_scope_check": "outputs/0.10.38-普通玩家观测范围核对.json;2026-10-11T13:35:05Z read-only MCP connected,host_distance_filter=false,UpdateAttributes64/ActorEvent85/PyRpc121 decoded and enqueued; no new human action experiment"
+  },
+  "historical_current_release_artifacts_01036": {
+    "apk": "outputs/youyuan-v0.10.36.apk",
+    "windows": "outputs/youyuan-windows.exe",
+    "linux": "outputs/youyuan-v0.10.36-linux-x86_64.tar.gz",
+    "linux_arm64": "outputs/youyuan-v0.10.36-linux-arm64.tar.gz",
+    "report": "outputs/0.10.36-公网发布核验.json",
+    "linux_acceptance": "outputs/0.10.36-Linux连接维护实测-最终.json",
+    "mcp_acceptance": "outputs/0.10.36-MCP读取维护文档.json",
+    "requirements": "project/任务备忘录.md",
+    "source_archive": "not_created_this_release; full migration pending"
+  },
+  "last_camera_evidence": "outputs/0.10.41-观测与宿主交付验收.md",
+  "last_camera_high_frequency_evidence": "outputs/0.10.39-相机高频结果摘要.json",
+  "last_regression_01039": {
+    "version": "0.10.39",
+    "test_results": {
+      "pass": 594,
+      "skip": 20
+    },
+    "packages": {
+      "bot-apk/cmd/youyuan-player-gateway": "skip",
+      "bot-apk": "pass",
+      "bot-apk/config": "skip",
+      "bot-apk/media": "skip",
+      "bot-apk/state": "skip",
+      "bot-apk/building": "pass"
+    },
+    "initial_wrong_package_arguments": [
+      "./cmd/youyuan-auth",
+      "./youyuan_bridge",
+      "./youyuan_protocol",
+      "./youyuan_rpc"
+    ],
+    "all_actual_package_tests_passed": true,
+    "full_go_list_limitation": "legacy cmd/server imports main package; not used by shipping build; not fixed in this observation change",
+    "meaning": "Unit regression and live gameplay are different evidence."
+  },
+  "last_regression_01040": {
+    "version": "0.10.40",
+    "test_results": {
+      "pass": 603,
+      "skip": 19
+    },
+    "packages": {
+      "bot-apk/building": "pass",
+      "bot-apk": "pass"
+    },
+    "scope": "主宿主与building；YY_PYTHON真实解释器启用，新增Python注入和可选技能导出测试通过。没有把跳过项目计为通过。"
+  },
+  "last_regression_01041": {
+    "version": "0.10.41",
+    "test_results": {
+      "pass": 605,
+      "skip": 19
+    },
+    "scope": "主宿主/building回归，真实Python解释器启用；24个三语言方法文档路由和跟随半径新增测试。最后摄像机文案修订重新构建并实读MCP验证；不是所有玩法/原版倍率/24小时通过。"
+  },
+  "last_regression_01042": {
+    "version": "0.10.42",
+    "counts": {
+      "pass": 609,
+      "skip": 19
+    },
+    "scope": "完整主宿主/building回归；导出隔离/完整ZIP/MCP只取元信息/镜头参数四项新增测试。不是多人错峰或跨维度游戏通过。"
+  },
+  "last_regression_01043": {
+    "scope": "全目录首轮及生成文件/文档专项补测；不是新增跨维度游戏验收",
+    "counts_by_package": {
+      "bot-apk/building": {
+        "pass": 90,
+        "skip": 1
+      },
+      "bot-apk/internal/playerrelay": {
+        "pass": 5,
+        "fail": 1
+      },
+      "bot-apk": {
+        "pass": 519,
+        "skip": 20
+      }
+    },
+    "full_directory_first_pass": false,
+    "known_unrelated_build_failure": "cmd/server 是旧示例，尝试导入 main 程序包，当前不可编译；交付主程序已独立成功构建。",
+    "relay_first_fail": "本地RakNet握手超时，独立重测通过",
+    "relay_retry": "ok  \tbot-apk/internal/playerrelay\t7.058s",
+    "generated_output_and_skill_tests": "ok  \tbot-apk\t8.808s"
+  },
+  "last_review": "2026-10-15T14:22:03.459703+08:00",
+  "latest_round": {
+    "version": "0.10.60",
+    "live_linux_verified": true,
+    "public_apk_all_parts_verified": true,
+    "web_tests": 87,
+    "capture_roster": "native querytarget details; managed bots diagnostic dims0/1 verified, normal roster excludes all",
+    "capture_pool": "5 candidates; 0 humans ->0 observers and 4 dedicated children released; idle60",
+    "admission": "user confirmed max22 real humans, reject23rd; live23humans not tested",
+    "plugin_observation_team": "event consumer enabled, accounts empty, start_accounts false; no source changes",
+    "backup": "real browser download479members SHA/CRCpass",
+    "video": "8frames one append_batch, 2drawingcommands, @frame8, Fast/file/delay0, stopped; real playback pending",
+    "http400": "not reproduced; error taxonomy and auth backoff implemented",
+    "temporary_bridge": "stopped/deleted/archived",
+    "remaining": "当前未完成清单.md and 0.10.60-修复清单与验收.md"
+  },
+  "current_turn": "0.10.61 deployed and Linux game connection verified; actual 8-frame block video final state confirmed and cleaned; FFmpeg installed and 60 canvas frames decoded; cloud credential list web fallback verified in browser",
+  "latest_evidence": [
+    "outputs/0.10.61-Linux真实运行验收.json",
+    "outputs/0.10.61-Linux最终部署.json",
+    "outputs/0.10.61-公网产物验证.json",
+    "outputs/0.10.61-云端账号列表恢复.png"
+  ],
+  "unreleased_work": {
+    "date": "2026-10-15",
+    "reference_ui_actually_inspected": true,
+    "apk_reference": "1.1.0-beta.12/132",
+    "map_video_local_fix_tests": true,
+    "source_changes": [
+      "upstream/map_player.go",
+      "upstream/youyuan_map_video.go",
+      "upstream/youyuan_map_video_test.go",
+      "upstream/main.go",
+      "upstream/frontend/js/features/mapplayer.js"
+    ],
+    "deployed": true,
+    "evidence": "outputs/0.10.61-新版参考与视频修复进度.md",
+    "remaining": "Full account UI and 3D skin/equip, new skull NBT, real egress choice, actual map display FPS/audio, owned-resource cleanup, embedded skill refresh; UI media picker still image-only"
+  },
+  "version": "0.10.61"
 }

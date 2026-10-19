@@ -329,7 +329,10 @@ func (state *connState) discoverMTU(ctx context.Context) error {
 		// 1 packet.
 		n, err := state.conn.Read(b)
 		if err != nil {
-			if isTransientUDPReadError(err) && (state.maxTransientErrors == -1 || state.transientErrorCount < state.maxTransientErrors) {
+			// Connected UDP may report ICMP "fragmentation needed" from an
+			// earlier probe. Keep the existing bounded smaller-MTU fallback.
+			// Do not ignore this error on established game connections.
+			if (isTransientUDPReadError(err) || isPathMTUError(err)) && (state.maxTransientErrors == -1 || state.transientErrorCount < state.maxTransientErrors) {
 				state.transientErrorCount++
 				continue
 			}

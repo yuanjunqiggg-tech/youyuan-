@@ -46,8 +46,9 @@ func (bm *BotManager) startPlayerEventLoop() {
 				if !eventNeedsPlayerPolling() {
 					continue
 				}
-				playerInfoMgr.RefreshPlayerList(bm)
-				bm.diffPlayerEvents()
+				if playerInfoMgr.RefreshPlayerRoster(bm) {
+					bm.diffPlayerEvents()
+				}
 			}
 		}
 	}()
@@ -55,6 +56,7 @@ func (bm *BotManager) startPlayerEventLoop() {
 
 // luaEventH 事件处理器：plugin 定位常驻VM，handler 是已有Lua函数名。
 type luaEventH struct {
+	owner   *BotManager
 	plugin  string
 	handler string
 }
@@ -73,6 +75,7 @@ var (
 
 // packetLuaSub 一条通用数据包订阅：插件 → 包类型 → 处理器。
 type packetLuaSub struct {
+	owner   *BotManager
 	plugin  string
 	pktType string
 	handler string
@@ -90,14 +93,14 @@ func registerPacketSub(L *lua.LState) {
 		return
 	}
 	pktType := L.CheckString(1)
-	handler := L.CheckString(2)
+	handler := yySenseLuaHandler(L, 2)
 	if pktType == "" || handler == "" {
 		L.RaiseError("events.subscribe 需要 packetType 与 handlerName")
 		return
 	}
 	evMu.Lock()
 	for _, s := range evPacketSubs {
-		if s.plugin == plugin && s.pktType == pktType && s.handler == handler {
+		if s.owner == abot(L) && s.plugin == plugin && s.pktType == pktType && s.handler == handler {
 			evMu.Unlock()
 			return // 已订阅，去重
 		}
@@ -112,7 +115,7 @@ func registerPacketSub(L *lua.LState) {
 		}
 	})
 	evMu.Lock()
-	evPacketSubs = append(evPacketSubs, &packetLuaSub{plugin: plugin, pktType: pktType, handler: handler, unsub: unsub})
+	evPacketSubs = append(evPacketSubs, &packetLuaSub{owner: owner, plugin: plugin, pktType: pktType, handler: handler, unsub: unsub})
 	evMu.Unlock()
 }
 
@@ -156,15 +159,15 @@ func registerEvent(list *[]*luaEventH, L *lua.LState) {
 		return
 	}
 	plugin := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
-	handler := L.CheckString(1)
+	handler := yySenseLuaHandler(L, 1)
 	evMu.Lock()
 	defer evMu.Unlock()
 	for _, h := range *list {
-		if h.plugin == plugin && h.handler == handler {
+		if h.owner == abot(L) && h.plugin == plugin && h.handler == handler {
 			return
 		}
 	}
-	*list = append(*list, &luaEventH{plugin: plugin, handler: handler})
+	*list = append(*list, &luaEventH{owner: abot(L), plugin: plugin, handler: handler})
 }
 
 // ---- 触发入口 ----
@@ -196,6 +199,9 @@ func yyReplayBotReady(bm *BotManager, onlyPlugin string) {
 	handlers := append([]*luaEventH(nil), evBotReady...)
 	evMu.Unlock()
 	for _, h := range handlers {
+		if h.owner != nil && h.owner != bm {
+			continue
+		}
 		if onlyPlugin != "" && h.plugin != onlyPlugin {
 			continue
 		}
@@ -231,18 +237,18 @@ func eventNeedsPlayerPolling() bool {
 }
 
 // RemovePluginEvents 移除某插件的全部事件监听与数据包订阅（插件停止时调用）。
-func RemovePluginEvents(plugin string) {
+func RemovePluginEvents(plugin string, owners ...*BotManager) {
 	evMu.Lock()
-	evChat = filterEvents(evChat, plugin)
-	evJoin = filterEvents(evJoin, plugin)
-	evLeave = filterEvents(evLeave, plugin)
-	evBotReady = filterEvents(evBotReady, plugin)
-	evPacket = filterEvents(evPacket, plugin)
+	evChat = filterEvents(evChat, plugin, owners...)
+	evJoin = filterEvents(evJoin, plugin, owners...)
+	evLeave = filterEvents(evLeave, plugin, owners...)
+	evBotReady = filterEvents(evBotReady, plugin, owners...)
+	evPacket = filterEvents(evPacket, plugin, owners...)
 	// 通用数据包订阅：先收集要退订的，再释放锁后调用（unsub 里会再抢 packetHub 锁，避免死锁）
 	var toUnsub []func()
 	kept := evPacketSubs[:0]
 	for _, s := range evPacketSubs {
-		if s.plugin == plugin {
+		if s.plugin == plugin && (len(owners) == 0 || s.owner == owners[0]) {
 			toUnsub = append(toUnsub, s.unsub)
 			continue
 		}
@@ -255,10 +261,10 @@ func RemovePluginEvents(plugin string) {
 	}
 }
 
-func filterEvents(list []*luaEventH, plugin string) []*luaEventH {
+func filterEvents(list []*luaEventH, plugin string, owners ...*BotManager) []*luaEventH {
 	out := list[:0]
 	for _, h := range list {
-		if h.plugin != plugin {
+		if h.plugin != plugin || (len(owners) > 0 && h.owner != owners[0]) {
 			out = append(out, h)
 		}
 	}
@@ -279,6 +285,9 @@ func runEventHandlers(bm *BotManager, list []*luaEventH, args ...any) {
 		return
 	}
 	for _, h := range handlers {
+		if h.owner != nil && h.owner != bm {
+			continue
+		}
 		yyQueueResidentEvent(bm, h.plugin, h.handler, args)
 	}
 }

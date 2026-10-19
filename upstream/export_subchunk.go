@@ -205,11 +205,11 @@ func (t *SubChunkExportTask) requestChunkRadius() error {
 	defer timer.Stop()
 	select {
 	case granted := <-respCh:
-		t.bm.logCh <- fmt.Sprintf("[导出] 区块半径协商: 请求=%d 授予=%d", desired, granted)
+		yyReceiveLog(t.bm.logCh, fmt.Sprintf("[导出] 区块半径协商: 请求=%d 授予=%d", desired, granted))
 		return nil
 	case <-timer.C:
 		// 超时不致命——服务器可能不回复这个包，继续导出
-		t.bm.logCh <- fmt.Sprintf("[导出] 区块半径协商超时，使用默认值继续")
+		yyReceiveLog(t.bm.logCh, fmt.Sprintf("[导出] 区块半径协商超时，使用默认值继续"))
 		return nil
 	}
 }
@@ -253,7 +253,7 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 	for len(missing) > 0 && retryCount < 5 {
 		// 收敛检测：缺失数量没减少则退出
 		if len(missing) == prevMissing && retryCount > 0 {
-			t.bm.logCh <- fmt.Sprintf("[导出] chunk (%d,%d): %d 个子区块持续缺失，跳过", chunkX, chunkZ, len(missing))
+			yyReceiveLog(t.bm.logCh, fmt.Sprintf("[导出] chunk (%d,%d): %d 个子区块持续缺失，跳过", chunkX, chunkZ, len(missing)))
 			break
 		}
 		prevMissing = len(missing)
@@ -266,7 +266,7 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 
 		retrySubs, retryNBTs, stillMissing, retryErr := t.fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY, missing, dimRange)
 		if retryErr != nil {
-			t.bm.logCh <- fmt.Sprintf("[导出] chunk (%d,%d) 重试%d失败: %v", chunkX, chunkZ, retryCount, retryErr)
+			yyReceiveLog(t.bm.logCh, fmt.Sprintf("[导出] chunk (%d,%d) 重试%d失败: %v", chunkX, chunkZ, retryCount, retryErr))
 			break
 		}
 

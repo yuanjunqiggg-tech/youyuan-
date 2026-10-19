@@ -37,6 +37,11 @@ func (s secretLoadingTransport) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 func yyAttachDeviceKey(req *http.Request) {
+	// Identify this client honestly. Cloudflare BIC may reject the generic Go
+	// default; a product identifier is also useful for server-side diagnostics.
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "YouYuan-Toolbox/0.10 (game-auth-client)")
+	}
 	if !(req.URL.Hostname() == "auth.youyuanqi.dpdns.org" || req.URL.Hostname() == "toolbox.youyuanqi.dpdns.org" && strings.HasPrefix(req.URL.Path, "/auth/")) {
 		return
 	}
@@ -83,6 +88,18 @@ type Client struct {
 }
 
 func parsedError(message string) error {
+	var details map[string]json.RawMessage
+	if json.Unmarshal([]byte(message), &details) == nil {
+		for _, field := range []string{"message", "error"} {
+			var reason string
+			if json.Unmarshal(details[field], &reason) == nil && reason != "" {
+				if len([]rune(reason)) > 300 {
+					reason = string([]rune(reason)[:300])
+				}
+				return errors.New(reason)
+			}
+		}
+	}
 	error_regex := regexp.MustCompile("^(\\d{3} [a-zA-Z ]+)\n\n(.*?)($|\n)")
 	err_matches := error_regex.FindAllStringSubmatch(message, 1)
 	if len(err_matches) == 0 {
@@ -93,13 +110,14 @@ func parsedError(message string) error {
 
 func assertAndParse[T any](resp *http.Response) (T, error) {
 	var ret T
+	defer resp.Body.Close()
 	if resp.StatusCode == 503 {
 		return ret, errors.New("API 服务器不可用")
 	}
 	_body, _ := io.ReadAll(resp.Body)
 	body := string(_body)
 	if resp.StatusCode != 200 {
-		return ret, parsedError(body)
+		return ret, fmt.Errorf("认证 HTTP %d: %w", resp.StatusCode, parsedError(body))
 	}
 	err := json.Unmarshal([]byte(body), &ret)
 	if err != nil {
@@ -109,32 +127,44 @@ func assertAndParse[T any](resp *http.Response) (T, error) {
 }
 
 func CreateClient(options *ClientOptions) (*Client, error) {
+	return CreateClientContext(context.Background(), options)
+}
+
+// CreateClientContext creates an auth-service session within the login lifecycle.
+func CreateClientContext(ctx context.Context, options *ClientOptions) (*Client, error) {
 	options.AuthServer = strings.TrimRight(options.AuthServer, "/")
 	tr := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
-	hc := http.Client{Transport: tr, Timeout: 15 * time.Second}
+	hc := http.Client{Transport: tr, Timeout: 25 * time.Second}
 	if _, err := url.ParseRequestURI(options.AuthServer); err != nil {
 		return nil, fmt.Errorf("认证地址无效")
 	}
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/new", strings.TrimRight(options.AuthServer, "/")), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/api/new", strings.TrimRight(options.AuthServer, "/")), nil)
 	if err != nil {
 		return nil, err
 	}
 	yyAttachDeviceKey(req)
 	secret_res, err := hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("API 请求失败: %v", err)
+		return nil, authTransportError("new_session", err)
 	}
-	_secret_body, _ := io.ReadAll(secret_res.Body)
+	defer secret_res.Body.Close()
+	_secret_body, err := io.ReadAll(secret_res.Body)
+	if err != nil {
+		return nil, authTransportError("new_session", err)
+	}
 	secret_body := string(_secret_body)
 	if secret_res.StatusCode == 503 {
 		return nil, errors.New("API 服务器不可用")
 	} else if secret_res.StatusCode != 200 {
-		return nil, parsedError(secret_body)
+		return nil, fmt.Errorf("认证会话 HTTP %d: %w", secret_res.StatusCode, parsedError(secret_body))
 	}
 	authclient := &Client{
 		client: http.Client{
 			Transport: secretLoadingTransport{base: tr, secret: secret_body},
-			Timeout:   15 * time.Second,
+			// The owned provider may refresh a saved game session and then perform
+			// official login/skin lookups. Bound the whole exchange without a
+			// premature 15-second cutoff or automatic login replay.
+			Timeout: 75 * time.Second,
 		},
 		ClientOptions: options,
 		ClientInfo: ClientInfo{
@@ -142,6 +172,42 @@ func CreateClient(options *ClientOptions) (*Client, error) {
 		},
 	}
 	return authclient, nil
+}
+
+// CreateClientWithSession reuses an existing private auth-service session.
+// Gateways use this to avoid /api/new for each side of the same player login.
+func CreateClientWithSession(options *ClientOptions, secret string) (*Client, error) {
+	if secret == "" {
+		return nil, fmt.Errorf("认证会话不能为空")
+	}
+	if _, err := url.ParseRequestURI(options.AuthServer); err != nil {
+		return nil, fmt.Errorf("认证地址无效")
+	}
+	tr := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	return &Client{client: http.Client{Transport: secretLoadingTransport{base: tr, secret: secret}, Timeout: 75 * time.Second}, ClientOptions: options}, nil
+}
+
+func authTransportError(phase string, err error) error {
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("认证已取消 phase=%s: %w", phase, context.Canceled)
+	}
+	var timeout interface{ Timeout() bool }
+	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout() {
+		// A deadline after submission cannot prove that official authentication
+		// did not finish. Never advise blindly replaying a game login.
+		outcome := "unknown"
+		if phase == "new_session" {
+			outcome = "no_game_login_submitted"
+		}
+		return fmt.Errorf("认证请求超时 phase=%s outcome=%s；请检查状态后重试: %w", phase, outcome, context.DeadlineExceeded)
+	}
+	// Avoid embedding request URLs (which may contain scoped delegation grants)
+	// or credentials from a transport's error string into user-visible logs.
+	var requestError *url.Error
+	if errors.As(err, &requestError) {
+		return fmt.Errorf("认证网络请求失败 phase=%s: %w", phase, requestError.Err)
+	}
+	return fmt.Errorf("认证网络请求失败 phase=%s: %w", phase, err)
 }
 
 // 客户端向验证服务器发送的请求体，
@@ -240,13 +306,14 @@ func (client *Client) Auth(
 	}
 	authRequest, _ := json.Marshal(request)
 	// pack request and marshal to binary
-	httpResponse, err := client.client.Post(
-		fmt.Sprintf("%s/api/phoenix/login", client.AuthServer),
-		"application/json",
-		bytes.NewBuffer(authRequest),
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/phoenix/login", client.AuthServer), bytes.NewBuffer(authRequest))
 	if err != nil {
-		return authResponse, errors.New(fmt.Sprintf("认证失败: %v", err))
+		return authResponse, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	httpResponse, err := client.client.Do(req)
+	if err != nil {
+		return authResponse, authTransportError("game_login", err)
 	}
 	authResponse, err = assertAndParse[AuthResponse](httpResponse)
 	if err != nil {
@@ -499,22 +566,31 @@ func (r *TanLobbyCreateResponse) UnmarshalJSON(data []byte) error {
 
 // TanLobbyAuth 通过认证服务器加入 TanLobby 房间，返回连接所需的中继/信令信息。
 func (client *Client) TanLobbyAuth(roomID string, fbtoken string) (TanLobbyLoginResponse, error) {
+	return client.TanLobbyAuthContext(context.Background(), roomID, fbtoken)
+}
+
+// TanLobbyAuthContext allows cancellation of a submitted room-auth request.
+func (client *Client) TanLobbyAuthContext(ctx context.Context, roomID string, fbtoken string) (TanLobbyLoginResponse, error) {
 	request := TanLobbyLoginRequest{
 		FBToken: fbtoken,
 		RoomID:  roomID,
 	}
 	requestJSONBytes, _ := json.Marshal(request)
-	httpResponse, err := client.client.Post(
-		fmt.Sprintf("%s/api/phoenix/tan_lobby_login", client.AuthServer),
-		"application/json",
-		bytes.NewBuffer(requestJSONBytes),
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/phoenix/tan_lobby_login", client.AuthServer), bytes.NewBuffer(requestJSONBytes))
 	if err != nil {
-		return TanLobbyLoginResponse{}, fmt.Errorf("TanLobby 登录失败: %v", err)
+		return TanLobbyLoginResponse{}, fmt.Errorf("TanLobby 登录失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	httpResponse, err := client.client.Do(req)
+	if err != nil {
+		return TanLobbyLoginResponse{}, authTransportError("tan_lobby_login", err)
 	}
 	response, err := assertAndParse[TanLobbyLoginResponse](httpResponse)
 	if err != nil {
-		return TanLobbyLoginResponse{}, fmt.Errorf("TanLobby 登录失败: %v", err)
+		if ctx.Err() != nil {
+			return TanLobbyLoginResponse{}, authTransportError("tan_lobby_login", ctx.Err())
+		}
+		return TanLobbyLoginResponse{}, fmt.Errorf("TanLobby 登录失败: %w", err)
 	}
 	// 服务器失败时 HTTP 仍返回 200，需检查 success 字段
 	if !response.Success {

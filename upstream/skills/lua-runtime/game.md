@@ -5,12 +5,9 @@
 
 ### `game.commandResult`
 
-```lua
-game.commandResult(ticket, wait_ms, consume)
-```
+ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。
 
-- 功能、参数、返回与约束：ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。
-- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
 
 ### `game.dataDir`
 
@@ -458,12 +455,9 @@ game.sendCommand(cmd, options)
 
 ### `game.sendCommandAsync`
 
-```lua
-game.sendCommandAsync(command, options)
-```
+command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。未读取ticket容量由diagnostics.configure的async_tickets控制，默认128，满时明确报错；Fast路径不走该窗口。
 
-- 功能、参数、返回与约束：command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。最多128个未读取ticket/实例，满时明确报错；Fast路径不走该窗口。
-- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
 
 ### `game.sendCommandConfirmed`
 
@@ -726,3 +720,90 @@ game.waitMsg(player, timeoutSec)
 ## 服务器关闭命令反馈时
 
 实服已验证：gamerule sendcommandfeedback false 会使 Confirmed/querytarget 等结果接口收不到回包，即使命令已经执行。Fast 不等待回包，模式维护也使用无等待创造命令和飞行输入。需要条件链、查询结果或确认时，要由服主确保服务器允许命令反馈；超时返回未知，不能把它当失败自动重发。高频无条件链不要为语法验证逐条增加确认。
+
+
+## 0.10.17 兼容接口与 AI 上下文修正
+
+常驻 Lua 在插件加载时编译一次，事件调用已有函数。终端显示队列满时只跳过显示消息，游戏 Text 包和插件事件仍继续分发；单个畸形包不会终止整个收包循环。不能把这个修复视为全部游戏数据包都已实测。
+
+### 原插件接口补充（Lua）
+
+`game.getOnlinePlayers()`：向已连接服务器实际查询 @a，返回玩家名数组；查询失败会报错，不用空数组伪造在线情况。
+
+`game.sendCommandWithResp(command, channel="ai", timeout_seconds=5)`：确认式命令，返回真实 CommandOutput 表。通道支持 ai/console/player。超时报错，表示结果未知，不能自动重发。高频无条件链继续用 sendCommand/sendCommandFast 或 CommandBuffer.submitFast，不要为每条命令套确认。
+
+`game.getServerTPS()`、`game.getTPS()`、`game.serverTPS()`、`game.getTickRate()`、`game.getServerTickRate()`：相同的服务器 SetTime 时钟观测值。连接前、尚无有效观测或观测过期返回 nil；不是客户端发送吞吐，也不保证等于服务器精确平均 TPS。
+
+`game.importBlocks(blocks, options)`：创建本机建筑导入任务。blocks 是数组，每项为 `{x=相对X,y=相对Y,z=相对Z,name="minecraft:stone",states=状态字符串或表,nbt=NBT表}`；相对坐标非负，绝对起点放在 options。options 支持 x/y/z、dimension、speed、region_mode、anti_loss。speed=0 无用户固定速率，正数为自定义速率；旧插件 -1 兼容映射到0。region_mode 为1/2/3，即16/32/64格区域；anti_loss=true 启用区块可查询探测，不等于每个方块收到确认。真实导入由本机宿主进行，不把结构传给原作者服务。插件停用取消任务。没有1000方块限制；内部坐标编码要求每轴相对坐标小于2^20。
+
+`game.importWait(job)`：等待上述任务，发送/导入错误明确报错；true 表示本机导入流程完成，不代表每个方块都有独立服务器确认。job 是 Lua 本实例的 userdata，不能直接跨语言 JSON 传递。Python/C++ 的结构任务请使用 building 工具接口，不能假装这个 userdata 可以跨语言序列化。
+
+```lua
+local job=game.importBlocks({
+ {x=0,y=0,z=0,name="minecraft:oak_stairs",states={facing_direction=2,upside_down_bit=false}},
+ {x=1,y=0,z=0,name="minecraft:stone"}
+},{x=100,y=70,z=100,dimension="overworld",speed=20,region_mode=1,anti_loss=true})
+assert(game.importWait(job))
+```
+
+### 寄存器、上下文和任务连续性
+
+本项目 Lua 编译器单函数寄存器上限为5120，指令格式扩展为64位。原 Lua 源码保持兼容，旧预编译字节码不兼容。此改动不等于游戏命令速度增加。
+
+压缩阈值只由 context_window × compression_percent 计算。356000、80% 得284800，不再减掉 max_output_tokens 后偷偷提前压缩。请求输出预算按剩余上下文另行计算，不覆盖用户保存的配置。上下文估算覆盖实际发送的提示、消息和工具定义；有供应商 input_tokens 时用于校准，界面明确标作估算，未声称精确 tokenizer。
+
+不再把消息或工具结果统一截到10000字符。压缩按输入预算分段覆盖全部选中历史，保留原始记录、文件、任务状态和工具结果。摘要保存为内部上下文，不作为普通聊天刷屏；压缩失败保留原历史。模型输出触及长度上限时显示等待继续，保留任务，不把截断的回复标为完成。工具调用参数 JSON 不完整会报错，不能当空参数执行。
+
+内置AI回复默认说明实际改动、验证结果和阻碍，避免重复计划、长篇自述和输出压缩摘要。工作区可读取实际文件、技能章节和 MCP 工具；玩家禁用的工具仍禁用。文件/技能分页接口的 offset 是读取协议，不是忽略尾部内容的理由。
+
+### 本轮验证范围
+
+Linux 全量 R21B 核心加载、原文件资源、原始两份 TXT、本机 MCP 派发、真实服务器回送 .help 到注册 onChat 均通过有限验收。真人屏幕是否显示全部菜单、真人死亡与击杀者、经济/公会等业务逐项测试尚未全部完成。
+
+MCP 服务端 OAuth+PKCE、initialize、tools/list、tools/call、resources/read、刷新令牌已实测；普通 Chat 客户端挂载仍需单独验证，不能用服务器通过代替客户端成功。
+
+
+## 0.10.44 实时查询
+
+`game.sceneStats()` 与 `game.getBlockTileAsync(x,y,z)` 为真实宿主接口；异步ticket用 `game.commandResult(ticket,0,true)` 读取。详见 realtime-queries.md；不要将完整 game.scene 快照放进高频周期。
+
+
+## 0.10.45 观测与低延迟
+
+# 0.10.45 观测协作、战斗与容器接口
+
+## 宿主三语言共用接口
+
+`world.containerState(x,y,z)`读取当前维度真实BlockActorData类型缓存：known/is_container/block_entity_id/source/timestamp/stale/dimension/position。不读取箱内物品，不做同步WS查询。UpdateBlock替换后旧容器类型立即未知；新的BlockActorData再次建立。`events.onContainerChange(handler)`为对应规范事件。变化不等于确证某个玩家放置，没有来源时cause_known=false。
+
+原`game.getBlockTileRaw`保留，新`game.getBlockTileAsync`后台真实查询，commandResult(ticket,0,true)消费。适合没有容器类型包时的核验，不在回调里等待。Fast清除只是submitted，不等于服务器确认已清掉，须回读更新包/Confirmed查询验收。
+
+`game.sceneStats()`只计数，不复制或新留存全部实体明细。`game.scene({present_only=true,entity_type="minecraft:player"})`是可选过滤；无参数完整旧接口保持兼容。查一只实体用entities.get(runtimeId)，不要为查一只血量遍历整个场景。
+
+`observerBridge.worldEvents({stream="actions",cursors=previous,limit=1024})`从独立动作历史读取：普通实体位移和非玩家旋转不会挤掉伤害/血量/挥臂等。limit可1..4096，history容量继续由diagnostics.configure(event_history)设置。默认stream=all保持旧行为。actions的lost表示发生覆盖（lost_count_known=false），不能拿全局sequence的位移间隙计算动作丢失数量。cursors按观察账号和会话保存，重连reset；没有广播的包仍未知。
+
+`plugin.call(pluginID,exportedFunction,args数组)`只调用本账号已运行插件plugin_api的导出函数。未运行不隐式启动，私有全局不开放；忙/递归返回明确错误。Lua/Python同名，C++为client.plugin.call。MCP/HTTP：POST /api/youyuan/game/call {method:"plugin.call",args:["插件ID","函数名",[参数]]}。跨账号继续用原accounts.callPlugin/accountsPool.invoke，隔离与模块通信保留。
+
+## 本次多功能插件的可调用接口（需要模块observation_team.lua）
+
+```lua
+local config={enabled=true,accounts={"自己的池账号ID"},targets={"目标玩家名"},
+ mode="hybrid",interval_seconds=0.2,camera_height_blocks=4,camera_pitch_degrees=90,
+ follow_radius_blocks=16,dwell_seconds=2,idle_seconds=60,event_limit=1024,start_accounts=true}
+plugin_api.observationTeamConfigure(config)
+plugin_api.observationTeamStatus()
+plugin_api.observationTeamStop()
+-- 空闲机器人先到位、收到新区域发布，才释放旧观察者。
+plugin_api.observationTeamHandoff(incomingID,outgoingID,{player="目标",mode="hybrid",
+ camera_height_blocks=4,camera_pitch_degrees=90,interval_seconds=0.2,timeout_seconds=5})
+```
+
+同一账号持续跟随一个目标，人数超过观察者数量时分时轮巡，切换错峰；有空闲接替者时用真实handoff，超时保持旧观察。账号不足/无备用时存在覆盖空档，不承诺每0.05秒全服全部玩家都收到，也不承诺不丢包。相机只是当前维度镜头；hybrid近距身体跟随可以跨维度，需要正常游戏权限。玩家不会被移动；真实测试应明确观察者/发送者OP状态与测量中是否TP。静默超时release按用户自己的池回收，不删除游戏凭据。凭据失效要真实重新认证，不能靠界面伪装成功。
+
+动作汇总只接受已连接观察者的server_to_bot_decoded事件，按服务器/维度/RuntimeID分组，不把他人账号输入假装普通玩家广播。组合方法扩展视距覆盖范围，但不是全局引擎监听。
+
+## 战斗显示语义
+
+18格内近期挥臂或已知射击活动与真实掉血相关联；多名候选不强行取最近玩家。单候选也是关联推断，不能当PvP击杀确证。只有匹配玩家显示，取消向256格旁观者群发。血量和最大值来自属性；护甲未知显示未知，不用未知装备推算真实护甲。一个combat-health管理频道，1200ms到期清除/恢复低优先级频道，不反复播放Title。相同血量的重复原始/规范事件合并；重新回血再受伤仍可显示。
+
+真实屏幕延迟、多人跨维度丢包率和连续放置回读仍要单独验收；源码模拟通过不等于游戏验收。界面保存区不浮动；导航透镜不再采样背景文字，浏览器控制超时仍需视觉复验。

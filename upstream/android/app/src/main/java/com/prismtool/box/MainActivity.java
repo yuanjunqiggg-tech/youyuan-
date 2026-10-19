@@ -48,6 +48,8 @@ public class MainActivity extends Activity {
     private static final int EXPORT_FILE_CODE = 1003;
     private String lastPickedPath = "";
     private String pendingExportPath = "";        // SAF「另存为」待写出的私有文件路径
+    private String pendingExportURL = "";
+    private String pendingExportHeaders = "{}";
     private String pendingExternalFile = null;   // 外部「打开/分享」待投递给前端的文件路径
     private boolean appReady = false;             // App 页面(Go server)是否已加载就绪
     private static final java.util.concurrent.atomic.AtomicBoolean backendLoopStarted = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -324,6 +326,8 @@ public class MainActivity extends Activity {
                 return;
             }
             pendingExportPath = srcPath;
+            pendingExportURL = "";
+            pendingExportHeaders = "{}";
             String name = suggestedName;
             if (name == null || name.isEmpty()) name = "export.zip";
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -335,6 +339,31 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 handler.post(() -> Toast.makeText(MainActivity.this, "无法打开保存面板", Toast.LENGTH_SHORT).show());
             }
+        }
+
+        // Stream authenticated remote files to SAF instead of navigating a blob: URL.
+        @JavascriptInterface
+        public void exportDownload(String url, String headersJson, String suggestedName) {
+            try {
+                java.net.URI u = new java.net.URI(url);
+                String host = u.getHost();
+                boolean local = "http".equals(u.getScheme()) && ("127.0.0.1".equals(host) || "localhost".equals(host));
+                boolean remote = "https".equals(u.getScheme()) && host != null &&
+                    (host.equals("toolbox.youyuanqi.dpdns.org") || host.equals("linux.youyuanqi.dpdns.org") || host.endsWith(".trycloudflare.com"));
+                if ((!local && !remote) || u.getUserInfo() != null) throw new IllegalArgumentException("下载地址不属于工具箱执行端");
+                new org.json.JSONObject(headersJson);
+                pendingExportPath = "";
+                pendingExportURL = url;
+                pendingExportHeaders = headersJson;
+                handler.post(() -> {
+                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    intent.putExtra(Intent.EXTRA_TITLE, suggestedName);
+                    try { startActivityForResult(intent, EXPORT_FILE_CODE); }
+                    catch (Exception e) { pendingExportURL=""; pendingExportHeaders="{}"; Toast.makeText(MainActivity.this,"无法打开保存面板",Toast.LENGTH_SHORT).show(); }
+                });
+            } catch (Exception e) { handler.post(() -> Toast.makeText(MainActivity.this,"下载地址无效",Toast.LENGTH_SHORT).show()); }
         }
 
 
@@ -657,11 +686,34 @@ public class MainActivity extends Activity {
             handler.post(() -> webView.evaluateJavascript(
                 "window.__onFilePicked__('')", null));
         } else if (requestCode == EXPORT_FILE_CODE && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            boolean ok = writeFileToUri(pendingExportPath, data.getData());
-            boolean finalOk = ok;
-            handler.post(() -> webView.evaluateJavascript(
-                "window.__onExportResult__(" + finalOk + ")", null));
-            handler.post(() -> Toast.makeText(MainActivity.this, finalOk ? "导出成功" : "导出失败", Toast.LENGTH_SHORT).show());
+            final String path=pendingExportPath,url=pendingExportURL,headers=pendingExportHeaders;
+            final Uri dest=data.getData();
+            pendingExportPath="";pendingExportURL="";pendingExportHeaders="{}";
+            new Thread(() -> {
+                boolean ok=false;
+                if(url.isEmpty()) { ok=writeFileToUri(path,dest); }
+                else {
+                    java.net.HttpURLConnection conn=null;
+                    try {
+                        conn=(java.net.HttpURLConnection)new java.net.URL(url).openConnection();
+                        conn.setConnectTimeout(20000);conn.setReadTimeout(60000);conn.setInstanceFollowRedirects(false);
+                        org.json.JSONObject h=new org.json.JSONObject(headers);
+                        for(String key:new String[]{"Authorization","X-YouYuan-Device"})if(h.has(key))conn.setRequestProperty(key,h.getString(key));
+                        if(conn.getResponseCode()!=200 || !String.valueOf(conn.getHeaderField("Content-Disposition")).startsWith("attachment"))throw new java.io.IOException("下载未授权或文件不可用");
+                        long copied=0,expected=conn.getContentLengthLong();
+                        try(InputStream in=conn.getInputStream();java.io.OutputStream out=getContentResolver().openOutputStream(dest,"w")){
+                            byte[] buffer=new byte[32768];int n;while((n=in.read(buffer))!=-1){out.write(buffer,0,n);copied+=n;}out.flush();
+                        }
+                        ok=expected<0||copied==expected;
+                    }catch(Exception e){android.util.Log.e("YouYuanExport","导出文件失败",e);}
+                    finally{if(conn!=null)conn.disconnect();}
+                }
+                final boolean finalOk=ok;
+                handler.post(() -> webView.evaluateJavascript("window.__onExportResult__&&window.__onExportResult__("+finalOk+")",null));
+                handler.post(() -> Toast.makeText(MainActivity.this,finalOk?"文件已保存":"导出失败，请重试",Toast.LENGTH_SHORT).show());
+            },"youyuan-file-export").start();
+        } else if (requestCode == EXPORT_FILE_CODE && resultCode == RESULT_CANCELED) {
+            pendingExportPath="";pendingExportURL="";pendingExportHeaders="{}";
         } else if (requestCode == STORAGE_PERM_CODE) {
             // 从系统设置页返回后通知 JS
             boolean granted = new JSBridge().checkStoragePermission();

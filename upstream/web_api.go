@@ -54,7 +54,7 @@ func registerWebAPI(L *lua.LState) {
 		}
 		page := L.CheckString(1)
 		action := L.CheckString(2)
-		handler := L.CheckString(3)
+		handler := yySenseLuaHandler(L, 3)
 		plugin := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 		if err := registerWebAction(plugin, page, action, handler); err != nil {
 			L.RaiseError("%v", err)
@@ -126,7 +126,7 @@ func callWebAction(bm *BotManager, plugin, page, action string, args map[string]
 	if !ok {
 		return nil, fmt.Errorf("插件 %s 未注册动作 %s/%s", plugin, page, action)
 	}
-	L := lua.NewState()
+	L := newYYLuaVM()
 	defer L.Close()
 	defer cancelLuaCtx(L)
 	registerAllLuaAPI(L, bm)

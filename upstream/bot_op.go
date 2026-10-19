@@ -53,19 +53,19 @@ func checkSurroundingOP(logCh chan string) {
 	}
 	if lastOPCnt == -1 {
 		if n > 0 {
-			logCh <- fmt.Sprintf("[OP检测] 周围%.0f格内 %d个OP: %s", opRange, n, strings.Join(nearby, ", "))
+			yyReceiveLog(logCh, fmt.Sprintf("[OP检测] 周围%.0f格内 %d个OP: %s", opRange, n, strings.Join(nearby, ", ")))
 		} else {
-			logCh <- "[OP检测] 周围无OP，持续监听..."
+			yyReceiveLog(logCh, "[OP检测] 周围无OP，持续监听...")
 		}
 		lastOPCnt = n
 		return
 	}
 	if n > 0 && lastOPCnt == 0 {
-		logCh <- fmt.Sprintf("[OP检测] ⚠ OP出现！%s", strings.Join(nearby, ", "))
+		yyReceiveLog(logCh, fmt.Sprintf("[OP检测] ⚠ OP出现！%s", strings.Join(nearby, ", ")))
 	} else if n == 0 && lastOPCnt > 0 {
-		logCh <- fmt.Sprintf("[OP检测] ✅ OP全部离开%.0f格范围", opRange)
+		yyReceiveLog(logCh, fmt.Sprintf("[OP检测] ✅ OP全部离开%.0f格范围", opRange))
 	} else {
-		logCh <- fmt.Sprintf("[OP检测] OP数量变化: %d→%d %s", lastOPCnt, n, strings.Join(nearby, ", "))
+		yyReceiveLog(logCh, fmt.Sprintf("[OP检测] OP数量变化: %d→%d %s", lastOPCnt, n, strings.Join(nearby, ", ")))
 	}
 	lastOPCnt = n
 }
@@ -101,19 +101,21 @@ func HandleOPPacket(pk packet.Packet, logCh chan string) bool {
 	case *packet.AddPlayer:
 		ab := p.AbilityData
 		name := p.Username
-		players[name] = int64(p.EntityRuntimeID)
+		players[name] = ab.EntityUniqueID
 		isOP := ab.CommandPermissions >= packet.CommandPermissionLevelGameDirectors
 		if isOP {
 			old, existed := opPlayers[name]
 			if !existed || old.CmdPerm != ab.CommandPermissions {
 				opPlayers[name] = &opInfo{
-					Name: name, RuntimeEID: p.EntityRuntimeID,
+					Name: name, ListEID: ab.EntityUniqueID, RuntimeEID: p.EntityRuntimeID,
 					Pos: p.Position, CmdPerm: ab.CommandPermissions, PlayerPerm: ab.PlayerPermissions,
 				}
-				logCh <- fmt.Sprintf("[OP加入] !!OP!! %s cmdPerm=%d playerPerm=%d 位置:(%.1f,%.1f,%.1f)",
-					name, ab.CommandPermissions, ab.PlayerPermissions, p.Position[0], p.Position[1], p.Position[2])
+				yyReceiveLog(logCh, fmt.Sprintf("[OP加入] !!OP!! %s cmdPerm=%d playerPerm=%d 位置:(%.1f,%.1f,%.1f)",
+					name, ab.CommandPermissions, ab.PlayerPermissions, p.Position[0], p.Position[1], p.Position[2]))
 				checkSurroundingOP(logCh)
 			}
+		} else {
+			delete(opPlayers, name)
 		}
 		return true
 
@@ -129,9 +131,11 @@ func HandleOPPacket(pk packet.Packet, logCh chan string) bool {
 						old.PlayerPerm = p.AbilityData.PlayerPermissions
 					} else {
 						opPlayers[name] = &opInfo{Name: name, ListEID: eid, CmdPerm: cmd}
-						logCh <- fmt.Sprintf("[OP权限] !!OP!! %s cmdPerm=%d playerPerm=%d", name, cmd, p.AbilityData.PlayerPermissions)
+						yyReceiveLog(logCh, fmt.Sprintf("[OP权限] !!OP!! %s cmdPerm=%d playerPerm=%d", name, cmd, p.AbilityData.PlayerPermissions))
 						checkSurroundingOP(logCh)
 					}
+				} else {
+					delete(opPlayers, name)
 				}
 				break
 			}
@@ -145,9 +149,11 @@ func HandleOPPacket(pk packet.Packet, logCh chan string) bool {
 				if isOP {
 					if _, ok := opPlayers[name]; !ok {
 						opPlayers[name] = &opInfo{Name: name, ListEID: p.PlayerUniqueID, CmdPerm: byte(p.CommandPermissionLevel)}
-						logCh <- fmt.Sprintf("[OP冒险] !!OP!! %s cmdPerm=%d", name, p.CommandPermissionLevel)
+						yyReceiveLog(logCh, fmt.Sprintf("[OP冒险] !!OP!! %s cmdPerm=%d", name, p.CommandPermissionLevel))
 						checkSurroundingOP(logCh)
 					}
+				} else {
+					delete(opPlayers, name)
 				}
 				break
 			}
@@ -160,8 +166,8 @@ func HandleOPPacket(pk packet.Packet, logCh chan string) bool {
 				old := op.Pos
 				op.Pos = p.Position
 				if dist(old, p.Position) > 10 {
-					logCh <- fmt.Sprintf("[OP传送] %s (%.0f,%.0f,%.0f)→(%.0f,%.0f,%.0f) 距离:%.0f格",
-						name, old[0], old[1], old[2], p.Position[0], p.Position[1], p.Position[2], dist(old, p.Position))
+					yyReceiveLog(logCh, fmt.Sprintf("[OP传送] %s (%.0f,%.0f,%.0f)→(%.0f,%.0f,%.0f) 距离:%.0f格",
+						name, old[0], old[1], old[2], p.Position[0], p.Position[1], p.Position[2], dist(old, p.Position)))
 					checkSurroundingOP(logCh)
 				}
 				break
@@ -175,8 +181,8 @@ func HandleOPPacket(pk packet.Packet, logCh chan string) bool {
 					old := op.Pos
 					op.Pos = p.Position
 					if dist(old, p.Position) > 10 {
-						logCh <- fmt.Sprintf("[OP传送] %s (%.0f,%.0f,%.0f)→(%.0f,%.0f,%.0f) 距离:%.0f格",
-							name, old[0], old[1], old[2], p.Position[0], p.Position[1], p.Position[2], dist(old, p.Position))
+						yyReceiveLog(logCh, fmt.Sprintf("[OP传送] %s (%.0f,%.0f,%.0f)→(%.0f,%.0f,%.0f) 距离:%.0f格",
+							name, old[0], old[1], old[2], p.Position[0], p.Position[1], p.Position[2], dist(old, p.Position)))
 						checkSurroundingOP(logCh)
 					}
 					break

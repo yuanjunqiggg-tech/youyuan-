@@ -23,6 +23,10 @@ import (
 
 // ListenConfig holds settings that may be edited to change behaviour of a Listener.
 type ListenConfig struct {
+	// LoginOnly hands off authenticated, encrypted clients before resource packs
+	// and StartGame. The gateway must forward a real upstream world; this listener
+	// does not fabricate a world or consume client gameplay input.
+	LoginOnly bool
 	// ErrorLog is a log.Logger that errors that occur during packet handling of
 	// clients are written to. By default, errors are not logged.
 	ErrorLog *slog.Logger
@@ -284,6 +288,12 @@ func (listener *Listener) createConn(netConn net.Conn) {
 	conn.fetchResourcePacks = listener.cfg.FetchResourcePacks
 	conn.gameData.WorldName = listener.status().ServerName
 	conn.authEnabled = !listener.cfg.AuthenticationDisabled
+	conn.loginOnly = listener.cfg.LoginOnly
+	if listener.cfg.LoginOnly {
+		// Opaque gateways retain the decompressed-byte bound but do not impose
+		// the vendor's per-batch application packet count on a routed client.
+		conn.dec.DisableBatchPacketLimit()
+	}
 	conn.disconnectOnUnknownPacket = !listener.cfg.AllowUnknownPackets
 	conn.disconnectOnInvalidPacket = !listener.cfg.AllowInvalidPackets
 

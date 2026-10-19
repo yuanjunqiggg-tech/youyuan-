@@ -24,6 +24,12 @@ type AISkill struct {
 
 // aiSkills 内置技能列表。内容来自 MiemieMethod/bedrock-docs（基岩版中文文档），打包在 skills/ 下。
 var aiSkills = []*AISkill{
+	{ID: "efficient-context", Name: "有界读取与Token节省", Description: "参考dsh-ops：范围搜索、分页读文件、按需技能与MCP参数、复用已验证结果；不虚构省费倍数", Sources: []string{"skills/efficient-context/index.md"}},
+	{ID: "player-actions", Name: "动作API与监测来源", Description: "挥臂/空挥/攻击/位置/本人血量，三语言与MCP调用、字段、实测和接入覆盖", Sources: []string{"skills/player-actions/index.md"}},
+	{ID: "account-pool", Name: "共享机器人账号池", Description: "按所有者隔离、真实进服、持久绑定、空闲回收与跨账号API；跟随逻辑由插件负责", Sources: []string{"skills/account-pool/index.md"}},
+	{ID: "observer-bridge", Name: "玩家输入与服务端采集桥", Description: "自身出站输入、独立认证上报、PyRpc模块探测和来源可信度；不虚构全服数据", Sources: []string{"skills/observer-bridge/index.md"}},
+	{ID: "network-observation", Name: "网络视距与接包诊断", Description: "实际视距协商、包来源、缓存与广播范围区别；远端观测方案", Sources: []string{"skills/network-observation/index.md"}},
+	{ID: "nbt-workbench", Name: "容器NBT与分区协作", Description: "铁砧改名、附魔、真实容器事务、分区导出和读回验证；20种底层制作流程", Sources: []string{"skills/nbt-workbench/index.md"}},
 	{ID: "account-bridge", Name: "跨账号定向联通", Description: "Lua/Python/C++账号查询、消息、Fast数组和常驻插件导出调用；显式授权与撤销", Sources: []string{"skills/account-bridge/index.md"}},
 	{ID: "runtime-kernel", Name: "常驻内核与缓冲执行", Description: "统一调度、三种命令路径、CommandBuffer、Storage事务和TXT资源重载", Sources: []string{"skills/runtime-kernel/index.md"}},
 	{ID: "gameplay-events", Name: "协议到玩法与AI操作", Description: "挥臂、死亡RPC、血量位置、拾取和跨语言事件例子，工具到真实游戏的闭环", Sources: []string{"skills/gameplay-events/index.md"}},
@@ -73,11 +79,15 @@ var aiSkills = []*AISkill{
 func init() {
 	for _, id := range []string{"lua-runtime", "python-runtime", "cpp-runtime"} {
 		sk := skillByID(id)
-		for _, section := range []string{"game", "player", "world", "events", "packet", "bot", "chains", "building", "media", "plugin", "util", "api", "http", "system", "web", "storage", "accounts"} {
+		for _, section := range []string{"game", "player", "world", "events", "packet", "bot", "chains", "building", "media", "plugin", "util", "api", "http", "system", "web", "storage", "accounts", "entities", "entity", "diagnostics", "hud", "scoreboard", "observerBridge"} {
 			sk.Sources = append(sk.Sources, "skills/"+id+"/"+section+".md")
 		}
-		sk.Sources = append(sk.Sources, "skills/"+id+"/native-mcp-and-chain-segments.md")
+		sk.Sources = append(sk.Sources, "skills/"+id+"/native-mcp-and-chain-segments.md", "skills/"+id+"/observations.md", "skills/"+id+"/account-pool.md", "skills/"+id+"/account-pool-guide.md", "skills/"+id+"/accountsPool.md", "skills/"+id+"/observation-cooperation.md")
+		sk.Sources = append(sk.Sources, "skills/"+id+"/plugin-outputs.md")
+		sk.Sources = append(sk.Sources, "skills/"+id+"/realtime-queries.md")
+		sk.Sources = append(sk.Sources, "skills/"+id+"/fleet-scheduling.md", "skills/"+id+"/mcp-engineering.md", "skills/"+id+"/dimension-observation.md")
 	}
+	skillByID("observer-bridge").Sources = append(skillByID("observer-bridge").Sources, "skills/observer-bridge/fleet-scheduling.md")
 	skillByID("command-chain").Sources = append(skillByID("command-chain").Sources, "skills/command-chain/R21A常驻与本机MCP开发说明.md")
 }
 

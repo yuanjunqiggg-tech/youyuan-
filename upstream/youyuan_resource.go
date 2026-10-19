@@ -20,6 +20,8 @@ var yyResourceDocs = map[string]string{
 	"plugin.listResources":   "relative_path默认.，递归列出目录和文件，含path/dir/size；不跟随符号链接。",
 	"plugin.existsResource":  "relative_path，检查资源是否存在；非法路径报错。",
 	"plugin.extractResource": "source_relative,destination_relative默认同源；将资源原字节复制至plugin.dataDir中的目标，创建父目录。不是解压ZIP，不写任意外部路径。",
+	"plugin.listOutputs":     "relative_dir默认.；列出当前插件数据目录内生成的文件，返回path/name/bytes/modified_at/download_url，不返回文件内容。",
+	"plugin.exportFile":      "relative_file；取得当前插件生成文件的下载信息，保持原格式/原字节，不是备份整个插件。文件须已写入plugin.dataDir。链接需登录当前账号，snapshot=false表示下载当前文件版本。",
 }
 
 func init() {
@@ -28,7 +30,7 @@ func init() {
 	}
 }
 
-type yyResourceRoots struct{ Code, Data, Config string }
+type yyResourceRoots struct{ Code, Data, Config, Kind string }
 
 func (r yyResourceRoots) resourceDir() string {
 	path := filepath.Join(r.Code, "resources")
@@ -54,6 +56,15 @@ func yyResourceCall(r yyResourceRoots, method string, args []any) (any, error) {
 	case "plugin.tempDir":
 		p := filepath.Join(r.Data, ".tmp")
 		return p, os.MkdirAll(p, 0755)
+	case "plugin.listOutputs", "plugin.exportFile":
+		name, e := yyArgString(args, 0, ".")
+		if e != nil {
+			return nil, e
+		}
+		if method == "plugin.listOutputs" {
+			return yyListOutputs(r, name)
+		}
+		return yyOutputInfo(r, name)
 	}
 	name, e := yyArgString(args, 0, ".")
 	if e != nil {
@@ -129,6 +140,11 @@ func yyResourceCall(r yyResourceRoots, method string, args []any) (any, error) {
 }
 
 func yyLuaResourceRoots(L *lua.LState) (yyResourceRoots, error) {
+	if L.Context() != nil {
+		if roots, ok := L.Context().Value(yyLegacyRootsKey{}).(yyResourceRoots); ok {
+			return roots, nil
+		}
+	}
 	id := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 	if pluginController == nil || !validPluginID(id) {
 		return yyResourceRoots{}, fmt.Errorf("需要插件上下文")
@@ -136,7 +152,22 @@ func yyLuaResourceRoots(L *lua.LState) (yyResourceRoots, error) {
 	pluginController.mu.Lock()
 	root := pluginController.privateDir
 	pluginController.mu.Unlock()
-	return yyResourceRoots{Code: filepath.Join(root, "插件文件", id), Data: filepath.Join(root, "插件数据文件", id), Config: filepath.Join(root, "插件配置文件", id)}, nil
+	code, e := pluginController.CodeDir(id)
+	if e != nil {
+		return yyResourceRoots{}, e
+	}
+	if explicit := lua.LVAsString(L.GetGlobal("__YY_PLUGIN_CODE_DIR__")); explicit != "" {
+		base := filepath.Join(root, "插件文件")
+		rel, err := filepath.Rel(base, explicit)
+		if err != nil {
+			return yyResourceRoots{}, err
+		}
+		code, err = yyProjectPath(base, rel)
+		if err != nil {
+			return yyResourceRoots{}, err
+		}
+	}
+	return yyResourceRoots{Code: code, Data: filepath.Join(root, "插件数据文件", id), Config: filepath.Join(root, "插件配置文件", id)}, nil
 }
 
 func registerResourceAPI(L *lua.LState) {

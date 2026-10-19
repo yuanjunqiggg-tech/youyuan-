@@ -167,7 +167,7 @@ func (pm *PlayerInfoManager) handlePlayerList(p *packet.PlayerList, logCh chan s
 			// 皮肤诊断：PlayerList ADD 携带皮肤数据时打日志
 			if len(entry.Skin.SkinData) > 0 {
 				if logCh != nil {
-					logCh <- fmt.Sprintf("[皮肤] PlayerList: %s %dx%d", name, entry.Skin.SkinImageWidth, entry.Skin.SkinImageHeight)
+					yyReceiveLog(logCh, fmt.Sprintf("[皮肤] PlayerList: %s %dx%d", name, entry.Skin.SkinImageWidth, entry.Skin.SkinImageHeight))
 				}
 				dumpSkinToDebugLog("PlayerListADD name="+name+" uuid="+entry.UUID.String(), &entry.Skin)
 			}
@@ -184,7 +184,7 @@ func (pm *PlayerInfoManager) handlePlayerList(p *packet.PlayerList, logCh chan s
 					delete(pm.byRTID, pi.RuntimeID)
 				}
 				if logCh != nil {
-					logCh <- fmt.Sprintf("[玩家离开] %s", name)
+					yyReceiveLog(logCh, fmt.Sprintf("[玩家离开] %s", name))
 				}
 			} else if pi, ok := pm.players[name]; ok {
 				pi.Online = false
@@ -201,9 +201,19 @@ func (pm *PlayerInfoManager) handlePlayerList(p *packet.PlayerList, logCh chan s
 
 // updateSkinInfo 从 PlayerListEntry 复制皮肤数据到 PlayerInfo。
 func updateSkinInfo(pi *PlayerInfo, entry *protocol.PlayerListEntry) {
-	pi.SkinData = entry.Skin.SkinData
-	pi.SkinWidth = entry.Skin.SkinImageWidth
-	pi.SkinHeight = entry.Skin.SkinImageHeight
+	copyPlayerSkin(pi, entry.Skin)
+}
+
+func validPlayerSkin(s protocol.Skin) bool {
+	w, h := uint64(s.SkinImageWidth), uint64(s.SkinImageHeight)
+	return w >= 64 && w <= 1024 && h >= w/4 && h <= 1024 && uint64(len(s.SkinData)) == w*h*4
+}
+func copyPlayerSkin(pi *PlayerInfo, s protocol.Skin) {
+	if !validPlayerSkin(s) {
+		return
+	}
+	pi.SkinData = append([]byte(nil), s.SkinData...)
+	pi.SkinWidth, pi.SkinHeight = s.SkinImageWidth, s.SkinImageHeight
 }
 
 // handlePlayerSkin 处理皮肤广播包（PlayerSkin）。
@@ -217,7 +227,7 @@ func (pm *PlayerInfoManager) handlePlayerSkin(p *packet.PlayerSkin, logCh chan s
 	pi := pm.byUUID[uuidStr]
 	if pi == nil {
 		// 尚未建立 UUID → 名字映射（玩家在 bot 进服前已在线），暂存皮肤
-		if len(p.Skin.SkinData) > 0 {
+		if validPlayerSkin(p.Skin) {
 			pm.pending[uuidStr] = pendingSkin{
 				data:   append([]byte(nil), p.Skin.SkinData...),
 				width:  p.Skin.SkinImageWidth,
@@ -225,16 +235,14 @@ func (pm *PlayerInfoManager) handlePlayerSkin(p *packet.PlayerSkin, logCh chan s
 			}
 		}
 		if logCh != nil {
-			logCh <- fmt.Sprintf("[皮肤] PlayerSkin(未匹配名字): %s %dx%d", uuidStr[:8], p.Skin.SkinImageWidth, p.Skin.SkinImageHeight)
+			yyReceiveLog(logCh, fmt.Sprintf("[皮肤] PlayerSkin(未匹配名字): %s %dx%d", uuidStr[:8], p.Skin.SkinImageWidth, p.Skin.SkinImageHeight))
 		}
 		dumpSkinToDebugLog("PlayerSkin(未匹配) uuid="+uuidStr, &p.Skin)
 		return
 	}
-	pi.SkinData = p.Skin.SkinData
-	pi.SkinWidth = p.Skin.SkinImageWidth
-	pi.SkinHeight = p.Skin.SkinImageHeight
+	copyPlayerSkin(pi, p.Skin)
 	if logCh != nil {
-		logCh <- fmt.Sprintf("[皮肤] PlayerSkin: %s %dx%d", pi.Name, p.Skin.SkinImageWidth, p.Skin.SkinImageHeight)
+		yyReceiveLog(logCh, fmt.Sprintf("[皮肤] PlayerSkin: %s %dx%d", pi.Name, p.Skin.SkinImageWidth, p.Skin.SkinImageHeight))
 	}
 	dumpSkinToDebugLog("PlayerSkin name="+pi.Name+" uuid="+uuidStr, &p.Skin)
 }
@@ -254,7 +262,7 @@ func (pm *PlayerInfoManager) handlePyRpcSkin(p *packet.PyRpc, logCh chan string)
 		b, _ := json.Marshal(c.MakeGo())
 		debugLog("[皮肤] 收到 SyncVipSkinUuid: %s", string(b))
 		if logCh != nil {
-			logCh <- "[皮肤] 收到 SyncVipSkinUuid rpc"
+			yyReceiveLog(logCh, "[皮肤] 收到 SyncVipSkinUuid rpc")
 		}
 	}
 }
@@ -262,6 +270,18 @@ func (pm *PlayerInfoManager) handlePyRpcSkin(p *packet.PyRpc, logCh chan string)
 // handleSyncSkin 处理网易 SyncSkin 包（皮肤同步，网易专属协议）。
 // 结构字段为推测值，仅记录收到的内容用于诊断。
 func (pm *PlayerInfoManager) handleSyncSkin(p *packet.SyncSkin, logCh chan string) {
+	// This packet contains one Skin payload. Only an unambiguous UUID mapping
+	// may receive it; assigning it to every record would fabricate avatars.
+	if len(p.PlayerData) == 1 && validPlayerSkin(p.Skin) {
+		u := p.PlayerData[0].UUID.String()
+		pm.mu.Lock()
+		if pi := pm.byUUID[u]; pi != nil {
+			copyPlayerSkin(pi, p.Skin)
+		} else {
+			pm.pending[u] = pendingSkin{append([]byte(nil), p.Skin.SkinData...), p.Skin.SkinImageWidth, p.Skin.SkinImageHeight}
+		}
+		pm.mu.Unlock()
+	}
 	var uuids []string
 	for _, pd := range p.PlayerData {
 		uuids = append(uuids, pd.UUID.String())
@@ -270,7 +290,7 @@ func (pm *PlayerInfoManager) handleSyncSkin(p *packet.SyncSkin, logCh chan strin
 		len(p.PlayerData), uuids, p.PlayerUIDs, p.Unknown, p.SkinItemIDs)
 	dumpSkinToDebugLog("SyncSkin", &p.Skin)
 	if logCh != nil {
-		logCh <- fmt.Sprintf("[皮肤] SyncSkin: %d 条记录", len(p.PlayerData))
+		yyReceiveLog(logCh, fmt.Sprintf("[皮肤] SyncSkin: %d 条记录", len(p.PlayerData)))
 	}
 }
 
@@ -284,7 +304,7 @@ func (pm *PlayerInfoManager) handleConfirmSkin(p *packet.ConfirmSkin, logCh chan
 	debugLog("[皮肤] ConfirmSkin 收到: playerData=%d uuids=%v uids=%v unknown3=%v",
 		len(p.PlayerData), uuids, p.Uids, p.Unknown3)
 	if logCh != nil {
-		logCh <- fmt.Sprintf("[皮肤] ConfirmSkin: %d 条记录", len(p.PlayerData))
+		yyReceiveLog(logCh, fmt.Sprintf("[皮肤] ConfirmSkin: %d 条记录", len(p.PlayerData)))
 	}
 }
 
@@ -350,7 +370,7 @@ func (pm *PlayerInfoManager) GetPlayerSkin(name string) ([]byte, uint32, uint32,
 	if pi == nil || len(pi.SkinData) == 0 {
 		return nil, 0, 0, false
 	}
-	return pi.SkinData, pi.SkinWidth, pi.SkinHeight, true
+	return append([]byte(nil), pi.SkinData...), pi.SkinWidth, pi.SkinHeight, true
 }
 
 func (pm *PlayerInfoManager) handleAddPlayer(p *packet.AddPlayer, logCh chan string) {
@@ -499,83 +519,80 @@ func (pm *PlayerInfoManager) handleRespawn(p *packet.Respawn) {
 
 // RefreshPlayerList 通过 /list + querytarget 命令刷新玩家列表
 // 网易租赁服不发 PlayerList/AddPlayer 包，用命令替代
-func (pm *PlayerInfoManager) RefreshPlayerList(bm *BotManager) {
-	// 1. 用 /list 获取玩家名称列表
-	// 输出格式: OutputMessages[1].Parameters[0] = "name1, name2, ..."
-	resp, err := bm.SendWSCommandWithResp("list")
-	if err != nil {
-		return
-	}
-
-	playerNames := parseListOutput(resp)
-	if len(playerNames) == 0 {
-		return
-	}
-
+// applyConfirmedRoster uses /list membership independently of querytarget.
+// Death, dimension loading and unavailable coordinates never turn a member offline.
+func (pm *PlayerInfoManager) applyConfirmedRoster(names []string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-
-	// 先标记所有玩家离线
 	for _, pi := range pm.players {
 		pi.Online = false
 	}
-
-	// 2. 对每个玩家单独 querytarget 获取位置
-	for _, name := range playerNames {
-		infos, err := bm.DoQuerytarget(`"` + name + `"`)
-		if err != nil {
-			continue
+	for _, name := range names {
+		if pi := pm.players[name]; pi != nil {
+			pi.Online = true
+		} else {
+			pm.players[name] = &PlayerInfo{Name: name, Online: true}
 		}
-		if len(infos) == 0 {
+	}
+}
+func (pm *PlayerInfoManager) RefreshPlayerList(bm *BotManager) bool {
+	return pm.refreshPlayerList(bm, true)
+}
+func (pm *PlayerInfoManager) RefreshPlayerRoster(bm *BotManager) bool {
+	return pm.refreshPlayerList(bm, false)
+}
+func (pm *PlayerInfoManager) refreshPlayerList(bm *BotManager, includePositions bool) bool {
+	resp, err := bm.SendWSCommandWithResp("list")
+	if err != nil || resp == nil || resp.SuccessCount == 0 {
+		return false
+	}
+	playerNames := parseListOutput(resp)
+	if len(playerNames) == 0 {
+		return false
+	}
+	pm.applyConfirmedRoster(playerNames)
+	// Network queries run without pm.mu. Packet, inventory and UI readers remain live.
+	for _, name := range playerNames {
+		if !includePositions {
+			break
+		}
+		infos, err := bm.DoQuerytarget(`"` + name + `"`)
+		if err != nil || len(infos) == 0 {
 			continue
 		}
 		info := infos[0]
-		eid := info.PlayerUniqueID
-		pos := mgl32.Vec3{info.Position.X, info.Position.Y, info.Position.Z}
-		dim := int(info.Dimension)
-
-		if pi, ok := pm.players[name]; ok {
-			// 更新已有玩家
-			pi.Online = true
-			pi.EntityID = eid
-			pi.Position = pos
-			pi.Dimension = dim
-			pi.Yaw = info.YRot
-			pm.byEID[eid] = pi
-			pm.setUUID(pi, info.PlayerUUID.String())
-		} else {
-			// 新玩家
-			pi := &PlayerInfo{
-				Name:      name,
-				EntityID:  eid,
-				Position:  pos,
-				Dimension: dim,
-				Yaw:       info.YRot,
-				Online:    true,
+		pm.mu.Lock()
+		pi := pm.players[name]
+		if pi != nil && pi.Online {
+			if pi.EntityID != 0 && pi.EntityID != info.PlayerUniqueID {
+				delete(pm.byEID, pi.EntityID)
 			}
-			pm.players[name] = pi
-			pm.byEID[eid] = pi
+			pi.EntityID = info.PlayerUniqueID
+			pi.Position = mgl32.Vec3{info.Position.X, info.Position.Y, info.Position.Z}
+			pi.Dimension = int(info.Dimension)
+			pi.Yaw = info.YRot
+			pm.byEID[pi.EntityID] = pi
 			pm.setUUID(pi, info.PlayerUUID.String())
 		}
-
+		pm.mu.Unlock()
 	}
-
-	// 同步更新全局 players 表（先清空再添加，避免离线玩家残留）
+	pm.mu.RLock()
+	online := map[string]int64{}
+	for _, pi := range pm.players {
+		if pi.Online && pi.EntityID != 0 {
+			online[pi.Name] = pi.EntityID
+		}
+	}
+	pm.mu.RUnlock()
 	opMu.Lock()
 	for k := range players {
 		delete(players, k)
 	}
-	// 添加机器人自身
-	if bm := getBotManager(); bm != nil {
-		players[bm.GetBotName()] = bm.eid
-	}
-	// 添加在线玩家
-	for _, pi := range pm.players {
-		if pi.Online {
-			players[pi.Name] = pi.EntityID
-		}
+	for name, id := range online {
+		players[name] = id
 	}
 	opMu.Unlock()
+	return true
 }
 
 // parseListOutput 解析 /list 命令输出，返回玩家名列表

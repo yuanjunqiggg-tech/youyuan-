@@ -50,6 +50,7 @@ var exemptedPacks = []exemptedResourcePack{
 // methods (Read, Write etc.) are safe to be called from multiple goroutines simultaneously, but ReadPacket
 // must not be called on multiple goroutines simultaneously.
 type Conn struct {
+	receiveAudit receiveAudit
 	// once is used to ensure the Conn is closed only a single time. It protects the channel below from being
 	// closed multiple times.
 	once       sync.Once
@@ -96,7 +97,8 @@ type Conn struct {
 	deferredPackets []*packetData
 	readDeadline    <-chan time.Time
 
-	sendMu sync.Mutex
+	sendMu           sync.Mutex
+	outboundObserver atomic.Pointer[outboundPacketObserver]
 	// bufferedSend is a slice of byte slices containing packets that are 'written'. They are buffered until
 	// they are sent each 20th of a second.
 	bufferedSend [][]byte
@@ -108,6 +110,7 @@ type Conn struct {
 	// loggedIn is a bool indicating if the connection was logged in. It is set to true after the entire login
 	// sequence is completed.
 	loggedIn bool
+	loginOnly bool
 	// spawn is a bool channel indicating if the connection is currently waiting for its spawning in
 	// the world: It is completing a sequence that will result in the spawning.
 	spawn           chan struct{}
@@ -400,7 +403,24 @@ func (conn *Conn) writePacketLocked(pk packet.Packet) error {
 		}
 		conn.bufferedSend = append(conn.bufferedSend, append([]byte(nil), buf.Bytes()...))
 	}
+	if observer := conn.outboundObserver.Load(); observer != nil {
+		observer.callback(pk)
+	}
 	return nil
+}
+
+type outboundPacketObserver struct{ callback func(packet.Packet) }
+
+// SetOutboundPacketObserver observes local submission before wire encryption.
+// The hook must only copy/enqueue metadata, never wait for network or invoke
+// plugins. It does not prove delivery, server acceptance, or a successful hit.
+// A third-party authorised client using this transport may install its own hook.
+func (conn *Conn) SetOutboundPacketObserver(callback func(packet.Packet)) {
+	if callback == nil {
+		conn.outboundObserver.Store(nil)
+		return
+	}
+	conn.outboundObserver.Store(&outboundPacketObserver{callback: callback})
 }
 
 // WritePacketBatch queues an entire bounded command burst under one send lock and
@@ -697,7 +717,7 @@ func (conn *Conn) receive(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if pkData.h.PacketID == packet.IDDisconnect {
+	if pkData.h.PacketID == packet.IDDisconnect && !conn.loginOnly {
 		// We always handle disconnect packets and close the connection if one comes in.
 		pks, err := pkData.decode(conn)
 		if err != nil {
@@ -835,7 +855,7 @@ func (conn *Conn) handleRequestNetworkSettings(pk *packet.RequestNetworkSettings
 	}
 	_ = conn.Flush()
 	conn.enc.EnableCompression(conn.compression.EncodeCompression())
-	conn.dec.EnableCompression(conn.maxDecompressedLen, true)
+	conn.dec.EnableCompression(conn.maxDecompressedLen, conn.compression.EncodeCompression() != packet.CompressionAlgorithmNetEase)
 	return nil
 }
 
@@ -886,6 +906,10 @@ func (conn *Conn) handleClientToServerHandshake() error {
 	conn.expect(packet.IDResourcePackClientResponse, packet.IDClientCacheStatus)
 	if err := conn.WritePacket(&packet.PlayStatus{Status: packet.PlayStatusLoginSuccess}); err != nil {
 		return fmt.Errorf("发送登录成功状态失败：%w", err)
+	}
+	if conn.loginOnly {
+		conn.loggedIn = true
+		return conn.Flush()
 	}
 
 	if conn.fetchResourcePacks != nil {
@@ -1457,6 +1481,10 @@ func (conn *Conn) handleSetLocalPlayerAsInitialised(pk *packet.SetLocalPlayerAsI
 func (conn *Conn) handlePlayStatus(pk *packet.PlayStatus) error {
 	switch pk.Status {
 	case packet.PlayStatusLoginSuccess:
+		if conn.loginOnly {
+			conn.loggedIn = true
+			return nil
+		}
 		if err := conn.WritePacket(&packet.ClientCacheStatus{Enabled: conn.cacheEnabled}); err != nil {
 			return fmt.Errorf("发送客户端缓存状态失败：%w", err)
 		}

@@ -10,8 +10,8 @@ import (
 )
 
 var yySchedulerDocs = map[string]string{
-	"util.scheduleHz":      "hz,handler；本地完整回调的频率，0<hz<=1000。慢回调不重入、不补积压轮次；统一时钟、skip策略；查看listJobs的missed。不是服务端同步Tick。",
-	"util.scheduleSeconds": "seconds,handler；schedule别名，0.001秒..一年。",
+	"util.scheduleHz":      "hz,handler；本地完整回调的频率，有限正数，无人为1000Hz上限。慢回调不重入、不补积压轮次；查看listJobs的missed。请求亚毫秒频率会提高CPU占用，实际完成频率受回调/系统影响；不是服务端同步Tick。",
+	"util.scheduleSeconds": "seconds,handler；schedule别名，正数秒，可小于0.001秒；必须能表示为正的宿主时间间隔，最长一年。",
 	"util.scheduleTick":    "ticks,handler；ticks>=1，统一宿主Tick Loop；本地名义Tick=50ms，不宣称服务端同Tick同步。",
 	"util.listJobs":        "无参数，当前插件任务列表：id/handler/paused/calls/missed/failures/last_ms/max_ms/total_ms/last_error；耗时为墙钟含VM排队及回调，不是CPU时间。",
 	"util.pauseJob":        "id，暂停该插件任务后续触发；已经执行/入队的一次不强制中断。",
@@ -31,8 +31,8 @@ func yyScheduleDuration(method string, value any) (time.Duration, error) {
 	}
 	switch method {
 	case "util.scheduleHz":
-		if n <= 0 || n > 1000 {
-			return 0, fmt.Errorf("Hz范围(0,1000]")
+		if n <= 0 {
+			return 0, fmt.Errorf("Hz需有限正数")
 		}
 		n = 1 / n
 	case "util.scheduleTick":
@@ -41,8 +41,8 @@ func yyScheduleDuration(method string, value any) (time.Duration, error) {
 		}
 		n *= .05
 	}
-	if n < .001 || n > maxSchedIntervalSec {
-		return 0, fmt.Errorf("间隔范围0.001秒..一年")
+	if n <= 0 || n > maxSchedIntervalSec || n*float64(time.Second) < 1 {
+		return 0, fmt.Errorf("间隔需正数且可表示为宿主时间，最长一年")
 	}
 	return time.Duration(n * float64(time.Second)), nil
 }

@@ -11,10 +11,49 @@ import (
 	"github.com/Yeah114/g79client/utils"
 )
 
+// Explicit selected IDs must never fall back to the first search result.
+// Legacy name input remains supported only when the exact name is unique.
+func selectTanLobbyRoom(rows []g79client.TransferRoomWithNameListItem, input string) (g79client.TransferRoomWithNameListItem, error) {
+	id, exact := strings.CutPrefix(input, "room_id=")
+	if !exact {
+		id = input
+		exact = input != "" && strings.Trim(input, "0123456789") == ""
+	}
+	if id == "" {
+		return g79client.TransferRoomWithNameListItem{}, fmt.Errorf("selected local room not found")
+	}
+	for _, row := range rows {
+		if row.RID.String() == id || row.RoomUniqueID != "" && row.RoomUniqueID == id {
+			return row, nil
+		}
+	}
+	if !exact {
+		var match g79client.TransferRoomWithNameListItem
+		count := 0
+		for _, row := range rows {
+			if row.Name == input {
+				match = row
+				count++
+			}
+		}
+		if count == 1 {
+			return match, nil
+		}
+		if count > 1 {
+			return match, fmt.Errorf("multiple local rooms match this name; select an exact room ID")
+		}
+	}
+	return g79client.TransferRoomWithNameListItem{}, fmt.Errorf("selected local room not found")
+}
+
 func TanLobbyLogin(ctx context.Context, cli *g79client.Client, p TanLobbyLoginParams) (TanLobbyLoginResult, error) {
 	var result TanLobbyLoginResult
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 
-	roomInfo, err := cli.GetTransferRoomWithName(p.RoomID)
+	lookup := strings.TrimPrefix(p.RoomID, "room_id=")
+	roomInfo, err := cli.GetTransferRoomWithNameContext(ctx, lookup)
 	if err != nil {
 		return result, fmt.Errorf("get transfer room with name: %w", err)
 	}
@@ -23,6 +62,10 @@ func TanLobbyLogin(ctx context.Context, cli *g79client.Client, p TanLobbyLoginPa
 	}
 	if len(roomInfo.List) == 0 {
 		return result, fmt.Errorf("room not found")
+	}
+	target, err := selectTanLobbyRoom(roomInfo.List, p.RoomID)
+	if err != nil {
+		return result, err
 	}
 
 	if cli.UserDetail == nil {
@@ -53,14 +96,6 @@ func TanLobbyLogin(ctx context.Context, cli *g79client.Client, p TanLobbyLoginPa
 	ticket, err := utils.AesECBEncrypt(seed, []byte(cli.UserToken))
 	if err != nil {
 		return result, fmt.Errorf("aes encrypt: %w", err)
-	}
-
-	target := roomInfo.List[0]
-	for _, candidate := range roomInfo.List {
-		if candidate.RoomUniqueID == p.RoomID || candidate.RID.String() == p.RoomID {
-			target = candidate
-			break
-		}
 	}
 
 	result.RoomOwnerID = uint32(target.HID.Int64())
@@ -100,7 +135,7 @@ func TanLobbyLogin(ctx context.Context, cli *g79client.Client, p TanLobbyLoginPa
 
 	roomTransferServerID := int(target.SRV.Int64())
 	if roomTransferServerID != 0 {
-		servers, err := g79client.GetGlobalG79TransferServers()
+		servers, err := cli.FetchG79TransferServersContext(ctx)
 		if err != nil {
 			return result, fmt.Errorf("get transfer servers: %w", err)
 		}

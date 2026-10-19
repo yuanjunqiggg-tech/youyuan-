@@ -1,10 +1,14 @@
+# 0.10.23 真实观测与容量配置
+
+新实体、装备、视角、背包、HUD、计分板和队列接口见本语言的entities.md/entity.md/diagnostics.md/hud.md/scoreboard.md及player.md/events.md/util.md补充。未知值不得编造，先用known/stale判断。
+
 # C++ 常驻插件开发手册
 
-游园 0.10.9 / SDK 1.13。当前原生动态库运行器支持Android arm64-v8a与x86_64；Linux/Windows尚无此适配器。C++插件逻辑是编译机器码，游戏接口通过当前账号宿主执行；不等于BDS服务端插件。
+游园 0.10.19 / SDK 1.15。原生动态库运行器支持 Android arm64-v8a/x86_64 与 Linux 对应架构的 ELF 库。Linux 每个插件在独立常驻子进程中加载一次；需要 Python3（仅作为 ctypes/IPC 桥）或设置 YY_PYTHON。业务函数执行 C++ 机器码。Windows 不能直接加载 ELF .so，应连接 Linux 执行端或使用 Lua/Python。游戏接口通过当前账号宿主执行，不等于 BDS 服务端插件。
 
 ## 文件与ABI
 
-源码#include "youyuan.hpp"，自带third_party/json.hpp（nlohmann::json）。使用C++17、Android NDK对应目标编译.so；桌面.so不能直接放到Android。ZIP内manifest.json加libplugin.so：
+源码#include "youyuan.hpp"，自带third_party/json.hpp（nlohmann::json）。使用 C++17；Android 用对应 NDK，Linux 用对应架构 g++（例如 g++ -std=c++17 -O2 -shared -fPIC -I./sdk main.cpp -o libplugin.so）。Linux glibc 库不能直接放到 Android，APK 的库也不能直接放到 Linux。ZIP 内 manifest.json 加 libplugin.so：
 
 ```json
 {"id":"my_cpp","name":"C++游戏插件","language":"native_cpp","entry":"libplugin.so","version":"1.0.0","events":["chat"],"dependencies":{}}
@@ -26,7 +30,9 @@ public:
 YY_PLUGIN(Hello)
 ```
 
-宏导出yy_create_v2/yy_event/yy_destroy，构造参数context_json含account/plugin_id，不是旧账号字符串。on注册宿主回调处理器；exports通过expose注册跨插件函数。参数/返回值是yy::json：对象用{{"key",value}}，数组用yy::json::array({...})，读取用.at()/get<T>()，http.delete对应delete_。错误为std::runtime_error；在回调边界捕获，不能把原生崩溃隔离误说成已实现。正常事件与定时调用复用同一个对象，stop销毁。不要传C++指针或文件句柄到JSON桥。
+宏导出yy_create_v2/yy_event/yy_destroy，构造参数context_json含account/plugin_id，不是旧账号字符串。on注册宿主回调处理器；exports通过expose注册跨插件函数。参数/返回值是yy::json：对象用{{"key",value}}，数组用yy::json::array({...})，读取用.at()/get<T>()，http.delete对应delete_。错误为std::runtime_error，在回调边界捕获。Linux 原生崩溃只退出该插件子进程，宿主随后停用该实例并清理定时器/订阅；正常业务异常不会重建对象。Android 当前仍在宿主进程加载，不能声称已实现同等级崩溃隔离。正常事件与定时调用复用同一个对象，stop销毁。不要传C++指针或文件句柄到JSON桥。
+
+Linux 执行器等待一次 handler 的默认超时为 120 秒，可通过 YY_NATIVE_TIMEOUT=180s 修改；这是卡死回收机制，不是 CPS 或命令链长度限制。跨语言调用仍有 JSON/IPC 开销，不能据此承诺比 Lua 更快。高频命令使用 CommandBuffer.submitFast，一轮整体交给宿主，不为每个节点建立定时器。
 
 ## 哪些功能可以组成原来的链
 
@@ -75,6 +81,239 @@ plugin.codeDir/dataDir/configDir/resourceDir/tempDir区分目录；Lua旧数据�
 
 语法块是参数顺序参考；下方游戏用例为完整工作流。章节包含当前真实注册方法，不用内部Go函数名冒充插件API。
 
+
+# 常驻内核、命令缓冲与资源重载
+
+这是游园0.10.9实际框架接口。入口语言由工作区/manifest决定，三种语言手册都可以多选；允许读取技能不等于给工具权限。正文按章节读取，没有自动联网动作。
+
+## 常驻与模块
+
+Lua加载/编译main.lua一次，事件调用现存函数，全局/闭包/package.loaded保留。require("modules.death")查插件代码目录下modules/death.lua；模块return一个表，在同一Lua实例内缓存。Python是每插件长驻模块和asyncio Loop。C++是长驻对象。重载整个插件时内存会重建，应把业务数据放Storage。旧语法保持兼容，不回退到每事件重跑源码。
+
+```lua
+local death=require("modules.death")
+events.onPlayerDeath("died")
+function died(e) death.record(e) end
+-- modules/death.lua
+-- return {record=function(e) storage.atomicAdd("deaths:"..e.player,1) end}
+```
+
+## 统一时钟与防重入
+
+util.scheduleTick(1,handler)每个名义宿主Tick，Tick=50ms；scheduleTick(20,handler)每秒。scheduleHz(20,handler)、scheduleHz(10,handler)、scheduleHz(1,handler)使用同一调度Loop。Lua可传函数或全局名称；Python可传函数；C++先用on注册再传名称。当前策略skip：一个回调还没执行完，就跳过后续到期并累计missed，不补排队。不是服务器同Tick确认，调度器不能把远端服务器的50ms延迟消除。
+
+```lua
+local n=0
+local job=util.scheduleTick(1,function() n=n+1 end)
+-- util.listJobs()有calls/missed/last_ms/max_ms/total_ms/last_error
+-- util.pauseJob(job); util.resumeJob(job); util.cancel(job)
+```
+
+## 三条命令路径
+
+game.sendCommand或sendCommandFast：只发送，默认魔法SettingsCommand，不逐条UUID/回包/日志。sendCommandAsync：返回ticket，后台等CommandOutput；game.commandResult(ticket,0,true)读取完成结果并consume。sendCommandConfirmed/game.execute：当前回调等待真实结果。普通高频FUNCTION用Fast；仅有成功条件/查询结果才用确认。异步ticket最多128个未消费项是可见内存保护，Fast不经过这项限制。
+
+```lua
+local b=CommandBuffer()
+for i=1,10000 do b:add("scoreboard players add @s ybench 1") end
+local r=b:submitFast() -- 一次宿主边界，整数组按序提交；没有1024行限制
+-- r.submitted是宿主接收数量，必须再查真实分数，不代表同游戏Tick执行。
+local ticket=game.sendCommandAsync("scoreboard players list @s").ticket
+-- 下一次回调查询：game.commandResult(ticket,0,true)
+```
+
+Python用host.command_buffer().add(cmd).submitFast()；C++用yy::CommandBuffer b(client); b.add(cmd); b.submitFast();。三种语言都可以直接sendCommandsFast命令数组。Lua缓冲在Lua表中构建，Python在list中构建，C++在json数组中构建；提交一次。Python/C++桥仍会对这一整个数组编码JSON，没有声称零拷贝/全原生ABI。
+
+## FUNCTION IR与文件监听
+
+TXT保存后parse成节点/控制点/行号IR，常驻调用，运行时不读TXT、不解析字符串。1,0,0脉冲；2,0,0 20为整个TXT实例20Hz；0,0,0连锁；0,1,0有条件；.独立链断开成功状态；!结束周期。未重新声明的属性继承。一个TXT实例只有一个整轮Hz；不同频率建独立TXT。第三位红石保留语法兼容，不在宿主做游戏红石门控。run_count=0持续，正数按完整文件轮次计数。
+
+固定目录插件数据文件/ds_ai_agent/command_txt/。外部改TXT后，宿主每秒检查mtime/size，只有修改才读文件重新编译；无效修改保留原IR和报错。chains.reload(name)可立即资源重载，当前轮旧IR、下轮新IR，计数和启停保留。修改config/module仍需相应实例重载；完整reloadConfig/reloadModule尚未实现，不能假装只改一份Lua就不重启。
+
+## Storage与事务
+
+storage.get/set/atomicAdd/delete是插件数据目录中的内存缓存。后台约1秒把dirty数据原子写storage.json。flush同步持久化；进程被杀前还没flush的最近修改可能丢失，不能把自动保存当每次提交都已落盘。
+
+```lua
+storage.atomicAdd("points",1)
+storage.transaction({
+ {op="check",key="points",value=100},
+ {op="add",key="points",value=-20},
+ {op="set",key="paid",value=true}
+})
+storage.flush()
+```
+
+transaction先验证所有操作，在同一锁内复制/更新，再同步写成功后替换缓存；check失败不写入。支持set/add/delete/check数组，Python用dict/list，C++用yy::json。这不是任意语言函数事务，也不是跨文件/跨插件分布式事务。
+
+## 性能观察与未完成部分
+
+plugin.stats、util.listJobs和chains.list有实际调用数、耗时、missed、丢弃、队列和整轮统计。耗时是墙钟，不是CPU占用；逐插件CPU/内存/GC尚未归因，返回null。高速发送不逐条写命令日志。极端重复大链可能让RakNet/服务器承受不住，应实测最终计分；本地提交完成不等于服务端完成。可选每Tick命令预算/overflow carry、完整混合模块manifest尚未交付。Linux 0.10.19 已接入常驻 C++ 子进程及崩溃/卡死回收；Android 原生仍在宿主进程中加载。
+
+
+# 协议到游戏功能的实际开发
+
+先查询plugin.capabilities/packet.describe，再按需订阅。只使用本账号真正收到的包。优先高层事件，不每Tick抓所有包；原始包和高层事件可以组合，不能凭字段未知编造动作来源。
+
+## 挥空气、死亡、移动与拾取
+
+| 功能 | 已可调用的接口 | 包与实际边界 |
+|---|---|---|
+| 挥手/挥空气触发技能 | events.onSwing(handler) | AnimateActionSwingArm；不证明命中谁，旁观机器人需要服务器广播 |
+| 玩家死亡/最后位置 | events.onPlayerDeath(handler) | ActorEventDeath/InstantDeath、真实血量归零、网易OnPlayerDie；last_position只有position_known=true时可用 |
+| 全实体死亡 | events.onDeath(handler) | 去重；RemoveActor单独不当死亡 |
+| 血量/受伤 | player.health、events.onHealthChange/onHurt | UpdateAttributes/SetHealth/ActorEvent；其他玩家未广播血量仍unknown |
+| 玩家/机器人位置 | player.position、bot.self、events.onMove | MovePlayer/MoveActorAbsolute/Delta；只更新实际包含的轴 |
+| 生物/掉落物出现 | events.onEntitySpawn | AddPlayer/AddActor/AddItemActor，视野进入不等于首次生成 |
+| 掉落物拾取 | events.onItemPickup | TakeItemActor映射掉落物和拾取者，拾取者可能是生物 |
+| 方块状态变化 | events.onBlockChange、world.blockState | UpdateBlock；不能只凭它推断破坏者 |
+| 挖掘/放置/攻击/移动 | world.mineBlock/useBlock、bot.attack、bot.startMovement | 实际发送物理动作/交易/输入，服务器按距离、装备、模式和权限校验 |
+
+死亡事件统一结构保留旧顶层字段，并增加event.player/type/data/timestamp；timestamp为毫秒Unix时间，time为RFC3339。data是同一事件数据的副本。原events.onChat(player,message)、events.subscribe(type,handler)的旧签名保留，不强改旧插件。onPlayerDeath只处理玩家；onDeath可含生物，注意entity_type。
+
+```lua
+function swung(e)
+  if e.player~="" then
+    storage.atomicAdd("swing:"..e.player,1)
+    -- 可以按自己的权限规则调用chains.start("技能.txt")
+  end
+end
+function died(e)
+  storage.atomicAdd("death:"..e.player,1)
+  if e.position_known then storage.set("lastdeath:"..e.player,{position=e.last_position,dimension=e.dimension,time=e.timestamp}) end
+end
+events.onSwing("swung")
+events.onPlayerDeath("died")
+```
+
+```python
+def on_init(host):
+    def died(event):
+        host.storage.atomicAdd('death:'+event['player'],1)
+        if event.get('position_known'):
+            host.storage.set('lastdeath:'+event['player'],event['last_position'])
+    host.events.onPlayerDeath(died)
+```
+
+```cpp
+// 放在yy::Plugin构造中：on接收args数组，args.at(0)是真实Event。
+on("died",[this](const yy::json& args){
+  const auto& e=args.at(0);
+  client.storage.atomicAdd("death:"+e.at("player").get<std::string>(),1);
+  return yy::json(true);
+});
+client.events.onPlayerDeath("died");
+```
+
+## 网易死亡RPC
+
+精确识别Value=["ModEventS2C",[namespace,system,"OnPlayerDie",{pid,die}],...]
+pid为玩家UniqueID，不是RuntimeID；die=true死亡，false重生。只在能映射已观测玩家时触发，不搜索RPC文本猜死亡。游戏是否下发这个事件仍需实际环境抓包验证，结构识别测试不冒充真人死亡实测。raw PyRpc仍可packet.on("PyRpc",...)查看，不能任意重放登录事件。
+
+## 用AI形成操作闭环
+
+AI先project_list/project_read读完整源码，skill_search查询“挥臂/死亡/物品”，load_skill按章节读，packet_schema(name="Animate")只读该包字段和用途。需要原始游戏观察时listen_packet/list_packets，先记录目标类型，不开全包长期高频日志。发包或命令后检查真实响应、位置、方块或记分板。project_write可以新建模块/入口，不止改名字；project_patch能精确替换行；project_validate后project_publish，并plugin_manage start/reload，terminal_log确认。
+
+命令链工作区默认只提供文件、语法校验和链发布工具；Lua/Python/C++工作区可按权限提供游戏/抓包/MCP工具。多选语言技能只开放文档，没有把未授权工具一起开放。玩家可以在新消息中引导运行中的任务；工具失败继续原任务，文件修订与分叉保留。
+
+## 原始包层覆盖更广的玩法
+
+SetActorData：实际metadata状态；MobEquipment/ArmorEquipment：同步装备；InventoryContent/Slot：本机或授权容器背包；InventoryTransaction/ItemStackRequest：本机交互请求；MobEffect：收到的药水效果；LevelSoundEvent：同步声音；SetScore/ScoreboardObjective：计分板；PlayerList：在线资料和皮肤；ChangeDimension：维度；ClientboundMapItemData：地图数据；BossEvent：首领条；PyRpc：网易扩展事件。各包精确字段在packet-reference单包目录，不从别的版本猜ID。
+
+并非所有这些包都有高层函数：玩家三维速度/效果缓存、GUI箱子菜单、特殊物品自动识别、完整world cache和AI寻路仍需开发与真实测试。当前schema登记215种，不等于另外AI提到的“300+包”全部有解析器；未知入站包可原始观察，但没有语义时必须标记unknown。
+
+
+## 0.10.9 补充：击杀者、维护开关与Linux文件
+
+自动维护创造/飞行在新配置中默认开启；设置 auto_creative=false 可用于受伤或死亡测试，已有用户明确关闭的值保留。权限检查自身不改变模式；维护只对机器人自身处理模式/飞行变更，不反复逐Tick发送维护命令。
+
+击杀者来源是服务器 Text 翻译型死亡消息，必须是实际已观察到的玩家。event.killer_known=true 才能把 killer 当作确定的玩家。OnPlayerDie 只提供死亡/复活，不含可靠击杀者；如果它先到，events.onPlayerDeath 可能先得到未知击杀者，随后通过 events.subscribe("death_details","handler") 收到服务器的补充。events.onDeath或死亡记录查询保留相关字段；无死亡广播时不会编造击杀者。
+
+上传/下载工具箱文件位于设置的“文件选择器与界面”，网页选择 device=linux-server 时保存在该Linux实例的 /var/lib/youyuan/用户上传。上传支持文本、源码、ZIP等，不自动执行或覆盖同名文件。Linux的自建资料库也保存在自己的服务器磁盘，不再把文件拆分写入Cloudflare Durable Objects；Cloudflare保留网页、身份与控制中继。网页控制工具箱应用，不是任意root终端。
+
+自己的源码附件通过 project_list/project_read/project_search 读取；真正修改后依次校验、发布、重载，不能用文件名替代正文。命令链反复运行已编译IR，只有TXT被修改时重新读取和解析。
+
+
+# 跨账号联通开发说明 · 0.10.11 / SDK1.14
+
+这是同一个游园控制端内，主账号 main 与 managed-accounts 独立账号之间的协作 API。账号目录、令牌、插件和事件不自动混用；授权只开放指定操作。不是跨不同平台用户或另一台电脑的匿名接口。不同设备请使用已认证的远端 MCP 各自连接。
+
+## 开放授权
+
+设置 → 账号联通与连接授权 → 跨账号联通。选择源账号、目标账号、源插件 ID 与操作，添加并保存。源插件填 `*` 是该源账号全部插件，建议填写具体 ID。A→B 不自动授予 B→A；撤销后后续调用立即拒绝，正在执行的命令不会撤回。只允许运行中的目标账号，接口不会偷偷启动或替换账号。
+
+规则 API：`GET /api/youyuan/accounts/bridge/rules` 查看；`POST` 同路径提交完整规则数组（覆盖替换，不是追加），例如：
+```json
+[{"source":"main","plugin":"my_lua","target":"account_b","operations":["status","sendMessage","sendCommandsFast","callPlugin"]}]
+```
+
+## 五个接口
+
+| 方法 | 参数 | 行为 |
+|---|---|---|
+|accounts.list|无|账号 ID、名称、启用状态；不暴露令牌|
+|accounts.status|target|实际目标连接状态；需 status 授权|
+|accounts.sendMessage|target,text|目标机器人普通聊天；斜杠指令明确拒绝|
+|accounts.sendCommandsFast|target,commands,options?|完整数组按序 Fast 提交；无逐条确认|
+|accounts.callPlugin|target,pluginID,function,args数组|调用目标常驻 plugin_api 导出，返回结构化结果|
+
+target 必须是 accounts.list 返回的 ID，不是显示昵称、端口或QQ号。options 复用 game.sendCommandsFast 的参数，包括 channel。数组提交数量不代表游戏执行成功；Fast 不保证同一服务器 Tick、事务原子性或网络失败重试。20秒跨账号控制请求超时后不得盲目重发有副作用操作。
+
+### Lua
+```lua
+local profiles = accounts.list()
+local state = accounts.status("account_b")
+accounts.sendMessage("account_b", "联通测试")
+accounts.sendCommandsFast("account_b", {
+  "scoreboard players add @s yytest 1",
+  "scoreboard players add @s yytest 1"
+}, {channel="ai"})
+local result = accounts.callPlugin("account_b", "target_plugin", "balance", {"Player"})
+```
+目标 Lua 插件只加载一次，导出例子：
+```lua
+plugin_api = plugin_api or {}
+function plugin_api.balance(player) return {player=player,value=10} end
+```
+
+### Python
+```python
+profiles = accounts.list()
+state = accounts.status("account_b")
+accounts.sendCommandsFast("account_b", ["say A", "say B"], {"channel":"ai"})
+result = accounts.callPlugin("account_b", "target_plugin", "balance", ["Player"])
+```
+Android 与 Linux 驻留宿主均提供 accounts 命名空间；异步插件请在自己的任务中 await host 提供的异步包装或 asyncio.to_thread，勿占住高频 Tick 回调等待远端返回。
+
+### C++（Android / Linux 原生宿主）
+```cpp
+auto profiles = client.accounts.list();
+auto state = client.accounts.status("account_b");
+client.accounts.sendCommandsFast("account_b", yy::json::array({"say A","say B"}), yy::json{{"channel","ai"}});
+auto result = client.accounts.callPlugin("account_b","target_plugin","balance",yy::json::array({"Player"}));
+```
+Linux 0.10.19 已接入独立常驻原生子进程；需要对应 Linux 架构的 ELF 库和 Python3 传输桥。不要把安卓版 .so 当成 Linux 插件。Windows 不能直接加载 ELF。
+
+## 防止互相等待
+
+跨账号 callPlugin 的导出回调里，禁止再同步调用 accounts.*，避免 A 等 B、B 又等 A 的环路。应先返回结果，再通过 schedule/setTimeout 发下一次协作。阻断在当前进程级生效；同一时段其他插件的跨账号调用可能被拒绝，应延后任务。拒绝信息可供 AI 查错，不重跑插件源码。
+
+这是协调授权，不是对恶意本地代码的安全沙箱：本机插件本就有系统/HTTP权限。云端仍依赖平台用户和设备隔离；不能给其他订阅用户分配你的私有节点后又期望他们无法控制此节点。
+
+## 远端与内置 AI
+
+MCP api_youyuan_accounts_bridge_rules 管理规则；api_youyuan_accounts_bridge_execute 调用 `{source,plugin,target,operation,args}`，属于控制权限。内置 AI 可按需加载本技能，读取接口目录和错误；不能只知道插件名称。内部 `/bridge/local` 不列入 MCP，不允许通过账号代理嵌套绕过授权。
+
+## 验证范围
+
+代码回归验证定向授权、源插件限制、操作限制与接口注册；发布验收验证真实进程之间状态调用。没有在本轮新增游戏压测，发消息、游戏命令副作用及跨语言目标插件的游戏联调留待玩家批准恢复测试。
+
+
+## 模块与跨插件通信
+
+详见 [通信契约](communication.md)，包含三种语言的导出/调用、状态保留、跨账号权限、循环调用与崩溃清理。
+
+
 # game · 游戏命令与交互
 
 发送指令、定向消息、记分板、背包查询、NBT、聊天菜单与机器人动作。
@@ -82,12 +321,9 @@ plugin.codeDir/dataDir/configDir/resourceDir/tempDir区分目录；Lua旧数据�
 
 ### `game.commandResult`
 
-```cpp
-client.game.commandResult(ticket, wait_ms, consume);
-```
+ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。
 
-- 功能、参数、返回与约束：ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。
-- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
 
 ### `game.dataDir`
 
@@ -535,12 +771,9 @@ client.game.sendCommand(cmd, options);
 
 ### `game.sendCommandAsync`
 
-```cpp
-client.game.sendCommandAsync(command, options);
-```
+command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。未读取ticket容量由diagnostics.configure的async_tickets控制，默认128，满时明确报错；Fast路径不走该窗口。
 
-- 功能、参数、返回与约束：command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。最多128个未读取ticket/实例，满时明确报错；Fast路径不走该窗口。
-- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
 
 ### `game.sendCommandConfirmed`
 
@@ -799,6 +1032,12 @@ client.game.waitMsg(player, timeoutSec);
 - 报错：失败抛 `waitMsg: <err>`。
 - 底层：在机器人**收包循环**里为该玩家注册一个"等待通道"，玩家下一条聊天消息到达时投递给等待者。它**独占**该玩家的消息——同一玩家已有活跃等待会话时，新消息会被它消费掉，`onChat` 等其它 handler 收不到。
 
+
+## 服务器关闭命令反馈时
+
+实服已验证：gamerule sendcommandfeedback false 会使 Confirmed/querytarget 等结果接口收不到回包，即使命令已经执行。Fast 不等待回包，模式维护也使用无等待创造命令和飞行输入。需要条件链、查询结果或确认时，要由服主确保服务器允许命令反馈；超时返回未知，不能把它当失败自动重发。高频无条件链不要为语法验证逐条增加确认。
+
+
 # player · 玩家资料与感知
 
 缓存、XUID、权限、背包、位置与已同步血量。未知血量不是20。
@@ -915,6 +1154,25 @@ client.player.position(target);
 - 功能、参数、返回与约束：target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 
+### `player.equipment`
+
+name或runtime_id；head/chest/legs/feet/main_hand/off_hand/body，每槽含known/item_id/item_id_known/network_id/count/enchantments/enchantments_known/nbt/received_at/age_ms/stale。物品名来自本会话ItemRegistry；附魔来自NBT。未知槽或未同步附魔不编造。expires_at=null：装备包没有物品失效时间。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `player.inventory`
+
+target=self,window_id=0；读取本机器人实际收到的InventoryContent/InventorySlot，不做同步背包查询。其他玩家背包服务器通常不广播，返回known=false；不把装备冒充整个背包。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `player.rotation`
+
+name或runtime_id；pitch/yaw/head_yaw各自known、updated_at、source/stale。MovePlayer及Absolute/Delta真实角度，旋转无位移也更新。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
 # world · 方块与物理操作
 
 查询、setblock、真实挖掘和手持物品点击。权限替换方块与生存挖掘是两种机制。
@@ -976,6 +1234,7 @@ client.world.useBlock(x, y, z, face, slot);
 
 - 功能、参数、返回与约束：x,y,z,face=1,slot=0；真实手持物品点击指定方块面（可放置、开容器），需要已观测目标方块和六格范围。不是 setblock；返回提交状态，消耗与放置观察服务器。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
 
 # events · 事件与抓包
 
@@ -1100,13 +1359,9 @@ client.events.onHealthChange(handler);
 
 ### `events.onHurt`
 
-```cpp
-client.events.onHurt(handler);
-```
+handler(event)；血量下降优先；ActorEvent等50ms关联属性包，否则提供damage_known=false提示；hurt_signal仅供诊断；未知攻击者attacker_known=false。
 
-- 功能、参数、返回与约束：handler(event)，来源为血量下降或 ActorEventHurt，两种独立来源可能各触发一次；无法识别准确攻击者，不用编造 cause。
-- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
-- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
 
 ### `events.onItemPickup`
 
@@ -1245,6 +1500,61 @@ client.events.subscribeFiltered(packet_type, filter, handler);
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 - 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
 
+### `events.onDimensionChange`
+
+handler(event)；服务器ChangeDimension，旧维度实体数据标为过期。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onEntityHurt`
+
+handler(event)；真实掉血优先；ActorEventHurt等50ms关联UpdateAttributes，未同步血量时damage_known=false；hurt_signal仅诊断，不计作另一伤害。含target、damage/health/max_health、attacker_known=false（无可靠攻击者包时），event_id。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onEquipmentChanged`
+
+handler(event)；服务器装备包即时缓存更新，含已更新槽位，不同步查询玩家背包。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onHealthChanged`
+
+同onHealthChange，含previous及真实max，未知max=null。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onPlayerKill`
+
+handler(event)；可信服务器death.attack翻译包提供击杀者且关联已知玩家，唯一death event_id，仅触发一次；同次death_details补充不重复计分。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onPlayerRespawn`
+
+handler(event)；与session_join独立，死亡到存活/RespawnReady的生命周期去重。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onRotation`
+
+handler(event)；服务器角度字段变化。旋转包即使位置不变也刷新时间。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onSessionJoin`
+
+handler(event)；真实PlayerList新增条目，不能把AddPlayer视距出现当进服。服务器不广播PlayerList则无法直接观测。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `events.onSessionLeave`
+
+handler(event)；真实PlayerList移除条目，不把RemoveActor离开视距当退服。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
 # packet · 原始协议包
 
 schema/describe查询字段，on/onAll监听，send请求服务器执行；不会取得服务器未下发的数据。
@@ -1311,6 +1621,7 @@ client.packet.send(typeNameOrId, fieldsTable);
 - 返回：提交状态，未确认。
 - 底层与游戏效果：同game.sendPacket。
 - 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
 
 # bot · 机器人控制与路由
 
@@ -1430,6 +1741,59 @@ client.bot.teleport(x, y, z);
 
 - 功能、参数、返回与约束：x,y,z 世界坐标。执行服务器 tp @s 并等待真实命令结果，需要对应权限；没有权限时报错或 success=false。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+
+# 0.10.10 命令链修复与结构拆链
+
+所有命令链在当前账号的机器人内预解析并长期复用，不在世界中放置命令方块。默认 mode=fast，rate_cps=0，delay_ms=0。Hz是整个TXT一次完整运行的目标轮次，不是每个节点的速率。过慢时不重入、不积压补跑。
+
+## 发送与条件
+
+无条件、同通道、无延迟的连续段一次交给底层，按原文順序发送；不存在Fast文件总行数上限或每批1024的限制。pipeline/burst/stream是用户明确选择的回包确认模式，它们的窗口只影响这些模式，不约束Fast。收到包的4096缓存与发送命令数量是两件事。
+
+Fast设置逐条延迟，只做发送后等待，不自动要求回包。只有条件节点、它的直接前驱、@wait和@branch条件检测才要求真实CommandOutput。提交成功不作为条件成功。超时返回结果未知，不重发。服务器关闭sendcommandfeedback时条件/分支可能拿不到结果，应恢复反馈或使用可信事件。
+
+## 基本格式与兼容
+
+1,0,0为脉冲；2,0,0 20为目标整链20Hz；0,0,0为无条件连锁；0,1,0为有条件连锁。未重新声明属性沿用当前状态。`.`划分独立链并清空前一链执行结果；`!`结束当前周期。界面中的运行次数为完整TXT轮数，0持续。保留三位旧语法，红石位不模拟真实世界红石供电，不能把旧红石依赖当作已完全迁移。
+
+旧函数执行器#组、#定义/#测试、#执行参数替换继续支持。通道ai/player/console和逐条延迟保持配置；需要结果依赖才主动切换确认通道。
+
+## 子链调用、分支与断链
+
+```text
+say 开始
+@branch {"command":"execute if score gate state matches 1","then":"技能开启.txt","else":"技能关闭.txt"}
+@call {"name":"特效.txt","from_line":2,"to_line":8,"count":3}
+@pause
+say 已手动继续
+@wait {"command":"testfor @a","poll_ms":500,"edge":true}
+say 条件再次满足
+```
+
+@branch检测一次真实结果，只调用then或else一个文件，缺省分支可留空；子链结束回到下一行，不持续轮询。@call运行目标文件已编译IR指定源行范围，含两端；同账号，独立实例不会被悄悄启动。count=0必须有keep_open或duration_ms；持续调用结束于父链停止/时限。子链遵循自己的整链Hz/interval_ms，等待=周期减去本轮耗时，不再附加25毫秒下限；不创建递归任务。递归引用明确拒绝。
+
+@wait默认先见失败、再等成功，edge=false可当前满足就继续；poll_ms控制检测频率。@pause仅等待手动trigger，UI“触发等待点”和插件chains.trigger(name)均能继续。
+
+调用/分支不把方块转向、clone接线盲目翻译成命令。模块的状态与启停可由插件chains.start/stop/configure管理；事件如events.onSwing触发chains.start或sendCommandsFast，避免每Tick全员扫描。Lua/Python/C++均使用同一chains API，准确函数签名见各语言chains章节。
+
+## 结构中的命令方块提取
+
+工具→结构与指令转换→输出“提取命令方块·按朝向拆成独立链”。读取原有结构解析器保留的Command/auto/conditionalMode/TickDelay与facing_direction，箭头的下一格必须是连锁命令方块才接续；相邻但未指向的方块不合并。脉冲/循环是独立入口，闭环有限拆分并警告。下载JSON包含源坐标、NBT派生属性、连接索引和每个TXT完整原文；可一次保存全部未启动TXT，默认单轮。
+
+接口POST /api/youyuan/convert/structure，data为文件base64，filename为文件名，target=command_chains，origin=[x,y,z]为结构原世界执行原点，rotation建议0。含~的命令用execute positioned原点+源位置包装，避免变成机器人坐标。含^还须审核原执行朝向；条件制约原方块背后关系、空节点、原生TickDelay、红石与相对执行上下文均需审核。
+
+涉及command_block的setblock/fill/clone保留原文并列出警告；转换器不理解任意动态控制流，也不会删除真实tp/fill坐标。请核对后改为@call/@branch/chains启停。结构转任意完整玩法、自动消除坐标二分算法、通用神器效果引擎仍待实现；不把AI建议中的示意函数冒充已有API。
+
+## 接收缓存与诊断
+
+设置→服务器连接→收包缓存，默认4096，正整数自定义，下次重连生效；配置字段packet_queue_capacity=0采用4096。/api/bot/status返回packet_queue_depth及packet_queue_capacity。缓存是未处理包数量，不是CPS或链长度。短同步入队保序，满时对读包线程施加背压；断线/停用会解除等待，不逐包创建goroutine。
+
+这次只做代码回归、构建和部署核验，未开展新的游戏压力测试。Fast不保证游戏服同Tick执行、原子性或固定性能倍率；既有大流量断线失败继续保留。
+
+
+---
+以下保留原有接口与格式参考；发送语义和新增修复以以上0.10.10说明为准。
 
 # chains · 命令链管理
 
@@ -1553,6 +1917,7 @@ client.chains.validate(content);
 - 功能、参数、返回与约束：content，预解析并返回命令/条件/通道/行号；失败含报错。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 
+
 # building · 建筑与颜色
 
 结构格式检测、解析和方块颜色匹配。这些解析函数不等于放置整个建筑。
@@ -1642,6 +2007,7 @@ client.building.parse(path);
 - 报错：加载失败抛 `building.parse: <err>`。
 - 底层：`building.LoadStructureFile(path)`，遍历方块计数，读 `NBTBlocks`/`HasCommand`。
 
+
 # media · 图片与音乐
 
 图片字符画、MIDI解析、音高换算；解析函数本身不自动向游戏播放。
@@ -1682,6 +2048,7 @@ client.media.parseMidi(path);
 - 返回：对象或数组 `{format, tracks, division, tempo, notes={{tick, channel, note, velocity, duration, sound}}}`（`sound` 仅非空时出现）。
 - 报错：读文件/解析失败抛 `media.parseMidi: <err>`。
 - 底层：`os.ReadFile` → `media.ParseMIDIFile(data)`。
+
 
 # plugin · 实例资源与诊断
 
@@ -1760,7 +2127,7 @@ client.plugin.extractResource(source, destination);
 client.plugin.has(method);
 ```
 
-- 功能、参数、返回与约束：method或runtime.lua/runtime.python/runtime.cpp，查询宿主API是否提供；不代表服务器一定支持动作或已观测到血量。Linux C++当前false。
+- 功能、参数、返回与约束：method或runtime.lua/runtime.python/runtime.cpp，查询宿主API是否提供；不代表服务器一定支持动作或已观测到血量。Linux 的 native C++ 常驻 ELF 运行器已开放（独立进程）；Android 同进程 native，Windows 未开放。以 plugin.capabilities() 的当前平台结果为准。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 
 ### `plugin.id`
@@ -1819,6 +2186,7 @@ client.plugin.tempDir();
 
 - 功能、参数、返回与约束：无参数；插件数据目录下.tmp，可自行删除临时文件。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
 
 # util · 文件、时间与调度
 
@@ -2100,6 +2468,19 @@ client.util.write_file(path, content);
 - 报错：建目录/写文件失败抛 `write_file: <err>`。
 - 底层：`os.MkdirAll` + `os.WriteFile(path, []byte(content), 0644)`。
 
+### `util.monotonicMs`
+
+无参数，进程启动以来单调时间毫秒，适合间隔计算；不是Unix时间。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `util.serverTick`
+
+返回known/tick/source/updated_at；仅观测UpdateAttributes的真实非零tick，不以本地50ms计时冒充服务器tick。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
 # api · 跨插件调用
 
 通过plugin_api导出函数；Lua、Python、C++可相互调用已启动实例。
@@ -2116,6 +2497,7 @@ client.api.require(id);
 - 返回：Lua代理表或nil；Python代理对象；C++yy::RemotePlugin。
 - 底层与游戏效果：Lua→Lua调用同一常驻实例，不重跑源码；跨语言通过序列化桥调用目标导出函数。API不是安装依赖的包管理器。
 - 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
 
 # http · 网络与JSON
 
@@ -2220,6 +2602,7 @@ client.http.request(method, url, body, opts);
 - 报错：无（错误放进 `error` 字段，不抛异常）。
 - 底层：`httpRequestFull(method, u, body, headers, timeout)`。
 
+
 # system · Android设备
 
 系统桥、通知、震动、Shizuku；桌面支持范围与Android不同。
@@ -2309,6 +2692,62 @@ client.system.vibrate(ms);
 - 报错：桥调用失败抛 `system.vibrate: <err>`。
 - 底层：参数 `{"ms":ms}` → JNI → Java `vibrate`（Vibrator）。
 
+
+# web · 插件控制页面
+
+声明式页面、HTML资源、动作回调与事件推送，重载清理旧注册。
+
+
+### `web.action`
+
+```cpp
+client.web.action(page, action, handler);
+```
+
+- 作用：绑定一个交互动作——浏览器对 `/web/api/<插件id>/<页面名>` 发请求时，调用常驻实例的 `handler` 处理。
+- 参数：`page` string、`action` string 必填；`handler` **string 必填**（全局**函数名字符串**，不是函数引用）。
+- 返回：无。
+- 报错：缺插件上下文/空名/重复注册抛异常。
+- 底层：`registerWebAction`；执行时新建 LState（2 分钟超时）进入常驻实例后 `CallByParam` 调 handler，返回值经 `luaToGo` 作为响应 `data` 回传。受独立并发信号量（容量 8）约束。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+### `web.emit`
+
+```cpp
+client.web.emit(page, event, data);
+```
+
+- 作用：把一条事件实时推送给该插件的全部 SSE 客户端。声明式页面内置 JS 按 key 更新控件；自定义页 JS 自行监听。用于后台状态/进度推送。
+- 参数：`page` string 必填（作为 SSE 事件名）；`event` string 必填（会写入数据 map 的 `__event` 键）；`data` 任意 JSON兼容值必填。
+- 返回：无。
+- 报错：数据无法 JSON 序列化抛 `web.emit: <err>`。
+- 底层：`pushWebEvent(plugin, page, dataJSON)`，构造 SSE 消息写入所有客户端通道（通道满则丢弃，不阻塞 Lua）。**此方法在重跑上下文不跳过**（供 handler 内推送用）。
+
+### `web.page`
+
+```cpp
+client.web.page(name, desc, controls);
+```
+
+- 作用：声明一个**声明式页面**，在门户 `/web/` 显示卡片，点进由内置模板渲染控件页。
+- 参数：`name` string 必填（插件内唯一，不含 `/ \ # ? %` 及控制字符）；`desc` string 可选，默认 `""`；`controls` 对象或数组 可选（控件表，可读字段 `type`=text|button|input|对象或数组|switch、`key`、`label`、`action`、`placeholder`、`columns`）。
+- 返回：无。
+- 报错：空名/非法字符/同插件页面名重复注册抛异常。
+- 底层：`registerWebPage(&webPage{Kind:"declarative",...})`，写入全局 `webPages` map。
+
+### `web.serve`
+
+```cpp
+client.web.serve(name, entry);
+```
+
+- 作用：声明一个**自定义 HTML 页面**，直接服务 `www/` 目录下对应入口文件。
+- 参数：`name` string 必填（规则同 `web.page`）；`entry` string 可选，默认 `"index.html"`（相对 `www/`）。
+- 返回：无。
+- 报错：同 `web.page`。
+- 底层：`registerWebPage(&webPage{Kind:"html", Entry:entry})`；静态根目录 `插件文件/<id>/www`，经 `webStaticSafe` 防路径逃逸 + `serveWebStatic` 提供。
+
+
 # storage · 缓存与事务
 
 内存键值、原子加分、自动持久化与条件事务。
@@ -2368,213 +2807,1003 @@ client.storage.transaction(operations);
 - 功能、参数、返回与约束：operations数组；op=set/add/delete/check,key,value。check值不符则整批回滚；整批验证后持锁同步持久化成功才替换缓存。不是任意Lua函数/跨文件事务。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 
-# web · 插件控制页面
 
-声明式页面、HTML资源、动作回调与事件推送，重载清理旧注册。
+# 跨账号联通开发说明 · 0.10.11 / SDK1.14
 
+这是同一个游园控制端内，主账号 main 与 managed-accounts 独立账号之间的协作 API。账号目录、令牌、插件和事件不自动混用；授权只开放指定操作。不是跨不同平台用户或另一台电脑的匿名接口。不同设备请使用已认证的远端 MCP 各自连接。
 
-### `web.action`
+## 开放授权
 
-```cpp
-client.web.action(page, action, handler);
+设置 → 账号联通与连接授权 → 跨账号联通。选择源账号、目标账号、源插件 ID 与操作，添加并保存。源插件填 `*` 是该源账号全部插件，建议填写具体 ID。A→B 不自动授予 B→A；撤销后后续调用立即拒绝，正在执行的命令不会撤回。只允许运行中的目标账号，接口不会偷偷启动或替换账号。
+
+规则 API：`GET /api/youyuan/accounts/bridge/rules` 查看；`POST` 同路径提交完整规则数组（覆盖替换，不是追加），例如：
+```json
+[{"source":"main","plugin":"my_lua","target":"account_b","operations":["status","sendMessage","sendCommandsFast","callPlugin"]}]
 ```
 
-- 作用：绑定一个交互动作——浏览器对 `/web/api/<插件id>/<页面名>` 发请求时，调用常驻实例的 `handler` 处理。
-- 参数：`page` string、`action` string 必填；`handler` **string 必填**（全局**函数名字符串**，不是函数引用）。
-- 返回：无。
-- 报错：缺插件上下文/空名/重复注册抛异常。
-- 底层：`registerWebAction`；执行时新建 LState（2 分钟超时）进入常驻实例后 `CallByParam` 调 handler，返回值经 `luaToGo` 作为响应 `data` 回传。受独立并发信号量（容量 8）约束。
-- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+## 五个接口
 
-### `web.emit`
-
-```cpp
-client.web.emit(page, event, data);
-```
-
-- 作用：把一条事件实时推送给该插件的全部 SSE 客户端。声明式页面内置 JS 按 key 更新控件；自定义页 JS 自行监听。用于后台状态/进度推送。
-- 参数：`page` string 必填（作为 SSE 事件名）；`event` string 必填（会写入数据 map 的 `__event` 键）；`data` 任意 JSON兼容值必填。
-- 返回：无。
-- 报错：数据无法 JSON 序列化抛 `web.emit: <err>`。
-- 底层：`pushWebEvent(plugin, page, dataJSON)`，构造 SSE 消息写入所有客户端通道（通道满则丢弃，不阻塞 Lua）。**此方法在重跑上下文不跳过**（供 handler 内推送用）。
-
-### `web.page`
-
-```cpp
-client.web.page(name, desc, controls);
-```
-
-- 作用：声明一个**声明式页面**，在门户 `/web/` 显示卡片，点进由内置模板渲染控件页。
-- 参数：`name` string 必填（插件内唯一，不含 `/ \ # ? %` 及控制字符）；`desc` string 可选，默认 `""`；`controls` 对象或数组 可选（控件表，可读字段 `type`=text|button|input|对象或数组|switch、`key`、`label`、`action`、`placeholder`、`columns`）。
-- 返回：无。
-- 报错：空名/非法字符/同插件页面名重复注册抛异常。
-- 底层：`registerWebPage(&webPage{Kind:"declarative",...})`，写入全局 `webPages` map。
-
-### `web.serve`
-
-```cpp
-client.web.serve(name, entry);
-```
-
-- 作用：声明一个**自定义 HTML 页面**，直接服务 `www/` 目录下对应入口文件。
-- 参数：`name` string 必填（规则同 `web.page`）；`entry` string 可选，默认 `"index.html"`（相对 `www/`）。
-- 返回：无。
-- 报错：同 `web.page`。
-- 底层：`registerWebPage(&webPage{Kind:"html", Entry:entry})`；静态根目录 `插件文件/<id>/www`，经 `webStaticSafe` 防路径逃逸 + `serveWebStatic` 提供。
-
-
-# 常驻内核、命令缓冲与资源重载
-
-这是游园0.10.9实际框架接口。入口语言由工作区/manifest决定，三种语言手册都可以多选；允许读取技能不等于给工具权限。正文按章节读取，没有自动联网动作。
-
-## 常驻与模块
-
-Lua加载/编译main.lua一次，事件调用现存函数，全局/闭包/package.loaded保留。require("modules.death")查插件代码目录下modules/death.lua；模块return一个表，在同一Lua实例内缓存。Python是每插件长驻模块和asyncio Loop。C++是长驻对象。重载整个插件时内存会重建，应把业务数据放Storage。旧语法保持兼容，不回退到每事件重跑源码。
-
-```lua
-local death=require("modules.death")
-events.onPlayerDeath("died")
-function died(e) death.record(e) end
--- modules/death.lua
--- return {record=function(e) storage.atomicAdd("deaths:"..e.player,1) end}
-```
-
-## 统一时钟与防重入
-
-util.scheduleTick(1,handler)每个名义宿主Tick，Tick=50ms；scheduleTick(20,handler)每秒。scheduleHz(20,handler)、scheduleHz(10,handler)、scheduleHz(1,handler)使用同一调度Loop。Lua可传函数或全局名称；Python可传函数；C++先用on注册再传名称。当前策略skip：一个回调还没执行完，就跳过后续到期并累计missed，不补排队。不是服务器同Tick确认，调度器不能把远端服务器的50ms延迟消除。
-
-```lua
-local n=0
-local job=util.scheduleTick(1,function() n=n+1 end)
--- util.listJobs()有calls/missed/last_ms/max_ms/total_ms/last_error
--- util.pauseJob(job); util.resumeJob(job); util.cancel(job)
-```
-
-## 三条命令路径
-
-game.sendCommand或sendCommandFast：只发送，默认魔法SettingsCommand，不逐条UUID/回包/日志。sendCommandAsync：返回ticket，后台等CommandOutput；game.commandResult(ticket,0,true)读取完成结果并consume。sendCommandConfirmed/game.execute：当前回调等待真实结果。普通高频FUNCTION用Fast；仅有成功条件/查询结果才用确认。异步ticket最多128个未消费项是可见内存保护，Fast不经过这项限制。
-
-```lua
-local b=CommandBuffer()
-for i=1,10000 do b:add("scoreboard players add @s ybench 1") end
-local r=b:submitFast() -- 一次宿主边界，整数组按序提交；没有1024行限制
--- r.submitted是宿主接收数量，必须再查真实分数，不代表同游戏Tick执行。
-local ticket=game.sendCommandAsync("scoreboard players list @s").ticket
--- 下一次回调查询：game.commandResult(ticket,0,true)
-```
-
-Python用host.command_buffer().add(cmd).submitFast()；C++用yy::CommandBuffer b(client); b.add(cmd); b.submitFast();。三种语言都可以直接sendCommandsFast命令数组。Lua缓冲在Lua表中构建，Python在list中构建，C++在json数组中构建；提交一次。Python/C++桥仍会对这一整个数组编码JSON，没有声称零拷贝/全原生ABI。
-
-## FUNCTION IR与文件监听
-
-TXT保存后parse成节点/控制点/行号IR，常驻调用，运行时不读TXT、不解析字符串。1,0,0脉冲；2,0,0 20为整个TXT实例20Hz；0,0,0连锁；0,1,0有条件；.独立链断开成功状态；!结束周期。未重新声明的属性继承。一个TXT实例只有一个整轮Hz；不同频率建独立TXT。第三位红石保留语法兼容，不在宿主做游戏红石门控。run_count=0持续，正数按完整文件轮次计数。
-
-固定目录插件数据文件/ds_ai_agent/command_txt/。外部改TXT后，宿主每秒检查mtime/size，只有修改才读文件重新编译；无效修改保留原IR和报错。chains.reload(name)可立即资源重载，当前轮旧IR、下轮新IR，计数和启停保留。修改config/module仍需相应实例重载；完整reloadConfig/reloadModule尚未实现，不能假装只改一份Lua就不重启。
-
-## Storage与事务
-
-storage.get/set/atomicAdd/delete是插件数据目录中的内存缓存。后台约1秒把dirty数据原子写storage.json。flush同步持久化；进程被杀前还没flush的最近修改可能丢失，不能把自动保存当每次提交都已落盘。
-
-```lua
-storage.atomicAdd("points",1)
-storage.transaction({
- {op="check",key="points",value=100},
- {op="add",key="points",value=-20},
- {op="set",key="paid",value=true}
-})
-storage.flush()
-```
-
-transaction先验证所有操作，在同一锁内复制/更新，再同步写成功后替换缓存；check失败不写入。支持set/add/delete/check数组，Python用dict/list，C++用yy::json。这不是任意语言函数事务，也不是跨文件/跨插件分布式事务。
-
-## 性能观察与未完成部分
-
-plugin.stats、util.listJobs和chains.list有实际调用数、耗时、missed、丢弃、队列和整轮统计。耗时是墙钟，不是CPU占用；逐插件CPU/内存/GC尚未归因，返回null。高速发送不逐条写命令日志。极端重复大链可能让RakNet/服务器承受不住，应实测最终计分；本地提交完成不等于服务端完成。可选每Tick命令预算/overflow carry、完整混合模块manifest、Linux C++适配器和native进程崩溃隔离尚未交付。
-
-
-# 协议到游戏功能的实际开发
-
-先查询plugin.capabilities/packet.describe，再按需订阅。只使用本账号真正收到的包。优先高层事件，不每Tick抓所有包；原始包和高层事件可以组合，不能凭字段未知编造动作来源。
-
-## 挥空气、死亡、移动与拾取
-
-| 功能 | 已可调用的接口 | 包与实际边界 |
+| 方法 | 参数 | 行为 |
 |---|---|---|
-| 挥手/挥空气触发技能 | events.onSwing(handler) | AnimateActionSwingArm；不证明命中谁，旁观机器人需要服务器广播 |
-| 玩家死亡/最后位置 | events.onPlayerDeath(handler) | ActorEventDeath/InstantDeath、真实血量归零、网易OnPlayerDie；last_position只有position_known=true时可用 |
-| 全实体死亡 | events.onDeath(handler) | 去重；RemoveActor单独不当死亡 |
-| 血量/受伤 | player.health、events.onHealthChange/onHurt | UpdateAttributes/SetHealth/ActorEvent；其他玩家未广播血量仍unknown |
-| 玩家/机器人位置 | player.position、bot.self、events.onMove | MovePlayer/MoveActorAbsolute/Delta；只更新实际包含的轴 |
-| 生物/掉落物出现 | events.onEntitySpawn | AddPlayer/AddActor/AddItemActor，视野进入不等于首次生成 |
-| 掉落物拾取 | events.onItemPickup | TakeItemActor映射掉落物和拾取者，拾取者可能是生物 |
-| 方块状态变化 | events.onBlockChange、world.blockState | UpdateBlock；不能只凭它推断破坏者 |
-| 挖掘/放置/攻击/移动 | world.mineBlock/useBlock、bot.attack、bot.startMovement | 实际发送物理动作/交易/输入，服务器按距离、装备、模式和权限校验 |
+|accounts.list|无|账号 ID、名称、启用状态；不暴露令牌|
+|accounts.status|target|实际目标连接状态；需 status 授权|
+|accounts.sendMessage|target,text|目标机器人普通聊天；斜杠指令明确拒绝|
+|accounts.sendCommandsFast|target,commands,options?|完整数组按序 Fast 提交；无逐条确认|
+|accounts.callPlugin|target,pluginID,function,args数组|调用目标常驻 plugin_api 导出，返回结构化结果|
 
-死亡事件统一结构保留旧顶层字段，并增加event.player/type/data/timestamp；timestamp为毫秒Unix时间，time为RFC3339。data是同一事件数据的副本。原events.onChat(player,message)、events.subscribe(type,handler)的旧签名保留，不强改旧插件。onPlayerDeath只处理玩家；onDeath可含生物，注意entity_type。
+target 必须是 accounts.list 返回的 ID，不是显示昵称、端口或QQ号。options 复用 game.sendCommandsFast 的参数，包括 channel。数组提交数量不代表游戏执行成功；Fast 不保证同一服务器 Tick、事务原子性或网络失败重试。20秒跨账号控制请求超时后不得盲目重发有副作用操作。
+
+### Lua
+```lua
+local profiles = accounts.list()
+local state = accounts.status("account_b")
+accounts.sendMessage("account_b", "联通测试")
+accounts.sendCommandsFast("account_b", {
+  "scoreboard players add @s yytest 1",
+  "scoreboard players add @s yytest 1"
+}, {channel="ai"})
+local result = accounts.callPlugin("account_b", "target_plugin", "balance", {"Player"})
+```
+目标 Lua 插件只加载一次，导出例子：
+```lua
+plugin_api = plugin_api or {}
+function plugin_api.balance(player) return {player=player,value=10} end
+```
+
+### Python
+```python
+profiles = accounts.list()
+state = accounts.status("account_b")
+accounts.sendCommandsFast("account_b", ["say A", "say B"], {"channel":"ai"})
+result = accounts.callPlugin("account_b", "target_plugin", "balance", ["Player"])
+```
+Android 与 Linux 驻留宿主均提供 accounts 命名空间；异步插件请在自己的任务中 await host 提供的异步包装或 asyncio.to_thread，勿占住高频 Tick 回调等待远端返回。
+
+### C++（Android / Linux 原生宿主）
+```cpp
+auto profiles = client.accounts.list();
+auto state = client.accounts.status("account_b");
+client.accounts.sendCommandsFast("account_b", yy::json::array({"say A","say B"}), yy::json{{"channel","ai"}});
+auto result = client.accounts.callPlugin("account_b","target_plugin","balance",yy::json::array({"Player"}));
+```
+Linux 0.10.19 已接入独立常驻原生子进程；需要对应 Linux 架构的 ELF 库和 Python3 传输桥。不要把安卓版 .so 当成 Linux 插件。Windows 不能直接加载 ELF。
+
+## 防止互相等待
+
+跨账号 callPlugin 的导出回调里，禁止再同步调用 accounts.*，避免 A 等 B、B 又等 A 的环路。应先返回结果，再通过 schedule/setTimeout 发下一次协作。阻断在当前进程级生效；同一时段其他插件的跨账号调用可能被拒绝，应延后任务。拒绝信息可供 AI 查错，不重跑插件源码。
+
+这是协调授权，不是对恶意本地代码的安全沙箱：本机插件本就有系统/HTTP权限。云端仍依赖平台用户和设备隔离；不能给其他订阅用户分配你的私有节点后又期望他们无法控制此节点。
+
+## 远端与内置 AI
+
+MCP api_youyuan_accounts_bridge_rules 管理规则；api_youyuan_accounts_bridge_execute 调用 `{source,plugin,target,operation,args}`，属于控制权限。内置 AI 可按需加载本技能，读取接口目录和错误；不能只知道插件名称。内部 `/bridge/local` 不列入 MCP，不允许通过账号代理嵌套绕过授权。
+
+## 验证范围
+
+代码回归验证定向授权、源插件限制、操作限制与接口注册；发布验收验证真实进程之间状态调用。没有在本轮新增游戏压测，发消息、游戏命令副作用及跨语言目标插件的游戏联调留待玩家批准恢复测试。
+
+
+# entities / cpp-runtime
+
+本章使用游园真实宿主绑定；先通过known/stale判断观测，不编造游戏完成状态。
+
+
+### `entities.attributes`
+
+target；返回服务器同步的属性字典，value/min/max/updated_at/source；armor仅服务器同步minecraft:armor时已知，不按穿戴猜护甲点数。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `entities.get`
+
+runtime_id十进制字符串或玩家名；服务器观测快照，含身份/位置/health结构/attributes/装备/视角/present/stale。未收到为known=false，不扫描全世界。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `entities.health`
+
+同entity.health，读取服务器UpdateAttributes/SetHealth缓存，不发送查询命令。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `entities.nearby`
+
+position=[x,y,z],radius=32,dimension?；已观测、仍存在且位置未过期的实体；不查询不可见区域。位置省略或self时使用机器人实际位置。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
+# entity / cpp-runtime
+
+本章使用游园真实宿主绑定；先通过known/stale判断观测，不编造游戏完成状态。
+
+
+### `entity.health`
+
+target=self或runtime_id字符串；current/max/previous/damage/known/max_known/stale/updated_at/source。最大生命未知为null，绝不假定20。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `entity.onDamage`
+
+同events.onEntityHurt；血量下降确认伤害，只有ActorEvent时数量未知，不能由最近玩家或挥臂猜攻击者。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
+# diagnostics / cpp-runtime
+
+本章使用游园真实宿主绑定；先通过known/stale判断观测，不编造游戏完成状态。
+
+
+### `diagnostics.combat`
+
+target；返回保留事件中的伤害/血量/死亡/击杀，含同一event_id的补充证据。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `diagnostics.configure`
+
+config?；宿主持久配置：event_queue/priority_queue/runtime_queue/async_tickets/event_history/actors各1..65536，stale_ms=1..86400000。事件队列变更在插件重载时生效，其余立即影响后续操作。不是命令CPS限速，也不是包种类上限。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `diagnostics.entity`
+
+target；同entities.get，额外完整字段来源及过期信息。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `diagnostics.stats`
+
+当前账号解码包计数、最后包时间、实体数、事件缓冲及配置、断线/踢出诊断和整个宿主内存/GC；非单插件内存。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `diagnostics.trace`
+
+event_id或sequence字符串；查询保留的事件及关联死亡/受伤详情；被覆盖返回known=false，不虚构历史。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
+# hud / cpp-runtime
+
+本章使用游园真实宿主绑定；先通过known/stale判断观测，不编造游戏完成状态。
+
+
+### `hud.remove`
+
+player,channel；删除本插件频道，下一调度恢复仍活跃频道；卸载插件自动清理。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `hud.set`
+
+player,channel,{text,kind=actionbar/title/subtitle,priority=0,duration_ms=2000}；宿主统一频道仲裁，优先级最高的活跃频道显示，文本变化更新，过期恢复下一频道。默认不重播动画。仅管理经hud接口发送的内容，无法阻止绕开管理器的原始titleraw。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `hud.update`
+
+player,channel,{text,kind=actionbar/title/subtitle,priority=0,duration_ms=2000}；宿主统一频道仲裁，优先级最高的活跃频道显示，文本变化更新，过期恢复下一频道。默认不重播动画。仅管理经hud接口发送的内容，无法阻止绕开管理器的原始titleraw。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
+# scoreboard / cpp-runtime
+
+本章使用游园真实宿主绑定；先通过known/stale判断观测，不编造游戏完成状态。
+
+
+### `scoreboard.get`
+
+objective,player；读取SetScore已同步条目，未广播known=false，不同步查询全服。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `scoreboard.increment`
+
+objective,player,amount整数；提交原生scoreboard add/remove，不本地读改写，避免竞态；提交不等于服务器成功。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+### `scoreboard.set`
+
+objective,player,value整数；提交计分板设置，submitted=true/confirmed=false，调用Confirmed命令或同步SetScore才能验证结果。
+
+返回字段及来源请读取observations.md。本接口在三语言共享目录注册；Linux native C++ 常驻 ELF 运行器已开放，使用同一宿主API；Android native仍在宿主进程内，Windows未开放。
+
+
+# 游园 0.10.23：真实观测 API、事件与容量配置
+
+本轮修改宿主，不要求插件自己发同步查询来拼血量、装备或视角。协议数据只覆盖服务器确实给当前机器人发送的范围。以下“已实现”指源代码及相应测试；线上观测结果另列于验收文件，不能把接口存在写成已完成全服实测。
+
+## 容量不是包种类，也不是命令频率
+
+原来的128对应Lua普通回调队列和未读取异步命令ticket的默认容量。Python/C++回调队列原为256。协议目录从内核动态生成，没有“只能解析128种包”的限制。
+
+在设置 → 实时感知与抓包 → 观测工作台，可以用数值输入框和保存按钮调整。高级调用：
 
 ```lua
-function swung(e)
-  if e.player~="" then
-    storage.atomicAdd("swing:"..e.player,1)
-    -- 可以按自己的权限规则调用chains.start("技能.txt")
+diagnostics.configure({
+  event_queue=2048, priority_queue=2048, runtime_queue=2048,
+  async_tickets=4096, event_history=4096, actors=4096,
+  stale_ms=15000
+})
+```
+
+容量字段各为1～65536，过期阈值单位毫秒。保存到宿主数据目录`observation-limits.json`。队列容量在插件重载后生效；其他字段影响后续操作。默认值保持兼容：128 / 128 / 256 / 128 / 512 / 2048，过期15000ms。大容量只增大留存空间，不增加服务器广播范围，也不人为限制Fast命令CPS。异步结果读完应使用`game.commandResult(ticket,0,true)`消费，避免长期积压。
+
+原始包记录单独配置：
+
+```lua
+events.captureStart({types={"UpdateAttributes","ActorEvent","MobEquipment",
+  "MobArmourEquipment","MovePlayer","MoveActorDelta"},
+  capacity=8192,max_bytes=8192,total_bytes=32*1024*1024,
+  filter={every_ms=0}})
+```
+
+`capacity`和单次读取`limit`最高65536。默认留存序列化预算16MiB，最高256MiB；实际Go对象内存还包含运行时开销，因此预算不称为物理内存上限。环形缓冲按时间保留最近记录，覆盖旧记录时统计`overwritten`；不会每收到一包搬动全部记录。握手认证包继续排除，`*`默认不包含大区块包；可以明确选择正常大包类型。包类型筛选不再只允许32个名称。
+
+## 接口与真实来源
+
+| 功能 | 新接口 | 数据来源 / 边界 |
+|---|---|---|
+| 实体状态 | `entities.get(id)`、`diagnostics.entity(id)` | 当前会话实体身份、坐标、属性、装备、视角；移除及旧维度数据标记过期 |
+| 血量 | `entity.health(id)`、`entities.health(id)` | `UpdateAttributes`的`minecraft:health`及`SetHealth`；current/max/previous/damage/known/max_known/stale/source |
+| 属性及护甲点 | `entities.attributes(id)` | 原样保存同步属性；护甲点只取真实`minecraft:armor`，不凭穿戴算出一个假的护甲值 |
+| 装备 | `player.equipment(name)` | `MobEquipment`、`MobArmourEquipment`、机器人自身Inventory包；ItemRegistry及连接GameData.Items翻译网络ID |
+| 背包 | `player.inventory("self",windowId)` | 机器人实际收到的`InventoryContent`和`InventorySlot`；他人的完整私有背包未知 |
+| 视角 | `player.rotation(name)` | `AddPlayer/AddActor`、`MovePlayer`、`MoveActorAbsolute/Delta`真实角度；仅旋转也更新，各角度单独known/time/source |
+| 附近实体 | `entities.nearby({x,y,z},radius,dimension)` | 只筛选已同步、存在、同维度且位置新鲜的实体；无全世界扫描 |
+| 受伤 | `events.onEntityHurt`、`entity.onDamage`、旧`events.onHurt` | 优先实际掉血，ActorEvent提示等50ms关联属性包；无属性时仍提供damage_known=false的真实受伤信号 |
+| 击杀 | `events.onPlayerKill` | 服务器死亡翻译消息关联已观测玩家，唯一死亡event_id；重复详情不会重复加分 |
+| 死亡及重生 | `events.onPlayerDeath/onPlayerRespawn` | ActorEvent、血量归零、网易已知OnPlayerDie、RespawnReady；重生独立于进服 |
+| 进退服及维度 | `events.onSessionJoin/onSessionLeave/onDimensionChange` | PlayerList增删与ChangeDimension；视距出现/消失不冒充进退服 |
+| 屏幕频道 | `hud.set/update/remove` | 按玩家、title/subtitle/actionbar类别仲裁，优先级和到期回退；只管理走HUD接口的内容 |
+| 计分板 | `scoreboard.get/set/increment` | get取实际SetScore缓存；set/increment提交原生命令，提交不等于服务器成功 |
+| 调试 | `diagnostics.trace/combat/stats`、`plugin.stats` | 包数量、来源、过期、事件编号、排队/回调墙钟耗时、丢弃、全宿主内存/GC、断线原因 |
+| 时间 | `util.monotonicMs()`、`util.serverTick()` | 单调毫秒；serverTick只有真实非零UpdateAttributes tick才known=true。本地scheduleTick不冒充服务器同步Tick |
+
+64位RuntimeID、UniqueID使用十进制字符串，避免Lua/JSON浮点精度丢失。旧`bot.self()`、`player.health()`仍保留平面health/max_health字段；新结构在`health_state`中。`entities.get()`的health直接是结构，不能混用两个字段形态。
+
+装备每个槽返回`known/item_id/item_id_known/network_id/enchantments/enchantments_known/received_at/age_ms/stale`。已明确收到空物品才返回minecraft:air；未收到槽位不假定空。NBT没有附魔字段时，无法断定无附魔。装备包不含物品有效期，因此`expires_at=null,expires_at_known=false`；更新时间与失效时间不是同一个概念。
+
+## 插件示例
+
+```lua
+events.onEntityHurt(function(e)
+  local h=entities.health(e.target_runtime_id)
+  if not h.known or h.stale then return end
+  if e.attacker_known and e.attacker and e.attacker.name then
+    hud.update(e.attacker.name,"combat",{text=string.format("%s：%.1f / %s",
+      e.target.name~="" and e.target.name or e.target.entity_type,
+      h.current,tostring(h.max or "未知")),priority=100,duration_ms=2000})
   end
-end
-function died(e)
-  storage.atomicAdd("death:"..e.player,1)
-  if e.position_known then storage.set("lastdeath:"..e.player,{position=e.last_position,dimension=e.dimension,time=e.timestamp}) end
-end
-events.onSwing("swung")
-events.onPlayerDeath("died")
+end)
+
+events.onPlayerKill(function(e)
+  -- 宿主会去重，自己的业务也可保存event_id抵抗插件重启后的重复消费。
+  local key="kill:"..e.event_id
+  if not storage.get(key) then
+    storage.set(key,true)
+    scoreboard.increment("kills",e.killer,1)
+  end
+end)
 ```
 
+没有可靠攻击者证据时，当前`attacker_known=false`，示例不会向附近所有人显示，也不会猜最近玩家。`Animate`只是挥臂。普通`ActorEvent`没有攻击者ID；不能据此承诺“任何人打任何实体都百分之百识别”。服务器死亡翻译消息可以提供击杀归属，与每次普通攻击归属是两回事。
+
+Python使用`host.entities.health('5332')`、`host.events.onEntityHurt(callback)`等同名接口。C++使用`host.entities.health("5332")`和已注册回调名。SDK目录与MCP真实宿主API目录来自同一注册表。Linux目前原生C++运行器仍未开放；C++头文件提供绑定不代表Linux加载native插件已验收。Lua与Python可按实际平台运行。
+
+## 事件与队列
+
+Lua受伤、血量、死亡、击杀、重生、进退服、维度、装备事件有独立优先队列和消费者。普通事件另排队；网络读包只做缓存和投递。共享Lua状态仍由VM锁保护，纯CPU回调不能真正同时执行；宿主等待I/O的协作释放允许其他回调继续。Python/C++队列容量也能配置，但本轮未把它们的原生运行器重写为多线程战斗队列，不能宣称三个语言已做到完全一样的隔离。
+
+`plugin.stats()`新增priority_queue_depth/capacity和last/max_queue_wait_ms。回调耗时仍是墙钟，不冒充CPU；`diagnostics.stats()`的heap/GC是全宿主数据，不冒充单插件分配。50ms受伤关联是事件证据合并窗口，不是命令发送延迟，也不会给循环命令链增加逐条回包等待。
+
+## 验收与尚未完成
+
+已用真实协议类型构造测试：非20最大血量、伤前/伤后、未知最大值、NaN拒绝、旋转无移动、延迟物品注册表、真实附魔NBT、ID复用、死亡后离开视距仍关联击杀、重复kill去重、重生去重、函数回调、原异步绑定、配置持久化、3000环形记录顺序、预算覆盖、HUD优先恢复、SetScore缓存清除。完整测试和Linux结果保存在本轮输出。
+
+仍待真实游戏配合验证：装备换装与俯仰变化的广播范围、其他玩家死亡翻译包、战斗HUD肉眼效果、长时间多插件混合负载。普通受伤的全覆盖攻击者识别取决于服务器是否提供可靠来源，当前没有伪造实现。自动重连已有宿主机制，本轮加入关闭/踢出/成功连接诊断；逐次重连失败的完整结构化报告和跨重启持久诊断仍待补齐。
+
+以前分享对话入口已重新尝试读取，其中页面未返回完整正文／超时。本轮没有把未读取的内容当事实；以用户贴出的UpdateAttributes字段与当前实际内核协议定义核对实现。
+
+ 容器NBT与分区协作
+
+完整参数、NBT例子、副作用和20种制作行为见技能 `nbt-workbench`，可按需读取 `youyuan://docs/nbt-workbench`。
+
+### `building.nbtCapabilities`
+
+查询底层支持方块、复杂物品和20种行为，支持表不等于全部实测。
+
+### `building.normalizeNBT`
+
+NBT对象；恢复Count/Slot/ench/Damage整数宽度，保留未知字段，拒绝越界和null。
+
+### `building.containerData`
+
+name,Items,options?；本地预检物品类型和实际槽位，不操作游戏。
+
+### `building.placeContainer`
+
+x,y,z,name,Items,options?；异步制作带名称和附魔的容器；返回job_id，需nbtJob读回verified。首次工作台初始化清机器人背包、切创造、移动并建地板。
+
+### `building.nbtJob`
+
+job_id,consume=false；当前账号任务状态和结果。consume只删除已完成任务；重启不恢复。
+
+### `building.planRegion`
+
+起点,尺寸；16×128×16完整覆盖规划，不是游戏实际执行。
+
+### `building.exportRegion`
+
+起点,尺寸,{workers=1}?；异步保存本机mcstructure。只用已配置同服Fleet，实际workers_used；缺块失败不输出成功文件。
+
+可通过 `client.invoke(method, args)` 或新命名包装调用；Linux原生C++运行器未实现。
+
+
+## 0.10.24 实际视距与收包诊断
+
+
+
+### `diagnostics.visibility()`
+
+返回当前账号连接的 `requested_radius_chunks`、`granted_radius_chunks`、时间及来源，`publisher.position/radius_blocks`，选中解码包计数，收包队列占用，抓包覆盖与抽样统计。未知半径为 null。`entity_broadcast_radius_known=false` 明确表示实体范围没有被服务器告知。原 `packet_counts` 只统计消费者已处理的包，不代表网络上所有数据包。源码诊断补丁新增 `ingress.types[类型]` 的 `decoded/selected/filtered/enqueued/cancelled`：依次为监听筛选前收到、被选中、被筛选、已投递、断线取消。`Unknown:ID` 区分未实现字段解码的不同包ID。仅覆盖监听注册后进入监听器的包，不含登录阶段被内核消费的包或解码失败；实时读取不是事务快照，selected可能尚在等待投递。没有逐包正文保存、抽样、写盘或新增发送限速。重连后半径与统计重建。**该ingress补丁尚未发布到0.10.24安装包或线上Linux；只有更新此源码构建才有此字段。**
+
+### `bot.requestViewDistance(chunks, timeout_ms=5000)`
+
+发送当前内核的 RequestChunkRadius，同时填写 ChunkRadius 和 MaxChunkRadius，等待真实 ChunkRadiusUpdated。参数 chunks 允许协议正 int32（1..2147483647），没有额外 32 区块上限；这个类型范围不等于建议运行值或服务器允许值。用户按资源情况从 16、32、64 逐步请求，查看实际批准值。大幅提高半径会增加区块数据和内存，不能靠发送极大整数获得全世界实时事件。
+
+返回 submitted、confirmed、requested_radius_chunks、granted_radius_chunks、clamped。超时为 confirmed=false / granted_radius_chunks=null。confirmed 只确认半径回包，不确认实体广播范围。协议不带请求ID，宿主串行此高层方法；同时通过其他 raw 发包调用更改半径，无法严格关联响应，应避免。该协商只影响本次连接；不会改变命令链 Hz 或 Fast 命令限速。
+
+Lua：
+
+```lua
+local before = diagnostics.visibility()
+local result = bot.requestViewDistance(32, 5000)
+print(game.jsonEncode(result))
+events.onHealthChange(function(e)
+    -- e.source 为真实包；未收到其他实体的新属性不能声称已知其当前血量。
+    print(game.jsonEncode(e))
+end)
+events.onSwing(function(e) print(e.player, e.runtime_id, e.source) end)
+```
+
+Python：`host.bot.requestViewDistance(32, 5000)` 和 `host.diagnostics.visibility()`。Python 的 host 为当前插件 SDK 客户端，参数/结果与 Lua 相同。
+
+C++：`client.bot.requestViewDistance(32, 5000)` 和 `client.diagnostics.visibility()`；Android 支持原生运行器，Linux 原生 C++ 运行器尚未支持。MCP/AI 通过实际 `api_youyuan_game_call` 或带 plugin_id 的 SDK 调用相同方法，完整技能可按需读取 `youyuan://docs/network-observation`。
+
+
+完整限制与扩大覆盖方案见可选技能 network-observation。
+
+
+### 入站 PyRpc 事件目录诊断（源码待发布）
+
+显式启动包含 `PyRpc` 的抓包后，读取 `diagnostics.visibility().ingress.rpc_catalog`。
+它只整理实际收到的 `ModEventS2C` 标准帧，返回 `events[]` 的 `namespace/system/event/operation_type/count/first_seen_at/last_seen_at`。
+MessagePack 的字符串和二进制字符串名称均支持。不会复制事件参数到目录，不发试探请求，不改变原始包与插件订阅。
+其他帧形态只增加 `unrecognised`，表示目录解析器不识别，不表示协议解码失败或服务器没有对应能力；原始抓包仍可查看。
+
+目录容量使用 `diagnostics.configure` 的 `event_history`（1..65536），按首次发现顺序移除旧事件身份；`evicted` 显示移除次数。容量限制的是诊断目录，不是接包数量、命令频率或游戏事件广播。
+一个事件移除后再次出现，其留存 `count` 重新从1开始；`observed` 是此次连接、发现采集启用期间的累计RPC数。
+停止抓包后停止采集，已发现目录保留到当前游戏连接重置，时间戳使用Unix毫秒；相同名字但不同命名空间/系统/OperationType分别计数。
+
+收到事件不能证明同名服务端处理函数可被调用，不能据此自动生成“全服挥臂”接口。
+`ListenForEvent` 注册所在引擎/模块的本地监听；`NotifyToServer` 请求必须由服务器的实际处理器接收。
+玩家输入代理、服务端事件转发与普通机器人收到的同步包要保留不同来源，攻击者、维度、血量未知时不编造。
+此目录属于尚未部署的源码补丁，已发布0.10.24安装包和线上Linux尚无此新增字段。
+
+
+
+
+## 0.10.25 接收交接与采集桥
+
+登录阶段使用同一个同步读包者完成认证，保留应用层 ModEventS2C；先安装宿主监听器再回放缓存和启动实时读取。认证挑战本身不重复投递。缓存满时明确报错，不默默丢包。`diagnostics.visibility()` 的 `login_ingress` 与 `ingress` 是两个有重叠的阶段，不能相加计算总包数。后者含登录缓存回放；前者只保留计数及 RPC 事件名称，不保留认证参数。
+
+新增命名空间 `observerBridge`，Lua、Python 和 C++ 通用调用同一宿主实现；插件仍须满足宿主授权配置。所有事件带来源，采集客户端报告不会写入服务器属性缓存。
+
+| API | 参数与作用 |
+|---|---|
+| create | `{name, source="player_input"或"game_server", server, player_id}`；玩家来源必须绑定身份。返回独立密钥一次，存储 SHA256 摘要。 |
+| sources | 无参数。来源清单、序号及最后上报时间，不返回密钥。 |
+| revoke | `source_id`；撤销密钥。 |
+| events | `after=0, limit=256`；分页读取采集桥事件与覆盖数。历史容量沿用可配置 EventHistory，重启清空内存历史，来源序号持久化。 |
+| attachSelf | `source_id, token`；采集当前机器人自身加密前的本地提交。server 与 UUID/XUID/名称必须匹配。异步队列容量沿用 EventQueue，50ms 聚合投递；不改变游戏命令频率。 |
+| inputStatus | 无参数。active/submitted/dropped/last_error/queue_capacity；submitted 是采集桥已接收，不是游戏执行成功。 |
+| detachSelf | 无参数。停止自身采集，不断开机器人。 |
+| rpcProbe | `timeout_ms=3000`；发送 YouyuanBridge/ObserverV1/Hello，只有匹配 request_id 的 Capabilities 才确认。 |
+| rpcQuery | `{query,target?}, timeout_ms=3000`；只查询已经安装的服务端 Provider。没有模块则没有凭空读取能力。 |
+| rpcEvents | `after=0,limit=256`；读取自定义 Observation，来源 server_module_reported，重连清空，独立于原生实体缓存。 |
+
+Lua 示例：
+```lua
+local state = bot.self()
+-- server 与 player_id 使用当前连接的真实服务器和身份，不填示例身份。
+local source = observerBridge.create({name="自身采集",source="player_input",server="94F195C41B5",player_id="当前机器人名称"})
+observerBridge.attachSelf(source.id, source.token)
+local status = observerBridge.inputStatus()
+local received = observerBridge.events(0,64)
+observerBridge.detachSelf()
+observerBridge.revoke(source.id)
+```
+Python 常驻 Host：`host.observerBridge.events(0,64)`；C++ 使用 `client.observerBridge.events(0,64)` 或通用 `client.invoke("observerBridge.events", yy::json::array({0,64}))`。密钥不写入公开文档、日志或插件发布包。
+
+入站真实血量继续从 `UpdateAttributes.attributes[].attribute_value` 的 `minecraft:health` 更新 `entities.health(runtimeId)`；未收到值保持未知。`bot.swingAir()` 在下一正常输入心跳加入一次 PlayerAuthInput.MissedSwing，复用位置与视角，输入 Tick 递增并在重连时归零；重复排队请求合并。心跳关闭时拒绝请求，导入导出任务占用时等待心跳恢复。queued/submitted/confirmed 分开，不能把输入当服务器已接受。直接发送旧式 Animate 在本次网易服测试中导致第二机器人断线，bot.attack 已去掉该发送。攻击输入来自 InventoryTransaction 的 UseItemOnEntity/Attack，仍不证明服务器扣血。
+
+认证交接后若服务器再次发送 StartType/GetMCPCheckNum，由同一个运行期读包者转交挑战处理器，已通过的认证不重复提交。该修正经0.10.24/0.10.25同账号对照定位，修正后 list/summon/tag/damage/kill 获服务器确认。
+
+外部客户端/代理把真实事件摘要作为 JSONL 输入 `observer-bridge/agent.py`，POST `/api/youyuan/observer/ingest`，请求头 `X-Youyuan-Observer-Token`。该程序是认证上报器，不能自动解密或拦截游戏。每批序号持久化，重试相同序号不重复记录；默认每行立即上报。远端网关若另有登录要求，配置额外 headers。
+
+NetAllay 集成源码及 YouyuanObserver 服务端插件入口位于 observer-bridge/netallay。协议核心5项本地回归通过；四个类已用真实 NetAllay0.1.1、Allay API0.28.0编译为Java21目标。入口读取 observer.properties 的 allowed_uuids（逗号分隔已认证UUID，默认空禁止接入），禁用时撤销监听；转发真实引擎健康变化、伤害、死亡、进退服。可取消事件明确标注阶段，不能把伤害请求视为最后扣血；攻击者无证据时返回未知。AllayReadOnlyProvider只声明在线玩家名单与指定玩家真实引擎血量，不把所有实体默认成20血。仍未在真实Allay服务器安装及运行，网易山头服不能凭OP安装Java插件；这不改变原服内核。
+
+服务端安装后可主动转发引擎事件给已授权观测机器人，转发适配器不按机器人距离筛选。但必须由真实事件监听产生，并在服务端验证身份；跨距离/跨维度全局效果以服务端实测为准。没有匹配回复只能判断该桥未响应，不能判断全部 PyRpc 不可用。不要猜测/循环发送其他模块事件名。
+
+## 0.10.26 多机器人联合观测
+
+这些接口汇总当前宿主管理的已连接机器人实际收到的服务器解码包。没有收到的数据仍然未知。不会更改本机 entities 缓存，不自动创建机器人、不执行查询命令、不在收包线程进行网络访问，也不保证覆盖全世界。
+
+| 调用 | 用法 |
+|---|---|
+| observerBridge.coverage(options) | options.server 默认当前服。返回观察账号、名字、位置、维度、会话、实际观测实体/已知血量数量和错误。账号断线明确显示。 |
+| observerBridge.health(runtimeId, options) | runtimeId 必须十进制字符串；options 可指定 server、dimension。查询在线观察者最新真实血量，返回 current/max/previous/damage/stale/source 和 observer。身份或维度冲突不猜测，known=false。 |
+| observerBridge.locator(target, options) | target 是玩家名或 UniqueID 字符串，读取真实 PlayerLocation 广播；没有 AddPlayer 也保留。返回 dimension_known=false、runtime_id=null，不把位置广播当血量或维度证据。隐藏类型不返回假坐标。 |
+| observerBridge.worldEvents(options) | options 包含 server、dimension、cursors、limit；返回联合规范事件与每观察者游标。limit 默认256，1..4096，属于每次读取条数而非游戏命令/收包限速。 |
+| observerBridge.localView(options) | 当前账号本地视图，用于聚合，不递归查询兄弟账号。mode=coverage/health/events；health 用 target；events 用 after、session、limit。 |
+
+Lua 示例（目标 ID 使用真实抓包或实体事件取得的 ID，不能照抄示例数字）：
+```lua
+local coverage = observerBridge.coverage()
+local result = observerBridge.health("真实RuntimeID", {dimension=0})
+if result.known and not result.health.stale then
+    print(result.health.current, result.health.max, result.observer.name)
+end
+local cursors = {}
+-- 每次需要读取时调用；不要同步死循环或用1ms轮询HTTP。
+local page = observerBridge.worldEvents({cursors=cursors,limit=256})
+cursors = page.cursors
+for _,event in ipairs(page.events) do
+    print(event.type,event.observer.name,event.observation_id)
+end
+```
+Python：`host.observerBridge.health(runtime_id, {"dimension":0})`；C++：`client.observerBridge.health(runtime_id, yy::json{{"dimension",0}})`；三者均通过相同宿主实现。MCP 使用游戏调用工具，method 填上述完整名称，args 为参数数组；开发文档 Resources 可读取此页。内置 AI 加载对应语言/观测技能后也能查看这些接口，不强制加载全部技能。
+
+事件来源标为 server_to_bot_decoded；客户端输入桥仍为本地提交，不能把它当服务器已执行。多个观察者对同一事件的不同目击保留来源，不能直接把联合事件条数用作击杀计数。observation_id=账号/会话/序号，可去重同一观察记录；跨观察者业务去重需真实目标、时间和事件证据。下一页传返回的 cursors，重连 reset=true，历史丢失 lost>0；失败账号的旧游标保留，恢复后继续读取。complete 只代表本轮所有已启动账号查询无错误，并非全服覆盖完整。
+
+当前控制器只联通自己的主账号、舰队与托管子账号；其他用户或其他机器要通过显式认证采集桥接入，不能自动跨用户读取。托管子进程仅查询自己；控制器在1秒内按需并发读取，错误显式返回。维度、服务器、连接会话不同不能混合实体；不存在的实体、已移除实体和断线缓存不充当有效观测。
+
+修复了旧宿主把其他玩家 PlayerLocation 写入 bm.pos 的问题。现在仅相同 UniqueID 的坐标类型更新机器人自身位置，Hide 不将位置清零，其他玩家的广播进入独立 locator 缓存；MovePlayer 与 Respawn 同样校验身份。locator 缓存有可配置实体容量并在重连清空。该包没有维度字段，所以不能按维度查询 locator，也不能据它断言跨维度监听成立。
+
+可直接用于：主插件显示远处观察机器人收到的生物血量、查看各观察账号覆盖的维度、从主账号统一读取远处健康/受伤/生命周期等已规范化事件。空挥、攻击归属、全服装备是否可读仍以服务器实际下发的包为准，接口没有创造隐藏数据。
+
+## 0.10.27 真实远距离服务器模块战斗事件
+
+来源是山头测试服实际接收的 PyRpc ModEventS2C，不是猜测包名，也没有强制请求服务器隐藏数据。本适配只解码经过记录验证的两个模块广播，operation_type=32346342；不能因为其他 ModEventS2C 常用9753608而忽略它。模块不存在或不广播时，接口不会伪造事件。尚未证明跨维度或任意服务器可用。
+
+| 接口 | 参数与含义 |
+|---|---|
+| events.onEntityKill(handler) | 服务器 Minecraft/vipEventSystem/PlayerKillMob<UUID> 模块报告。event.attacker.unique_id、target.unique_id 都是精确十进制字符串；attacker_known 表示模块明确报告该攻击者。名字只关联实际在线 PlayerList。没有目标类型、RuntimeID、健康值就返回未知。不是 PvP onPlayerKill。 |
+| events.onDamageDisplay(handler) | BREquipDamageEventServer/BREquipDamageEventServerSystem/GetBroadcastData。target.unique_id、damage_text、position、position_known。damage_text 如 '-33' 是显示文字，damage_known=false；不是真实HP扣血。无攻击者、维度字段，因此 attacker_known=false、dimension_known=false。 |
+| events.moduleHistory(options) | options.session、after、limit；独立战斗记录，移动与乐器高频事件不会挤掉它。返回 session/cursor/latest_sequence/lost/reset/events/capacity。limit默认256、1..4096；容量使用diagnostics.configure的event_history。首次after=0；后续传返回cursor及session。重连清空并reset，覆盖记录会lost。 |
+
+所有事件带 source=PyRpc、evidence=server_module_reported、module.namespace/system/event/operation_type、event_id、module_sequence、timestamp。不会据模块显示更新 entities.health，真实血量继续来自 UpdateAttributes。observerBridge.worldEvents 保留这个证据类型，另外标明 transport_evidence=server_to_bot_decoded。多观察者各自的 event_id 不等于跨账号击杀唯一号；业务跨观察者去重要按服务器/模块/攻击者/目标UniqueID处理。
+
+Lua：
+```lua
+events.onEntityKill(function(e)
+    local who = e.attacker.name or e.attacker.unique_id
+    print(who .. " 击杀 " .. e.target.unique_id)
+    -- 可在这里给明确的攻击者计分；不要拿目标缺失血量当满血。
+end)
+events.onDamageDisplay(function(e)
+    print(e.target.unique_id, e.damage_text, e.position_known)
+    -- 只用于模块报告的伤害显示；不要拿它做真实血量统计。
+end)
+local page = events.moduleHistory({after=0,limit=32})
+-- 下一次按需读取：events.moduleHistory({session=page.session,after=page.cursor})
+```
+Python 通过 `host.events.onEntityKill("handler_name")` 注册宿主回调（见 Python SDK 的 handler 机制），C++ 通过 `client.events.onEntityKill("handler_name")`。三语言均可读取 moduleHistory；MCP 游戏调用 method='events.moduleHistory'、args=[options]，无需插件订阅上下文。内置AI可以按语言加载本地观测技能，看到完整示例与真实性边界。技能没有自动全部加载。
+
+击杀去重：当前连接会话中以模块来源、攻击者UniqueID、目标UniqueID做有界缓存，容量沿用event_history；连接重建清空，缓存淘汰后旧报告重放可能再次出现，业务长期积分需自己的持久幂等键。伤害显示是连续更新，不用 requestID=1 去重；该编号可重复，不能当全局事件唯一号。
+
+本次真人疣螈远处测试收到三条生物击杀报告及31条模块伤害显示。4753条乐器演奏事件保留在原抓包能力中，不自动变成战斗事件，也不能把它们叫作空挥。严格远距离阶段没有收到这个玩家的普通 Animate、MobEquipment、UpdateAttributes 或连续视角更新；不要把其他实体的包计到他身上。已有血量4/20后来过期仍明确stale，绝不充当远距离实时血量。
+
+## 0.10.28 Lua坐标表修复
+
+实际真人回调落盘确认了2次击杀和20条伤害显示，也发现显示position曾传成Lua字符串。现在position使用三语言都支持的数组绑定：Lua为table，可以直接读取e.position[1]、[2]、[3]；Python/C++/MCP仍为数值数组。position_known=false时不使用坐标。专门回归覆盖Lua数组类型与三个数值，不仅检查JSON形态。
+
+真人最新证据保留原测试版本0.10.27和真实北京时间23:11:08～23:38:19，不把旧测试改写成0.10.28实测。该阶段11条击杀报告、56条伤害显示，最新击杀23:35:44.188，Lua插件真实回调2次击杀/20次显示并落盘；临时脚本和测试牛已清理。普通原生动作与全局实时血量仍未证明。
+
+## 0.10.29 主动服务端转发与三语言接口
+
+目标主要是普通网易租赁服，不依赖用户上传玩法组件。以下诊断接口在机器人本机运行；主动服务端模块为另一个可选方案，不能用山头服模块实测替代租赁服广播能力。
+
+本地协议底层Dial使用readerLimits=false，已关闭单批包数量限制。监听器在本地业务筛选之前计数；captureStart({types={"*"},filter={every_ms=0}})可观测已下发解码包，显式指定LevelChunk等大包才能抓它们。登录握手私密数据不进入公开抓包。这里的缓存容量不是服务器广播权限；修改它不会制造未下发的数据。
+
+新增共同API：
+
+| API | 参数 | 实际作用 |
+|---|---|---|
+| diagnostics.receiveTransport | 无参数 | 当前协商协议ID/版本、注册包ID列表、解码前帧数/字节数/未知包/解码失败；不保存包内容和认证信息；不需要服务端组件 |
+| events.onServerObservation | handler(event) | 主动模块所有事件；e.event_type、e.data、e.event_id、e.session、e.received_at、e.source、e.evidence |
+| events.onGlobalSwing | handler(event) | 只接受有明确player_id的swing报告；不把伤害、命中攻击或任意Animate伪装为空挥 |
+| events.onGlobalHealthChange | handler(event) | 有明确entity_id且实际current合法的health_changed；返回e.health.current/max/previous |
+| observerBridge.serverHistory | {session?,after=0,limit=256} | 当前连接历史与cursor/reset/lost/capacity；不是网络查询，重连清空 |
+| observerBridge.serverSnapshot | 精确entity_id字符串 | 独立实体快照缓存，known/current/max/previous、session、received_at/observed_at/stale/timestamp_valid；不受无关历史滚动影响 |
+
+缓存使用可配置settings.actors与settings.stale_ms；模块最大血量未知为null，不默认20，不从damage_text反推出生命值。ID为字符串，禁止用浮点数传超长RuntimeID或UniqueID。server_engine_verified=false明确表示宿主收到模块报告，不能代替本轮引擎验收。原生entities.health(runtimeId)、player.equipment(name)、player.rotation(name)继续基于实际下发包，不覆盖或冒充为全服实时数据。
+
+Lua常驻插件：
+```lua
+events.onGlobalHealthChange(function(e)
+  local h = e.health
+  print("模块血量 " .. e.entity_id .. ":" .. tostring(h.current))
+end)
+events.onServerObservation(function(e)
+  if e.event_type == "player_death" then
+    local d = e.data -- entity_id/attacker_id/attacker_known/cause
+    -- 仅attacker_known为true时归属击杀，按event_id去重。
+  end
+end)
+local history = observerBridge.serverHistory({after=0,limit=32})
+local snapshot = observerBridge.serverSnapshot("精确实体ID")
+```
+
+Python常驻插件（使用注入的命名空间，不每次启动解释器）：
 ```python
+def changed(event):
+    health = event['health']
+    print(event['entity_id'], health['current'], health['max'])
 def on_init(host):
-    def died(event):
-        host.storage.atomicAdd('death:'+event['player'],1)
-        if event.get('position_known'):
-            host.storage.set('lastdeath:'+event['player'],event['last_position'])
-    host.events.onPlayerDeath(died)
+    events.onGlobalHealthChange(changed)
+    events.onGlobalSwing(lambda event: print(event['player_id']))
+def snapshot(entity_id):
+    return observerBridge.serverSnapshot(entity_id)
+plugin_api = {'snapshot': snapshot}
 ```
 
+C++常驻插件（使用sdk/cpp/youyuan.hpp，注册回调名称）：
 ```cpp
-// 放在yy::Plugin构造中：on接收args数组，args.at(0)是真实Event。
-on("died",[this](const yy::json& args){
-  const auto& e=args.at(0);
-  client.storage.atomicAdd("death:"+e.at("player").get<std::string>(),1);
-  return yy::json(true);
-});
-client.events.onPlayerDeath("died");
+class Observer : public yy::Plugin {
+  yy::json last_;
+public:
+  Observer(const char* context, yy::HostAPI host): Plugin(context,host) {
+    on("health", [this](const yy::json& args) {
+      last_ = args.at(0); return nullptr;
+    });
+    client.events.onGlobalHealthChange("health");
+    expose("last", [this](const yy::json&) { return last_; });
+  }
+};
+YY_PLUGIN(Observer)
 ```
 
-## 网易死亡RPC
+events.onGlobalSwing的global表示已安装的服务端模块不按观测者视距筛选，不表示任意第三方服务器都支持。NetAllay API0.29.0模块已编译，真实Allay启动未验收；网易ModSDK行为包具备血量/攻击/死亡，只读查询与引擎注入身份白名单，但没有经核实的网易服务端空挥接口，明确swing_supported=false。必须安装在游戏服务器引擎中；仅在工具箱装一个Lua/ZIP不会建立该能力。rpcProbe匹配Capabilities确认接入后再使用。
 
-精确识别Value=["ModEventS2C",[namespace,system,"OnPlayerDie",{pid,die}],...]
-pid为玩家UniqueID，不是RuntimeID；die=true死亡，false重生。只在能映射已观测玩家时触发，不搜索RPC文本猜死亡。游戏是否下发这个事件仍需实际环境抓包验证，结构识别测试不冒充真人死亡实测。raw PyRpc仍可packet.on("PyRpc",...)查看，不能任意重放登录事件。
-
-## 用AI形成操作闭环
-
-AI先project_list/project_read读完整源码，skill_search查询“挥臂/死亡/物品”，load_skill按章节读，packet_schema(name="Animate")只读该包字段和用途。需要原始游戏观察时listen_packet/list_packets，先记录目标类型，不开全包长期高频日志。发包或命令后检查真实响应、位置、方块或记分板。project_write可以新建模块/入口，不止改名字；project_patch能精确替换行；project_validate后project_publish，并plugin_manage start/reload，terminal_log确认。
-
-命令链工作区默认只提供文件、语法校验和链发布工具；Lua/Python/C++工作区可按权限提供游戏/抓包/MCP工具。多选语言技能只开放文档，没有把未授权工具一起开放。玩家可以在新消息中引导运行中的任务；工具失败继续原任务，文件修订与分叉保留。
-
-## 原始包层覆盖更广的玩法
-
-SetActorData：实际metadata状态；MobEquipment/ArmorEquipment：同步装备；InventoryContent/Slot：本机或授权容器背包；InventoryTransaction/ItemStackRequest：本机交互请求；MobEffect：收到的药水效果；LevelSoundEvent：同步声音；SetScore/ScoreboardObjective：计分板；PlayerList：在线资料和皮肤；ChangeDimension：维度；ClientboundMapItemData：地图数据；BossEvent：首领条；PyRpc：网易扩展事件。各包精确字段在packet-reference单包目录，不从别的版本猜ID。
-
-并非所有这些包都有高层函数：玩家三维速度/效果缓存、GUI箱子菜单、特殊物品自动识别、完整world cache和AI寻路仍需开发与真实测试。当前schema登记215种，不等于另外AI提到的“300+包”全部有解析器；未知入站包可原始观察，但没有语义时必须标记unknown。
+Linux C++实际已有Python3独立进程ELF运行器，修正了plugin.has/capabilities曾错误显示“不支持”的信息；Android仍在宿主进程内执行native，不能承诺相同崩溃隔离。SDK回调和跨模块通信保留，新增接口不改变命令Fast路径、整条链频率或加命令CPS限制。
 
 
-## 0.10.9 补充：击杀者、维护开关与Linux文件
+## 0.10.34 接收诊断与 1.21.120 挥臂协议
 
-自动维护创造/飞行在新配置中默认开启；设置 auto_creative=false 可用于受伤或死亡测试，已有用户明确关闭的值保留。权限检查自身不改变模式；维护只对机器人自身处理模式/飞行变更，不反复逐Tick发送维护命令。
+diagnostics.receiveTransport() 的 received 每项新增：
+- decoded_frames：已读取完当前定义字段的帧。
+- decode_panics：字段读取中断；没有返回正常包。
+- trailing_bytes_frames：读取已知字段后仍有扩展字节，不等于丢包。
+- returned_packets：协议转换后返回上层的包数，不保证插件回调完成。
+- decode_errors：保留旧异常合计；禁止直接当丢包数量。
+这些都是当前连接累计值，应对两个时间点取差值；重连后重新计数。
 
-击杀者来源是服务器 Text 翻译型死亡消息，必须是实际已观察到的玩家。event.killer_known=true 才能把 killer 当作确定的玩家。OnPlayerDie 只提供死亡/复活，不含可靠击杀者；如果它先到，events.onPlayerDeath 可能先得到未知击杀者，随后通过 events.subscribe("death_details","handler") 收到服务器的补充。events.onDeath或死亡记录查询保留相关字段；无死亡广播时不会编造击杀者。
+当前网易协议860/游戏1.21.120的 Animate 读取 action_type、entity_runtime_id、固定float32 data，划船动作另外读取 boat_rowing_time。packet.on("animate", handler) 事件保留旧字段，增加 data/boat_rowing_time。Lua、Python、C++使用同一解码链路，不需要重新抓包猜字段。挥臂的action_type=1；data是协议动画参数，不能自行解释为伤害或生命值。UpdateAttributes 的 minecraft:health 才是实体血量来源。
 
-上传/下载工具箱文件位于设置的“文件选择器与界面”，网页选择 device=linux-server 时保存在该Linux实例的 /var/lib/youyuan/用户上传。上传支持文本、源码、ZIP等，不自动执行或覆盖同名文件。Linux的自建资料库也保存在自己的服务器磁盘，不再把文件拆分写入Cloudflare Durable Objects；Cloudflare保留网页、身份与控制中继。网页控制工具箱应用，不是任意root终端。
-
-自己的源码附件通过 project_list/project_read/project_search 读取；真正修改后依次校验、发布、重载，不能用文件名替代正文。命令链反复运行已编译IR，只有TXT被修改时重新读取和解析。
+接收统计没有保存原始认证、地址或载荷。队列/历史容量、解码兼容性与服务器广播范围必须分别判断：修改本地缓冲不能生成服务器未发送的包；OP也不能据此宣称全服原生挥臂/血量已实现。普通租赁服的全局原生动作与血量仍未通过真人跨距离/跨维度验收。
 
 
-## 服务器关闭命令反馈时
+### 0.10.34 Lua事件类型与覆盖说明
 
-实服已验证：gamerule sendcommandfeedback false 会使 Confirmed/querytarget 等结果接口收不到回包，即使命令已经执行。Fast 不等待回包，模式维护也使用无等待创造命令和飞行输入。需要条件链、查询结果或确认时，要由服主确保服务器允许命令反馈；超时返回未知，不能把它当失败自动重发。高频无条件链不要为语法验证逐条增加确认。
+Lua、Python与C++共用服务器观测数据。Lua转换现在保留float32/int32数字、可空数值指针、固定长度向量和带类型NBT，未知值为nil；不要把指针地址当最大血量。runtime_id是十进制字符串。真实接收、解码、回调和服务器广播范围分别验证。全局RPC伤害显示不是实体实时血量；一个机器人轮巡会有未覆盖时段，使用observerBridge.coverage/health/worldEvents显示实际账号、来源、会话、游标及过期状态。
+
+## 0.10.35 统一观测事件、可选轮巡与账号令牌
+
+观测事件由宿主解析真实服务器下发包，Lua、Python、C++不用先开启抓包。`events.catalog()`列出类型；`events.on(kind,handler)`按类型订阅；`events.onObservedAction(handler)`合并接收swing、hurt、equipment、rotation、entity_kill、damage_display，保留原type和source。伤害事件不等于空挥，未知攻击者保持未知。模块广播不一定存在于其他租赁服。事件缓存/历史、收包队列容量可以通过diagnostics配置，但扩大留存不能让服务器广播未发送的数据。
+
+Lua（函数或函数名）：
+```lua
+events.on("swing", function(e)
+  -- 真Animate挥臂；不证明命中了生物
+  print(e.player, e.runtime_id, e.timestamp, e.source)
+end)
+events.onHealthChanged(function(e)
+  print(e.runtime_id, e.previous, e.health, e.max_health)
+end)
+events.onObservedAction(function(e) print(e.type, e.source) end)
+```
+Python：`events.on("swing", handler)`，`events.onHealthChanged(handler)`；C++：`on("handler", callback)`注册函数后，`client.events.on("swing","handler")`。常驻运行器投递到插件自己的回调队列；不重跑源码。停止/重载插件退订。高频回调避免逐条写盘或同步HTTP。
+
+### 插件私有自定义事件格式
+`events.define(definition,handler)`：同一格式三语言可用，映射订阅属于此插件，停止后删除，不污染其他插件事件，不执行自定义代码。字段路径使用`packet.describe()`提供的真实snake_case字段。此版字段路径支持嵌套对象，不支持数组下标，血量请直接用宿主health事件。
+```lua
+events.define({name="arm_seen", packet="Animate",
+  filter={fields={action_type=1}, every_ms=0},
+  fields={runtime_id="entity_runtime_id", action="action_type"}},
+  function(e) print(e.runtime_id, e.action) end)
+```
+输出含`source="custom_packet_mapping"`、`packet_type`、`timestamp`、`event_id`、`observed=true`、`inferred=false`、`server_verified=false`。最后一项表示自定义语义未由宿主认证：收到字段不能证明玩家命中、全局广播或服务器确认了操作。缺失映射字段为nil/null。限制私密握手、大区块、通配包映射以保护敏感凭证和内存；它不是额外游戏命令CPS限制。
+
+### 单机器人顺序观察
+```lua
+local r = observerBridge.patrolStart({players={"玩家甲","玩家乙"},
+  interval_seconds=0.001, single_follow_seconds=2,
+  duration_seconds=60, restore_position=true})
+-- 一次建立专用目标与分数甲=1、乙=2；逐个tp @s到分数1、2、1、2
+local s = observerBridge.patrolStatus()
+-- 在不需要时主动停止；插件卸载自动取消自己的轮巡
+observerBridge.patrolStop()
+```
+必须当前机器人OP且目标真实在线。空players取当前在线列表并排除自己；默认未开启。固定路线只在开启时分配一次编号；新增/离开玩家后应停止并重开来刷新路线。编号只保存在本次专用计分板，不覆盖玩家其他积分。每次新建独立目标，停止时提交移除。循环TP使用Fast路径，不等每条回包。单玩家按single_follow_seconds执行，不在1ms重复堆发。间隔允许更细的正值，系统调度器和服务器Tick仍是实际限制；调度超时合并遗漏间隔，不无限追补积压。
+
+`patrolStatus`区分submitted（本机写入）、rounds（路线轮数）、missed_intervals（宿主错过计划间隔）、position_updates（真实位置事件）、by_player（观测事件），最后位置附时间。位置包可合并/重复，不能把position_updates称为真实TP完成次数；`actual_tp_rate_known=false`。停止/断线取消发送，duration_seconds自动停止；restore_position默认请求恢复起点。清理是无等待提交，是否生效要再读位置/计分板结果。重复启动被拒绝直到之前清理结束。
+
+单机器人轮巡是时分采样：并非连续同时覆盖所有玩家。更高Hz不一定更高事件命中率，过快TP可能还没同步周围实体便离开。只有实际近处收到的动作才计入观测；没有收到就不补造。约48格是当前测试假设，不是宿主硬编码限制或所有服务器固定上限。
+
+### 多机器人协作
+已有accountsPool.acquire/bind/start/invoke/release供插件管理自己的账号池；管理员all=true可按权限管理全部账号。每个机器人只能一个实际游戏会话，不能重复同一Token。给每个账号选择目标后，`accountsPool.invoke`调用该账号`/api/youyuan/game/call`，method为patrolStart，players只填对应玩家，single_follow_seconds按需配置。退出等待/再分配由业务插件决定；release支持idle_seconds默认60。`observerBridge.coverage/health/worldEvents`按需汇总各真实连接观测者，游标避免重复读取；global_coverage_guaranteed一直为false，缺乏观测的动作不伪造。
+
+### 令牌查看复制
+账号卡片“复制令牌”；编辑页“显示/隐藏Token”“复制Token”；云端游戏账号“查看/复制令牌”。增加游园独立验证服务选项，避免云端新账号默认地址选不上。接口POST `/api/youyuan/accounts` `{action:"token",id:"账号ID"}`：仅原有账号授权者控制范围，read授权拒绝、普通用户他人账号拒绝，响应no-store。常规GET列表继续不带Token。云端账号沿用本人token签发接口，发起需要平台会话；不读他人账号凭证。剪贴板被浏览器拒绝时提供可选中文本框手动复制。
+
+
+## 0.10.37 玩家协议代理（独立实验组件）
+
+可运行入口是`cmd/youyuan-player-gateway`，两侧真实网易认证和密钥绑定；玩家必须实际经过该UDP入口。中心可以留在另一维度；普通手机/启动器地址适配尚未完成，不能自动监听未接入玩家。
+
+插件继续调用共同的`observerBridge.events(after, limit)`，读取`reply.events`与`reply.cursor`。Lua使用同名函数；Python使用`host.observerBridge.events(cursor,256)`；C++使用`client.invoke("observerBridge.events", yy::json::array({cursor,256}))`；MCP通过通用game.call调用同名方法。不覆盖原模块通信、原实体缓存或命令Fast路径。
+
+外层event包含`kind/player_id/source/event_id/received_at/server_confirmed`；event.data是采集包封装，其中`packet_type/direction/observed_at/data`保留原始来源。Animate只表示挥臂；PlayerAuthInput的内层`missed_swing=true`表示明确空挥输入；服务器UpdateAttributes的`current/max`是本人收到的实际血量。客户端输入不能当作服务器命中结果。
+
+实测（2026-10-11北京时间19:26:56–19:27:40）：中心dimension2、协议测试客户端dimension0；Animate10/10、MissedSwing5/5、本人血量18/20；21投递0丢弃，同机投递P95=11.881ms。ItemRegistry观测失败1次但原帧仍转发，治疗命令失败；真人手机入口、多玩家管理与24小时稳定性未验收。源码技能和文档已更新，线上0.10.36嵌入资料未在此独立发布中替换。
+
+使用与完整限制：`observer-bridge/玩家协议代理使用与验收.md`。不要反复从cursor=0处理历史；不要把输入桥误写成`events.onGlobalSwing`服务端模块自动订阅。
+
+
+## 0.10.38 动作API与MCP同步
+
+# 动作 API、事件与真实覆盖范围
+
+## 读取玩家代理动作（已实现的共同入口）
+
+Lua、Python、C++和MCP读取同一个`observerBridge.events(after, limit)`，参数是上一页cursor和本页条数。返回`events/cursor/head_cursor/overwritten`。保存cursor并按event_id去重，不能每轮从0重新执行历史。历史是内存，宿主重启会清空；空列表不代表所有玩家没有动作。
+
+| 动作/数据 | kind及来源 | 事件内字段 | 本轮验收 |
+|---|---|---|---|
+| 挥臂 | swing_input / Animate | runtime_id，missed_swing_known=false | 10发出10收到；仅挥臂，不能判断命中 |
+| 明确空挥输入 | swing_input / PlayerAuthInput | missed_swing=true，tick | 5发出5收到；是客户端输入，非服务器命中结果 |
+| 攻击输入 | attack_input / InventoryTransaction | target_runtime_id，position | 已实现解析，未真人验收；不是成功伤害 |
+| 移动/转动视角输入 | position_input / PlayerAuthInput | position，pitch，yaw，tick | 收到5条位置输入；未真人验收纯转头 |
+| 接入者本人血量 | health_observation / UpdateAttributes | current，max，known，runtime_id，source，tick | 服务器真实18/20；未实测血量变化 |
+
+外层event含kind/player_id/source/source_id/event_id/received_at/server_confirmed。`event.data`是采集封装，包含packet_type/direction/observed_at/data；真正动作字段在`event.data.data`。RuntimeID和Tick是十进制字符串，避免64位精度丢失。服务器血量保留direction=server_to_player、source=server_packet；外部来源不自动成为中心服务器权威缓存。
+
+MCP工具调用：使用通用`/api/youyuan/game/call`，POST参数如下。
+
+```json
+{"method":"observerBridge.events","args":[0,256]}
+```
+
+后续用返回的cursor代替0。资源为`youyuan://docs/player-actions`；也能通过技能读取API按需加载`player-actions/index.md`。这不是要求模型自己抓原始包猜字段。
+
+Lua：
+```lua
+local reply = observerBridge.events(cursor or 0, 256)
+for _, e in ipairs(reply.events) do
+    local packet = e.data
+    local d = packet.data
+    if e.kind == "swing_input" and d.missed_swing == true then
+        print(e.player_id, "空挥输入", d.tick)
+    elseif e.kind == "health_observation" then
+        print(e.player_id, d.current, d.max)
+    end
+end
+cursor = reply.cursor
+```
+
+Python：
+```python
+reply = host.observerBridge.events(cursor, 256)
+for e in reply["events"]:
+    fields = e["data"]["data"]
+    if e["kind"] == "swing_input" and fields.get("missed_swing") is True:
+        print(e["player_id"], fields["tick"])
+cursor = reply["cursor"]
+```
+
+C++：
+```cpp
+auto reply = client.invoke("observerBridge.events", yy::json::array({cursor,256}));
+for (const auto& e : reply.at("events")) {
+    const auto& fields = e.at("data").at("data");
+    if (e.at("kind") == "swing_input" && fields.value("missed_swing", false)) {
+        // e.at("player_id")及fields.at("tick")；按业务更新已有状态。
+    }
+}
+cursor = reply.at("cursor").get<uint64_t>();
+```
+
+## 操纵机器人与观察他人是两类 API
+
+`bot.swingAir()`让当前连接机器人排队提交一次MissedSwing；`bot.attack(runtime_id,slot)`提交近距攻击交易；`world.mineBlock`与`world.useBlock`分别是破坏/交互提交。提交成功不等于服务器执行成功，操作仍受服务器实际权限与同步状态约束。
+
+原生监听`events.onSwing`、`events.onEntityHurt`、`events.onPlayerDeath`以及`player.rotation`、`player.equipment`继续读取服务器同步给机器人的资料，不能通过增加客户端解析字段使未下发的信息出现。`entities.health(runtimeId)`属于原生缓存；它不会自动查询或合并代理玩家的本人血量。
+
+`events.onGlobalSwing`是已安装并确认能力的服务端模块报告通道，**不是**本代理事件的自动回调。插件读取代理动作使用上面的observerBridge.events。不要把代理输入、原生广播、服务端模块报告混为一个无条件全局接口。
+
+## 覆盖、延迟和未完成项
+
+独立代理0.10.37只有实际经过UDP入口、认证UUID/UID匹配的玩家才被覆盖。本轮中心在末地dimension2、协议客户端在主世界dimension0，说明已接入玩家向中心上报不依赖中心视距；未接入的其他玩家仍不能自动监听。普通网易手机启动器一键路由、多玩家生产入口和24小时稳定性未完成。
+
+2026-10-11北京时间19:26:56–19:27:40：21投递0丢弃，P50=7.907ms、P95=11.881ms。这只是同机代理采集到中心入库，不是公网真人输入到插件显示。手机网络、轮询周期与显示调度会增加总延迟。ItemRegistry162观测解析失败1次，原帧仍转发；不能据此宣称装备全部可用。
+
+使用、认证配置及失败记录见独立交付包中的《玩家协议代理使用与验收.md》。资料同步不自动将普通玩家接入代理，也不表示所有动作均已完成实测。
+
+## 0.10.39 相机观察：真实结果与边界
+
+这是网易山头服94F195C41B5上的实验结果。挥臂对照中只有观察机器人具有OP；发送挥臂的受控账号已通过自身UpdateAbilities确认command_permissions=0、player_permissions=1。远处玩家血量另用受控账号进行小伤害测试，不将该血量试验称为普通权限手机验收。主机器人身体固定，只对它自己的相机发指令，不修改其他玩家视角。相机不提供跨维度观察，也不等于所有区域同时订阅。
+
+现有命令接口即可使用，不存在另一个已经全局监听的隐藏API：
+
+```lua
+-- x/y/z为合法、已选择的观察坐标。使用实际观察机器人游戏名。
+local r = game.execute('camera "观察机器人游戏名" set minecraft:free pos 100 80 200',
+                       {channel="ai", timeout_ms=6000})
+-- r.success只确认命令执行；还应核对该视角实际收到实体包。
+-- 结束时恢复当前机器人的正常视角：
+game.execute('camera @s clear', {channel="ai", timeout_ms=6000})
+```
+
+Python使用`host.game.execute(command, options)`；Linux C++使用`client.invoke("game.execute", yy::json::array({command,options}))`。同名命令、权限和服务器结果完全一致，不因换语言扩大接收范围。循环调度需要自行停止并清理；Fast提交不能代替观察区域已下发的确认。
+
+原生动作仍通过`events.onSwing`或`events.on("swing", handler)`订阅；真实掉血通过`events.onHealthChanged`、`events.onEntityHurt`。无需先开启抓包才能接收这些宿主事件。`entities.health(runtimeId)`读取现有缓存，检查known/max_known/stale；未知护甲、攻击者保持未知。
+
+2026-10-11北京时间23:09：24格挥臂10/10；1500格无相机0/10；相机观察远处10/10；清除相机0/10。发送的是受控账号真实Animate，不证明未修改手机的空挥输入，也不能判断命中。
+
+23:15–23:16远处牛血量：观察中10→9；离开该视角后一次真实伤害未收到属性变化，原缓存标记stale；恢复视角重新同步为8，下一次伤害8→7。初始最大血量为实际同步的10，不默认20。Lua回调亦收到真实变化；测得约0.03–1.57ms是宿主事件时间到回调入口，校准误差±0.65ms，不是玩家操作到HUD的端到端延迟。
+
+23:41–23:42，20个相隔较远的地点，每组12秒：
+
+| 相机提交频率 | CameraInstruction | NetworkChunkPublisherUpdate | 受控账号挥臂收到/发送 |
+|---|---:|---:|---:|
+| 5Hz | 60 | 59 | 3/60 |
+| 20Hz | 240 | 238 | 0/60 |
+| 40Hz | 480 | 239 | 0/60 |
+
+固定动作周期可能与巡回周期错开，上表不能据此认定socket丢包。缓存覆盖0、收包队列末尾0、账号未掉线；40Hz虽收到480条相机指令，实际区域发布仅239次、11种位置（含过渡位置），不能把指令回显算成20区域完整覆盖。一次只看一处会漏掉其他处的瞬时动作，增加Hz无法承诺零漏检。错峰复核、账号可用数量及原始包另列验收报告。没有5～6个有效账号时不得用同账号重复登录假装并行验收。
+
+2026-10-12北京时间00:07:40–00:08:18，独立玩家账号“超耐磨的星魂”位于约1500格外：相机观察中实际血量20→19，观察机器人收到ActorEvent和UpdateAttributes，缓存为current=19、max=20、previous=20、damage=1；清除相机后，同样真实伤害没有收到目标属性包，旧值标记stale；恢复视角后重新收到。测试结束已治疗并恢复模式、位置和维护配置，移除临时平台和加载区域。不是仅根据命令返回值猜测血量。
+
+00:10:12–00:13:09，主观察机器人加5个独立子机器人，20个相隔较远的观察地点。5个发送账号全部实际撤销OP；逐账号固定观察正对照均为10发10收。并发动作使用90～310ms随机间隔，避免固定周期碰巧错开。每个速度运行12秒，并在每轮20次提交后移动轮巡起点，避免高频下总跳过同一批坐标。
+
+| 请求切换频率 | 实际提交/相机回显 | 区域发布包 | 5账号挥臂收到/发出 | 宿主CPU累计秒 |
+|---|---:|---:|---:|---:|
+| 100Hz | 1200/1200 | 240 | 13/309（4.2%） | 2.53 |
+| 400Hz | 4800/4800 | 230 | 20/300（6.7%） | 6.18 |
+| 500Hz | 5976/5976 | 238 | 18/303（5.9%） | 7.35 |
+
+500Hz下平均提交间隔约2.0ms，20地点的请求轮巡约40.2ms；但实际区域发布仍约19～20次/秒。命令成功与相机回显不表示服务器已为该地点同步实体。不能把“请求一圈小于50ms”当成“所有玩家每50ms都被有效观察”。上表是动作可见性缺失比例，不是socket丢包率；抓包缓存覆盖0，5个发送账号各阶段仍连接，非OP。视角变化输入与移动包条数也不一一对应，不能拿它作为挥臂无遗漏的证明。
+
+账号恢复已修复：4个云端账号的会话刷新code10时，使用原保存SDK凭据重新认证，核对原游戏ID后更新会话；令牌保持不变。四账号均真实登录并参与上表测试；测试后保留账号池记录，停用临时运行实例，恢复原权限/模式/位置。
+
+结论：该服相机确实能带来远处实体和玩家血量，以及普通权限账号挥臂，但单相机快速轮巡没有达到多人无遗漏目标。精确战斗显示应保持目标附近的观察节点，或分配多个独立节点；单相机只可作为有覆盖空档的采样方式。真人未修改手机、跨维度和24小时稳定性仍未完成，不能宣称全局无漏包。完整数据和原始包在0.10.39相机验收报告中。
+
+## 0.10.40 多机器人错峰观察与交接
+
+在「设置 → 实时感知与抓包 → 管理观测协作」操作。宿主提供可组合接口，不自动安装跟随插件，不强制启动观察。观察账号需要自己的有效登录、OP和同服连接；普通用户仅能操作自己的账号池，管理员沿用既有授权池。
+
+### 常驻单目标观察
+
+`observerBridge.watchStart({player, mode, interval_seconds, duration_seconds, restore_position})`。
+`mode` 为 camera（相机）、follow（移动本机器人）、hybrid（两者），默认 camera；interval_seconds 默认2，可配置正有限值，不限制为20Hz。慢查询串行合并，missed_intervals记录未赶上的时段。没有逐事件扫描或包处理线程里的HTTP查询。玩家离线/查询失败/账号断线会停止；插件卸载自动取消自己的观察。
+
+`watchStatus()` 返回 active/config/submitted/last_submitted_at/target_since/region_updated/region_timestamp/region_position/missed_intervals/error/cleanup。submitted只代表提交；region_updated要求本次目标对应的真实NetworkChunkPublisherUpdate，不能当成所有实体已同步或零丢包。重复提交同一位置不会重置已建立的区域证据。只有camera方式不能跨维度。
+
+`watchStop()` 停止自己的观察，清除本次相机；follow/hybrid默认恢复已确认的原位置，restore_position=false可不恢复。清理结果分别标明submitted/confirmed，Fast清理不会冒充回包成功。与当前账号轮巡互斥，避免两个任务争抢位置。MCP手动控制具备该账号既有权限。
+
+### 六账号规划：五个观察，一个补位
+
+`accountsPool.observationPlan({accounts:[id1,...,id6],players:[],dwell_seconds:2,radius_blocks:48})`。
+players省略时取真实在线列表。返回 assignments（account/players/phase_seconds/handoff_reserve/robot_label）、excluded_bots和targets。已知在线机器人默认排除；内部标签youyuan_observer用于规划，不偷偷给普通玩家写计分板。最后一个账号作为补位，其他账号分摊目标，轮换需调用者按路线驱动。规划本身不会登录、传送或启动任何插件。
+
+48格是本服已有试验的参考值，不是协议承诺；广播还依赖区块、维度、服务端兴趣范围。六个机器人无法不间断覆盖20个相互分离的位置。错峰可减少覆盖空档，不能让服务器未下发的包出现。
+
+`accountsPool.handoff(incoming_id,outgoing_id,{player,mode,interval_seconds,timeout_seconds:5,next_player?})`：接替者必须空闲，原观察者必须正在观察同一目标。两者真实连接且同服；先启用接替者，看到匹配的本次区域发布才停止原观察。超时取消接替、保留原观察；返回ready/old_released/incoming_status/old_status/error。next_player可让释放后的原观察者进入下一目标。真实覆盖仍需用worldEvents按观察账号/session/sequence去重与核对；不能把区域发布当作击杀或挥臂证据。
+
+### 三种语言和MCP用同一套方法
+
+Lua：
+```lua
+local status = observerBridge.watchStart({player="目标游戏名",mode="hybrid",interval_seconds=2})
+local plan = accountsPool.observationPlan({accounts={"main","账号2","账号3","账号4","账号5","账号6"},dwell_seconds=2})
+-- 插件调度策略自行选择；不需要在接包回调中反复查询。
+```
+Python常驻插件：
+```python
+status = observerBridge.watchStart({"player":"目标游戏名", "mode":"hybrid", "interval_seconds":2})
+plan = accountsPool.observationPlan({"accounts":["main","账号2","账号3","账号4","账号5","账号6"], "dwell_seconds":2})
+```
+C++（youyuan.hpp）：
+```cpp
+auto status = client.observerBridge.watchStart(yy::json{{"player","目标游戏名"},{"mode","hybrid"},{"interval_seconds",2}});
+auto plan = client.accountsPool.observationPlan(yy::json{{"accounts",{"main","账号2","账号3","账号4","账号5","账号6"}},{"dwell_seconds",2}});
+```
+MCP通用游戏调用工具（已有OAuth/控制授权）：
+```json
+{"method":"accountsPool.handoff","args":["账号2","main",{"player":"目标游戏名","mode":"hybrid","interval_seconds":2,"timeout_seconds":5}]}
+```
+
+### 皮肤和QQ群名单
+
+独立认证原账号的皮肤组件与资源地址随登录传回。账号网页「选择皮肤组件」只选择账号已有的组件，不购买；提供商拒绝时显示真实错误，成功后重新连接游戏应用。默认读取原账号设置，不为缺失皮肤强制更改账号。玩家缓存接收PlayerList/PlayerSkin与单UUID明确归属的SyncSkin；空皮肤不会覆盖已有数据，归属不明时保留未知。
+
+QQ群 `list [页码]` 或 `.玩家 [页码]` 返回12人一页的真实在线名单及收到的头像；`.查询 游戏ID`保留资料卡。缺失皮肤显示“尚未收到皮肤”，图片上传失败回退文字。统计为本设备实际观测，无坐标和私密凭据。此版本API实施和实景验收的范围见独立验收报告，不将文档示例视作测试成功。
+
+
+
+## 0.10.43 生成文件交付
+
+### `plugin.listOutputs`
+
+relative_dir默认.；列出当前插件数据目录内生成的文件，返回path/name/bytes/modified_at/download_url，不返回文件内容。
+
+详细参数与示例见 plugin-outputs.md。
+
+### `plugin.exportFile`
+
+relative_file；取得当前插件生成文件的下载信息，保持原格式/原字节，不是备份整个插件。文件须已写入plugin.dataDir。链接需登录当前账号，snapshot=false表示下载当前文件版本。
+
+详细参数与示例见 plugin-outputs.md。
+
+
+
+## 0.10.44 实时查询
+
+`game.sceneStats()` 与 `game.getBlockTileAsync(x,y,z)` 为真实宿主接口；异步ticket用 `game.commandResult(ticket,0,true)` 读取。详见 realtime-queries.md；不要将完整 game.scene 快照放进高频周期。
+
+
+## 0.10.45 观测与低延迟
+
+# 0.10.45 观测协作、战斗与容器接口
+
+## 宿主三语言共用接口
+
+`world.containerState(x,y,z)`读取当前维度真实BlockActorData类型缓存：known/is_container/block_entity_id/source/timestamp/stale/dimension/position。不读取箱内物品，不做同步WS查询。UpdateBlock替换后旧容器类型立即未知；新的BlockActorData再次建立。`events.onContainerChange(handler)`为对应规范事件。变化不等于确证某个玩家放置，没有来源时cause_known=false。
+
+原`game.getBlockTileRaw`保留，新`game.getBlockTileAsync`后台真实查询，commandResult(ticket,0,true)消费。适合没有容器类型包时的核验，不在回调里等待。Fast清除只是submitted，不等于服务器确认已清掉，须回读更新包/Confirmed查询验收。
+
+`game.sceneStats()`只计数，不复制或新留存全部实体明细。`game.scene({present_only=true,entity_type="minecraft:player"})`是可选过滤；无参数完整旧接口保持兼容。查一只实体用entities.get(runtimeId)，不要为查一只血量遍历整个场景。
+
+`observerBridge.worldEvents({stream="actions",cursors=previous,limit=1024})`从独立动作历史读取：普通实体位移和非玩家旋转不会挤掉伤害/血量/挥臂等。limit可1..4096，history容量继续由diagnostics.configure(event_history)设置。默认stream=all保持旧行为。actions的lost表示发生覆盖（lost_count_known=false），不能拿全局sequence的位移间隙计算动作丢失数量。cursors按观察账号和会话保存，重连reset；没有广播的包仍未知。
+
+`plugin.call(pluginID,exportedFunction,args数组)`只调用本账号已运行插件plugin_api的导出函数。未运行不隐式启动，私有全局不开放；忙/递归返回明确错误。Lua/Python同名，C++为client.plugin.call。MCP/HTTP：POST /api/youyuan/game/call {method:"plugin.call",args:["插件ID","函数名",[参数]]}。跨账号继续用原accounts.callPlugin/accountsPool.invoke，隔离与模块通信保留。
+
+## 本次多功能插件的可调用接口（需要模块observation_team.lua）
+
+```lua
+local config={enabled=true,accounts={"自己的池账号ID"},targets={"目标玩家名"},
+ mode="hybrid",interval_seconds=0.2,camera_height_blocks=4,camera_pitch_degrees=90,
+ follow_radius_blocks=16,dwell_seconds=2,idle_seconds=60,event_limit=1024,start_accounts=true}
+plugin_api.observationTeamConfigure(config)
+plugin_api.observationTeamStatus()
+plugin_api.observationTeamStop()
+-- 空闲机器人先到位、收到新区域发布，才释放旧观察者。
+plugin_api.observationTeamHandoff(incomingID,outgoingID,{player="目标",mode="hybrid",
+ camera_height_blocks=4,camera_pitch_degrees=90,interval_seconds=0.2,timeout_seconds=5})
+```
+
+同一账号持续跟随一个目标，人数超过观察者数量时分时轮巡，切换错峰；有空闲接替者时用真实handoff，超时保持旧观察。账号不足/无备用时存在覆盖空档，不承诺每0.05秒全服全部玩家都收到，也不承诺不丢包。相机只是当前维度镜头；hybrid近距身体跟随可以跨维度，需要正常游戏权限。玩家不会被移动；真实测试应明确观察者/发送者OP状态与测量中是否TP。静默超时release按用户自己的池回收，不删除游戏凭据。凭据失效要真实重新认证，不能靠界面伪装成功。
+
+动作汇总只接受已连接观察者的server_to_bot_decoded事件，按服务器/维度/RuntimeID分组，不把他人账号输入假装普通玩家广播。组合方法扩展视距覆盖范围，但不是全局引擎监听。
+
+## 战斗显示语义
+
+18格内近期挥臂或已知射击活动与真实掉血相关联；多名候选不强行取最近玩家。单候选也是关联推断，不能当PvP击杀确证。只有匹配玩家显示，取消向256格旁观者群发。血量和最大值来自属性；护甲未知显示未知，不用未知装备推算真实护甲。一个combat-health管理频道，1200ms到期清除/恢复低优先级频道，不反复播放Title。相同血量的重复原始/规范事件合并；重新回血再受伤仍可显示。
+
+真实屏幕延迟、多人跨维度丢包率和连续放置回读仍要单独验收；源码模拟通过不等于游戏验收。界面保存区不浮动；导航透镜不再采样背景文字，浏览器控制超时仍需视觉复验。
+
+
+## 插件直接控制宿主观察
+以下为宿主API，不要求安装某个特定多功能插件。用户插件决定策略、目标和频率。
+
+Lua：
+```lua
+observerBridge.watchStart({player="目标游戏名",mode="hybrid",interval_seconds=0.2,
+ follow_radius_blocks=16,camera_height_blocks=4,camera_pitch_degrees=90,restore_position=true})
+local state=observerBridge.watchStatus()
+observerBridge.watchStop()
+-- 自己的另一个机器人账号；实际配置中填写自己的池ID。
+accountsPool.invoke("池账号ID","observerBridge.watchStart",{{player="目标游戏名",mode="follow",interval_seconds=2}})
+local plan=accountsPool.observationPlan({accounts={"池账号ID"},players={"目标游戏名"},dwell_seconds=2})
+```
+Python：
+```python
+observerBridge.watchStart({"player":"目标游戏名","mode":"hybrid","interval_seconds":0.2,
+ "camera_height_blocks":4,"camera_pitch_degrees":90,"follow_radius_blocks":16})
+observerBridge.watchStop()
+accountsPool.invoke("池账号ID", "observerBridge.watchStatus", [])
+```
+C++通过现有client.observerBridge.watchStart(yy::json配置对象)（或client.invoke("observerBridge.watchStart", yy::json::array({配置对象}))）同名调用；实际SDK类型按cpp-runtime章节。MCP用/api/youyuan/game/call {method:"observerBridge.watchStart",args:[配置]}；跨账号用accountsPool.invoke。UI复制插件调用代码按钮以当前参数生成Lua代码。
+
+watch/plan/handoff接口有明确差别：watch真实提交镜头/身体跟随，plan只规划，不启动账号；handoff先收到接替区域更新才释放旧观察。必须记录OP、维度、身体/镜头是否移动。扩大覆盖不等于全服广播，不保证不丢包。停止插件自动取消其拥有的观察任务，保留模块通信和原来的低级接口。
+
+
+
+# 0.10.48 全局抓包、作业暂停与旧注册兼容
+
+## 设置位置和多选
+设置→服务器连接→应用启动时自动连接下方→全局抓包。独立开关，配置按钮打开自己的账号与玩家多选卡片；保存全部配置后生效。技能加载库也使用明显的复选框、选中边框和计数，支持全选/清空/统一保存。
+
+默认全局抓包关闭、camera模式，只移动本机器人原生摄像机，身体不跟随。可选择多个玩家，或动态观察在线玩家。手动勾选玩家会自动关闭动态全选，避免选中名单被自动模式忽略。开启跟随/混合模式可能传送机器人身体，会改变区块加载、触发服务端限制、抢占建筑工作位置；不会故意传送玩家。默认排除已连接所选观察账号的真实机器人名字。
+
+每次镜头切换间隔可配置毫秒，不等于命令链节点频率。完整轮巡约为目标数量×切换间隔。高频负责提交命令，不能保证服务器同样频率完成、零漏包或全服血量同步；原生摄像机的维度与广播限制仍存在。
+
+## 原生选择器镜头
+observerBridge.watchStart支持原player字符串（兼容旧写法）以及players数组、auto_players、camera_selector、exclude_players、pause_during_jobs。多目标或camera_selector=true的纯相机模式执行：
+execute at "目标玩家" run camera "观察机器人" set minecraft:free pos ~ ~4 ~ rot 90 0
+目标坐标由游戏执行器原生解析，轮巡不在每个切换前等待querytarget或命令回包；只记录submitted。普通单目标旧watchStart保留原来区域确认路径，避免破坏已有handoff逻辑。
+
+选择器路径未核验位置时target_position_known=false、target_dimension_known=false、region_updated=false，不能把零坐标或提交次数作为全局覆盖成功。需要交接区域确认时继续用旧单目标watch/handoff。跟随/混合多目标路径依然存在必要位置查询，不能把纯镜头Fast路径速度直接当身体跨维度跟随速度。
+
+## 原生配置API
+GET /api/youyuan/global-capture：config、states和global_coverage_guaranteed=false。
+POST支持部分字段更新；例如{enabled:false}保留其他配置。配置字段：enabled、accounts数组、players数组、auto_players、mode(camera/hybrid/follow)、interval_seconds、camera_height_blocks、camera_pitch_degrees、camera_yaw_degrees、pause_during_jobs。只控制自己绑定设备/账号池，不能选别人的账号；控制权限与只读权限分开。
+程序保存到设备global-capture.json，重启后恢复开关和参数。只管理自己的已连接账号，失效/未连接显示错误，不伪造已连接；不覆盖其他插件已运行的观察任务。需先在账号管理连接要用的机器人。关闭后释放本模块自己启动的任务。
+
+## 导入导出作业暂停
+宿主按机器人实例维护空间作业租约，覆盖主程序导入/导出/修补/地图画/皮肤建筑、多机器人导入及game.importBlocks插件导入。区域导出在每个实际参与机器人上增加租约，building.exportRegion与placeContainer的NBT异步作业也会暂停本账号观察。作业开始暂停原生跟随/TP轮巡；作业结束才恢复。多个作业引用计数，结束一个不能误恢复仍被另一作业占用的机器人。
+默认相机也暂停，避免抢区块视距；配置pause_during_jobs=false只允许纯相机继续，身体跟随仍暂停。停止观察期间不会把机器人恢复传送到旧起点去打断导入导出。
+game.teleport/game.move及常见自己TP的插件命令在作业期间明确返回暂停错误；普通聊天、查询和非移动命令不受影响。不关闭/重载插件，不重置Lua/Python状态。任意插件自行构造原始移动包或绕过标准API不在这种合作式暂停保证内，不能宣称隔离全部自定义行为。
+
+Lua：
+```lua
+local job=observerBridge.jobState()
+if not job.paused then
+  observerBridge.watchStart({players={"甲","乙"},mode="camera",camera_selector=true,
+   interval_seconds=0.025,camera_height_blocks=4,camera_pitch_degrees=90,pause_during_jobs=true})
+end
+```
+Python同名接口：observerBridge.jobState()，observerBridge.watchStart({"players":["甲","乙"],"mode":"camera","camera_selector":True,"interval_seconds":0.025})。
+C++：client.observerBridge.jobState()、client.observerBridge.watchStart(yy::json对象)，ABI保持不变。跨账号保留accountsPool.invoke；配置由插件自行决定，程序页面不要求依赖特定多功能插件。
+高频传送插件应先检查jobState().paused并跳过当前轮，避免反复触发暂停错误。直接错误不是“已成功传送”，不得忽略错误后编造结果。
+
+## 旧Lua注册接口兼容
+注册参数保持兼容：game.registerTrigger(words,handler)、events.onChat(handler)、events.onJoin(handler)、events.onLeave(handler)、events.onBotReady(handler)、events.onPacket(handler)、events.subscribe(packetType,handler)、util.schedule(seconds,handler)、util.setTimeout(seconds,handler)、web.action(page,action,handler)。handler可为原全局函数名或函数对象。回调参数分别是onChat的(name,message)、onJoin/onLeave的(name)、onBotReady的无参数、onPacket的(packetType,data)、subscribe的(data)，不要把回调参数当注册参数。
+上述注册现在也接受Lua函数对象（包括模块返回的函数与闭包）。加载一次、常驻回调，不重跑main.lua。事件、包订阅和停止清理按机器人账号隔离；停止一个账号的同名插件不应移除另一个账号的事件/定时器。
+旧ZIP导入仍保留manifest、main.lua、modules、command_txt等资源目录。新的测试实际导入旧ZIP，读取模块，再触发聊天回调；不是只检查语法。没有提供的旧宿主私有注册接口不会伪造一个空函数来骗过导入；遇到具体缺失函数需按原定义补接并验收。
+
+## 本轮证据与限度
+原生选择器相机命令在Linux游戏服对本机器人测试，服务器confirmed=true、success_count=1，随后camera @s clear同样确认成功；没有身体TP。这只证明该指令路径可执行，不证明远距离真人动作、多人覆盖率或跨维度血量。
+新测试覆盖：旧字符串/函数回调不重置与跨账号隔离、旧ZIP模块和TXT导入、空间租约嵌套与恢复、原生相机不拼querytarget/TP、账号池越权拒绝、多选账号/玩家/技能一次保存。界面行为用模拟DOM测试；实景视觉验收单独记录。
+
+
+## 0.10.49 多选边界修复与实测
+全选列表包含机器人自己时，多目标轮巡自动跳过自身，继续观察其他目标；原单目标只选自己仍明确报错。账号排除名单继续生效。旧抓包页移除重复配置卡片，入口统一在设置→自动连接下方。
+0.10.48真实Linux测试：观察非OP子账号的原生镜头40次/秒提交；单方块导出生成272字节mcstructure，导出期间提交计数固定2867，结束后增长至2873，作业状态恢复。测试后关闭全局抓包、停止任务并确认清除镜头。仅为配置/暂停恢复实测，不是远距离多人收包率证明。
+
+
+# 0.10.50 收包与常驻运行性能
+
+优化保持原始协议字段与旧插件调用形式。packetToMap缓存固定的字段索引与snake_case名，仍生成独立结果，完整转换二进制hex/数组/NBT；不会截短订阅包。订阅列表仅在增删时发布不可变快照，分发不再每包复制列表或争抢注册锁；同次分发的回调顺序及退订语义保持。协议目录所有构造包字段对照旧转换器，带数据的移动/血量及大ID对照通过。
+
+同一台Linux、同一组fixture、单核、各3次：0.10.49移动包转换中位4846ns，当前1681ns（2.88倍）；血量包8082ns到3919ns（2.06倍）；订阅分发5173ns到1934ns（2.67倍）。这是解码后的宿主转换/分发微基准，不是全游戏或网络RTT倍率。移动车体状态缓存约292ns保持；不会把未变化指标包装成加速。
+
+保留game.getScore、getPlayerPosXYZ、getPlayerItem、getBlockTile、getBlockTileRaw、getTickingAreaList、getBlockData/getBlockNBT/getBlockState/getRegionBlockData及placeNBTBlock/setBlockState的同步返回/错误；等待Go网络/文件/工作台时释放常驻Lua锁，其他回调和定时器可继续运行。Lua输入先复制为Go值，返回后再拿锁写Lua；不在两个Go线程同时执行同一份Lua指令，不重跑源码或丢弃模块状态。旧查询实际耗时仍可能包含网络等待。
+
+区域读取、NBT放置与状态修改也使用按账号空间作业租约，避免观察跟随抢占操作位置；参与作业的内部传送保留，不拦成空功能。初始化阶段保留原初始化顺序，不能将回调期协作等待承诺成初始化所有网络I/O都不等待。
+
+plugin.stats()/MCP /api/plugin/profiler增加io_waiting、io_calls、io_total_wait_ms、io_max_wait_ms，区分网络等待与执行墙钟。total/max为本实例生命周期统计，io_total可能包含多个并行等待，不是CPU时间；cpu_ms等未测字段继续null。Python/C++通过同一宿主接收转换/订阅路径获益；本轮Lua旧同步调用锁释放修复不表示Python/C++单语言性能达到了同样倍率。
+
+性能验收：原0.10.49真实game.getRegionBlockData一次1130.55ms，10ms心跳在这段时间运行0次；新版本需要以同样接口真实复测并保存证据。另做连接/确认RTT/队列丢弃样本，不能只用本地空计数循环判断真实服务端完成。
+
+没有改变握手协议ID、加密方式、服务端权限和条件链结果依赖。客户端优化不能使服务端没有广播的包自行出现；当前成果不宣称整体200倍或2000倍，也不通过删字段、停功能或降低事件覆盖率换数据。
+
+方法依据：Go官方性能诊断与CPU profile https://go.dev/doc/diagnostics；fixture CPU样本显示旧snakeCase累计约27.65%，因此优先消除反复转换和分配，而非猜测网络协议。

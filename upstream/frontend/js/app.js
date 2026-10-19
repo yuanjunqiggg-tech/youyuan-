@@ -11,6 +11,12 @@ var cfgBotTokens=[];
 var subPageOpen=false;
 var subPageCache={};
 var subPageStack=[];   // 子页返回栈：关闭时回到上一级子页而非主页
+var yySubPageEpoch=0;
+function yyRestoreSubPageLater(key, epoch){
+  function live(){return epoch===yySubPageEpoch&&subPageOpen&&subPageStack[subPageStack.length-1]===key}
+  setTimeout(function(){if(live())restoreSubPageState(key)},20);
+  setTimeout(function(){if(live())runSubPageRestore(key)},60);
+}
 // 子页恢复钩子(key 或 '*' 通配),供各功能页在从缓存恢复时重建动态内容(无限滚动哨兵/滚动位置等)
 // 用 window 级数组注册,规避 app.js 最后加载导致的顺序问题
 function runSubPageRestore(key){
@@ -27,6 +33,8 @@ setTimeout(function(){A('POST','/api/version/check',{}).then(function(r){if(r.ok
 // 启动时自动检查版本更新
 
 function openSubPage(title, htmlContent){
+  if(typeof yyNavigateEpoch==='number')yyNavigateEpoch++;
+  var epoch=++yySubPageEpoch;
   var cacheKey = title;
   activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
   var sp = document.getElementById('sub-page');
@@ -37,9 +45,8 @@ function openSubPage(title, htmlContent){
   if (subPageCache[cacheKey]) {
     sp.innerHTML = subPageCache[cacheKey];
     // defer restore to run after feature init timeouts (10ms) to avoid override
-    setTimeout(restoreSubPageState,20,cacheKey);
+    yyRestoreSubPageLater(cacheKey,epoch);
     // 画布等位图不在缓存里，恢复后重渲染（画板等）
-    setTimeout(runSubPageRestore,60,cacheKey);
   } else {
     var headerHtml = '<div class="sp-header"><button class="sp-back" onclick="closeSubPage()">' + ICONS.arrowLeft + '</button><span class="sp-title">' + title + '</span></div>';
     subPageCache[cacheKey] = headerHtml + '<div class="sp-body">' + htmlContent + '</div>';
@@ -53,6 +60,7 @@ function openSubPage(title, htmlContent){
 }
 
 function closeSubPage(){
+  var epoch=++yySubPageEpoch;
   if(typeof yyWorkspaceOpenEpoch!=='undefined')yyWorkspaceOpenEpoch++;
   document.getElementById('yy-agent-profile-modal')?.remove();
   activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
@@ -85,8 +93,7 @@ function closeSubPage(){
     if (subPageCache[prevKey]) {
       sp2.innerHTML = subPageCache[prevKey];
       sp2.className = 'sub-page show';
-      setTimeout(restoreSubPageState,20,prevKey);
-      setTimeout(runSubPageRestore,60,prevKey);
+      yyRestoreSubPageLater(prevKey,epoch);
       return;
     }
     subPageStack = [];
@@ -95,7 +102,7 @@ function closeSubPage(){
   sp.classList.remove('show');sp.classList.add('sp-closing');
   setTimeout(function(){
     // A new subpage may have opened while the previous close animation ran.
-    if(sp.classList.contains('show'))return;
+    if(epoch!==yySubPageEpoch||sp.classList.contains('show'))return;
     sp.className='sub-page';
     document.body.classList.remove('sp-open');   // 子页面关闭后恢复主页内容
     document.getElementById('bottom-nav').classList.remove('gone');
@@ -373,42 +380,29 @@ document.querySelectorAll('.nav button').forEach(function(b){
 });
 
 function tabTo(t){
-  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('active')});
-  var btn=document.querySelector('.nav button[data-tab="'+t+'"]');
-  if(btn)btn.classList.add('active');
-  updateNavGlide();
-
-  if(!tabInited[t]){tabInited[t]=true;if(t==='home')Rhome();if(t==='terminal')Rconsole();if(t==='settings')Rcfg()}
-  // 插件列表每次切回都重新拉取，保证说明/配置更新后无需重启即可看到。
-  if(t==='tasks')Rplg();
-  activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
-  if(t!=='settings'){if(typeof _cfgRefreshTimer!=='undefined'){clearInterval(_cfgRefreshTimer);_cfgRefreshTimer=null}if(typeof _toolboxPollTimer!=='undefined'){clearInterval(_toolboxPollTimer);_toolboxPollTimer=null}}
-
+  if(typeof yyNavigateEpoch==='number')yyNavigateEpoch++;
   var next=document.getElementById('tab-'+t);
-  var prev=document.getElementById('tab-'+curTab);
-  if(t===curTab){if(next)next.classList.add('show');return}
-  var forward=TAB_ORDER.indexOf(t)>TAB_ORDER.indexOf(curTab);
+  if(!next)return;
+  var forward=TAB_ORDER.indexOf(t)>TAB_ORDER.indexOf(curTab),changed=t!==curTab;
+  // A switch owns the complete viewport immediately. No old animation callback
+  // may make its destination visible after a newer navigation.
+  document.querySelectorAll('.content').forEach(function(panel){
+    panel.classList.remove('show','tab-in-right','tab-in-left','tab-out-right','tab-out-left');
+    panel.setAttribute('aria-hidden',panel===next?'false':'true');
+    panel.inert=panel!==next;
+  });
   curTab=t;
-
-  // 新页进入：从对侧淡入滑入
-  function enter(){
-    if(!next)return;
-    next.classList.remove('tab-in-right','tab-in-left','tab-out-right','tab-out-left');
-    void next.offsetWidth;
-    next.classList.add('show',forward?'tab-in-right':'tab-in-left')
+  next.classList.add('show');
+  if(changed){void next.offsetWidth;next.classList.add(forward?'tab-in-right':'tab-in-left')}
+  document.querySelectorAll('.nav button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-tab')===t)});
+  updateNavGlide();
+  activeRenderers.forEach(function(kill){try{kill()}catch(e){}});activeRenderers=[];
+  if(t!=='settings'){
+    if(typeof _cfgRefreshTimer!=='undefined'){clearInterval(_cfgRefreshTimer);_cfgRefreshTimer=null}
+    if(typeof _toolboxPollTimer!=='undefined'){clearInterval(_toolboxPollTimer);_toolboxPollTimer=null}
   }
-
-  // 旧页离开：朝一侧淡出，结束后隐藏并进入新页（交接过渡）
-  if(prev&&prev.classList.contains('show')){
-    prev.classList.remove('tab-in-right','tab-in-left','tab-out-right','tab-out-left');
-    prev.classList.add(forward?'tab-out-left':'tab-out-right');
-    var done=false;
-    function finish(){if(done)return;done=true;prev.classList.remove('show','tab-out-right','tab-out-left');enter()}
-    prev.addEventListener('animationend',function(e){if(e.animationName.indexOf('tabOut')===0)finish()},{once:true});
-    setTimeout(finish,320)
-  }else{
-    enter()
-  }
+  if(!tabInited[t]){tabInited[t]=true;if(t==='home')Rhome();if(t==='terminal')Rconsole();if(t==='settings')Rcfg()}
+  if(t==='tasks')Rplg();
 }
 
 // Android back button

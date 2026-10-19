@@ -1,0 +1,116 @@
+# 容器 NBT 工作台与分区导入导出（游园 0.10.24）
+
+这是宿主实际接口的说明。先查询 `building.nbtCapabilities()`，再制作和验证。不要把请求已提交当作服务器成功，也不要承诺可以写入任意 NBT 或非法附魔。Linux 默认使用常驻 Lua/Python；C++ 目前仅 Android 原生运行器可用，Linux C++ 插件不能运行。
+
+## 执行位置与副作用
+
+结构解析、NBT 制作编排、缓存和文件编码均在工具箱宿主上执行。机器人通过当前游戏连接操作实际游戏服务器；普通建筑转换不依赖原作者网站。市场下载仍是市场的独立功能。
+
+重 NBT 导入并不是 `/setblock` 携带物品 NBT。宿主生成隔离工作台，在真实背包中创建基础物品，通过网易命令通道附魔，通过铁砧 ItemStackRequest 改名，再打开箱子/桶，用库存事务放入物品，保存结构并复制到目标位置。附魔仍受服务器合法等级、物品和权限检查。命名需要服务器支持铁砧事务。
+
+**首次创建操作台会把机器人切到创造模式、清空机器人背包、改变快捷栏和位置，清理操作台 11×5×11 区域并生成地板和辅助方块。** 工作台需要 11×5×11 空气区域且无实体。不要拿装有贵重物品的机器人做此操作；这不会清空其他玩家背包。现有宿主按机器人编号分配工作台，相同内容复用结构缓存。同一个机器人不能同时打开两个容器，因此这些交互串行；普通 Fast 命令不受这条容器交互锁影响。
+
+## 新增统一 API
+
+| 接口 | 参数 | 结果与用途 |
+|---|---|---|
+| `building.nbtCapabilities()` | 无 | 底层支持的方块、复杂物品、20 种制作行为及边界；支持表不是全服实测保证 |
+| `building.normalizeNBT(data)` | NBT 对象 | 补齐 JSON/Lua 丢失的整数宽度，拒绝越界、null、非法数值，不修改调用者原对象 |
+| `building.containerData(name, items, options)` | 容器名、Items 数组、可选配置 | 本地预检槽位与物品 NBT；不会连接游戏 |
+| `building.placeContainer(x,y,z,name,items,options)` | 目标坐标与容器内容 | 异步制作，返回 `{job_id,accepted=true,completed=false}` |
+| `building.nbtJob(id, consume)` | 任务 ID；可选 consume=true | 当前游戏账号的任务状态；done 必须含读回验证，失败含真实 error；consume 只删除已完成任务 |
+| `building.planRegion(origin,size)` | 数组或 `{x,y,z}`；尺寸用正整数 | 16×128×16 分区规划，含位置、尺寸、偏移、不重叠完整覆盖 |
+| `building.exportRegion(origin,size,{workers=1})` | 起点、尺寸、请求协作机器人数 | 异步导出 mcstructure，查询任务结果得到宿主本机 path、字节数、实际 workers_used |
+
+NBT 任务存放在宿主内存，重启不恢复。完成任务最多留存一小时，条数沿用可配置的异步任务容量；主动 consume 可以释放结果。取消插件不等于取消已接受的宿主建筑任务。不要用每 Tick 的回调不断创建 NBT 工作台任务。
+
+### 物品结构
+
+```lua
+local items = {
+  {Slot=0, Name="minecraft:diamond_sword", Count=1, Damage=0,
+   tag={display={Name="游园 · 星光剑"}, ench={{id=9,lvl=1}}}},
+  {Slot=1, Name="minecraft:stone", Count=16, Damage=0}
+}
+local preview = building.containerData("barrel", items)
+local ticket = building.placeContainer(200, 70, 200, "barrel", items)
+-- 在低频调度中查询，不要在同步回调里忙等。
+local result = building.nbtJob(ticket.job_id)
+-- result.state: queued/running/done/failed
+-- result.result.verified 才是目标方块读回与请求的名称、附魔和物品核对结果。
+```
+
+物品 Name 可省略 minecraft 前缀；Slot 默认数组序号（从 0 开始），Count 默认 1，Damage 默认 0。Count/Slot 编码为 byte，物品根 Damage 与 ench 的 id/lvl 为 short，tag.Damage 为 int。拒绝重复槽位及超过实际容器槽位的内容；服务器还有实际最大堆叠与附魔限制。`options.custom_name` 作为容器 CustomName 请求传入，服务器或对应制作器不支持时读回验证会失败，不能当作已经改名。
+
+Python 使用同一个底层接口：
+
+```python
+def on_init(host):
+    preview = host.building.containerData("barrel", [
+        {"Name":"diamond_sword", "tag":{
+            "display":{"Name":"游园 · 星光剑"},
+            "ench":[{"id":9,"lvl":1}]}}
+    ])
+    # 需要实际放置时调用 host.building.placeContainer(...)，保留 job_id。
+```
+
+C++ 通过已有 `client.invoke("building.containerData", args)` 或 ABI 宿主调用访问同名 API；按 SDK 的实际 client/Host 类型调用，不新增假想类。使用 JSON ABI 时数字宽度由宿主补齐。Linux 原生 C++ 运行器尚未提供。
+
+旧 Lua `game.placeNBTBlock(x,y,z,name,states,nbt)`、`game.getBlockData`、`game.getRegionBlockData` 和 `game.importBlocks` 继续可用。重 NBT 放置统一走同一个工作台实现，导入时应保留解析出的 NBT，并关闭“排除 NBT”。其中 importBlocks 仍使用 Lua 的结构对象；Python/C++ 不能伪造 Lua userdata，使用统一接口或宿主建筑任务 API。
+
+## 分区协作与导出保留
+
+一个机器人读取结构时仍需移动到对应区块；增大协作数量不会把同一账号变成多台机器人。只调用已明确配置、已连接且同服的 Fleet 机器人，实际数量以 workers_used 为准，不自动登录其他账号。
+
+```lua
+local plan = building.planRegion({200,70,200},{33,2,17})
+local export = building.exportRegion({200,70,200},{33,2,17},{workers=2})
+```
+
+分区读取失败会重试一次，仍失败则整个导出报错，不写“缺块成功”文件。合并按明确的 XYZ 偏移，允许工作线程乱序完成，保留方块状态、两层索引与 block_position_data。导出本身不包含游离实体。mcstructure/mcworld 优先用于基岩版 NBT。Schematic 使用游园 Bedrock 扩展保存原始结构与容器 NBT，游园重新导入可恢复；第三方 Java 编辑器可能忽略/删除这个扩展，不保证 Java 与网易 NBT 全互转。
+
+当前整区合并会在内存中物化索引，预算为 16,777,216 格；超过时请分区保存。这个内存保护不是命令 CPS 限速、每链长度限制或 1000 方块导入限制。真正超大结构需要流式编码方案，当前未宣称已完成。
+
+## 已找到的 20 种底层行为
+
+下列是源码中存在的真实流程。只有上方表格列出的统一接口已对外开放；其余由 `game.placeNBTBlock` 的分类制作器组合使用，不应编造独立 Lua 函数名。
+
+| 行为 | 对应源码接口/路径 | 用途 |
+|---|---|---|
+| 1. 工作台与地板 | nbt_console.NewConsole | 建平台、初始化背包与辅助方块 |
+| 2. 打开背包 | GameInterface.ContainerOpenAndClose().OpenInventory | 获取库存操作上下文 |
+| 3. 打开容器 | Console.OpenContainerByIndex | 实际打开箱子/桶 |
+| 4. 关闭容器 | GameInterface.ContainerOpenAndClose().CloseContainer | 结束窗口交互 |
+| 5. 移动物品 | ItemStackTransaction 移动操作 | 背包与快捷栏移动 |
+| 6. 放入容器 | MoveToContainer + Commit | 真实库存事务，非直接写 NBT |
+| 7. 取出容器 | 库存事务取出操作 | 制作与物品流转 |
+| 8. 铁砧改名 | FindOrGenerateNewAnvil / RenameMultiple | display.Name |
+| 9. 物品附魔 | EnchMultiple / SendAICommand(enchant) | tag.ench；合法附魔 |
+| 10. 书籍页面 | nbt_item.Book | writable_book / written_book |
+| 11. 织布机旗帜 | FindOrGenerateNewLoom / nbt_item.Banner | 图案与颜色 |
+| 12. 盾牌图案 | nbt_item.Shield | 基础色与旗帜图案 |
+| 13. 盔甲纹饰 | item_stack_operation trimming | 服务器支持的纹饰事务 |
+| 14. 展示框物品 | nbt_block.Frame | 物品展示 |
+| 15. 讲台书 | nbt_block.Lectern | 讲台书籍内容 |
+| 16. 唱片机物品 | nbt_block.JukeBox | 唱片 |
+| 17. 酿造台槽位 | nbt_block.BrewingStand | 酿造台物品 |
+| 18. 合成器槽位 | nbt_block.Crafter | 可用槽位与物品 |
+| 19. 嵌套容器取方块 | 容器制作器 + pick block | 含 NBT 的子方块物品 |
+| 20. 缓存与结构复制 | NBTCacheSystem / structure load | 相同内容复用、复制到目标 |
+
+底层实现来自项目内的 flowers-for-machines。开发者查源码可定位 nbt_assigner、nbt_parser、game_control/game_interface/item_stack_transaction；内置 AI 执行任务时读本章和 API 目录即可，不必访问这些仓库。
+
+## 真实性检查
+
+先预检 → 实际服务器放置 → nbtJob 验证 → 导出 → 解析 NBT → 重新导入并读回。若服务器禁止结构请求、铁砧事务、附魔命令或库存操作，应返回失败。不要只用“语法通过”“队列接受”或本地 JSON 序列化成功说明游戏成功。
+
+0.10.24 附魔阶段优先在真实容器窗口中移动物品，不覆盖已有或服务器锁定的快捷栏物品；每个库存阶段同步一次，防止服务器装备插件修改 StackNetworkID 后继续使用旧值。这不是普通指令的 CPS 限速。
+
+
+## 0.10.62 头颅类型与真实验证
+
+`building.placeSkull(x,y,z,SkullType,states?)`：异步在指定位置制作并放置头颅，返回 `job_id`。类型 0 骷髅、1 凋灵骷髅、2 僵尸、3 玩家、4 苦力怕、5 末影龙、6 猪灵。第三位不是皮肤组件码；玩家头颅不等于任意自定义玩家皮肤。
+
+调用 `building.nbtJob(job_id)` 直到任务完成；只有 `result.verified=true` 才表示目标结构读回一致。已提交不代表游戏完成。旧版 `minecraft:skull` 的 SkullType 和新版独立方块名都保留类型，避免格式升级时全部变成骷髅头。具体服务端版本不支持的头颅会报错。
+
+此接口会初始化工作台、清机器人背包、移动机器人并使用创造物品。操作前暂停跟随/观测；不建议用于有贵重物品的真人账号。普通建筑导入和多机器人导入共用此处理器。附魔/命名容器仍用 `building.placeContainer`；MCStructure 保留类型化 NBT，TXT 指令导出不能保留容器物品 NBT。

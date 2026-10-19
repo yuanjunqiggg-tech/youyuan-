@@ -65,3 +65,6 @@ require (
 replace github.com/OmineDev/flowers-for-machines v0.0.0 => ./flowers-for-machines
 
 replace github.com/Happy2018new/nemc-tan-lobby-solver v0.0.0 => ./flowers-for-machines/tanlobby
+
+// Project-owned wide-register fork; no global Go cache changes.
+replace github.com/yuin/gopher-lua v1.1.2 => ./third_party/gopher-lua

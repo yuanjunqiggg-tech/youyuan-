@@ -90,7 +90,8 @@ func yyQQOfficialEvent(cf yyQQConfig, eventType, eventID string, data map[string
 	if eventType == "GROUP_AT_MESSAGE_CREATE" {
 		text = yyQQOfficialText(text)
 	}
-	go yyQQToGameMention(cf, yyQQDisplayName(cf, name, ""), name, "member", text, id, eventType == "GROUP_AT_MESSAGE_CREATE")
+	isBot, _ := author["bot"].(bool)
+	go yyQQToGameMentionMeta(cf, yyQQDisplayName(cf, name, yyQQSenderName(author)), name, "member", text, id, eventType == "GROUP_AT_MESSAGE_CREATE", yyQQEventReplyID(data), isBot)
 }
 
 // An outbound official connection removes the requirement for a reachable webhook.

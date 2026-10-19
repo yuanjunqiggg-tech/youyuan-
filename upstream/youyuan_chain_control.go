@@ -28,8 +28,8 @@ type yyChainControl struct {
 func yyParseChainControl(line string) (*yyChainControl, error) {
 	kind, text, _ := strings.Cut(line, " ")
 	c := &yyChainControl{}
-	if kind != "@call" && kind != "@wait" && kind != "@pause" && kind != "@branch" {
-		return nil, fmt.Errorf("控制语法为 @call/@wait/@pause/@branch")
+	if kind != "@call" && kind != "@wait" && kind != "@pause" && kind != "@branch" && kind != "@frame" {
+		return nil, fmt.Errorf("控制语法为 @call/@wait/@pause/@branch/@frame")
 	}
 	if kind == "@pause" && strings.TrimSpace(text) == "" {
 		c.Kind = "pause"
@@ -45,6 +45,12 @@ func yyParseChainControl(line string) (*yyChainControl, error) {
 		return nil, fmt.Errorf("控制行只能有一个 JSON 对象")
 	}
 	c.Kind = strings.TrimPrefix(kind, "@")
+	if c.Kind == "frame" {
+		if c.DurationMS < 1 || c.DurationMS > 60000 {
+			return nil, fmt.Errorf("帧间隔duration_ms需1..60000")
+		}
+		return c, nil
+	}
 	if c.Kind == "call" {
 		if _, err := yyChainName(c.Name); err != nil {
 			return nil, err
@@ -90,6 +96,13 @@ func yyParseChainControl(line string) (*yyChainControl, error) {
 }
 
 func yyChainSleep(ctx context.Context, d time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if d <= time.Millisecond {
+		yyPrecisionWait(d)
+		return ctx.Err()
+	}
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	select {
@@ -151,6 +164,7 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 	var fatal error
 	ctx, cancelGraph := context.WithCancel(ctx)
 	defer cancelGraph()
+	frameStarted := time.Now()
 	controlSingle := func(n yyChainNode) (bool, error) {
 		if fatal != nil {
 			return false, fatal
@@ -177,6 +191,15 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 			c = &yyChainControl{Kind: "call", Name: name}
 		}
 		switch c.Kind {
+		case "frame":
+			// Drawing commands were submitted through the same Fast buffer.
+			// Wait once per frame, including time spent sending it. No server
+			// testfor response, per-block sleep, or accumulating overdue frames.
+			if e := yyChainSleep(ctx, time.Until(frameStarted.Add(time.Duration(c.DurationMS)*time.Millisecond))); e != nil {
+				return false, e
+			}
+			frameStarted = time.Now()
+			return true, nil
 		case "pause":
 			state("等待手动触发")
 			for !trigger() {
@@ -263,14 +286,7 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 				if count != 0 && i+1 >= count {
 					break
 				}
-				interval := childCfg.IntervalMS
-				if child.Hz > 0 {
-					interval = int(1000 / child.Hz)
-				}
-				if interval < 1 {
-					interval = 1
-				}
-				if err = yyChainSleep(childCtx, yyChainRoundWait(time.Duration(interval)*time.Millisecond, time.Since(roundStarted))); err != nil {
+				if err = yyChainSleep(childCtx, yyChainRoundWait(yyChainPeriod(child, childCfg), time.Since(roundStarted))); err != nil {
 					if ctx.Err() != nil {
 						return false, ctx.Err()
 					}

@@ -25,6 +25,7 @@ import (
 func openConnection(
 	ctx context.Context,
 	authenticator minecraft.Authenticator,
+	cfg Config,
 ) (conn *minecraft.Conn, botComponent map[string]*int, err error) {
 	// prepare
 	var dialer minecraft.Dialer
@@ -33,6 +34,9 @@ func openConnection(
 
 	// create connection
 	dialer = minecraft.Dialer{
+		UpstreamDialer:       cfg.GameUpstreamDialer,
+		DisablePharos:        cfg.DisablePharos,
+		OnGameRoute:          cfg.OnGameRoute,
 		Authenticator:        authenticator,
 		DownloadResourcePack: func(id uuid.UUID, version string, current, total int) bool { return false },
 	}
@@ -44,10 +48,14 @@ func openConnection(
 	}
 	conn, authResponse, err = dialer.DialContext(ctx, "raknet")
 	if err != nil {
-		if connectionLog != nil { connectionLog.Close() }
+		if connectionLog != nil {
+			connectionLog.Close()
+		}
 		return nil, nil, err
 	}
-	if connectionLog != nil { go func() { <-conn.Context().Done(); connectionLog.Close() }() }
+	if connectionLog != nil {
+		go func() { <-conn.Context().Done(); connectionLog.Close() }()
+	}
 
 	// capture bot component for return — used later by sendModSync
 	botComponent = authResponse.BotComponent

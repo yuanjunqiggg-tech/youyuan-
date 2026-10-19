@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 func yySearchWorkspaceSkills(ws *yyWorkspace, query string) (string, bool) {
@@ -39,9 +40,17 @@ func yySearchWorkspaceSkills(ws *yyWorkspace, query string) (string, bool) {
 					}
 				}
 				if score > 0 {
-					rows = append(rows, map[string]any{"skill": id, "section": filepath.Base(source), "line": i + 1, "offset": offset, "score": score, "excerpt": yyAgentBoundText(line, 350)})
+					runes := []rune(line)
+					excerpt := line
+					truncated := len(runes) > 350
+					if truncated {
+						excerpt = string(runes[:350])
+					}
+					// The excerpt is an actual prefix at offset. Truncation metadata
+					// must not append instructions that do not exist in the source.
+					rows = append(rows, map[string]any{"skill": id, "section": filepath.Base(source), "line": i + 1, "offset": offset, "score": score, "excerpt": excerpt, "excerpt_truncated": truncated, "line_chars": len(runes)})
 				}
-				offset += len([]rune(line)) + 1
+				offset += utf8.RuneCountInString(line) + 1
 			}
 		}
 	}

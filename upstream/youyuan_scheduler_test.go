@@ -1,11 +1,53 @@
 package main
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestSchedulerAcceptsSubMillisecondWithoutArtificialHzCeiling(t *testing.T) {
+	for _, c := range []struct {
+		method string
+		value  float64
+		want   time.Duration
+	}{
+		{"util.scheduleHz", 10000, 100 * time.Microsecond},
+		{"util.scheduleSeconds", 0.0005, 500 * time.Microsecond},
+		{"util.scheduleTick", 1, 50 * time.Millisecond},
+	} {
+		d, e := yyScheduleDuration(c.method, c.value)
+		if e != nil || d != c.want {
+			t.Fatalf("%s(%g): %v %v", c.method, c.value, d, e)
+		}
+	}
+	for _, n := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1), 1e20} {
+		if _, e := yyScheduleDuration("util.scheduleHz", n); e == nil {
+			t.Fatalf("invalid Hz accepted %g", n)
+		}
+	}
+}
+
+func TestChainFrequencyKeepsSubMillisecondWholeRoundPeriod(t *testing.T) {
+	p, e := yyParseChains("2,0,0 10000\nsay A\n0,0,0\nsay B\n!")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if d := yyChainPeriod(p, yyChainConfig{IntervalMS: 1}); d != 100*time.Microsecond {
+		t.Fatalf("clipped TXT Hz %v", d)
+	}
+	if d := yyChainPeriod(yyChainPlan{}, yyChainConfig{Hz: 2000, IntervalMS: 1}); d != 500*time.Microsecond {
+		t.Fatalf("clipped config Hz %v", d)
+	}
+	if d := yyChainPeriod(yyChainPlan{}, yyChainConfig{IntervalMS: 25}); d != 25*time.Millisecond {
+		t.Fatalf("legacy cadence changed %v", d)
+	}
+	if len(p.Chains) != 1 || len(p.Chains[0].Nodes) != 2 {
+		t.Fatal("frequency split nodes")
+	}
+}
 
 func TestSchedulerSkipsMissedAndCancelIsIdempotent(t *testing.T) {
 	var concurrent, peak atomic.Int32

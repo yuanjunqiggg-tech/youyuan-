@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -18,6 +19,18 @@ import (
 )
 
 var yyExtraMethods = map[string]string{
+	"accountsPool.list":     "options?；普通用户只列自己的机器人，管理员可 all=true。无凭据返回。",
+	"accountsPool.add":      "account；保存自己账号的Token/auth_url/server，owner_id由宿主绑定。",
+	"accountsPool.start":    "id, options?；真实启动独立内核并请求连接指定server，成功请求不等于进服。",
+	"accountsPool.stop":     "id；断开并停用此机器人，取消保活。",
+	"accountsPool.status":   "id；读取该机器人真实连接和插件状态。",
+	"accountsPool.bind":     "id, options；player/server，持久绑定；不自动传送。",
+	"accountsPool.acquire":  "options；预留空闲机器人并绑定player/server，不自动创建游戏账号。",
+	"accountsPool.release":  "id, options?；解除绑定；idle_seconds默认60，期间可再次acquire；到期停用。",
+	"accountsPool.bindings": "options?；只读自己的绑定状态；管理员all=true。",
+	"accountsPool.invoke":   "id, options；method/path/query/body，通过该机器人真实API执行，path仅/api。",
+
+	"packet.describe":           "typeNameOrId；返回当前内核真实包ID、字段名和类型，字段使用返回的snake_case名称。Lua/Python/C++/公网共用；不会抓取尚未同步的数据。",
 	"events.onPlayerDeath":      "handler(event)；只接受玩家死亡；来自真实ActorEvent/血量归零/网易ModEventS2C OnPlayerDie，附已知最后位置、维度、timestamp；没有位置保持position_known=false。",
 	"events.onSwing":            "handler(event)；服务器AnimateActionSwingArm下发时触发，含runtime_id/player/source。挥臂不证明命中了目标，服务器未广播则无法观测。",
 	"events.onEntitySpawn":      "handler(event)；AddPlayer/AddActor/AddItemActor下发时触发，含实体类型、位置和原始fields。服务器视距内的出现，不代表世界内首次出生；血量仅取真实同步属性。",
@@ -28,6 +41,7 @@ var yyExtraMethods = map[string]string{
 	"game.sendCommandsFast":     "commands数组, options?；一次插件宿主边界按顺序提交完整数组，不限整数组行数，不等待逐条回包。先校验全部命令；中途网络失败报告已提交数量，不自动重发，不保证同一服务器Tick或原子执行。",
 	"game.sendCommandConfirmed": "command, options?；game.execute别名，等待真实CommandOutput，超时为未知，不自动重发。只在依赖前条结果时使用。",
 	"game.scene":                "无参数。当前账号的机器人和已观测实体快照；含 known、stale、数据时间和来源。AI 没有独立游戏实体，bot 是当前账号控制的机器人。",
+	"game.sceneStats":           "无参数。只返回已观测实体计数cached/present/fresh及packet_count/time，不复制装备与实体明细；供周期公告和监控使用。不是全服实体数量。",
 	"game.executeBatch":         "commands 字符串数组，options：channel=default/ai/player/console（或0/1/2字符串），mode=ordered/pipeline/submit/burst/stream，transport=command_request/settings/pyrpc（后两者仅submit，无逐条确认），window=1..16条在途命令；burst最多1024条整批协议发送，512KiB文本，默认无固定CPS等待，不保证同Tick，timeout_ms=100..10000。支持每实例默认配置与单次覆盖。ordered 逐条等待；pipeline 仅用于互不依赖的命令，不保证服务端完成顺序；submit 不等待结果。结果逐项含 submitted/confirmed/success/error/channel，超时未知不自动重发。stream单段最多4096条/512KiB，动态在途窗口最多1024，rate_cps=0无固定CPS，网络未知停止补发，正常无目标继续无条件后续；完整说明读 command-execution 技能。",
 	"player.health":             "target 为 self、玩家名或 runtime_id 字符串，默认 self。返回已观测信息含 health_known/health/max_health/health_time/stale，未知为 null，不推算其他玩家满血。仅能获取服务器给本机器人同步的属性。",
 	"player.position":           "target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。",
@@ -40,6 +54,9 @@ var yyExtraMethods = map[string]string{
 	"world.breakBlock":          "x,y,z 整数坐标，mode=command 或 creative_action，默认 command。command 用 setblock ... air destroy 等待实际结果；creative_action 发创造模式破坏动作，要求游戏模式和六格范围，不代表服务器确认。生存挖掘的装备/耗时/交易流程尚不支持。",
 	"world.placeBlock":          "x,y,z 整数坐标，block 例如 minecraft:stone。用服务器 setblock 指令，返回真实结果，需要权限。",
 	"world.blockState":          "x,y,z 整数坐标。返回当前维度 layer=0 的最近 UpdateBlock 观测，未知 known=false；包含方块 runtime_id，不把任何更新都认定是玩家破坏。",
+	"world.containerState":      "x,y,z整数。读取当前维度BlockActorData已同步的容器类型：known/is_container/block_entity_id/timestamp/stale/source，不查询网络、不返回箱内物品；新UpdateBlock使旧记录失效。未广播或过期保持未知，不证明由玩家放置。",
+	"events.onContainerChange":  "handler(event)；真实BlockActorData容器类型变化，block.container_known/is_container/block_entity_id；不返回物品NBT、不把变化当作玩家放置证明。",
+	"plugin.call":               "pluginID,exportedFunction,args数组；调用当前账号正在运行的常驻插件plugin_api导出函数，不重跑源码、不自动启用已停用插件。目标正在执行/循环调用明确报错，参数结果保留结构。MCP可经game/call调用。",
 	"events.onDeath":            "handler 回调接收一个事件对象，来源为 ActorEventDeath/InstantDeath 或 health<=0；同一已死亡状态去重，重生后可再触发。不推测死亡原因/攻击者。",
 	"events.onHealthChange":     "handler(event)，仅在观测血量初始值或变化时入队，含 previous/health/max_health/time/source。",
 	"events.onHurt":             "handler(event)，来源为血量下降或 ActorEventHurt，两种独立来源可能各触发一次；无法识别准确攻击者，不用编造 cause。",
@@ -47,13 +64,15 @@ var yyExtraMethods = map[string]string{
 	"events.onRespawn":          "handler(event)，只处理服务端 RespawnStateReadyToSpawn，清除旧血量等待新属性。",
 	"events.onBlockChange":      "handler(event)，UpdateBlock 导出 position/runtime_id/previous/cause_known=false；不能仅从方块更新认定破坏者。",
 	"events.subscribeFiltered":  "packet_type 或 *，filter={fields:{字段路径:精确值},every_ms:0..60000}，handler。Python 回调接收包对象；C++/Lua 使用已注册函数名。* 接收当前账号订阅包，事件字段 _packet_type 表示真实类型，停止自动退订。",
-	"events.captureStart":       "config={types:[包名或*],exclude:[包名],filter:{fields:{...},every_ms:...},capacity:1..2048,max_bytes:512..65536}。开启账号级解码入站游戏抓包；默认血量/死亡/位置/方块包，认证握手不记录，* 默认不包含大区块包。",
+	"events.captureStart":       "config={types:[包名或*],exclude:[包名],filter:{fields:{...},every_ms:...},capacity:1..65536,max_bytes:512..65536,total_bytes:留存序列化预算默认16MiB最高256MiB}。开启账号级解码入站游戏抓包；默认血量/死亡/位置/方块包，认证握手不记录，* 默认不包含大区块包。",
 	"events.captureStop":        "停止记录，保留已抓数据。当前账号的多个插件共用账号级记录；使用时协调抓包开关。",
 	"events.captureRead":        "after_sequence=0,limit=256，返回记录/游标/覆盖和抽样统计。缓冲有界，单条超大小截为预览；不是手机所有 App 的网络抓包。",
 	"events.captureClear":       "清空当前账号抓包缓冲，保持抓包开关。",
 	"events.packetSchema":       "无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。",
 }
 var yySenseEvents = map[string]string{"events.onDeath": "death", "events.onPlayerDeath": "player_death", "events.onHealthChange": "health", "events.onHurt": "hurt", "events.onMove": "move", "events.onRespawn": "respawn", "events.onBlockChange": "block_change", "events.onSwing": "swing", "events.onEntitySpawn": "entity_spawn", "events.onEntityRemove": "entity_remove", "events.onItemPickup": "item_pickup"}
+
+func init() { yySenseEvents["events.onContainerChange"] = "container_change" }
 
 type yySenseLuaHook struct {
 	Bot                   *BotManager
@@ -70,6 +89,7 @@ var yySenseLuaPackets = struct {
 }{Items: map[yyLuaKey][]func(){}}
 
 func yySenseLuaClear(bm *BotManager, id string) {
+	yyPatrolStopOwner(bm, "lua:"+id)
 	yySenseLuaPackets.Lock()
 	key := yyLuaKey{bm, id}
 	unsubs := yySenseLuaPackets.Items[key]
@@ -108,7 +128,15 @@ func yySenseLuaEmit(bm *BotManager, e map[string]any) {
 func registerSenseAPI(L *lua.LState) {
 	L.SetGlobal("chains", L.NewTable())
 	L.SetGlobal("mcp", L.NewTable())
+	for _, ns := range []string{"entity", "entities", "diagnostics", "hud", "scoreboard", "observerBridge"} {
+		if _, ok := L.GetGlobal(ns).(*lua.LTable); !ok {
+			L.SetGlobal(ns, L.NewTable())
+		}
+	}
 	for method := range yyExtraMethods {
+		if _, async := yyAsyncDocs[method]; async {
+			continue
+		}
 		if method == "game.executeBatch" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
 			continue
 		} // registered with instance command defaults
@@ -123,12 +151,74 @@ func registerSenseAPI(L *lua.LState) {
 			for i := 1; i <= L.GetTop(); i++ {
 				args = append(args, luaToGo(L.Get(i)))
 			}
+			if strings.HasPrefix(method, "hud.") {
+				v, e := yyHudCall(abot(L), lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), method, args)
+				if e != nil {
+					L.RaiseError("%v", e)
+					return 0
+				}
+				L.Push(goToLua(L, v))
+				return 1
+			}
+			if _, ok := yyPatrolDocs[method]; ok {
+				bm, owner := abot(L), "lua:"+lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
+				v, e := yyLuaWaitValue(L, func(_ context.Context) (any, error) { return yyPatrolCall(bm, owner, method, args) })
+				if e != nil {
+					L.RaiseError("%v", e)
+					return 0
+				}
+				L.Push(goToLua(L, v))
+				return 1
+			}
+			if method == "events.on" {
+				k, e := yyObservedKind(luaToGo(L.Get(1)))
+				if e != nil {
+					L.RaiseError("%v", e)
+					return 0
+				}
+				h := yySenseLuaHook{abot(L), lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), k, yySenseLuaHandler(L, 2)}
+				yySenseHooks.Lock()
+				exists := false
+				for _, old := range yySenseHooks.Items {
+					if old == h {
+						exists = true
+					}
+				}
+				if !exists {
+					yySenseHooks.Items = append(yySenseHooks.Items, h)
+				}
+				yySenseHooks.Unlock()
+				L.Push(lua.LTrue)
+				return 1
+			}
+			if method == "events.define" {
+				d, e := yyEventDefinitionParse(luaToGo(L.Get(1)))
+				if e != nil {
+					L.RaiseError("%v", e)
+					return 0
+				}
+				bm, pid, h := abot(L), lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), yySenseLuaHandler(L, 2)
+				u := yyEventAdapter(bm, d, func(ev map[string]any) {
+					yyLuaMu.Lock()
+					resident := yyLuaStates[yyLuaKey{bm, pid}]
+					yyLuaMu.Unlock()
+					if resident != nil {
+						yyQueueSenseLua(resident, bm, pid, h, []any{ev})
+					}
+				})
+				yySenseLuaPackets.Lock()
+				key := yyLuaKey{bm, pid}
+				yySenseLuaPackets.Items[key] = append(yySenseLuaPackets.Items[key], u)
+				yySenseLuaPackets.Unlock()
+				L.Push(lua.LTrue)
+				return 1
+			}
 			if kind, ok := yySenseEvents[method]; ok {
 				pid := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 				if pid == "" {
 					L.RaiseError("需插件上下文")
 				}
-				h := yySenseLuaHook{abot(L), pid, kind, L.CheckString(1)}
+				h := yySenseLuaHook{abot(L), pid, kind, yySenseLuaHandler(L, 1)}
 				yySenseHooks.Lock()
 				exists := false
 				for _, old := range yySenseHooks.Items {
@@ -146,7 +236,7 @@ func registerSenseAPI(L *lua.LState) {
 			if method == "events.subscribeFiltered" {
 				pid := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))
 				kind := L.CheckString(1)
-				handler := L.CheckString(3)
+				handler := yySenseLuaHandler(L, 3)
 				if pid == "" || !yyPacketTypeKnown(kind) {
 					L.RaiseError("需插件上下文及真实包类型")
 					return 0
@@ -191,7 +281,16 @@ func registerSenseAPI(L *lua.LState) {
 				L.Push(lua.LTrue)
 				return 1
 			}
-			v, e := yySenseCall(abot(L), method, args)
+			bm := abot(L)
+			var v any
+			var e error
+			_, pool := yyAccountPoolMethods[method]
+			_, world := yyWorldMethods[method]
+			if pool || world {
+				v, e = yyLuaWaitValue(L, func(_ context.Context) (any, error) { return yySenseCall(bm, method, args) })
+			} else {
+				v, e = yySenseCall(bm, method, args)
+			}
 			if e != nil {
 				L.RaiseError("%s: %v", method, e)
 				return 0
@@ -236,6 +335,121 @@ func yySenseVec(args []any) (mgl32.Vec3, error) {
 	return p, nil
 }
 func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
+	if method == "player.experience" {
+		return yyPlayerExperience(bm), nil
+	}
+	if method == "player.changeExperience" {
+		if len(args) != 1 {
+			return nil, fmt.Errorf("需要一个经验修改options对象")
+		}
+		raw, e := json.Marshal(args[0])
+		if e != nil {
+			return nil, e
+		}
+		var p yyExperienceChange
+		if e = json.Unmarshal(raw, &p); e != nil {
+			return nil, e
+		}
+		return yyApplyExperience(context.Background(), bm, p, func() yyExperienceView { return yyPlayerExperience(bm) }, func(cmd string) (*packet.CommandOutput, bool, error) {
+			return bm.SendWSCommandWithTimeout(cmd, 5*time.Second)
+		}), nil
+	}
+	if _, ok := yyBuildingJobMethods[method]; ok {
+		return yyBuildingJobCall(bm, method, args)
+	}
+	if method == "packet.catalog" {
+		return yyPacketCatalog(), nil
+	}
+	if method == "events.summary" || method == "events.captureSummary" {
+		var options yySummaryOptions
+		if len(args) > 0 {
+			data, e := json.Marshal(args[0])
+			if e != nil {
+				return nil, e
+			}
+			if e = json.Unmarshal(data, &options); e != nil {
+				return nil, e
+			}
+		}
+		return yyObservationSummary(bm, options, method == "events.captureSummary"), nil
+	}
+	if method == "observerBridge.jobState" {
+		paused, reasons := yySpatialJobState(bm)
+		return map[string]any{"paused": paused, "reasons": reasons}, nil
+	}
+	if _, ok := yyPatrolDocs[method]; ok {
+		return yyPatrolCall(bm, "manual", method, args)
+	}
+	if method == "events.catalog" {
+		return yyObservedCatalog(), nil
+	}
+	if method == "events.on" || method == "events.define" || method == "events.onObservedAction" {
+		return nil, fmt.Errorf("事件订阅需要常驻插件上下文")
+	}
+
+	if _, ok := yyAccountPoolMethods[method]; ok {
+		return yyPoolSDKCall(method, args)
+	}
+	if method == "diagnostics.receiveTransport" {
+		return yyReceiveTransport(bm, args)
+	}
+	if method == "observerBridge.serverHistory" || method == "observerBridge.serverSnapshot" {
+		return yyServerObservationCall(bm, method, args)
+	}
+	if _, ok := yyWorldMethods[method]; ok {
+		return yyWorldCall(bm, method, args)
+	}
+	if method == "bot.swingAir" {
+		return yySwingAir(bm, args)
+	}
+	if method == "observerBridge.rpcEvents" {
+		return yyObserverRPCRead(bm, args)
+	}
+	if method == "observerBridge.rpcProbe" || method == "observerBridge.rpcQuery" {
+		return yyObserverRPCCall(bm, method, args)
+	}
+	if method == "observerBridge.attachSelf" {
+		return yyObserverAttachSelf(bm, args)
+	}
+	if method == "observerBridge.inputStatus" || method == "observerBridge.detachSelf" {
+		return yyObserverSelfStatus(bm, method, args)
+	}
+	if _, ok := yyObserverBridgeMethods[method]; ok {
+		return yyObserver.call(method, args)
+	}
+	if _, ok := yyVisibilityMethods[method]; ok {
+		return yyVisibilityCall(bm, method, args)
+	}
+	if _, ok := yyNBTMethods[method]; ok {
+		return yyNBTCall(bm, method, args)
+	}
+	if strings.HasPrefix(method, "hud.") {
+		return yyHudCall(bm, "public", method, args)
+	}
+	if strings.HasPrefix(method, "scoreboard.") {
+		return yyScoreboardCall(bm, method, args)
+	}
+	if method == "entities.get" || method == "diagnostics.entity" {
+		target, e := yyObservationTarget(args)
+		if e != nil {
+			return nil, e
+		}
+		v := yySenseActor(bm, target)
+		v["health"] = v["health_state"]
+		return v, nil
+	}
+	if method == "events.moduleHistory" {
+		return yyModuleHistory(bm, args)
+	}
+	if _, ok := yyEntityDocs[method]; ok {
+		if _, event := yySenseEvents[method]; event {
+			return nil, fmt.Errorf("事件订阅需要插件上下文")
+		}
+		return yyEntityCall(bm, method, args)
+	}
+	if _, async := yyAsyncDocs[method]; async {
+		return nil, fmt.Errorf("%s需要常驻插件上下文；请调用sdk/call或插件绑定", method)
+	}
 	if strings.HasPrefix(method, "mcp.") {
 		return yyPluginMCP(bm, method, args)
 	}
@@ -258,7 +472,7 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 	if method == "plugin.stats" {
 		return nil, fmt.Errorf("stats需要插件上下文")
 	}
-	if method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
+	if method == "game.sendCommand" || method == "game.execute" || method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommandConfirmed" {
 		return yyPluginCommandCall(bm, method, args, yyDefaultCommandOptions())
 	}
 	if strings.HasPrefix(method, "chains.") {
@@ -268,10 +482,83 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		return yyPhysicalAction(bm, method, args)
 	}
 	switch method {
+	case "plugin.call":
+		id, e := yyArgString(args, 0, "")
+		if e != nil || id == "" {
+			return nil, fmt.Errorf("需要pluginID")
+		}
+		name, e := yyArgString(args, 1, "")
+		if e != nil || name == "" {
+			return nil, fmt.Errorf("需要导出函数名称")
+		}
+		values := []any{}
+		if len(args) > 2 {
+			var ok bool
+			values, ok = args[2].([]any)
+			if !ok {
+				return nil, fmt.Errorf("函数参数需数组")
+			}
+		}
+		yyLuaMu.Lock()
+		resident := yyLuaStates[yyLuaKey{bm, id}]
+		yyLuaMu.Unlock()
+		if resident != nil {
+			return yyCallResidentState(bm, id, name, values, true, true, resident)
+		}
+		encoded, e := json.Marshal(values)
+		if e != nil {
+			return nil, e
+		}
+		if value, e, handled := yySDKExport(bm, id, name, string(encoded)); handled {
+			if e != nil {
+				return nil, e
+			}
+			if value == "" {
+				return nil, nil
+			}
+			var v any
+			e = json.Unmarshal([]byte(value), &v)
+			return v, e
+		}
+		return nil, fmt.Errorf("插件未运行：%s", id)
+	case "packet.describe":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("packet.describe(typeNameOrId)")
+		}
+		kind := fmt.Sprint(args[0])
+		for _, row := range yyPacketSchema() {
+			if row["name"] == kind || fmt.Sprint(row["id"]) == kind {
+				return row, nil
+			}
+		}
+		return nil, fmt.Errorf("未知包类型 %s", kind)
 	case "game.sendPacket":
 		return yySendPacket(bm, args)
 	case "game.scene":
-		return yySenseSnapshot(bm), nil
+		presentOnly, entityType := false, ""
+		if len(args) > 0 {
+			o, ok := args[0].(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("scene选项需对象")
+			}
+			if v, exists := o["present_only"]; exists {
+				var ok bool
+				presentOnly, ok = v.(bool)
+				if !ok {
+					return nil, fmt.Errorf("present_only需布尔值")
+				}
+			}
+			if v, exists := o["entity_type"]; exists {
+				var ok bool
+				entityType, ok = v.(string)
+				if !ok {
+					return nil, fmt.Errorf("entity_type需字符串")
+				}
+			}
+		}
+		return yySenseSnapshotFiltered(bm, presentOnly, entityType), nil
+	case "game.sceneStats":
+		return yySenseStats(bm), nil
 	case "bot.self", "player.health", "player.position":
 		target, e := yyArgString(args, 0, "self")
 		if e != nil {
@@ -289,8 +576,8 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 			return nil, fmt.Errorf("无效游标")
 		}
 		limit, e := yyArgNumber(args, 1, 256)
-		if e != nil || limit < 1 || limit > 2048 {
-			return nil, fmt.Errorf("limit 需要 1..2048")
+		if e != nil || limit < 1 || limit > 65536 {
+			return nil, fmt.Errorf("limit 需要 1..65536")
 		}
 		return yyCaptureRead(bm, uint64(after), int(limit)), nil
 	case "events.captureStart":
@@ -311,11 +598,10 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		if method == "events.captureStop" {
 			s.Capture.Active = false
 		} else {
-			s.Capture.Records = []map[string]any{}
-			s.Capture.Dropped = 0
+			s.Capture.clear()
 		}
 		s.Unlock()
-		return yyCaptureRead(bm, 0, 256), nil
+		return yyCaptureStatus(bm), nil
 	case "player.nearby":
 		radius, e := yyArgNumber(args, 0, 32)
 		if e != nil || radius < 0 || radius > 512 {
@@ -340,7 +626,7 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		}
 		sort.Slice(rows, func(i, j int) bool { return rows[i]["distance"].(float64) < rows[j]["distance"].(float64) })
 		return rows, nil
-	case "world.blockState":
+	case "world.blockState", "world.containerState":
 		p, e := yySenseVec(args)
 		if e != nil {
 			return nil, e
@@ -359,7 +645,15 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 		s := yySenseFor(bm)
 		s.Lock()
 		v := s.Blocks[yyBlockKey(d, protocol.BlockPos{int32(p[0]), int32(p[1]), int32(p[2])}, 0)]
+		if v != nil {
+			v = yyObservationCopy(v).(map[string]any)
+		}
 		s.Unlock()
+		if method == "world.containerState" {
+			at, _ := v["container_timestamp"].(float64)
+			stale := !bm.IsConnected() || at == 0 || float64(time.Now().UnixMilli())-at > float64(yyObservationSettings().StaleMS)
+			return map[string]any{"known": v["container_known"] == true && !stale, "is_container": v["is_container"], "block_entity_id": v["block_entity_id"], "timestamp": at, "stale": stale, "source": v["container_source"], "position": p, "dimension": d}, nil
+		}
 		if v == nil {
 			return map[string]any{"known": false, "reason": "未收到该方块 UpdateBlock"}, nil
 		}
@@ -376,6 +670,11 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 			return nil, e
 		}
 		return map[string]any{"submitted": true, "confirmed": false}, nil
+	}
+	switch method {
+	case "bot.startMovement", "bot.lookAt", "bot.teleport", "world.breakBlock", "world.placeBlock":
+	default:
+		return nil, fmt.Errorf("未知感知方法%s；请读取sdk/catalog", method)
 	}
 	p, e := yySenseVec(args)
 	if e != nil {
@@ -457,6 +756,52 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 	return nil, fmt.Errorf("未知感知方法 %s", method)
 }
 func (s *yySDKContext) senseCall(method string, args []any) (any, error) {
+	if _, ok := yyPatrolDocs[method]; ok {
+		return yyPatrolCall(yyAccountBot(s.Instance.Account), "sdk:"+s.Instance.Key, method, args)
+	}
+	if method == "events.on" {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("on(kind,handler)")
+		}
+		k, e := yyObservedKind(args[0])
+		if e != nil {
+			return nil, e
+		}
+		h, e := yySDKString(args, 1)
+		if e != nil {
+			return nil, e
+		}
+		s.addListener(yySDKListener{Kind: k, Handler: h})
+		return true, nil
+	}
+	if method == "events.define" {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("define(definition,handler)")
+		}
+		d, e := yyEventDefinitionParse(args[0])
+		if e != nil {
+			return nil, e
+		}
+		h, e := yySDKString(args, 1)
+		if e != nil {
+			return nil, e
+		}
+		s.Mu.Lock()
+		defer s.Mu.Unlock()
+		if s.Closed {
+			return nil, fmt.Errorf("插件已停止")
+		}
+		u := yyEventAdapter(yyAccountBot(s.Instance.Account), d, func(ev map[string]any) { s.enqueue(h, []any{ev}) })
+		s.Unsubs = append(s.Unsubs, u)
+		return true, nil
+	}
+
+	if _, ok := yyAccountPoolMethods[method]; ok {
+		return yyPoolSDKCall(method, args)
+	}
+	if strings.HasPrefix(method, "hud.") {
+		return yyHudCall(yyAccountBot(s.Instance.Account), "sdk:"+s.Instance.Key, method, args)
+	}
 	if strings.HasPrefix(method, "events.capture") && s.Instance.Account != "main" && yyAccountBot(s.Instance.Account) == nil {
 		return nil, fmt.Errorf("目标账号不存在")
 	}
