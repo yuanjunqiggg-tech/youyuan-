@@ -109,6 +109,19 @@
 
 验证：`go vet .` 通过；`go test . ./config ./state ./building` 全通过（19.2s / 3.6s / 0.5s / 13.4s）；新增 `TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs`；`node --test` 268/268 通过。未构建安装包、未部署、未真机真服验收。
 
+### 3.6 产物级构建探针（不落正式产物）
+
+源码版本号仍是 `0.10.74`（`youyuan_product.go:14`、`android/app/build.gradle:6`），直接构建会产出「0.10.74 文件名 + 0.10.75 行为」的版本撞车产物，故**未写入 `build/`**，只在 `../work/probe/` 验证目标平台可编译：
+
+| 目标 | 结果 |
+|---|---|
+| `linux/amd64`（CGO 关闭） | 通过，51.6 MB |
+| `linux/arm64`（CGO 关闭） | 通过，49.0 MB |
+| `windows/amd64`（CGO 关闭） | 通过，52.3 MB |
+| `android/arm64` `-buildmode=c-shared`（NDK 26.1.10909125） | 通过，52.6 MB `libyouyuan-arm64.so` |
+
+结论：抓包两模块的改动可构建到全部目标平台；**版本号未提升，尚未生成可发布的 0.10.75 安装包**。
+
 ## 4. 关键决策（已定，不再重复讨论）
 
 1. **不伪造令牌、不入侵第三方后台、不借用他人身份**；只用获授权 API 与资源。此前「入侵网易后台」方向已撤回（P01）。
@@ -203,7 +216,7 @@ git checkout rb-0.10.75-stage                     # 整树切换（待创建）
 
 ## 8. 下一步（按顺序）
 
-0. **当前阻塞**：GitHub 推送缺少凭据。GitHub 连接器为应用级令牌，无 `contents:write` 与建仓权限（403）；本机无 `gh`、无 `~/.git-credentials`、无 SSH 密钥、Windows 凭据管理器无 GitHub 条目。需用户提供 PAT（`Contents: Read and write`，目标仓库 `youyuan-`）后执行首次推送。本地提交已就绪（`3a31201`）。
+0. **当前阻塞**：GitHub 推送缺少凭据。远端 `origin` 已配好为 `https://github.com/yuanjunqiggg-tech/youyuan-.git`，`ls-remote` 匿名可读且仓库为空（首次推送不会冲突），但 `git push` 返回 `remote: No anonymous write access.`。GitHub 连接器为应用级令牌，无 `contents:write` 与建仓权限（403）；本机无 `gh`、无 `~/.git-credentials`、无 SSH 密钥、Windows 凭据管理器无 GitHub 条目。需用户提供 PAT（`Contents: Read and write`，目标仓库 `youyuan-`）。本地已就绪 3 个提交（`3a31201`、`2aacd22`、`45a2a92`）+ 2 个 tag，凭据到位后一条命令即可推送。
 1. **待用户裁决 2 项**：`cmd/server` 结构性编译失败（可加 `//go:build ignore` 一行修掉，或删除该遗留目录）；`internal/playerrelay` UDP 回环偶发超时（是否加长等待/重试）。
 2. **建立 GitHub 备份**（本文件 + 全部源码首次推送），推送 `rb-0.10.74-online` 与 `rb-0.10.75-capture-fix` tag。
 3. **真机复验抓包四缺陷**：开启全局抓包看 `queue_dropped` 是否长期为 0 且不再断连；进地狱打生物确认血量与属性包；确认三个机器人全部进入末地值守；多人同服观察丢包。
@@ -220,3 +233,4 @@ git checkout rb-0.10.75-stage                     # 整树切换（待创建）
 | 2026-10-19 23:50 | 备份仓库改为现有 `youyuan-`；记录推送凭据阻塞 | `rb-0.10.74-online` |
 | 2026-10-19 23:58 | 修复抓包四缺陷（异步队列、身体接近、末地授权、观察者重试）；补 5 项回归；记录 2 项既有测试失败 | `3a31201` / `rb-0.10.75-capture-fix` |
 | 2026-10-20 00:10 | 身体接近半径可配置（指针字段防旧配置静默失效）；界面文案纠正；补 1 项迁移回归；268 项 web 测试复跑通过 | `2aacd22` / `rb-0.10.75-body-radius` |
+| 2026-10-20 01:02 | 产物级构建探针：linux/amd64、linux/arm64、windows/amd64、android/arm64 c-shared 全部通过（写入 `work/probe/`，未覆盖 `build/`）；GitHub 远端已配好但推送被凭据阻塞（`No anonymous write access`） | `rb-0.10.75-body-radius` |
