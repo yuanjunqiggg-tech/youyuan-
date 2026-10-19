@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -39,13 +40,23 @@ type yyCaptureState struct {
 	// Serialization runs on a dedicated worker. Keeping packetToMap/JSON off the
 	// single packet-consumer goroutine is what stops capture from throttling
 	// every other packet path and eventually the RakNet receive window.
-	gen     uint64
-	stored  uint64
-	pending chan packet.Packet
-	done    chan struct{}
+	gen      uint64
+	stored   uint64
+	inflight int
+	pending  chan packet.Packet
+	done     chan struct{}
 }
 
-const yyCaptureQueueSize = 2048
+// yyCaptureQueueSize is the burst buffer between the packet-consumer goroutine
+// and the single serialization worker. 4096 covers a 3k-packet spike without
+// dropping; yyCaptureEnqueueRetries then covers anything larger.
+const yyCaptureQueueSize = 4096
+
+// yyCaptureEnqueueRetries bounds how long a burst may yield before a packet is
+// counted as dropped. The worker consumes O(1) per item under the lock, so a
+// few hundred yields normally make room; the cap keeps the receive path from
+// spinning forever if the worker stalls.
+const yyCaptureEnqueueRetries = 512
 
 func yyPacketName(pk packet.Packet) string {
 	t := reflect.TypeOf(pk)
@@ -275,11 +286,28 @@ func yyCapturePacket(bm *BotManager, pk packet.Packet) {
 		s.Unlock()
 		return
 	}
+	ch := c.pending
+	// Never yield while holding the state lock: the store worker needs it.
+	s.Unlock()
 	select {
-	case c.pending <- pk:
+	case ch <- pk:
+		return
 	default:
-		// A bounded queue keeps memory flat. Loss is counted, never silent.
-		c.QueueDropped++
+	}
+	// A bounded queue keeps memory flat, but a burst must not turn straight into
+	// loss. Each store is O(1) under the lock now, so yielding a few times lets
+	// the worker drain and usually makes room. Only after that do we count a drop.
+	for i := 0; i < yyCaptureEnqueueRetries; i++ {
+		runtime.Gosched()
+		select {
+		case ch <- pk:
+			return
+		default:
+		}
+	}
+	s.Lock()
+	if s.Capture.pending == ch {
+		s.Capture.QueueDropped++
 	}
 	s.Unlock()
 }
@@ -293,9 +321,25 @@ func yyCaptureDrain(bm *BotManager, ch chan packet.Packet, done chan struct{}, g
 			if !ok {
 				return
 			}
+			// Mark the item as taken but not yet written. Without this the read
+			// path sees an empty queue and an unchanged stored counter while
+			// serialization is still running, and wrongly reports "drained".
+			yyCaptureInflight(bm, gen, 1)
 			yyCaptureStore(bm, pk, gen)
+			yyCaptureInflight(bm, gen, -1)
 		}
 	}
+}
+
+// yyCaptureInflight adjusts the in-progress counter only for the state that
+// still owns this generation, so a restart cannot corrupt the new state.
+func yyCaptureInflight(bm *BotManager, gen uint64, delta int) {
+	s := yySenseFor(bm)
+	s.Lock()
+	if s.Capture.gen == gen {
+		s.Capture.inflight += delta
+	}
+	s.Unlock()
 }
 
 func yyCaptureStore(bm *BotManager, pk packet.Packet, gen uint64) {
@@ -306,18 +350,25 @@ func yyCaptureStore(bm *BotManager, pk packet.Packet, gen uint64) {
 		bm.mu.Unlock()
 	}
 	s := yySenseFor(bm)
+	// Phase 1: snapshot the config under the lock, then release it.
+	// packetToMap and json.Marshal are the expensive part. Running them while
+	// holding yySenseState starved the packet-consumer goroutine on the shared
+	// lock, which is what filled the bounded queue and showed up as capture loss.
 	s.Lock()
-	defer s.Unlock()
-	c := &s.Capture
-	if !c.Active || c.gen != gen {
+	live := &s.Capture
+	if !live.Active || live.gen != gen {
+		s.Unlock()
 		return
 	}
+	cfg := live.Config
+	s.Unlock()
+
 	name := yyPacketName(pk)
-	if !yyCaptureTypeMatch(c.Config, name) {
+	if !yyCaptureTypeMatch(cfg, name) {
 		return
 	}
 	data := packetToMap(pk)
-	if !yyFilterMatch(c.Config.Filter, data) {
+	if !yyFilterMatch(cfg.Filter, data) {
 		return
 	}
 	now := time.Now()
@@ -326,22 +377,42 @@ func yyCaptureStore(bm *BotManager, pk packet.Packet, gen uint64) {
 		return
 	}
 	var payload any = data
-	truncated := len(encoded) > c.Config.MaxBytes
+	truncated := len(encoded) > cfg.MaxBytes
 	if truncated {
-		payload = map[string]any{"preview": string(encoded[:c.Config.MaxBytes]), "original_bytes": len(encoded)}
+		payload = map[string]any{"preview": string(encoded[:cfg.MaxBytes]), "original_bytes": len(encoded)}
 	}
-	c.Seq++
-	row := map[string]any{"sequence": c.Seq, "time": now.Format(time.RFC3339Nano), "direction": "server_to_bot", "server": server, "type": name, "packet_id": pk.ID(), "bytes": len(encoded), "truncated": truncated, "data": payload}
 	retained := len(encoded) + 512
 	if truncated {
-		retained = c.Config.MaxBytes + 512
+		retained = cfg.MaxBytes + 512
 	}
-	row["retained_bytes"] = retained
-	for c.Count > 0 && (c.Count >= c.Config.Capacity || c.RetainedBytes+retained > c.Config.TotalBytes) {
+	row := map[string]any{
+		"sequence":       0,
+		"time":           now.Format(time.RFC3339Nano),
+		"direction":      "server_to_bot",
+		"server":         server,
+		"type":           name,
+		"packet_id":      pk.ID(),
+		"bytes":          len(encoded),
+		"truncated":      truncated,
+		"data":           payload,
+		"retained_bytes": retained,
+	}
+
+	// Phase 2: O(1) ring write under the lock. Sequence is assigned here so the
+	// chronology reflects store order even though serialization ran unlocked.
+	s.Lock()
+	defer s.Unlock()
+	c := &s.Capture
+	if !c.Active || c.gen != gen {
+		return
+	}
+	c.Seq++
+	row["sequence"] = c.Seq
+	for c.Count > 0 && (c.Count >= cfg.Capacity || c.RetainedBytes+retained > cfg.TotalBytes) {
 		c.evict()
 	}
-	if len(c.Records) != c.Config.Capacity {
-		c.Records = make([]map[string]any, c.Config.Capacity)
+	if len(c.Records) != cfg.Capacity {
+		c.Records = make([]map[string]any, cfg.Capacity)
 		c.Count = 0
 		c.Head = 0
 		c.RetainedBytes = 0
@@ -372,6 +443,7 @@ func (c *yyCaptureState) clear() {
 	c.RetainedBytes = 0
 	c.Dropped = 0
 	c.QueueDropped = 0
+	c.inflight = 0
 	c.SampledOut = 0
 }
 // yyCaptureFlush waits (bounded) for the serialization worker to consume what is
@@ -383,9 +455,9 @@ func yyCaptureFlush(bm *BotManager, timeout time.Duration) {
 	last := uint64(1 << 63)
 	for {
 		s.Lock()
-		pending, stored := len(s.Capture.pending), s.Capture.stored
+		pending, stored, inflight := len(s.Capture.pending), s.Capture.stored, s.Capture.inflight
 		s.Unlock()
-		if pending == 0 && stored == last {
+		if pending == 0 && inflight == 0 && stored == last {
 			return
 		}
 		if time.Now().After(deadline) {
@@ -416,7 +488,7 @@ func yyCaptureRead(bm *BotManager, after uint64, limit int) map[string]any {
 			}
 		}
 	}
-	return map[string]any{"ok": true, "active": c.Active, "connected": connected, "waiting_for_connection": c.Active && !connected, "config": c.Config, "cursor": c.Seq, "retained_count": c.Count, "retained_serialized_bytes_estimate": c.RetainedBytes, "queue_depth": len(c.pending), "queue_capacity": cap(c.pending), "queue_dropped": c.QueueDropped, "records": yyObservationCopyRows(rows), "overwritten": c.Dropped, "sampled_out": c.SampledOut, "scope": "decoded incoming game packets for this account; not device-wide TCP/TLS capture"}
+	return map[string]any{"ok": true, "active": c.Active, "connected": connected, "waiting_for_connection": c.Active && !connected, "config": c.Config, "cursor": c.Seq, "retained_count": c.Count, "retained_serialized_bytes_estimate": c.RetainedBytes, "queue_depth": len(c.pending), "queue_capacity": cap(c.pending), "queue_inflight": c.inflight, "queue_dropped": c.QueueDropped, "records": yyObservationCopyRows(rows), "overwritten": c.Dropped, "sampled_out": c.SampledOut, "scope": "decoded incoming game packets for this account; not device-wide TCP/TLS capture"}
 }
 
 // Control operations return metadata only. Packet payloads can be megabytes;
