@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,28 @@ func TestSenseCaptureStopRouteRetiresTheMatcher(t *testing.T) {
 	}
 	if yyCaptureWants(bm, "SetHealth") {
 		t.Fatal("events.captureStop left the matcher published")
+	}
+}
+
+// A global-capture.json written before body_radius_blocks existed must keep the
+// safe default, otherwise upgrading silently disables entity packet reception.
+func TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs(t *testing.T) {
+	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{})["body_radius_blocks"]; got != float64(64) {
+		t.Fatalf("absent field must default to 64, got %v", got)
+	}
+	zero, twenty := float64(0), float64(20)
+	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{BodyRadius: &zero})["body_radius_blocks"]; got != float64(0) {
+		t.Fatalf("explicit 0 must disable proximity, got %v", got)
+	}
+	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{BodyRadius: &twenty})["body_radius_blocks"]; got != float64(20) {
+		t.Fatalf("explicit radius lost, got %v", got)
+	}
+	var saved yyGlobalCaptureConfig
+	if e := json.Unmarshal([]byte(`{"mode":"camera"}`), &saved); e != nil || saved.BodyRadius != nil {
+		t.Fatalf("old config must decode to nil, got %v %v", saved.BodyRadius, e)
+	}
+	if got := yyGlobalBodyRadius(saved); got != 64 {
+		t.Fatalf("old config must resolve to 64, got %v", got)
 	}
 }
 

@@ -19,6 +19,9 @@ type yyGlobalCaptureConfig struct {
 	Height            float64              `json:"camera_height_blocks"`
 	Pitch             float64              `json:"camera_pitch_degrees"`
 	Yaw               float64              `json:"camera_yaw_degrees"`
+	// Pointer so an old global-capture.json (written before the field existed)
+	// keeps the safe default instead of silently disabling body proximity.
+	BodyRadius        *float64             `json:"body_radius_blocks"`
 	PauseJobs         bool                 `json:"pause_during_jobs"`
 	DimensionRouting  *bool                `json:"dimension_routing"`
 	DimensionAccounts map[string]string    `json:"dimension_accounts"`
@@ -44,8 +47,18 @@ var yyGlobalCapture = struct {
 
 var yyGlobalCaptureLoopOnce sync.Once
 
+// yyGlobalBodyRadius resolves the effective body radius. Absent means the safe
+// default (64 blocks) because the server only broadcasts entity and attribute
+// packets near the bot body; an explicit 0 disables the proximity command.
+func yyGlobalBodyRadius(c yyGlobalCaptureConfig) float64 {
+	if c.BodyRadius == nil {
+		return 64
+	}
+	return *c.BodyRadius
+}
+
 func yyGlobalWatchOptions(c yyGlobalCaptureConfig) map[string]any {
-	return map[string]any{"players": c.Players, "auto_players": c.AutoPlayers, "camera_selector": true, "mode": c.Mode, "interval_seconds": c.Interval, "camera_height_blocks": c.Height, "camera_pitch_degrees": c.Pitch, "camera_yaw_degrees": c.Yaw, "pause_during_jobs": c.PauseJobs, "restore_position": true, "control_label": "global_capture"}
+	return map[string]any{"players": c.Players, "auto_players": c.AutoPlayers, "camera_selector": true, "mode": c.Mode, "interval_seconds": c.Interval, "camera_height_blocks": c.Height, "camera_pitch_degrees": c.Pitch, "camera_yaw_degrees": c.Yaw, "body_radius_blocks": yyGlobalBodyRadius(c), "pause_during_jobs": c.PauseJobs, "restore_position": true, "control_label": "global_capture"}
 }
 func yyGlobalDimensionAssignments(c yyGlobalCaptureConfig) map[string]int32 {
 	out := map[string]int32{}
