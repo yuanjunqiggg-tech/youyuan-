@@ -98,7 +98,18 @@ func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			return
 		}
-		next = time.Now().Add(interval)
+		// Fixed-rate scheduling, same contract as run(): a slow send must show up
+		// as a missed interval instead of quietly stretching the period. The old
+		// `time.Now().Add(interval)` made the real cycle interval+send cost, so
+		// missed_intervals stayed 0 forever on the selector path — the path global
+		// capture actually uses, which made the reported rate meaningless.
+		next = next.Add(interval)
+		if now := time.Now(); interval > 0 && next.Before(now) {
+			w.Lock()
+			w.Missed += uint64(now.Sub(next)/interval) + 1
+			w.Unlock()
+			next = now.Add(interval)
+		}
 		if busy, _ := yySpatialJobState(w.Bot); busy && (w.Config.PauseDuringJobs == nil || *w.Config.PauseDuringJobs) {
 			continue
 		}
