@@ -46,7 +46,7 @@ function pmRenderMarkdown(md) {
 }
 
 // ── 插件市场(无限滚动 + 搜索 + 分类 + 我的已上传) ──
-var pmMkt = { page: 0, size: 20, total: 0, kw: '', cat: '', cats: [], list: [], loading: false, done: false, timer: 0, mine: false, showMine: false, scrollY: 0, sort: '' };
+var pmMkt = { page: 0, size: 20, total: 0, kw: '', cat: '', cats: [], list: [], loading: false, done: false, timer: 0, mine: false, showMine: false, scrollY: 0, sort: '', error: '' };
 
 // 从详情返回(或重新打开)市场列表时:恢复滚动位置 + 重新挂载无限滚动哨兵
 // (恢复缓存只写回静态 HTML,不会重建 IntersectionObserver,需在此重建)
@@ -91,13 +91,21 @@ function pmMktCat(cat) { pmMkt.cat = cat; pmMkt.kw = ''; pmMkt.mine = false; pmM
 
 async function pmMarketLoad(reset) {
   if (pmMkt.loading) return;
-  if (reset) { pmMkt.page = 0; pmMkt.list = []; pmMkt.done = false; pmMkt.scrollY = 0; pmMktRender(); }
+  if (reset) { pmMkt.page = 0; pmMkt.list = []; pmMkt.done = false; pmMkt.scrollY = 0; pmMkt.error = ''; pmMktRender(); }
   if (pmMkt.done) { pmMktRender(); return; }
   pmMkt.loading = true;
   pmMkt.page++;
   var r = await APluginMarket('GET', pmMktUrl());
   pmMkt.loading = false;
-  if (!r.ok) { T('加载失败: ' + (r.error || ''), 'e'); return; }
+  if (!r.ok) {
+    // 原先只弹一条 toast 就 return，页面会永久停在「加载中…」的空白转圈（UI 审核 B4）。
+    // 现在回退页码并落到页面内的错误块，带明确的「重试」入口。
+    pmMkt.page--;
+    pmMkt.error = r.error || '插件市场暂时打不开';
+    pmMktRender();
+    return;
+  }
+  pmMkt.error = '';
   var arr = r.list || r.files || [];
   pmMkt.total = r.total || 0;
   pmMkt.list = pmMkt.list.concat(arr);
@@ -105,6 +113,7 @@ async function pmMarketLoad(reset) {
   pmMktRender();
 }
 
+window.pmMktRetry = function () { pmMkt.error = ''; pmMkt.done = false; pmMarketLoad(true); };
 function pmMktChips() {
   var h = '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px">';
   h += '<span class="bm-cat' + (!pmMkt.cat && !pmMkt.mine ? ' bm-cat-on' : '') + '" onclick="pmMktAll()" style="flex-shrink:0">全部</span>';
@@ -151,7 +160,17 @@ function pmMktRender() {
   var b = pmBody(); if (!b) return;
   var q = document.getElementById('pm-mkt-q');
   if (q) q.value = pmMkt.kw;
-  var h = pmMktInput() + pmMktChips() + pmFileGrid(pmMkt.list);
+  var h = pmMktInput() + pmMktChips();
+  if (pmMkt.error && !pmMkt.list.length) {
+    h += '<div class="card" style="text-align:center;padding:28px 18px">'
+      + '<div style="font-size:13px;font-weight:600;margin-bottom:8px">插件市场暂时打不开</div>'
+      + '<p class="yy-hint" style="margin:0 0 14px">' + escHtml(pmMkt.error) + '</p>'
+      + '<button class="btn-s" onclick="pmMktRetry()">重试</button>'
+      + '</div>';
+    pmRender(h);
+    return;
+  }
+  h += pmFileGrid(pmMkt.list);
   if (pmMkt.done) {
     h += pmMkt.list.length ? '<div style="text-align:center;color:var(--phx-text-secondary);padding:12px">已加载全部(' + pmMkt.total + ')</div>' : '';
   } else {

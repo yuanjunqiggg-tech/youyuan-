@@ -70,6 +70,14 @@ function updateConnStatus(conn,isOP,server){
 function I(n,d){var e=document.getElementById(n);if(!e)return d;var v=parseInt(e.value);return isNaN(v)?d:v}
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// yyJSStr：把值安全地嵌进 HTML 内联事件处理器里的 JS 单引号字符串，如
+// onclick="f('"+yyJSStr(id)+"')"。先做 HTML 属性转义，再做 JS 字符串转义，
+// 顺序不能反（否则 &amp; 会被二次转义）。用于插件 id 等来自后端、可能被构造的字段。
+function yyJSStr(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,'\\r').replace(/\n/g,'\\n').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+}
 
 function formatSize(bytes){
   if(!bytes)return'';

@@ -35,13 +35,18 @@ var (
 // validPluginID 校验插件 id：非空、非 "." / ".."、不含路径分隔符、URL/cookie 破坏性
 // 字符与控制字符。id 会拼进磁盘路径与 /web/p/<id>/... URL（cookie 名另经
 // webCookieName hash 派生，见 web_http.go），拒绝空格与 `? # % = &` 保证三处都安全。
+// 另外拒绝引号、反引号、尖括号与圆括号：前端把 id 拼进内联事件处理器的 JS 字符串
+// 里（plugins.js 的 plgSwitch/plgDel 等），不拒绝这些字符即可构造 DOM XSS 并借
+// WebView 原生桥读取本机文件。
 // 允许中文等 Unicode 字符（如"系统测试"）以及 `.`、`-`、`_`。
 func validPluginID(id string) bool {
 	if id == "" || id == "." || id == ".." {
 		return false
 	}
 	for _, r := range id {
-		if r == '/' || r == '\\' || r == ' ' || r == '?' || r == '#' || r == '%' || r == '=' || r == '&' || r < 0x20 || r == 0x7f {
+		if r == '/' || r == '\\' || r == ' ' || r == '?' || r == '#' || r == '%' || r == '=' || r == '&' ||
+			r == '\'' || r == '"' || r == '`' || r == '<' || r == '>' || r == '(' || r == ')' ||
+			r < 0x20 || r == 0x7f {
 			return false
 		}
 	}

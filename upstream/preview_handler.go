@@ -690,6 +690,23 @@ func handlePreviewSaveImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 该接口的语义是「把渲染出来的图片保存到用户选的输出目录」，因此只接受图片扩展名，
+	// 并拒绝任何 .. 段与 NUL 字符。否则可以写入 插件/<id>/main.py 这类可执行文件，
+	// 配合插件重载即构成任意代码执行（安全审查 H3）。
+	cleanPath := filepath.Clean(req.Path)
+	if strings.ContainsRune(cleanPath, 0) || cleanPath == ".." ||
+		strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) ||
+		strings.Contains(cleanPath, string(filepath.Separator)+".."+string(filepath.Separator)) {
+		writeJSON(w, map[string]any{"ok": false, "error": "路径不合法"})
+		return
+	}
+	switch strings.ToLower(filepath.Ext(cleanPath)) {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp":
+	default:
+		writeJSON(w, map[string]any{"ok": false, "error": "只允许保存图片文件（png/jpg/webp/gif/bmp）"})
+		return
+	}
+
 	// 如果带 data:image/...;base64, 前缀则去掉
 	dataStr := req.Data
 	if idx := strings.Index(dataStr, "base64,"); idx >= 0 {
@@ -701,11 +718,16 @@ func handlePreviewSaveImage(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "base64 解码失败：" + err.Error()})
 		return
 	}
+	const yyPreviewImageLimit = 64 << 20
+	if len(data) > yyPreviewImageLimit {
+		writeJSON(w, map[string]any{"ok": false, "error": "图片超过 64MB 上限"})
+		return
+	}
 
-	os.MkdirAll(filepath.Dir(req.Path), 0755)
-	if err := os.WriteFile(req.Path, data, 0644); err != nil {
+	os.MkdirAll(filepath.Dir(cleanPath), 0755)
+	if err := os.WriteFile(cleanPath, data, 0644); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "path": req.Path, "size": len(data)})
+	writeJSON(w, map[string]any{"ok": true, "path": cleanPath, "size": len(data)})
 }

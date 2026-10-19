@@ -70,6 +70,14 @@ func (w *yyWatch) targets() []string {	w.Bot.mu.Lock()
 	for _, n := range w.Config.ExcludePlayers {
 		excluded[n] = true
 	}
+	// 红线（AGENTS.md 第 9 条）：观测目标必须排除已知机器人身份，否则机器人会互相
+	// 观测、互相投放相机与传送，形成递归。reconcile 路径已在 youyuan_capture_reconcile.go
+	// 里过滤过，但 watchStart 直连本函数时原先没有过滤（安全审查 H5），这里补成最后一道闸。
+	for _, n := range yyCaptureRobotNames() {
+		if n != "" {
+			excluded[n] = true
+		}
+	}
 	out := []string{}
 	for _, n := range names {
 		if !excluded[n] {

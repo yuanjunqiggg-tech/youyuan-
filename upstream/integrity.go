@@ -18,7 +18,9 @@ var officialSigHashes = []string{
 }
 
 // 官方包名。被改包名会在这里被拦。
-const officialPkgName = "com.prismtool.box"
+// 必须与 android/app/build.gradle 的 applicationId 一致：原先写成旧包名
+// com.prismtool.box，导致「包名被修改」这条检测实际上永远误判（安全审查 M2）。
+const officialPkgName = "org.youyuan.toolbox"
 
 // Build-time injected resource hashes.
 // Set by: go build -ldflags "-X main.frontendHash=sha256:xxx -X main.soundsHash=sha256:xxx"
@@ -118,6 +120,14 @@ func VerifyApkIntegrity() {
 		if !hashInWhitelist(h) {
 			apkTampered = true
 			tamperReason = "APK 签名证书不匹配，可能已被重打包"
+			return
+		}
+		// 权威分支原先校验完签名就 return，下面兜底分支的包名校验永远不执行，
+		// 「包名被修改」形同虚设（安全审查 M2）。这里补上：Java 侧上报的是真实
+		// getPackageName()（MainActivity.java:73），为空时跳过以免拿不到上报就误判。
+		if apkPkgName != "" && !strings.EqualFold(strings.TrimSpace(apkPkgName), officialPkgName) {
+			apkTampered = true
+			tamperReason = "应用包名被修改"
 			return
 		}
 		apkTampered = false

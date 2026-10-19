@@ -1843,6 +1843,23 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 		filename = header.Filename
 	}
 
+	// 只取文件名部分并拒绝越界路径：filename 直接来自请求体，原先 outputDir+"/"+filename
+	// 可被 filename="../../插件/x/main.py" 穿越出目标目录并写入可执行文件（安全审查 H3）。
+	filename = filepath.Base(strings.ReplaceAll(filename, "\\", "/"))
+	if filename == "" || filename == "." || filename == ".." || strings.ContainsRune(filename, 0) {
+		writeJSON(w, map[string]any{"ok": false, "error": "文件名不合法"})
+		return
+	}
+	if outputDir != "" {
+		cleanDir := filepath.Clean(outputDir)
+		if cleanDir == ".." || strings.HasPrefix(cleanDir, ".."+string(filepath.Separator)) ||
+			strings.Contains(cleanDir, string(filepath.Separator)+".."+string(filepath.Separator)) {
+			writeJSON(w, map[string]any{"ok": false, "error": "目标目录不合法"})
+			return
+		}
+		outputDir = cleanDir
+	}
+
 	var dstPath string
 	if outputDir != "" {
 		os.MkdirAll(outputDir, 0755)
