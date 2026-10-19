@@ -112,6 +112,11 @@ func TestWatchBodyCommandOnlyMovesTheObserver(t *testing.T) {
 	if yyWatchBodyCommand("bad\nname", "player", 64) != "" {
 		t.Fatal("unsafe name accepted")
 	}
+	// A fractional radius must not round down to "distance=0..", which would
+	// match at any distance and teleport on every tick.
+	if got := yyWatchBodyCommand("observer", "player", 0.5); !strings.Contains(got, "distance=1..") {
+		t.Fatalf("fractional radius must clamp to 1, got %q", got)
+	}
 }
 
 // Stopping capture must also retire the published matcher, otherwise the

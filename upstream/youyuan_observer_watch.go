@@ -195,9 +195,15 @@ func yyWatchBodyCommand(self, target string, radius float64) string {
 	if radius <= 0 || !yyWatchName(self) || !yyWatchName(target) {
 		return ""
 	}
+	// Formatting rounds to whole blocks, so a fractional radius would render as
+	// "distance=0.." and teleport on every tick. Keep at least one block.
+	blocks := math.Round(radius)
+	if blocks < 1 {
+		blocks = 1
+	}
 	bot, _ := json.Marshal(self)
 	player, _ := json.Marshal(target)
-	return fmt.Sprintf("execute at %s as %s if entity @s[distance=%.0f..] run tp @s ~ ~ ~", player, bot, radius)
+	return fmt.Sprintf("execute at %s as %s if entity @s[distance=%.0f..] run tp @s ~ ~ ~", player, bot, blocks)
 }
 func (w *yyWatch) snapshot() map[string]any {
 	w.Lock()
