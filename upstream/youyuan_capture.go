@@ -325,8 +325,12 @@ func yyCaptureDrain(bm *BotManager, ch chan packet.Packet, done chan struct{}, g
 			// path sees an empty queue and an unchanged stored counter while
 			// serialization is still running, and wrongly reports "drained".
 			yyCaptureInflight(bm, gen, 1)
-			yyCaptureStore(bm, pk, gen)
-			yyCaptureInflight(bm, gen, -1)
+			func() {
+				// The decrement must survive any panic in serialization, or the
+				// flush path would wait for a counter that never returns to zero.
+				defer yyCaptureInflight(bm, gen, -1)
+				yyCaptureStore(bm, pk, gen)
+			}()
 		}
 	}
 }
