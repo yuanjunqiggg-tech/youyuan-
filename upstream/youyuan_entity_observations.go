@@ -115,7 +115,21 @@ func yyHealthSnapshot(a *yyActorObservation, connected bool) map[string]any {
 	if a.PreviousHealth != nil && a.Health != nil {
 		damage = float32(math.Max(0, float64(*a.PreviousHealth-*a.Health)))
 	}
-	return map[string]any{"known": a.Health != nil, "current": a.Health, "max": a.MaxHealth, "max_known": a.MaxHealth != nil, "previous": a.PreviousHealth, "damage": damage, "updated_at": a.HealthTime, "age_ms": yyObservationAge(a.HealthTime), "stale": yyObservationStale(a.HealthTime, a.Present, connected), "source": a.HealthSource, "runtime_id": strconv.FormatUint(a.RuntimeID, 10)}
+	out := map[string]any{"known": a.Health != nil, "current": a.Health, "max": a.MaxHealth, "max_known": a.MaxHealth != nil, "previous": a.PreviousHealth, "damage": damage, "updated_at": a.HealthTime, "age_ms": yyObservationAge(a.HealthTime), "stale": yyObservationStale(a.HealthTime, a.Present, connected), "source": a.HealthSource, "runtime_id": strconv.FormatUint(a.RuntimeID, 10)}
+	// G01 asks the health snapshot to carry armor. It is only known when the
+	// server syncs minecraft:armor; armor points are never inferred from what the
+	// entity appears to wear, so unknown stays unknown.
+	out["armor"] = nil
+	out["armor_known"] = false
+	if x, ok := a.Attributes["minecraft:armor"]; ok {
+		out["armor"] = x.Value
+		out["armor_known"] = true
+		out["armor_at"] = x.At
+		out["armor_age_ms"] = yyObservationAge(x.At)
+		out["armor_stale"] = yyObservationStale(x.At, a.Present, connected)
+		out["armor_source"] = x.Source
+	}
+	return out
 }
 func yyItemSnapshot(s *yySenseState, it yyObservedItem, present, connected bool) map[string]any {
 	item := it.Item.Stack
