@@ -76,7 +76,7 @@
 4. **不把构建、进程存活、网页可达、单场样本当作端到端通过**；验收分层：静态核实 → 可构建 → 已运行 → 端到端通过。
 5. **总账只增量更新**，不重跑历史 `update/record_acceptance` 脚本（会写回旧版本状态）。
 6. **旧 SSH 临时桥（`ssh_https58.py` / `yy_deploy58_tmp`）已删除，禁止调用**；下次发布自建明确命名的临时桥，保留原主机钉住与认证。
-7. **GitHub 备份采用私有仓库 + 每模块提交 + 阶段 tag**；源码入库，构建产物（`build/`、`cloudflare/public/`、`private/`）不入库。
+7. **GitHub 备份使用现有仓库 `yuanjunqiggg-tech/youyuan-`（用户 2026-10-19 决定，公开仓库）+ 每模块提交 + 阶段 tag**；源码入库，构建产物（`build/`、`cloudflare/public/`、`private/`）不入库。
 8. **测试用自签私钥 `linux/test_direct_tunnel_fixtures/localhost-key.pem` 入库**（用户已确认，仅本地回环测试用途）。
 9. **PROJECT_STATE.md 为唯一状态源**，聊天记忆不作数。
 
@@ -159,7 +159,8 @@ git checkout rb-0.10.75-stage
 
 ## 8. 下一步（按顺序）
 
-1. **建立 GitHub 私有备份**（本文件 + 全部源码首次推送），创建 `rb-0.10.74-online` tag。
+0. **当前阻塞**：GitHub 推送缺少凭据。GitHub 连接器为应用级令牌，无 `contents:write` 与建仓权限（403）；本机无 `gh`、无 `~/.git-credentials`、无 SSH 密钥、Windows 凭据管理器无 GitHub 条目。需用户提供 PAT（`Contents: Read and write`，目标仓库 `youyuan-`）后执行首次推送。
+1. **建立 GitHub 备份**（本文件 + 全部源码首次推送），推送 `rb-0.10.74-online` tag。
 2. **收尾 0.10.75**：构建 → 部署网页/Linux/APK → 核对线上版本与哈希 → 真机与真服验收（含房间识别三类候选、终端、插件启停删、编辑器）。
 3. **补第 8 条**：去掉「采集账号需OP旁观」表述，确认纯视角观察不切换旁观模式，收敛普通界面的抓包原理描述（F02/F14）。
 4. 更新总账对应编号与 `项目待办.md`，写阶段验收报告到 `outputs/`。
@@ -170,3 +171,4 @@ git checkout rb-0.10.75-stage
 | 时间 | 变更 | 回滚点 |
 |---|---|---|
 | 2026-10-19 23:35 | 创建本文件；确立唯一状态源与提交规则 | `rb-0.10.74-online` |
+| 2026-10-19 23:50 | 备份仓库改为现有 `youyuan-`；记录推送凭据阻塞 | `rb-0.10.74-online` |
