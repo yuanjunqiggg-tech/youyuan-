@@ -355,3 +355,9 @@ git checkout rb-0.10.75-stage                     # 整树切换（待创建）
 - **构建链修复**：build.ps1 加 UTF-8 BOM（PS5.1 中文解析）；注意 module 名是 bot-apk，import 配置包必须写 "bot-apk/config"。
 - **新工具**：maintenance/publish_apk.py（APK→8MiB 分片+latest.json，签名指纹沿用上一版）。
 - 测试：node 278/278；go test ./config ./state 通过；发布后提交回滚点。
+
+## 2026-10-20 20:12 — Linux 生产机已更新至 0.10.76
+
+- youyuan-linux-x86_64（sha256 d3f6f8ad…）SFTP 上传 47.102.156.125 → 远端校验一致 → 原子替换 /opt/youyuan/youyuan → systemctl 重启 → active，端口 19429 监听（pid 322076），启动日志正常。
+- 新增 maintenance/deploy_linux.py（SSH 探查，pin=sha256(blob) hex）与 deploy_linux_bin.py（上传+原子替换+重启）。注意：BOOT.md 里的主机密钥 pin 是 sha256(公钥blob) 的 hex，paramiko get_fingerprint() 返回的 MD5 不是它。
+- 至此 0.10.76 三端全部上线：Cloudflare（UI+更新分发）、APK（updates 域端到端 sha256 验收）、Linux 生产机。
