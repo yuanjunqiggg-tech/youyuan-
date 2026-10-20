@@ -10,6 +10,9 @@ import (
 
 const ChunkSize = 16
 
+// TickingPreloadPrefix 常加载区预加载名称前缀（多机器人时按机器人扩展前缀区分）。
+const TickingPreloadPrefix = "yy_preload_"
+
 // Bedrock 的 fill 存在体积上限。使用 32766 作为安全上限。
 const maxFillVolume = 32766
 
@@ -124,6 +127,24 @@ type ImportTask struct {
 	// ExcludeNBT 排除NBT模式：带 NBT 的特殊方块（容器/旗帜/告示牌/命令/结构方块）
 	// 一律按普通方块放置，跳过 OnNBT 写入。仅单机器人生效（多机器人按单元分工处理 NBT）。
 	ExcludeNBT bool
+
+	// ── 常加载区预加载（用户指定方案） ──
+	// 批次（小区）TP 之前对目标区块发 tickingarea add 提前加载；本批次放置期间
+	// 即预载下一批次区块，TP 落地后 remove 上一批次区域，结束时 TickingCleanup
+	// 清理所有残留。回调由宿主注入（发命令+确认成功），nil 时行为不变。
+	TickingPreload func(name string, x1, z1, x2, z2 int) error
+	TickingRelease func(name string) error
+	TickingCleanup func()
+	// TickingPrefix 常加载区名称前缀，空则用 TickingPreloadPrefix。
+	// 多机器人时按机器人传入不同前缀，避免同名冲突。
+	TickingPrefix string
+
+	// tickingarea 运行状态：tickingActive=当前已建立的区域（含为下一批次预载的），
+	// tickingStale=待卸载列表（上一批次/错配预载）。
+	tickingSeq       int
+	tickingActive    string
+	tickingActiveFor [2]int
+	tickingStale     []string
 }
 
 // nbtSkip 判断是否跳过 NBT 处理：ExcludeNBT(排除NBT) 或 IgnoreNBTInUnit(单元模式) 为真时，
@@ -310,6 +331,10 @@ func (t *ImportTask) Run() error {
 	if t.Data == nil {
 		return fmt.Errorf("未加载结构数据")
 	}
+	// 常加载区预加载：无论正常结束、取消还是出错，都清理所有 yy_preload_ 残留
+	if t.TickingCleanup != nil {
+		defer t.TickingCleanup()
+	}
 	sleeptime := yySpeedDelay(t.Speed)
 	totalChunksX := (t.Data.SizeX + ChunkSize - 1) / ChunkSize
 	totalChunksZ := (t.Data.SizeZ + ChunkSize - 1) / ChunkSize
@@ -410,6 +435,8 @@ func (t *ImportTask) Run() error {
 			// TP 到小区中心
 			regionCX := chunkStartX*ChunkSize + (chunkEndX-chunkStartX)*ChunkSize/2
 			regionCZ := chunkStartZ*ChunkSize + (chunkEndZ-chunkStartZ)*ChunkSize/2
+			// 常加载区预加载：TP 前确保本批次区块已由 tickingarea 提前加载
+			t.tickEnsureRegion(rx, rz, chunkStartX, chunkEndX, chunkStartZ, chunkEndZ)
 			if t.Teleport != nil {
 				if err := t.Teleport(t.BaseX+min(regionCX, t.Data.SizeX-1), t.BaseY, t.BaseZ+min(regionCZ, t.Data.SizeZ-1)); err != nil && t.StopOnError && t.importErr == nil {
 					t.importErr = err
@@ -417,6 +444,8 @@ func (t *ImportTask) Run() error {
 				}
 				time.Sleep(30 * time.Millisecond)
 			}
+			// 已抵达新批次，卸掉上一批次的常加载区
+			t.tickReleaseStale()
 
 			// 计算小区在建筑内的结构坐标范围（chunk 索引 → 方块坐标）
 			// 供后面 deny 铺底和 border 边缘共用，避免重复计算
@@ -533,9 +562,118 @@ func (t *ImportTask) Run() error {
 			if t.OnRegionProgress != nil {
 				t.OnRegionProgress(regionIdx-skippedRegions, t.totalRegions-skippedRegions, rx, rz)
 			}
+			// 本批次放置期间，提前为下一个蛇形批次建立常加载区（真预加载）
+			t.tickPreloadNext(rx, rz, totalRegionsX, totalRegionsZ, startRegionX, startRegionZ, rc)
 		}
 	}
 	return t.interrupted()
+}
+
+// serpentineNext 求蛇形遍历（X 递增，Z 按 rx 奇偶正反向）的下一个区域。
+func serpentineNext(rx, rz, totalRegionsX, totalRegionsZ int) (int, int, bool) {
+	if rx%2 == 0 {
+		if rz+1 < totalRegionsZ {
+			return rx, rz + 1, true
+		}
+	} else {
+		if rz-1 >= 0 {
+			return rx, rz - 1, true
+		}
+	}
+	if rx+1 < totalRegionsX {
+		if (rx+1)%2 == 0 {
+			return rx + 1, 0, true
+		}
+		return rx + 1, totalRegionsZ - 1, true
+	}
+	return 0, 0, false
+}
+
+// tickPrefix 返回常加载区名称前缀。
+func (t *ImportTask) tickPrefix() string {
+	if t.TickingPrefix != "" {
+		return t.TickingPrefix
+	}
+	return TickingPreloadPrefix
+}
+
+// tickAddRegion 为批次区域 (rx,rz) 建立常加载区（覆盖该批次全部区块），
+// 成功时记录名称与所属区域；失败不阻塞导入，仅失去预载加速。
+func (t *ImportTask) tickAddRegion(rx, rz, csx, cex, csz, cez int) {
+	name := fmt.Sprintf("%s%d", t.tickPrefix(), t.tickingSeq+1)
+	x1 := t.BaseX + csx*ChunkSize
+	z1 := t.BaseZ + csz*ChunkSize
+	x2 := t.BaseX + cex*ChunkSize - 1
+	z2 := t.BaseZ + cez*ChunkSize - 1
+	if err := t.TickingPreload(name, x1, z1, x2, z2); err != nil {
+		return
+	}
+	t.tickingSeq++
+	t.tickingActive = name
+	t.tickingActiveFor = [2]int{rx, rz}
+}
+
+// tickEnsureRegion TP 前调用：确保当前批次的常加载区已就绪。
+// 上一批次放置期间已预载（且区域匹配）则直接复用，否则现在补建。
+func (t *ImportTask) tickEnsureRegion(rx, rz, csx, cex, csz, cez int) {
+	if t.TickingPreload == nil {
+		return
+	}
+	if t.tickingActive != "" {
+		if t.tickingActiveFor == [2]int{rx, rz} {
+			return
+		}
+		// 预载错配（如单元模式跳过的区块列）：转待卸载，为本批次重建
+		t.tickingStale = append(t.tickingStale, t.tickingActive)
+		t.tickingActive = ""
+	}
+	t.tickAddRegion(rx, rz, csx, cex, csz, cez)
+}
+
+// tickReleaseStale TP 落地后调用：卸掉不再需要的常加载区（上一批次/错配预载）。
+func (t *ImportTask) tickReleaseStale() {
+	if t.TickingRelease == nil || len(t.tickingStale) == 0 {
+		return
+	}
+	for _, name := range t.tickingStale {
+		t.TickingRelease(name)
+	}
+	t.tickingStale = t.tickingStale[:0]
+}
+
+// tickPreloadNext 批次放置完成后，沿蛇形顺序找到下一个会被实际导入的区域并
+// 提前建立其常加载区；同时把当前批次的区域转入待卸载（TP 落地后释放）。
+// 跳过断点恢复起点之前与单元模式不放置的区块列。
+func (t *ImportTask) tickPreloadNext(rx, rz, totalRegionsX, totalRegionsZ, startRX, startRZ, rc int) {
+	if t.TickingPreload == nil {
+		return
+	}
+	nx, nz := rx, rz
+	for {
+		var ok bool
+		nx, nz, ok = serpentineNext(nx, nz, totalRegionsX, totalRegionsZ)
+		if !ok {
+			return
+		}
+		if nx < startRX || (nx == startRX && (nx%2 == 0 && nz < startRZ || nx%2 != 0 && nz > startRZ)) {
+			continue
+		}
+		if t.PlaceOnly != nil && !t.PlaceOnly[[2]int{nx * rc, nz * rc}] {
+			continue
+		}
+		break
+	}
+	totalChunksX := (t.Data.SizeX + ChunkSize - 1) / ChunkSize
+	totalChunksZ := (t.Data.SizeZ + ChunkSize - 1) / ChunkSize
+	csx := nx * rc
+	cex := min(csx+rc, totalChunksX)
+	csz := nz * rc
+	cez := min(csz+rc, totalChunksZ)
+	if t.tickingActive != "" {
+		t.tickingStale = append(t.tickingStale, t.tickingActive)
+		t.tickingActive = ""
+	}
+	t.tickAddRegion(nx, nz, csx, cex, csz, cez)
 }
 
 // placeRegion 对整片区域应用与 placeChunk 相同的立体优化（跨区块）。

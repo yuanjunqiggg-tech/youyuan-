@@ -15,10 +15,10 @@
   }
   function field(id){return document.getElementById(id)}
   function current(){return view&&view.scope===scope()&&field('console-log')===view.log}
-  function escape(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function escape(value){return String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   function kind(row){return row.cl==='e'?'error':row.cl==='cmd'?'command':row.cl==='chat'?'chat':row.cl==='o'?'result':'event'}
   const labels={error:'错误',command:'指令',chat:'聊天',result:'结果',event:'事件'};
-  function matches(rows,s){const query=s.search.trim().toLocaleLowerCase();return rows.filter(row=>(s.kind==='all'||kind(row)===s.kind)&&(!query||String(row.msg??'').toLocaleLowerCase().includes(query)))}
+  function matches(rows,s){const query=s.search.trim().toLocaleLowerCase();return rows.filter(row=>(s.kind==='all'||kind(row)===s.kind)&&(!query||String(row.msg==null?'':row.msg).toLocaleLowerCase().includes(query)))}
   function notice(text){const el=field('yy-terminal-notice');if(el)el.textContent=text}
   function controls(){
     if(!current())return;const s=view.state,connection=s.connection;
@@ -38,7 +38,7 @@
     const label=document.createElement('span');label.className='yy-terminal-level';label.textContent=labels[kind(row)];
     const message=document.createElement('span');message.className='yy-terminal-message';
     // The host renderer already escapes text and preserves Minecraft formatting.
-    message.innerHTML=typeof renderLogLine==='function'?renderLogLine(String(row.msg??'')):escape(row.msg);
+    message.innerHTML=typeof renderLogLine==='function'?renderLogLine(String(row.msg==null?'':row.msg)):escape(row.msg);
     line.append(label,message);return line;
   }
   appendConsoleLogs=function(log){
@@ -48,7 +48,7 @@
     let compatible=drop>=0&&previous.slice(drop).every((row,i)=>rows[i]===row);
     if(view.source!==allLogs)compatible=false;
     if(!compatible){log.replaceChildren();drop=0;view.rows=[];}
-    else if(drop){for(let i=0;i<drop;i++)log.firstChild?.remove();view.rows=previous.slice(drop);}
+    else if(drop){for(let i=0;i<drop;i++)if(log.firstChild)log.firstChild.remove();view.rows=previous.slice(drop);}
     const start=view.rows.length;
     if(log.querySelector('.yy-terminal-empty'))log.replaceChildren();
     for(let i=start;i<rows.length;i++)log.appendChild(renderRow(rows[i]));
@@ -82,7 +82,7 @@
   window.yyTerminalFollow=function(on){if(!current())return;const s=view.state;s.follow=!!on;s.manualPause=!on;if(on){s.unread=0;view.log.scrollTop=view.log.scrollHeight;}controls()};
   window.yyTerminalClear=function(){if(!current())return;allLogs=[];view.state.unread=0;redraw();notice('已清空当前账号在此页面保留的本地日志。')};
   window.yyTerminalCopy=async function(){
-    if(!current())return;const key=scope(),s=view.state,text=matches(allLogs,s).map(row=>'['+labels[kind(row)]+'] '+String(row.msg??'')).join('\n');
+    if(!current())return;const key=scope(),s=view.state,text=matches(allLogs,s).map(row=>'['+labels[kind(row)]+'] '+String(row.msg==null?'':row.msg)).join('\n');
     if(!text){notice('没有可复制的筛选结果。');return}
     try{await navigator.clipboard.writeText(text);if(key===scope())notice('已复制筛选结果。')}catch(_){if(key===scope())notice('未能访问剪贴板，请在日志中选择文字复制。')}
   };
@@ -93,13 +93,13 @@
   };
   sendConsole=async function(){
     if(!current())return;const s=view.state,input=field('console-input'),key=scope(),text=input.value.trim();
-    if(!text||s.busy)return;if(s.history.at(-1)!==text)s.history.push(text);if(s.history.length>40)s.history.shift();s.historyIndex=s.history.length;s.historyDraft='';s.busy=true;s.draft='';input.value='';controls();notice('正在等待游戏处理…');
+    if(!text||s.busy)return;if((s.history[s.history.length-1]!==text))s.history.push(text);if(s.history.length>40)s.history.shift();s.historyIndex=s.history.length;s.historyDraft='';s.busy=true;s.draft='';input.value='';controls();notice('正在等待游戏处理…');
     addConsoleLine((text.startsWith('/')?'[指令] ':'[聊天] ')+text,text.startsWith('/')?'cmd':'chat');
     try{
       const result=await A('POST','/api/bot/console',{input:text});
       if(key!==scope())return;
-      if(!result?.ok){addConsoleLine('[错误] '+(result?.error||'发送失败'),'e');notice('发送未完成。请查看错误；不会自动重发。');return}
-      if(result.output?.length)for(const line of result.output)addConsoleLine('▸ '+line,'o');
+      if(!result||!result.ok){addConsoleLine('[错误] '+((result&&result.error)||'发送失败'),'e');notice('发送未完成。请查看错误；不会自动重发。');return}
+      if(result.output&&result.output.length)for(const line of result.output)addConsoleLine('▸ '+line,'o');
       else if(result.success===false)addConsoleLine('[失败] 命令执行失败','e');
       else if(result.note)addConsoleLine('ⓘ '+result.note,'o');
       notice(result.success===false?'游戏返回执行失败，请查看日志。':'已收到处理结果。');

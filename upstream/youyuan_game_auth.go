@@ -48,7 +48,7 @@ func yyGameAuthRoutes(mux *http.ServeMux) {
 		req.Header.Set("Authorization", "Bearer "+key)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", "YouYuan-Toolbox/"+yyAppVersion)
-		client := &http.Client{Timeout: 75 * time.Second}
+		client := &http.Client{Timeout: 75 * time.Second, Transport: http.DefaultTransport}
 		resp, e := client.Do(req)
 		if e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "独立认证服务连接失败，请检查网络后重试"})

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"bot-apk/building"
 )
 
 type yyRegionTile struct {
@@ -122,8 +124,14 @@ func yyRegionWorkers(main *BotManager, wanted int) []*BotManager {
 	}
 	return bots
 }
-func yyReadRegionTiles(main *BotManager, p, s [3]int32, wanted int, stop <-chan struct{}, progress func(int, int)) ([]map[string]any, int, error) {
+// yyReadRegionTiles 逐分区读取建筑。preload 为 true 时（用户指定方案）：每个分区
+// 读取前先用 tickingarea 覆盖该分区的区块提前加载，机器人 TP 过去即已就绪，
+// 读取完成后卸掉；开始与结束时清理所有导出残留常加载区。
+func yyReadRegionTiles(main *BotManager, p, s [3]int32, wanted int, stop <-chan struct{}, progress func(int, int), preload bool) ([]map[string]any, int, error) {
 	tiles := yyRegionTiles(p, s)
+	// 清理上次异常中断留下的导出残留（只清导出前缀，不碰其他用途的常加载区）
+	main.TickingAreaCleanupPrefix(building.TickingPreloadPrefix + "exp")
+	defer main.TickingAreaCleanupPrefix(building.TickingPreloadPrefix + "exp")
 	bots := yyRegionWorkers(main, max(1, wanted))
 	if len(bots) > len(tiles) {
 		bots = bots[:len(tiles)]
@@ -168,6 +176,13 @@ func yyReadRegionTiles(main *BotManager, p, s [3]int32, wanted int, stop <-chan 
 					lock := yyBlockOperationLock(bot)
 					lock.Lock()
 					defer lock.Unlock()
+					// 常加载区预加载：TP 前覆盖本分区区块，读取完成后卸掉（失败仅失去加速）
+					areaName := fmt.Sprintf("%sexp%d", building.TickingPreloadPrefix, tile.Index)
+					if preload {
+						_ = bot.TickingAreaAdd(areaName, int(tile.Position[0]), int(tile.Position[2]),
+							int(tile.Position[0]+tile.Size[0]-1), int(tile.Position[2]+tile.Size[2]-1))
+						defer bot.TickingAreaRemove(areaName)
+					}
 					for attempt := 0; attempt < 2; attempt++ {
 						if !bot.IsConnected() {
 							err = fmt.Errorf("机器人断线")
@@ -252,7 +267,7 @@ func yyExportRegionJob(bm *BotManager, args []any) (any, error) {
 		}
 	}
 	return yyStartNBTJob(bm, func() (any, error) {
-		chunks, used, e := yyReadRegionTiles(bm, p, s, workers, nil, nil)
+		chunks, used, e := yyReadRegionTiles(bm, p, s, workers, nil, nil, true)
 		if e != nil {
 			return nil, e
 		}

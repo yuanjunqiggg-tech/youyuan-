@@ -27,7 +27,10 @@ func obsCall(t *testing.T, b *BotManager, m string, args ...any) map[string]any 
 func TestObservationHealthTruthAndReuse(t *testing.T) {
 	b := senseBot(t)
 	b.connected = true
-	yySenseHandle(b, &packet.AddActor{EntityRuntimeID: 5332, EntityUniqueID: 5332, EntityType: "minecraft:zombie", Attributes: []protocol.AttributeValue{{Name: "minecraft:health", Value: 40, Max: 40}}})
+	// 显示规则：15格内且攻击行为后3秒内的受伤才推送事件。
+	yySenseHandle(b, &packet.MovePlayer{EntityRuntimeID: 42, Position: mgl32.Vec3{0, 64, 0}})
+	yySenseHandle(b, &packet.AddActor{EntityRuntimeID: 5332, EntityUniqueID: 5332, EntityType: "minecraft:zombie", Position: mgl32.Vec3{1, 64, 1}, Attributes: []protocol.AttributeValue{{Name: "minecraft:health", Value: 40, Max: 40}}})
+	yySenseHandle(b, &packet.Animate{EntityRuntimeID: 5332, ActionType: packet.AnimateActionSwingArm})
 	yySenseHandle(b, &packet.UpdateAttributes{EntityRuntimeID: 5332, Tick: 71, Attributes: []protocol.Attribute{{AttributeValue: protocol.AttributeValue{Name: "minecraft:health", Value: 14.14, Max: 40}}}})
 	h := obsCall(t, b, "entities.health", "5332")
 	if h["max"] != float64(40) || h["previous"] != float64(40) || math.Abs(h["damage"].(float64)-25.86) > .001 || h["known"] != true || h["stale"] != false {
@@ -222,6 +225,8 @@ func TestObservationLuaFunctionCallbackAndAsyncBinding(t *testing.T) {
 	}
 	defer yyStopResident(b, id)
 	senseHealth(b, 42, 20)
+	// 显示规则：受伤需在攻击行为后3秒内，先制造一次挥臂。
+	yySenseHandle(b, &packet.Animate{EntityRuntimeID: 42, ActionType: packet.AnimateActionSwingArm})
 	senseHealth(b, 42, 18)
 	deadline := time.Now().Add(time.Second)
 	for {
@@ -277,7 +282,11 @@ func TestObservationHUDPriorityAndScoreCache(t *testing.T) {
 
 func TestObservationActorHurtBeforeHealthAndWithoutHealth(t *testing.T) {
 	b := senseBot(t)
+	// 显示规则：15格内且攻击行为后3秒内的受伤才推送事件。
+	yySenseHandle(b, &packet.MovePlayer{EntityRuntimeID: 42, Position: mgl32.Vec3{0, 64, 0}})
+	yySenseHandle(b, &packet.MovePlayer{EntityRuntimeID: 90, Position: mgl32.Vec3{2, 64, 0}})
 	senseHealth(b, 90, 40)
+	yySenseHandle(b, &packet.Animate{EntityRuntimeID: 90, ActionType: packet.AnimateActionSwingArm})
 	yySenseHandle(b, &packet.ActorEvent{EntityRuntimeID: 90, EventType: packet.ActorEventHurt})
 	pending := yySenseFor(b).Actors[90].PendingHurtID
 	senseHealth(b, 90, 35)
@@ -297,6 +306,7 @@ func TestObservationActorHurtBeforeHealthAndWithoutHealth(t *testing.T) {
 	if count != 1 {
 		t.Fatal("duplicate correlated damage", count)
 	}
+	yySenseHandle(b, &packet.MovePlayer{EntityRuntimeID: 91, Position: mgl32.Vec3{3, 64, 0}})
 	yySenseHandle(b, &packet.ActorEvent{EntityRuntimeID: 91, EventType: packet.ActorEventHurt})
 	time.Sleep(70 * time.Millisecond)
 	s.Lock()

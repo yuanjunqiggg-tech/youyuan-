@@ -15,6 +15,19 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 )
 
+// 血量/受伤显示规则（用户指定）：15格以内才显示；或受伤发生在明显攻击行为
+// （挥臂、暴击动画）之后3秒内。只过滤事件推送，不丢弃服务器真实观测缓存。
+const (
+	yyHealthDisplayRadius = 15.0
+	yyHurtCombatWindow    = 3 * time.Second
+)
+
+// combatRecent reports whether an obvious attack behavior (swing/critical hit
+// animation) was observed within the 3-second display window before at.
+func combatRecent(s *yySenseState, at time.Time) bool {
+	return !s.LastCombatAt.IsZero() && !at.Before(s.LastCombatAt) && at.Sub(s.LastCombatAt) <= yyHurtCombatWindow
+}
+
 type yyActorObservation struct {
 	UUID, XUID       string
 	PreviousHealth   *float32
@@ -78,6 +91,7 @@ type yySenseState struct {
 	PacketCount         uint64
 	PacketCounts        map[string]uint64
 	LastPacketAt        time.Time
+	LastCombatAt        time.Time
 	ServerTick          uint64
 	ServerTickAt        time.Time
 	ConnectionHistory   []map[string]any
@@ -146,6 +160,7 @@ func yySenseReset(bm *BotManager) {
 	s.Identities = map[string]yyObservedIdentity{}
 	s.ServerTick = 0
 	s.ServerTickAt = time.Time{}
+	s.LastCombatAt = time.Time{}
 	s.RequestedRadiusAt, s.GrantedRadiusAt, s.PublisherAt = time.Time{}, time.Time{}, time.Time{}
 	s.GrantedRadiusSource = ""
 	s.PacketCount, s.PacketCounts, s.LastPacketAt = 0, map[string]uint64{}, time.Time{}
@@ -236,8 +251,22 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		}
 		out = append(out, e)
 	}
-	dead := func(a *yyActorObservation) {
-		if a.Dead != nil && *a.Dead {
+	// 血量显示距离：以本机器人身体位置为圆心15格；本人事件不受距离限制。
+	// 位置未知时无法证明在15格内，按规则不显示（缓存仍更新）。
+	nearBody := func(a *yyActorObservation) bool {
+		if a.RuntimeID == self {
+			return true
+		}
+		me := s.Actors[self]
+		if me == nil || !me.PositionKnown || !a.PositionKnown || a.Dimension != me.Dimension {
+			return false
+		}
+		return float64(a.Position.Sub(me.Position).Len()) <= yyHealthDisplayRadius
+	}
+	hurtDisplay := func(a *yyActorObservation, at time.Time) bool {
+		return nearBody(a) && combatRecent(s, at)
+	}
+	dead := func(a *yyActorObservation) {		if a.Dead != nil && *a.Dead {
 			return
 		}
 		v := true
@@ -281,7 +310,9 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		a.HealthSource = source
 		a.Source = source
 		if changed {
-			emit("health", a, map[string]any{"previous": old, "health": h, "max_health": a.MaxHealth})
+			if nearBody(a) {
+				emit("health", a, map[string]any{"previous": old, "health": h, "max_health": a.MaxHealth})
+			}
 			if n, ok := old.(float32); ok && h < n {
 				a.LastHurtID = fmt.Sprintf("hurt:%d:%d", now.UnixNano(), a.RuntimeID)
 				if a.PendingHurtTimer != nil && now.Sub(a.PendingHurtAt) <= 50*time.Millisecond {
@@ -291,7 +322,11 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 					a.PendingHurtID = ""
 				}
 				a.LastHurtTime = now
-				emit("hurt", a, map[string]any{"event_id": a.LastHurtID, "target_runtime_id": strconv.FormatUint(a.RuntimeID, 10), "target": map[string]any{"runtime_id": strconv.FormatUint(a.RuntimeID, 10), "name": a.Name, "entity_type": a.EntityType}, "damage": n - h, "damage_known": true, "health": h, "max_health": a.MaxHealth, "attacker_runtime_id": nil, "attacker_known": false, "attacker": nil, "damage_source": nil, "cause_known": false})
+				// 用户规则：只有攻击行为后3秒内且在15格内的受伤才推送显示；
+				// 观测缓存照常记录，只是不进入事件流。
+				if hurtDisplay(a, now) {
+					emit("hurt", a, map[string]any{"event_id": a.LastHurtID, "target_runtime_id": strconv.FormatUint(a.RuntimeID, 10), "target": map[string]any{"runtime_id": strconv.FormatUint(a.RuntimeID, 10), "name": a.Name, "entity_type": a.EntityType}, "damage": n - h, "damage_known": true, "health": h, "max_health": a.MaxHealth, "attacker_runtime_id": nil, "attacker_known": false, "attacker": nil, "damage_source": nil, "cause_known": false})
+				}
 			}
 		}
 		if h <= 0 {
@@ -575,7 +610,11 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		emit("entity_spawn", a, map[string]any{"position": p.Position, "item": a.Item, "fields": packetToMap(p)})
 	case *packet.Animate:
 		if p.ActionType == packet.AnimateActionSwingArm {
+			s.LastCombatAt = now
 			emit("swing", s.actor(p.EntityRuntimeID, now), map[string]any{"action_type": p.ActionType, "observed": true, "inferred": false, "source_scope": "server_synced_to_this_bot", "attack_hit_known": false})
+		} else if p.ActionType == packet.AnimateActionCriticalHit {
+			// 暴击动画只在攻击命中时由服务器下发，同样计为明显攻击行为。
+			s.LastCombatAt = now
 		}
 	case *packet.TakeItemActor:
 		extra := map[string]any{"item_runtime_id": strconv.FormatUint(p.ItemEntityRuntimeID, 10), "taker_runtime_id": strconv.FormatUint(p.TakerEntityRuntimeID, 10), "item_known": false}
@@ -619,6 +658,10 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		if p.EventType == packet.ActorEventDeath || p.EventType == packet.ActorEventInstantDeath {
 			dead(a)
 		} else if p.EventType == packet.ActorEventHurt {
+			// 同一显示规则：ActorEventHurt 是受伤信号，按15格+攻击后3秒窗口过滤。
+			if !hurtDisplay(a, now) {
+				break
+			}
 			extra := map[string]any{"damage_known": false, "attacker_known": false, "cause_known": false}
 			if time.Since(a.LastHurtTime) <= 50*time.Millisecond {
 				extra["event_id"] = a.LastHurtID

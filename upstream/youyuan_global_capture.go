@@ -47,12 +47,13 @@ var yyGlobalCapture = struct {
 
 var yyGlobalCaptureLoopOnce sync.Once
 
-// yyGlobalBodyRadius resolves the effective body radius. Absent means the safe
-// default (64 blocks) because the server only broadcasts entity and attribute
-// packets near the bot body; an explicit 0 disables the proximity command.
+// yyGlobalBodyRadius resolves the effective body radius. Absent means the
+// display radius default (15 blocks): the server only broadcasts entity and
+// attribute packets near the bot body, and users asked for blood display to
+// stay within 15 blocks; an explicit 0 disables the proximity command.
 func yyGlobalBodyRadius(c yyGlobalCaptureConfig) float64 {
 	if c.BodyRadius == nil {
-		return 64
+		return 15
 	}
 	return *c.BodyRadius
 }

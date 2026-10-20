@@ -357,7 +357,9 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	if regionMode > 3 {
 		regionMode = 3
 	}
-	// keep 模式：不破坏原有地形地貌，setblock/fill 追加 keep、NBT 方块只放空气位。
+	// 常加载区预加载：批次 TP 前提前加载目标区块（用户指定方案），默认开启
+	tickingPreload := getBool(p, "ticking_preload", true)
+	tickPre, tickRel, tickClean := yyTickingCallbacks(bm, "", tickingPreload)	// keep 模式：不破坏原有地形地貌，setblock/fill 追加 keep、NBT 方块只放空气位。
 	// 与预清空互斥——保留模式本质就是不清空目标区，故强制 PreClearMode=0。
 	keepMode := getBool(p, "keep_mode", false)
 	preClearMode := getInt(p, "pre_clear_mode", 0)
@@ -471,6 +473,9 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 		Teleport: func(x, y, z int) error {
 			return bm.TP(x, y, z)
 		},
+		TickingPreload: tickPre,
+		TickingRelease: tickRel,
+		TickingCleanup: tickClean,
 		OnClearProgress: func(cleared, total int) {
 			abMu.Lock()
 			abClearing = true
@@ -909,6 +914,8 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 	excludeWater := getBool(p, "exclude_water", false)
 	excludeWaterlogged := getBool(p, "exclude_waterlogged", false)
 	excludeLava := getBool(p, "exclude_lava", false)
+	// 常加载区预加载：修补同样按批次 TP，默认开启
+	tickPre, tickRel, tickClean := yyTickingCallbacks(bm, "", getBool(p, "ticking_preload", true))
 
 	// 强制 creative 模式
 	if bm != nil {
@@ -949,6 +956,9 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 		Teleport: func(x, y, z int) error {
 			return bm.TP(x, y, z)
 		},
+		TickingPreload: tickPre,
+		TickingRelease: tickRel,
+		TickingCleanup: tickClean,
 		OnNBT: func(x, y, z int32, nbtData map[string]any, blockName, blockStates string) {
 			if bm == nil || bm.conn == nil {
 				return
@@ -1179,7 +1189,7 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 		cp.Message = fmt.Sprintf("游园 · 读取 %d/%d 分区", done, total)
 		state.SaveCheckpoint(cp)
 		hub.Emit("task_progress", mustJSON(map[string]any{"progress": cp.Progress, "completed": done, "total": total, "phase": "游园 · 建筑读取", "unit": "分区", "location": "游戏服务器 → 工具箱设备"}))
-	})
+	}, getBool(p, "ticking_preload", true))
 	if readErr != nil {
 		cp.Status = "failed"
 		cp.Message = readErr.Error()

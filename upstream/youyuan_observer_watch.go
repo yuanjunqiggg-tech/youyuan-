@@ -15,7 +15,7 @@ import (
 // caller's control; the packet reader never performs queries or HTTP requests.
 func init() {
 	for k, v := range map[string]string{
-		"observerBridge.watchStart":  "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:64}；camera模式只用摄像机视角、不切旁观模式，但服务端只在身体附近广播实体与属性包，因此默认把身体保持在目标body_radius_blocks内（0关闭，可能抓不到远处包）；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
+		"observerBridge.watchStart":  "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:15}；camera模式只用摄像机视角、不切旁观模式，但服务端只在身体附近广播实体与属性包，因此默认把身体保持在目标body_radius_blocks内（0关闭，可能抓不到远处包）；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
 		"observerBridge.watchStatus": "返回本账号常驻观察目标、真实区域发布时间、submitted、missed_intervals、错误。region_updated只是收到对应区域包，不等于零漏包。",
 		"observerBridge.watchStop":   "取消本账号常驻观察，清除本次相机并恢复已确认的原位置；不会关闭其他插件拥有的观察。",
 	} {
@@ -89,7 +89,7 @@ var yyWatches = struct {
 }{Items: map[*BotManager]*yyWatch{}}
 
 func yyWatchParse(v any) (yyWatchConfig, error) {
-	c := yyWatchConfig{Mode: "camera", Interval: 2, FollowRadius: 16, CameraHeight: 2, BodyRadius: 64}
+	c := yyWatchConfig{Mode: "camera", Interval: 2, FollowRadius: 16, CameraHeight: 2, BodyRadius: 15}
 	raw, e := json.Marshal(v)
 	if e != nil {
 		return c, e
@@ -126,7 +126,7 @@ func yyWatchParse(v any) (yyWatchConfig, error) {
 		return c, fmt.Errorf("follow_radius_blocks需要0..4096；0每轮请求，默认16仅离开半径或跨维度时TP")
 	}
 	if math.IsNaN(c.BodyRadius) || math.IsInf(c.BodyRadius, 0) || c.BodyRadius < 0 || c.BodyRadius > 4096 {
-		return c, fmt.Errorf("body_radius_blocks需要0..4096；0关闭身体接近，默认64保证实体包能下发")
+		return c, fmt.Errorf("body_radius_blocks需要0..4096；0关闭身体接近，默认15格收紧血量显示范围")
 	}
 	if math.IsNaN(c.CameraHeight) || math.IsInf(c.CameraHeight, 0) || math.Abs(c.CameraHeight) > math.MaxFloat32 || math.IsNaN(c.CameraYaw) || math.IsInf(c.CameraYaw, 0) {
 		return c, fmt.Errorf("摄像机高度和朝向需要有效有限数值")

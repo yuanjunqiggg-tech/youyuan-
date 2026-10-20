@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"bot-apk/config"
+
 	"github.com/coder/websocket"
 )
 
@@ -84,6 +86,9 @@ func TestProductUserAgentOnOwnedHTTPAndRemoteHandshake(t *testing.T) {
 	yyRemote.DeviceToken = "fixture-only"
 	yyRemoteMu.Unlock()
 	defer func() { yyRemoteMu.Lock(); yyRemote.DeviceToken = oldDevice; yyRemoteMu.Unlock() }()
+	// 前面的测试可能把全局配置根切到了带 AuthURL 的临时目录；隔离到干净临时目录，
+	// 让 yyGameAuthOrigin 走产品默认认证域名（会被审计 transport 重定向到本地观测）。
+	config.InitConfig(t.TempDir())
 	mux := http.NewServeMux()
 	yyGameAuthRoutes(mux)
 	mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/api/youyuan/game-auth", nil))

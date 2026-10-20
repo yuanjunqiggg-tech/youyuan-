@@ -158,8 +158,8 @@ func TestSenseCaptureStopRouteRetiresTheMatcher(t *testing.T) {
 // A global-capture.json written before body_radius_blocks existed must keep the
 // safe default, otherwise upgrading silently disables entity packet reception.
 func TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs(t *testing.T) {
-	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{})["body_radius_blocks"]; got != float64(64) {
-		t.Fatalf("absent field must default to 64, got %v", got)
+	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{})["body_radius_blocks"]; got != float64(15) {
+		t.Fatalf("absent field must default to 15, got %v", got)
 	}
 	zero, twenty := float64(0), float64(20)
 	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{BodyRadius: &zero})["body_radius_blocks"]; got != float64(0) {
@@ -172,14 +172,14 @@ func TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs(t *testing.T) {
 	if e := json.Unmarshal([]byte(`{"mode":"camera"}`), &saved); e != nil || saved.BodyRadius != nil {
 		t.Fatalf("old config must decode to nil, got %v %v", saved.BodyRadius, e)
 	}
-	if got := yyGlobalBodyRadius(saved); got != 64 {
-		t.Fatalf("old config must resolve to 64, got %v", got)
+	if got := yyGlobalBodyRadius(saved); got != 15 {
+		t.Fatalf("old config must resolve to 15, got %v", got)
 	}
 }
 
 func TestWatchParseBodyRadiusDefaultAndBounds(t *testing.T) {
 	c, err := yyWatchParse(map[string]any{"player": "p"})
-	if err != nil || c.BodyRadius != 64 {
+	if err != nil || c.BodyRadius != 15 {
 		t.Fatalf("default body radius lost: %v %v", c.BodyRadius, err)
 	}
 	if _, err = yyWatchParse(map[string]any{"player": "p", "body_radius_blocks": -1}); err == nil {

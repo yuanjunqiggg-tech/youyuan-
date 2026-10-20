@@ -85,6 +85,9 @@ func TestWorldEventCursorReconnectAndLoss(t *testing.T) {
 	b := senseBot(t)
 	b.connected = true
 	b.serverCode = "A"
+	// 显示规则：15格内才推送health事件，先给出本机与目标位置。
+	yySenseHandle(b, &packet.MovePlayer{EntityRuntimeID: 42, Position: mgl32.Vec3{0, 64, 0}})
+	yySenseHandle(b, &packet.MovePlayer{EntityRuntimeID: 901, Position: mgl32.Vec3{1, 64, 0}})
 	senseHealth(b, 901, 10)
 	senseHealth(b, 901, 8)
 	a := worldView(t, b, "events", "", nil)

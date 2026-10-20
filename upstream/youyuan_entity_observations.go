@@ -435,6 +435,20 @@ func yyFlushActorHurt(bm *BotManager, s *yySenseState, a *yyActorObservation, id
 	a.LastHurtID = id
 	a.LastHurtTime = time.Now()
 	now := time.Now()
+	// 推送前按用户规则复核：15格以内，且仍在攻击行为后3秒窗口内。
+	self := uint64(0)
+	if bm != nil {
+		self = bm.runtimeID
+	}
+	me := s.Actors[self]
+	near := a.RuntimeID == self
+	if !near && me != nil && me.PositionKnown && a.PositionKnown && a.Dimension == me.Dimension {
+		near = float64(a.Position.Sub(me.Position).Len()) <= yyHealthDisplayRadius
+	}
+	if !near || !combatRecent(s, now) {
+		s.Unlock()
+		return
+	}
 	e := map[string]any{"type": "hurt", "event_id": id, "runtime_id": strconv.FormatUint(a.RuntimeID, 10), "target_runtime_id": strconv.FormatUint(a.RuntimeID, 10), "player": a.Name, "entity_type": a.EntityType, "target": map[string]any{"runtime_id": strconv.FormatUint(a.RuntimeID, 10), "name": a.Name, "entity_type": a.EntityType}, "dimension": a.Dimension, "source": "ActorEvent", "damage": nil, "damage_known": false, "health": a.Health, "max_health": a.MaxHealth, "attacker": nil, "attacker_runtime_id": nil, "attacker_known": false, "cause_known": false, "time": now.Format(time.RFC3339Nano), "timestamp": now.UnixMilli()}
 	s.Seq++
 	e["sequence"] = s.Seq

@@ -187,6 +187,8 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 	if regionMode > 3 {
 		regionMode = 3
 	}
+	// 常加载区预加载：多机器人按机器人名生成互不冲突的前缀，默认开启
+	tickPre, tickRel, tickClean := yyTickingCallbacks(bot, yyTickingBotPrefix(bot), getBool(params, "ticking_preload", true))
 	return &building.ImportTask{
 		Data:         data,
 		BaseX:        getInt(params, "x", 0),
@@ -237,6 +239,9 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 		Teleport: func(x, y, z int) error {
 			return bot.TP(x, y, z)
 		},
+		TickingPreload: tickPre,
+		TickingRelease: tickRel,
+		TickingCleanup: tickClean,
 		// 普通单元不含工作区NBT和告示牌（被 Skipped 跳过），OnNBT 只处理轻NBT
 		OnNBT: func(x, y, z int32, nbtData map[string]any, blockName, blockStates string) {
 			if bot == nil || bot.conn == nil {
