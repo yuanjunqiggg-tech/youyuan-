@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func yyRuntimeDirectory(id string) (string, error) {
@@ -79,7 +81,6 @@ func yyRuntimeManagementRoutes(mux *http.ServeMux) {
 			return
 		}
 		yyRuntimeStartMu.Lock()
-		defer yyRuntimeStartMu.Unlock()
 		yyRuntimeMu.Lock()
 		instances := []*yyRuntimeInstance{}
 		for key, in := range yyRuntimeInstances {
@@ -109,14 +110,25 @@ func yyRuntimeManagementRoutes(mux *http.ServeMux) {
 			}
 		}
 		yyRuntimeChoices.Unlock()
+		// dir is absolute and validated as one direct child of the runtime root above.
+		// Renaming is a single directory entry update, so the tree leaves the
+		// installed-runtime namespace before the lock is released; deleting it
+		// while holding yyRuntimeStartMu used to stall every other plugin's
+		// start/stop for as long as RemoveAll needed.
+		tomb := dir + ".deleting-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+		renameErr := os.Rename(dir, tomb)
+		if renameErr != nil && !os.IsNotExist(renameErr) {
+			// Fall back to deleting in place: the ID must not stay installable.
+			tomb = dir
+		}
+		yyRuntimeStartMu.Unlock()
 		for _, choice := range choices {
 			if e = yyRememberRuntime(choice.ID, choice.Account, false); e != nil {
 				writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 				return
 			}
 		}
-		// dir is absolute and validated as one direct child of the runtime root above.
-		if e = os.RemoveAll(dir); e != nil {
+		if e = os.RemoveAll(tomb); e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 			return
 		}

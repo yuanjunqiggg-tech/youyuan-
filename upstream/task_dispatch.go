@@ -388,6 +388,12 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 		abClearCleared    int
 		abClearTotal      int
 		targetImportSpeed int
+		// Chunk counters come straight from the importer loop, so the panel can
+		// show a measured 56/80 instead of deriving it from the block ratio.
+		abChunkDone  int
+		abChunkTotal int
+		abChunkCX    int
+		abChunkCZ    int
 	)
 	// 获取自定义品牌名用于进度条
 	importBrandName := "游园"
@@ -606,6 +612,10 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			abMu.Lock()
 			abTotalBarPct = int(progress * 100)
 			abBlocks = blocks
+			abChunkDone = chunk
+			abChunkTotal = total
+			abChunkCX = cx
+			abChunkCZ = cz
 			abMu.Unlock()
 			hub.Emit("task_progress", mustJSON(map[string]any{
 				"progress":     progress,
@@ -618,6 +628,27 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			}))
 			hub.Emit("progress", mustJSON(map[string]any{
 				"msg": fmt.Sprintf("区块 %d/%d, %d 方块", chunk, total, blocks),
+			}))
+			// The same figures the in-game actionbar shows, so the toolbox panel
+			// and the game panel can never disagree about progress.
+			link := yyStructureHudWithHealth(yyStructureHud{})
+			hub.Emit("structure_progress", mustJSON(map[string]any{
+				"phase":        "导入中",
+				"blocks":       blocks,
+				"total_blocks": totalSolid,
+				"chunks":       chunk,
+				"chunks_total": total,
+				"chunk_x":      cx * 16,
+				"chunk_z":      cz * 16,
+				"elapsed_ms":   time.Since(importStartTime).Milliseconds(),
+				"structure":    shortName(path),
+				"size_x":       data.SizeX,
+				"size_y":       data.SizeY,
+				"size_z":       data.SizeZ,
+				"tps":          link.TPS,
+				"tps_known":    link.TPSKnown,
+				"rtt_ms":       link.RTT.Milliseconds(),
+				"rtt_known":    link.RTTKnown,
 			}))
 
 			d := building.ImportCheckpointData{
@@ -696,6 +727,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 					subPct := abSubBarPct
 					rIdx := abRegionIdx
 					rTotal := abTotalRegions
+					cDone, cTotal, cCX, cCZ := abChunkDone, abChunkTotal, abChunkCX, abChunkCZ
 					abMu.Unlock()
 					elapsed := time.Since(importStartTime).Seconds()
 					// 每秒更新一次速度，非更新时刻复用上次速度
@@ -716,7 +748,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 					}
 					buildV5Actionbar(sendActionbar, shortName(path), data.SizeX, data.SizeY, data.SizeZ,
 						regionMode, totalSolid, targetImportSpeed, realSpeed, blocks, totalPct, subPct,
-						rIdx, rTotal, importStartTime, importBrandName)
+						rIdx, rTotal, cDone, cTotal, cCX, cCZ, importStartTime, importBrandName)
 				}
 			case <-abStopTicker:
 				return
@@ -770,7 +802,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	}
 
 	buildV5Actionbar(sendActionbar, shortName(path), data.SizeX, data.SizeY, data.SizeZ,
-		regionMode, totalSolid, targetImportSpeed, 0, totalSolid, 100, 100, 0, 0, importStartTime, importBrandName)
+		regionMode, totalSolid, targetImportSpeed, 0, totalSolid, 100, 100, 0, 0, 0, 0, 0, 0, importStartTime, importBrandName)
 
 	cp.Status = "done"
 	// 清空工作区方块
@@ -2684,10 +2716,56 @@ func buildClearActionbar(cleared, total int) string {
 	return yyTaskActionbar("区域准备", "清空选定区域", "6", cleared, total, 0, 0)
 }
 
+// yyStructureHudTrack keeps the recent throughput samples that feed the ▂▄▆█
+// meter. It is reset whenever a new job starts so a previous run cannot make a
+// fresh one look fast.
+type yyStructureHudTrack struct {
+	sync.Mutex
+	start   time.Time
+	samples []float64
+}
+
+var yyStructureHudMeter yyStructureHudTrack
+
+func (t *yyStructureHudTrack) push(start time.Time, speed float64) []float64 {
+	t.Lock()
+	defer t.Unlock()
+	if !start.Equal(t.start) {
+		t.start = start
+		t.samples = nil
+	}
+	t.samples = append(t.samples, speed)
+	const keep = 8
+	if len(t.samples) > keep {
+		t.samples = append([]float64{}, t.samples[len(t.samples)-keep:]...)
+	}
+	return append([]float64{}, t.samples...)
+}
+
 func buildV5Actionbar(sendFn func(string), name string, sx, sy, sz int,
 	regionMode, totalSolid, targetSpeed, realSpeed, blocks, totalPct, subPct int,
-	regionIdx, totalRegions int, startTime time.Time, brandName string) {
-	text := yyTaskActionbar("建筑写入", name, "b", blocks, totalSolid, realSpeed, time.Since(startTime))
+	regionIdx, totalRegions int, chunkDone, chunkTotal, chunkCX, chunkCZ int,
+	startTime time.Time, brandName string) {
+	phase, colour := "导入中", "a"
+	if regionMode != 0 {
+		phase, colour = "导出中", "b"
+	}
+	if totalSolid > 0 && blocks >= totalSolid {
+		phase, colour = "已完成", "a"
+	}
+	hud := yyStructureHudForImport(phase, colour, name, sx, sy, sz,
+		blocks, totalSolid, realSpeed, time.Since(startTime),
+		yyStructureHudMeter.push(startTime, float64(realSpeed)))
+	if chunkTotal > 0 {
+		// The importer loop reports the chunk it is working on, so this is a
+		// measured count rather than a ratio.
+		hud.ChunksDone, hud.ChunksTotal, hud.ChunksExact = chunkDone, chunkTotal, true
+	}
+	if chunkTotal > 0 && blocks < totalSolid {
+		hud.Cursor = fmt.Sprintf("X%d Z%d", chunkCX*16, chunkCZ*16)
+	}
+	hud = yyStructureHudWithHealth(hud)
+	text := yyStructureHudRender(hud)
 	if totalRegions > 0 {
 		text += fmt.Sprintf("\n§r§d分区 §f%d §7/ %d  ·  本区 §d%s§8%s", regionIdx, totalRegions, strings.Repeat("┃", max(0, min(10, subPct/10))), strings.Repeat("┃", 10-max(0, min(10, subPct/10))))
 	}

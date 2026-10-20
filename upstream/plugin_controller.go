@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // PluginStatus 插件状态（供前端列表展示）。
@@ -429,6 +430,45 @@ func (pc *PluginController) Stop(bm *BotManager, id string) error {
 }
 
 // Reload 热重载插件：先停后起。
+// yyRemoveTreeDeferred moves target out of its live path with one rename, then
+// deletes the moved tree in the background. A rename is a single directory entry
+// update even for a tree with tens of thousands of files, which is what made
+// plugin deletion feel frozen while RemoveAll walked it inline.
+//
+// The rename happens before the caller reports success, so the plugin cannot be
+// rescanned into existence after a restart. A tombstone that fails to delete is
+// logged: by then the plugin is already gone from the registry, so there is no
+// caller left to act on the error.
+func yyRemoveTreeDeferred(trashRoot, target string) error {
+	if target == "" {
+		return nil
+	}
+	if _, err := os.Lstat(target); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if trashRoot == "" {
+		return os.RemoveAll(target)
+	}
+	if err := os.MkdirAll(trashRoot, 0700); err != nil {
+		return os.RemoveAll(target)
+	}
+	tomb := filepath.Join(trashRoot, filepath.Base(target)+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
+	if err := os.Rename(target, tomb); err != nil {
+		// Rename fails across filesystems or on a read-only parent; removing in
+		// place is slower but still keeps the plugin from coming back.
+		return os.RemoveAll(target)
+	}
+	go func() {
+		if err := os.RemoveAll(tomb); err != nil {
+			debugLog("[插件] 后台清理未完成 %s: %v", tomb, err)
+		}
+	}()
+	return nil
+}
+
 func (pc *PluginController) Reload(bm *BotManager, id string) error {
 	debugLog("[插件] Reload id=%s", id)
 	pc.mu.Lock()
@@ -496,17 +536,22 @@ func (pc *PluginController) Delete(bm *BotManager, id string) error {
 	pc.running[id] = false
 	pc.state[id] = "unloaded"
 	pc.mu.Unlock()
+	// A test that injects removeTree wants a deterministic IO boundary, so it
+	// keeps the synchronous path. Production defers the expensive half: a plugin
+	// data directory can hold tens of thousands of files, and deleting it inline
+	// held the HTTP request open (the frontend waits 300s and disables the row).
 	failures := []string{}
+	deferred := pc.removeTree == nil
 	removeTree := pc.removeTree
 	if removeTree == nil {
 		removeTree = os.RemoveAll
 	}
+	type deleteTarget struct{ label, path string }
+	targets := []deleteTarget{}
 	for _, sub := range []string{"插件文件", "插件配置文件", "插件数据文件"} {
 		if sub == "插件文件" && loose {
 			for _, file := range looseFiles {
-				if err := removeTree(file); err != nil {
-					failures = append(failures, sub+": "+err.Error())
-				}
+				targets = append(targets, deleteTarget{sub, file})
 			}
 			continue
 		}
@@ -514,8 +559,17 @@ func (pc *PluginController) Delete(bm *BotManager, id string) error {
 		if sub == "插件文件" {
 			target = codeDir
 		}
-		if err := removeTree(target); err != nil {
-			failures = append(failures, sub+": "+err.Error())
+		targets = append(targets, deleteTarget{sub, target})
+	}
+	for _, t := range targets {
+		if deferred {
+			if err := yyRemoveTreeDeferred(filepath.Join(pc.privateDir, ".trash"), t.path); err != nil {
+				failures = append(failures, t.label+": "+err.Error())
+			}
+			continue
+		}
+		if err := removeTree(t.path); err != nil {
+			failures = append(failures, t.label+": "+err.Error())
 		}
 	}
 	if len(failures) > 0 {

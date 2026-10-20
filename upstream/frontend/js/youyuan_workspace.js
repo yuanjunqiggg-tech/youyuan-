@@ -2,7 +2,7 @@
 var yyLanguageFilter='all',yyWorkspaceActive=null,yyWorkspaceEditor=null,yyEditorPath='',yyEditorDirty=false,yyEditorTimer=null,yyWorkspacePoll=null,yyWorkspaceSeq=0,yyFileBaseHash='';
 var yyWorkspaceOpenEpoch=0;
 var yyPluginRenderEpoch=0;
-var yyLanguageNames={python:'Python',native_cpp:'C++',lua:'Lua',mcfunction:'命令链'};
+var yyLanguageNames={python:'Python',native_cpp:'C++',lua:'Lua',wordbank:'词库',mcfunction:'命令链'};
 Rplg=async function(){
  var epoch=++yyPluginRenderEpoch,scope=yyReadScope();
  if(typeof yyPluginScopeBusy==='function'&&yyPluginScopeBusy(scope)){yyPluginOperationUI();return}
