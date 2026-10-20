@@ -6,6 +6,7 @@ import {seal,open,hash,token} from './vault.mjs';
 import {normalizeGameServer} from './server-code.mjs';
 import {batchAccountAction} from './batch-accounts.mjs';
 import {isPrivateDistributionPath} from '../cloudflare/private-distribution.mjs';
+import {verifyTurnstile,turnstileRemoteip} from './turnstile.mjs';
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const vault=(env,owner)=>env.AUTH.get(env.AUTH.idFromName('account:'+owner));
 async function actor(request,env){const key=request.headers.get('X-YouYuan-Device-Key')||(request.headers.get('Authorization')||'').replace(/^Bearer /,'');if(!key)return null;if(env.DEVICE_TOKEN&&key===env.DEVICE_TOKEN||env.CONSOLE_TOKEN&&key===env.CONSOLE_TOKEN)return 'owner';for(const purpose of ['device','session']){const identity=await identityResolve(env,key,purpose);if(identity)return identity.user.legacy_owner?'owner':identity.user.id;}return null;}
@@ -30,6 +31,7 @@ export default {
    url.pathname=delegatedPath[2];request=new Request(url,request);
   }
   if(url.pathname==='/health')return json({ok:true,version:'0.10.70',build:'link-tcp-20261019.4',product:'游园独立游戏认证',provider:'direct-netease',third_party_auth:false});
+  if(url.pathname==='/api/turnstile-config')return json({ok:true,site_key:env.TURNSTILE_SITE_KEY||'',enabled:!!env.TURNSTILE_SECRET_KEY});
   if(url.pathname.startsWith('/api/identity/'))return identityRoute(request,env);
   if(url.pathname==='/'&&env.ASSETS)return env.ASSETS.fetch(request);
   if(url.pathname==='/api/game/discover'){
@@ -220,6 +222,9 @@ export class AuthVault{
    }
    if(request.method!=='POST')return json({ok:false,error:'GET/POST required'},405);
    const action=input.action;
+   if(['register_guest','login_email','login_4399','import_cookie','batch_create'].includes(action)){
+    try{await verifyTurnstile(this.env,input,turnstileRemoteip(request))}catch(error){return json({ok:false,error:error.message},403)}
+   }
    if(admin&&!['token','refresh','servers','rooms','configure'].includes(action))return json({ok:false,error:'管理员不能创建或更改用户授权'},403);
    if(!admin&&['batch_create','batch_next','batch_cancel','batch_name'].includes(action))return json(await batchAccountAction(this,input));
    if(action==='resume_guest'||action==='cancel_guest'||action==='resume_4399'){

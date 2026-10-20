@@ -34,13 +34,12 @@ Remove-Item Env:GOOS,Env:GOARCH,Env:CGO_ENABLED,Env:CC -ErrorAction SilentlyCont
 Set-Location android
 & $Gradle --offline --no-daemon --console=plain assembleRelease
 if($LASTEXITCODE -ne 0){throw 'APK 打包失败'}
-$SigningPath=if($SigningConfigPath){$SigningConfigPath}else{Join-Path $ProjectRoot 'private/signing.json'}
-if(!(Test-Path -LiteralPath $SigningPath)){ & $Python -c "import secrets,json,pathlib; pathlib.Path(r'$SigningPath').write_text(json.dumps({'password':secrets.token_urlsafe(36)}))" }
+$SigningPath=if($SigningConfigPath){$SigningConfigPath}else{'D:/YouYuan-APK/private/signing.json'}
+if(!(Test-Path -LiteralPath $SigningPath)){throw "签名密码文件缺失：$SigningPath（绝不能自动生成新密钥，否则与线上证书不一致导致无法覆盖安装）"}
 $env:YY_SIGN_PASSWORD=(Get-Content -Raw $SigningPath | ConvertFrom-Json).password
-$Keystore=if($SigningKeystorePath){$SigningKeystorePath}else{Join-Path $ProjectRoot 'private/youyuan-release.jks'}
+$Keystore=if($SigningKeystorePath){$SigningKeystorePath}else{'D:/YouYuan-APK/private/youyuan-release.jks'}
 if(!(Test-Path -LiteralPath $Keystore)) {
- & (Join-Path $JavaHome 'bin/keytool.exe') -genkeypair -keystore $Keystore -storepass:env YY_SIGN_PASSWORD -keypass:env YY_SIGN_PASSWORD -alias youyuan -keyalg RSA -keysize 3072 -validity 10000 -dname 'CN=YouYuan,OU=Toolbox,O=YouYuan,C=CN' -noprompt
- if($LASTEXITCODE -ne 0){throw '签名密钥生成失败'}
+ throw "签名密钥缺失：$Keystore（证书与线上发布的 SHA-256 cd823622… 绑定，不可重新生成）"
 }
 $BuildTools=Join-Path $SdkRoot 'build-tools/34.0.0'
 $Aligned=Join-Path $ProjectRoot 'build/youyuan-aligned.apk'

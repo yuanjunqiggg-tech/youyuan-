@@ -8,6 +8,13 @@
  function image(url,cls){if(!/^https:\/\//i.test(url||''))return null;var n=el('img',null,cls);n.src=url;n.alt='';n.referrerPolicy='no-referrer';n.onerror=function(){n.remove()};return n}
  function host(){var input=document.getElementById('bot-server');if(!input)return null;var box=document.getElementById('yy-room-results');if(!box){box=el('section',null,'yy-room-results');box.id='yy-room-results';input.parentElement.insertAdjacentElement('afterend',box)}return box}
  function clear(){sequence++;document.getElementById('yy-room-results')?.replaceChildren()}
+ async function ensureInput(){
+  var input=document.getElementById('bot-server');if(!input)return '';
+  var v=input.value.trim();if(v)return v;
+  var s=await A('GET','/api/bot/status');
+  if(s&&s.ok&&s.connected&&s.server){input.value=String(s.server);T('已自动填入当前连接的服务器号 '+s.server,'o');return String(s.server)}
+  return '';
+ }
  async function start(candidate,original){
   if(!same(original,fields()))return;
   return previous();
@@ -34,14 +41,16 @@
   if(!rows.length)box.append(el('p',result.complete?'没有找到匹配的房间，请确认号码、房名或分享链接。':'当前未找到候选，待失败类别恢复后重试。'));
  }
  async function discover(force){
-  if(pending)return;var original=fields();if(typeof yySettingsViewGuard==='function')Object.defineProperty(original,'stillLive',{value:yySettingsViewGuard()});if(!original.input){T('请输入服务器号、房间号或分享链接','e');return}
+  if(pending)return;var original=fields();if(typeof yySettingsViewGuard==='function')Object.defineProperty(original,'stillLive',{value:yySettingsViewGuard()});
+  if(!original.input){var auto=await ensureInput();if(!auto){T('请输入服务器号、房间号或分享链接；当前没有已连接的服务器','e');return}original.input=auto}
   pending=true;var run=++sequence,box=host();if(box)box.replaceChildren(el('p','正在查询租赁服、联机房间和本地房间…'));
   try {var result=await A('POST','/api/youyuan/rooms',Object.assign({force:!!force},original));if(run!==sequence||!same(original,fields()))return;if(!result.ok){if(box)box.replaceChildren(el('p',result.error||'房间发现失败'));return}if(result.selected){renderChoice(result.selected,original);await start(result.selected,original);return}render(result,original);if(result.complete&&(result.candidates||[]).length===1)await choose(result.candidates[0],original)}catch(error){if(run===sequence&&box)box.replaceChildren(el('p','房间查询失败，请重试。'))}finally{pending=false}
  }
  var previous=doConn;
  doConn=async function(){var raw=fields().input;
+  if(!raw)raw=await ensureInput()||'';
   // Keep supported explicit share/domain targets on the existing path.
-  if(/^DomainGame:|^LobbyGame:room_id=|^https?:\/\/|mc\.163\.com\//.test(raw)||/^\d{16,20}$/.test(raw)||/^[0-9a-f]{11}(?:_[1-9]\d*)?$/i.test(raw))return previous();
+  if(raw&&(/^DomainGame:|^LobbyGame:room_id=|^https?:\/\/|mc\.163\.com\//.test(raw)||/^\d{16,20}$/.test(raw)||/^[0-9a-f]{11}(?:_[1-9]\d*)?$/i.test(raw)))return previous();
   return discover(false)
  };
  var previousSettings=Rcfg;
