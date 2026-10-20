@@ -4,8 +4,8 @@
 > 与本文件冲突的聊天内容一律作废；发现记录缺失或互相矛盾时，**先停下向用户确认**，不得自行补脑。
 > 更新规则：每完成一个模块或一个阶段 → 更新本文件 → 提交 GitHub，提交信息写明回滚点。
 
-- 最后更新：2026-10-20 03:10（北京时间）
-- 当前阶段：**0.10.75 收尾 + 安全加固**（源码已改、未构建、未部署、未端到端验收）
+- 最后更新：2026-10-20 10:15（北京时间）
+- 当前阶段：**0.10.75 收尾 + 安全加固 + 三平台派单**（源码已改、未构建、未部署、未端到端验收）
 - 线上基线：**0.10.74 / versionCode 1074**
 - 整体完成：**否**（总账 `all_complete=false`）
 - 最近回滚点：**`rb-0.10.75-security-ui`**（多角色审核 + 12 处修复；仅本地验证层）
@@ -181,6 +181,35 @@ DSH 侧协作通道（新建）：`D:/Users/Lenovo/Documents/deepseek-harness/de
 - **UI 剩余 27 条**：S1/S2（命名与面包屑）、S7/S8/S9（20 种圆角 / 6 套按钮 / 4 种开关）、S10（内部术语外露）、S11（危险操作无确认）、S12（移动端触控区 <44px）、S15（11 个主题里 2 个无效）。
 - **跨家族审核缺口**：本轮 UI 审核由 WorkBuddy 内部另起的独立 Agent 完成，仍属 DeepSeek 家族；按协定应由 Codex（OpenAI）或 Antigravity（Google）终审。Codex 额度未恢复，Antigravity 未实测。
 
+### 3.9 三平台派单落地（2026-10-20 10:05–10:15）
+
+**起因**：用户指出「DeepSeek Harness 以及谷歌的反重力那边一点显示都没有，任务列表也没做」。
+
+**核实结果（如实）**：
+
+| 平台 | 派单前状态 | 问题定性 |
+|---|---|---|
+| WorkBuddy | 无任务列表 | 未调用任务工具，面板空白 |
+| DeepSeek Harness | `handoff/tasks/DSH-01~04.md` 存在，`results/` 仅 1 份历史结果 | 文件藏在子目录，GUI 不自动展示；4 个任务零交付 |
+| Antigravity | **零文件** | 只在计划里提过，从未落盘，等于没派 |
+
+**本轮落盘**：
+
+| 位置 | 文件 | 作用 |
+|---|---|---|
+| `D:/.../deepseek-harness/default-workspace/` | `AGENTS.md`（新） | DSH 开工必读：项目路径、开工顺序、硬约束、结果格式、禁止重复项 |
+| 同上 | `TASKS.md`（新） | 顶层看板，4 个任务 + 状态图例 + 可复制开工指令 |
+| `D:/Users/Lenovo/Documents/antigravity-handoff/` | `AGENTS.md`、`TASKS.md`、`tasks/AG-01~03.md`、`results/`（全新） | Antigravity 独立工作区；AG-03 复核 12 处修复（P0）、AG-01 UI 终审、AG-02 安全终审 |
+| `project/outputs/` | `2026-10-20-三平台开工指令.md`（新） | 三平台各自的可复制指令 + 平台能力限制说明 |
+| WorkBuddy 任务面板 | #8–#18 共 11 项 | 覆盖看板、UI 阻断、鉴权、91 项核实、构建、部署、云服务器、上架、小黄鱼、GitHub、跨家族终审 |
+
+**平台能力（实测，写入交接包）**：
+
+- DSH：Electron GUI，进程在跑（6 个），**无 headless CLI**，无法程序化派单。
+- Antigravity：进程在跑（6 个），安装目录只有 `Antigravity.exe`，`Roaming/Antigravity/bin/` 只有 `agy-node.cmd`，**无 `antigravity` 命令入口**，无法程序化打开工作区。
+- 结论：两者只能「写文件 + 用户在 GUI 粘贴指令」，这是硬限制，不是未做。
+
+**仍未解决**：Antigravity 当前工作区为 `outside-of-project`（`app_storage.json` 记录），需用户手动 Open Folder 到 `D:/Users/Lenovo/Documents/antigravity-handoff`。
 
 ## 4. 关键决策（已定，不再重复讨论）
 
@@ -278,6 +307,14 @@ git checkout rb-0.10.75-stage                     # 整树切换（待创建）
 
 ## 8. 下一步（按顺序）
 
+> **2026-10-20 10:12 多平台派单修正**：此前任务只写在 `handoff/` 子目录，DSH 与 Antigravity 的 GUI 均看不到，等于没派单；Antigravity 侧**从未建过任何文件**。现已补齐：
+> - DSH 工作区根新增 `AGENTS.md` + `TASKS.md`（顶层入口，不再依赖翻子目录）
+> - 新建 `D:/Users/Lenovo/Documents/antigravity-handoff/`：`AGENTS.md` + `TASKS.md` + `tasks/AG-01~03.md`
+> - 三平台可复制的开工指令：`outputs/2026-10-20-三平台开工指令.md`
+> - WorkBuddy 任务面板建 11 项任务（#8–#18）
+>
+> **平台限制（如实记录）**：DSH 为 Electron GUI 无 headless CLI；Antigravity 仅有 `agy-node.cmd`、无 `antigravity` 命令入口。两者均无法程序化调用，只能「写文件 + 用户在 GUI 粘贴指令」。这填上了交接包 `api_or_cli_available` 的关键未知项。
+>
 > **2026-10-20 03:10 追加的优先级调整**：安全审查给出的 H1/H2（本机 `/api/*` 零鉴权 + 凭据明文下发）是**上架阻断项**，优先级高于下面原有 0–7。任务书已写成自包含的 `handoff/tasks/DSH-04.md`（含 5 步实现与验收方法）；若 DSH 侧 24 小时内无产出，由主控下一轮直接实现。
 >
 > **待用户确认（不得自行补脑）**：「小黄鱼」在项目文档 grep 与两次历史对话检索中**均为 0 结果**。需要用户说明：它指什么平台（闲鱼店铺？商品？）、要更新哪些字段（版本号/更新说明/截图/下载链接）、入口在哪。确认后才能写进第 5 节发布流程。
@@ -304,3 +341,4 @@ git checkout rb-0.10.75-stage                     # 整树切换（待创建）
 | 2026-10-20 01:45 | 校正任务清单口径：总账实为 120 项（78/35/5/1/1），本节原写 119 项（83/30/4/1/1）已落后；按「总账为唯一计数来源」同步，并提交 4 个未提交的总账文件 | `rb-0.10.75-body-radius` |
 | 2026-10-20 02:05 | 夜间多智能体推进：29 项核实完成（14 已实现/13 部分/2 未实现），修 6 处可本地闭环缺陷（抓包丢包、flush 误判、踢人计数、容器缓存、selector 定速、断线首次原因）+ 1 处 UI 收敛；新建 DSH 文件交接通道；verify-platform/verify-feature 因 429 中断，任务转 DSH | `f619aaa` |
 | 2026-10-20 03:10 | 多角色审核落地：UI 极端审核 39 条（阻断 9）、安全审查高危 6 条并揪出 6 处假修复；本轮修 12 处（H3/H4/H5/M2 + 7 处 UI 阻断/严重），新增 6 项安全单测；Go 全量 + 225 项 Worker + 43 项 auth 全通过；H1/H2 架构级鉴权写成 DSH-04 任务书 | `rb-0.10.75-security-ui` |
+| 2026-10-20 10:15 | 三平台派单落地：DSH 工作区根新增 `AGENTS.md`+`TASKS.md`；新建 `D:/Users/Lenovo/Documents/antigravity-handoff/`（AGENTS/TASKS/AG-01~03/AG-03 复核 12 处修复）；新增 `outputs/2026-10-20-三平台开工指令.md`；WorkBuddy 任务面板建 11 项；实测两平台均无 CLI 入口（只能 GUI 粘贴指令） | 待提交（`rb-0.10.75-multiagent`） |

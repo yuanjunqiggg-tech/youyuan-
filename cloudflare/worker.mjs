@@ -98,7 +98,7 @@ export default {
       if(!env.AUTH_SERVICE)return Response.json({ok:false,error:'独立认证服务尚未部署'},{status:503});
       const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
     }
-    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.74',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'Linux执行；网页通过授权中继访问，管理员直连按已验证的部署配置启用',linux_transport:env.LINUX_DIRECT_MODE==='relay'?'relay':'owner_direct_available',user:identity?.user||(isOwner?{username:'项目管理员',role:'admin',cloud_allowed:true,legacy_owner:true,assigned_devices:['linux-server']}:null)});
+    if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.75',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'Linux执行；网页通过授权中继访问，管理员直连按已验证的部署配置启用',linux_transport:env.LINUX_DIRECT_MODE==='relay'?'relay':'owner_direct_available',user:identity?.user||(isOwner?{username:'项目管理员',role:'admin',cloud_allowed:true,legacy_owner:true,assigned_devices:['linux-server']}:null)});
     const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || (isOwner||identity?.user?.legacy_owner?'linux-server':'primary-device');
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     // Assigned control permission cannot replace the shared node connection.
