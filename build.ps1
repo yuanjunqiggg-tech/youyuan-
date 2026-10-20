@@ -1,4 +1,4 @@
-param([string]$JavaHome='D:/android-build/jdk',[string]$SdkRoot='D:/android-build/sdk',[string]$Gradle='D:/android-build/gradle/bin/gradle.bat',[string]$Python='D:/YouYuan-Codex/.venv/Scripts/python.exe',[string]$SigningConfigPath='',[string]$SigningKeystorePath='')
+﻿param([string]$JavaHome='D:/android-build/jdk',[string]$SdkRoot='D:/android-build/sdk',[string]$Gradle='D:/android-build/gradle/bin/gradle.bat',[string]$Python='D:/YouYuan-Codex/.venv/Scripts/python.exe',[string]$SigningConfigPath='',[string]$SigningKeystorePath='')
 $ErrorActionPreference='Stop'
 $ProjectRoot=$PSScriptRoot
 New-Item -ItemType Directory -Force (Join-Path $ProjectRoot 'build'),(Join-Path $ProjectRoot 'private') | Out-Null

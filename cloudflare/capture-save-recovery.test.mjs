@@ -6,3 +6,12 @@ test('capture save reads back unknown transport result without replaying the wri
  const r=await c.yyGlobalCaptureSave(config);assert.equal(r.ok,true);assert.equal(r.write_recovered,true);assert.deepEqual(calls,['POST','GET']);
  const failed=await c.yyGlobalCaptureSave({enabled:false});assert.equal(failed.ok,false);assert.match(failed.error,/保存结果尚未确认/);assert.deepEqual(calls,['POST','GET','POST','GET']);
 });
+
+// 0 is not a valid interval: yyPatrolDuration rejects sec<=0, so a user who
+// typed 0 got a server-side "间隔需要正有限秒数" instead of a field hint.
+// 1 ms stays the floor because 0.001 s is a documented, tested value.
+test('the switch interval field cannot submit a zero interval',()=>{
+ assert.match(source,/id="yy-gc-interval" type="number" step="any" min="1"/);
+ assert.doesNotMatch(source,/id="yy-gc-interval" type="number" step="any" min="0"/);
+ assert.match(source,/interval_seconds:Math\.max\(1,n\('yy-gc-interval'\)\)\/1000/);
+});

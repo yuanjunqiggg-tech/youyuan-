@@ -83,12 +83,40 @@
     return button('runtime',instance ? '停止' : '启动',[p.id,instance?.account || currentAccount(),instance ? 'stop' : 'start'],instance ? '' : 'yps-primary');
   }
   function currentAccount() { return typeof yyActiveAccount === 'string' && yyActiveAccount ? yyActiveAccount : 'main'; }
+  // 运行状态一行说清楚，不再让用户从按钮文案里反推。
+  // 数据只来自 p.raw.running / p.raw.disabled，没有来源时不猜。
+  function runStateLine(p) {
+    const raw = p.raw || {};
+    let tone = 'off', text = '未在运行', hint = '打开游戏账号后可启动';
+    if (raw.disabled) { tone = 'warn'; text = '已停用'; hint = '下次打开工具箱不会自动启动'; }
+    else if (raw.running) { tone = 'on'; text = '正在运行'; hint = '随账号连接保持运行'; }
+    else if (p.state === 'error') { tone = 'error'; text = '上次启动失败'; hint = '展开上方错误信息处理后再重试'; }
+    return '<p class="yps-state-line"><i class="yps-state-dot" data-tone="' + tone + '" aria-hidden="true"></i><strong>' + esc(text) + '</strong><span>' + esc(hint) + '</span></p>';
+  }
+  function maintenanceGroups(p) {
+    const disabled = !!(p.raw && p.raw.disabled);
+    let html = '<div class="yps-detail-section"><h4>运行</h4>' + runStateLine(p) + '<div class="yps-actions">' +
+      button('reload','重新加载',[p.id]) +
+      button(disabled ? 'enable' : 'disable',disabled ? '恢复自动启动' : '停用并关闭自动启动',[p.id]) +
+      '</div><p class="yps-note">重新加载只重读代码，不影响自动启动设置；停用后本次与下次都不启动。</p></div>';
+    html += '<div class="yps-detail-section"><h4>数据留存</h4><div class="yps-actions">' +
+      button('backup','备份 ZIP',[p.id]) +
+      button('upload','上传到市场',[p.id]) +
+      '</div><p class="yps-note">备份包含代码、配置与数据目录；上传到市场不会删除本地文件。</p></div>';
+    html += '<div class="yps-detail-section yps-danger-zone"><h4>危险操作</h4><div class="yps-actions">' +
+      button('delete','删除插件',[p.id],'yps-danger') +
+      '</div><p class="yps-note">删除会移除代码、配置与数据，无法撤销。删除前请先「备份 ZIP」。</p></div>';
+    return html;
+  }
   function detail(p) {
     let html = '<div class="yps-detail" id="yps-detail-' + esc(p.key) + '"><div class="yps-detail-info">' + (p.name.length > 25 ? '<strong>' + esc(p.name) + '</strong>' : '') + '<p>' + esc(p.description || '此插件未填写说明。') + '</p>' + (p.version ? '<span>版本：' + esc(p.version) + '</span>' : '') + '</div>';
     if (p.kind === 'compat') {
       if (p.raw.error) html += '<p class="yps-error">' + errorHint(p.raw.error) + '</p>' + diagnostics(p.raw.error,p.id);
       html += '<div class="yps-detail-section"><h4>编辑与资料</h4><div class="yps-actions">' + button('edit','编辑代码',[p.id]) + (p.language === 'lua' ? button('assist','AI 帮写',[p.id]) : '') + button('config','配置',[p.id]) + button('directory','文件与数据',[p.id]) + button('rename','名称与说明',[p.id,p.name,p.raw.description || '']) + '</div></div>';
-      html += '<div class="yps-detail-section"><h4>运行与维护</h4><div class="yps-actions">' + button('reload','重新加载',[p.id]) + button(p.raw.disabled ? 'enable' : 'disable',p.raw.disabled ? '恢复自动启动' : '停用并关闭自动启动',[p.id]) + button('backup','备份 ZIP',[p.id]) + button('upload','上传到市场',[p.id]) + button('delete','删除插件',[p.id],'yps-danger') + '</div><p class="yps-note">停用后，下次打开也不会自动启动。删除前请先备份。</p></div>';
+      // 运行与维护拆成三组：日常运行 / 数据留存 / 危险操作。
+      // 原先五个按钮平铺在一行，删除和「重新加载」视觉权重相同，
+      // 是用户点名的「太低级、太杂太乱」。
+      html += maintenanceGroups(p);
       html += '<details class="yps-doc"><summary>操作文档</summary><pre>' + esc(p.raw.docs || '此插件暂未提供操作文档。') + '</pre></details>';
     } else if (p.kind === 'runtime') {
       html += '<div class="yps-detail-section"><h4>账号实例</h4>';

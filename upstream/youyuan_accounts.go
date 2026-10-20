@@ -469,7 +469,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				a.SharedCapture = false
 			}
 			if a.AuthURL == "" {
-				a.AuthURL = "https://susu.bot.cd"
+				a.AuthURL = "https://auth.youyuanqi.dpdns.org"
 			}
 			parsed, e := url.Parse(a.AuthURL)
 			if e != nil || parsed.Scheme != "https" || parsed.Host == "" {

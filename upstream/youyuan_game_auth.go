@@ -4,8 +4,21 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"strings"
 	"time"
+
+	"bot-apk/config"
 )
+
+// yyGameAuthOrigin returns the configured authentication origin, falling back
+// to the product authentication host so a fresh install without a saved
+// config still reaches the real service.
+func yyGameAuthOrigin() string {
+	if cfg := config.LoadConfig(); cfg != nil && strings.TrimSpace(cfg.AuthURL) != "" {
+		return strings.TrimRight(strings.TrimSpace(cfg.AuthURL), "/")
+	}
+	return "https://auth.youyuanqi.dpdns.org"
+}
 
 // Credentials are managed through the owner's authenticated cloud vault.
 // Device keys stay in the private configuration and never reach page markup.
@@ -27,7 +40,7 @@ func yyGameAuthRoutes(mux *http.ServeMux) {
 			writeJSON(w, map[string]any{"ok": false, "error": "请求过大"})
 			return
 		}
-		req, e := http.NewRequestWithContext(r.Context(), r.Method, "https://auth.youyuanqi.dpdns.org/api/accounts", bytes.NewReader(body))
+		req, e := http.NewRequestWithContext(r.Context(), r.Method, yyGameAuthOrigin()+"/api/accounts", bytes.NewReader(body))
 		if e != nil {
 			http.Error(w, "请求失败", 500)
 			return

@@ -76,7 +76,7 @@ func InitConfig(dataDir string) {
 	currentGameIdentity = nil
 }
 func configDefaults() *AppConfig {
-	return &AppConfig{AuthURL: "https://susu.bot.cd", ImportSpeed: 10000, ExportSpeed: 10000, MediaDisplay: "actionbar", MediaTarget: "@a", ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, AutoCreative: true}
+	return &AppConfig{AuthURL: "https://auth.youyuanqi.dpdns.org", ImportSpeed: 10000, ExportSpeed: 10000, MediaDisplay: "actionbar", MediaTarget: "@a", ImportCommands: true, ExcludeWater: true, ExcludeWaterlogged: true, ExcludeLava: true, AutoCreative: true}
 }
 func cloneConfig(cfg *AppConfig) *AppConfig {
 	c := *cfg
