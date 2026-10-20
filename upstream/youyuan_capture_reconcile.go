@@ -28,6 +28,13 @@ func yyGlobalCaptureRun() {
 		summary := map[string]any{"updated_at": time.Now().Format(time.RFC3339Nano), "global_coverage_guaranteed": false}
 		excluded, robotIdentitiesKnown := yyCaptureRobotNamesWithStatus()
 		summary["robot_identities_verified"] = robotIdentitiesKnown
+		staleSlots, unverifiedOnline := yyCaptureAuditLog.snapshot()
+		if len(staleSlots) > 0 {
+			summary["identity_skipped_offline_accounts"] = staleSlots
+		}
+		if len(unverifiedOnline) > 0 {
+			summary["identity_unverified_online_accounts"] = unverifiedOnline
+		}
 		// Server admission is independent of observation. Its adapter only reads
 		// a complete roster and may reject verified newcomers; it never observes
 		// or provisions accounts when capture is disabled.

@@ -244,6 +244,23 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 		if data, e := os.ReadFile(filepath.Join(dataDir, "managed-accounts.json")); e == nil {
 			_ = json.Unmarshal(data, &yyAccounts.Items)
 		}
+		// A disabled account that still carries a slot points at a kernel that
+		// is gone. Any code that probes the slot then reads the failure as
+		// "this robot will not identify itself", which used to freeze the
+		// capture roster forever. Drop the stale slot on load so the state on
+		// disk stops describing a process that does not exist.
+		healed := false
+		for i := range yyAccounts.Items {
+			if !yyAccounts.Items[i].Enabled && yyAccounts.Items[i].Slot > 0 {
+				yyAccounts.Items[i].Slot = 0
+				healed = true
+			}
+		}
+		if healed {
+			yyAccounts.Lock()
+			_ = yyManagedSaveLocked()
+			yyAccounts.Unlock()
+		}
 	}
 	mux.HandleFunc(yyAccountsPrefix, func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, yyAccountsPrefix)

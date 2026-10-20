@@ -239,13 +239,50 @@ func yyCaptureRetire(actor yyPoolActor, selected map[string]bool, c yyGlobalCapt
 	}
 }
 
+// yyCaptureIdentityAudit records why an account could not confirm its robot
+// identity, so operators can tell "slot points at a dead kernel" apart from
+// "kernel is alive but refuses to answer". Only the second case may hold back
+// provisioning: a stale slot must never poison the whole roster.
+type yyCaptureIdentityAudit struct {
+	sync.Mutex
+	// Accounts whose slot is set but whose child kernel is not answerable.
+	// They carry no verified identity, so they are neither trusted as robots
+	// nor used as a reason to suspend provisioning.
+	StaleSlots []string
+	// Connected accounts that did not report a usable name. These do hold
+	// back provisioning, because an unidentified online entity could be a
+	// real player that we would then re-admit and observe recursively.
+	UnverifiedOnline []string
+	CheckedAt        time.Time
+}
+
+func (a *yyCaptureIdentityAudit) snapshot() ([]string, []string) {
+	a.Lock()
+	defer a.Unlock()
+	return append([]string{}, a.StaleSlots...), append([]string{}, a.UnverifiedOnline...)
+}
+
+var yyCaptureAuditLog yyCaptureIdentityAudit
+
 func yyCaptureRobotNames() []string { names, _ := yyCaptureRobotNamesWithStatus(); return names }
+
+// yyCaptureRobotNamesWithStatus collects the machine-readable robot names that
+// must be excluded from player detection, and reports whether every *online*
+// account was able to confirm the identity it plays under.
+//
+// The contract matters: an account whose slot is set but whose kernel is dead
+// (stopped, released, or crashed) is simply absent. Treating it as "identity
+// unknown" pins identitiesKnown=false forever, which froze desired observers
+// at zero and left every other robot offline. Only an account that is online
+// yet cannot report its own name is allowed to clear the flag.
 func yyCaptureRobotNamesWithStatus() ([]string, bool) {
 	names := map[string]bool{}
 	identitiesKnown := true
 	yyAccounts.Lock()
 	items := append([]yyManagedAccount{}, yyAccounts.Items...)
 	yyAccounts.Unlock()
+	staleSlots := []string{}
+	unverifiedOnline := []string{}
 	for _, a := range items {
 		if profile := yyAccountProfileView(a.ID, a.Name); profile["nickname"] != nil {
 			if n, ok := profile["nickname"].(string); ok && n != "" {
@@ -271,6 +308,15 @@ func yyCaptureRobotNamesWithStatus() ([]string, bool) {
 		wg.Add(1)
 		go func(a yyManagedAccount) {
 			defer wg.Done()
+			// Probe first: a dead kernel is not a robot whose identity we
+			// failed to learn, it is an account that is simply not in game.
+			status, statusErr := yyChildJSON(a, "GET", "/api/bot/status", nil)
+			if statusErr != nil || status["connected"] != true {
+				mu.Lock()
+				staleSlots = append(staleSlots, a.ID)
+				mu.Unlock()
+				return
+			}
 			r, e := yyChildJSON(a, "POST", "/api/youyuan/game/call", map[string]any{"method": "bot.self", "args": []any{}})
 			if e == nil {
 				v, _ := r["result"].(map[string]any)
@@ -282,16 +328,23 @@ func yyCaptureRobotNamesWithStatus() ([]string, bool) {
 				} else {
 					mu.Lock()
 					identitiesKnown = false
+					unverifiedOnline = append(unverifiedOnline, a.ID)
 					mu.Unlock()
 				}
 			} else {
 				mu.Lock()
 				identitiesKnown = false
+				unverifiedOnline = append(unverifiedOnline, a.ID)
 				mu.Unlock()
 			}
 		}(a)
 	}
 	wg.Wait()
+	yyCaptureAuditLog.Lock()
+	yyCaptureAuditLog.StaleSlots = staleSlots
+	yyCaptureAuditLog.UnverifiedOnline = unverifiedOnline
+	yyCaptureAuditLog.CheckedAt = time.Now()
+	yyCaptureAuditLog.Unlock()
 	out := []string{}
 	for n := range names {
 		if n != "" {

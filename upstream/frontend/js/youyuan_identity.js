@@ -1,10 +1,23 @@
 /* Platform identity belongs to the root controller, independent of game accounts. */
 var yyPlatformUser=null,yyIdentityMode='login',yyMailRetryUntil=0,yyMailTimer=null;
 var yyIsCloud=location.hostname!=='127.0.0.1'&&location.hostname!=='localhost';
+/* Sending the registration mail and finishing a registration both wait on the
+ * cloud, and the mail leg goes through the Linux relay. Without a client-side
+ * timeout a hung relay leaves the form stuck on "正在连接游园云端…" with the
+ * submit button disabled forever, which is what players reported. 80s matches
+ * the game-auth page, and the task is preserved server-side so retrying only
+ * re-sends what is still missing. */
+var YY_IDENTITY_TIMEOUT_MS=80000;
 async function yyIdentityRequest(action,body){
  var path=yyIsCloud?'/api/identity/'+action:'/api/youyuan/identity';
- var result=await yyRootFetch(path,{method:action==='me'?'GET':'POST',headers:{'Content-Type':'application/json'},body:action==='me'?undefined:JSON.stringify(Object.assign({action:action},body||{}))});
- return result.json();
+ var controller=new AbortController(),timer=setTimeout(function(){controller.abort()},YY_IDENTITY_TIMEOUT_MS);
+ try{
+  var result=await yyRootFetch(path,{method:action==='me'?'GET':'POST',headers:{'Content-Type':'application/json'},body:action==='me'?undefined:JSON.stringify(Object.assign({action:action},body||{})),signal:controller.signal});
+  return await result.json();
+ }catch(e){
+  if(e&&e.name==='AbortError')return {ok:false,error:'云端响应超时（'+Math.round(YY_IDENTITY_TIMEOUT_MS/1000)+'秒）。邮件可能仍在发送，账号不会重复创建；请稍后重试，或换「登录」确认是否已注册成功。',timeout:true};
+  return {ok:false,error:(e&&e.message)||'网络请求失败，请重试'};
+ }finally{clearTimeout(timer)}
 }
 function yyShowIdentity(){
  if(yyMailTimer){clearInterval(yyMailTimer);yyMailTimer=null}yyMailRetryUntil=0;
