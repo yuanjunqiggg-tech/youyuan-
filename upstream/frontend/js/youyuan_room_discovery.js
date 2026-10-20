@@ -40,17 +40,34 @@
   (result.sources||[]).filter(function(s){return !s.ok||s.more}).forEach(function(s){box.append(el('p',labels[s.type]+'：'+(s.more?'还有更多匹配，请输入更具体的号码或房名。':s.error||'查询失败'),'yy-room-hint'))});
   if(!rows.length)box.append(el('p',result.complete?'没有找到匹配的房间，请确认号码、房名或分享链接。':'当前未找到候选，待失败类别恢复后重试。'));
  }
+ function showGuide(){
+  var old=document.getElementById('yy-conn-guide');if(old)old.remove();
+  var m=document.createElement('div');m.id='yy-conn-guide';m.className='modal-overlay';
+  m.innerHTML='<div class="modal-box" style="max-width:420px">'+
+   '<h3 style="margin-bottom:10px">怎么连接服务器</h3>'+
+   '<ol style="font-size:13px;line-height:1.9;padding-left:18px;color:var(--phx-text-secondary)">'+
+   '<li>在上方输入框填：<b>服务器号</b>、<b>房名</b>、<b>#房间号</b>、<b>@短号</b>，或 <b>mc.163.com 分享链接</b>。</li>'+
+   '<li>点「连接服务器」：会自动查询租赁服、联机房间和本地房间；有多个结果时选一个即可。</li>'+
+   '<li>连接后如果一直等待：进入游戏把 <b>OP 权限</b>授予机器人，会自动继续。</li>'+
+   '<li>连接过程可以关掉弹窗后台继续，进度看页面日志。</li>'+
+   '</ol>'+
+   '<div class="row" style="margin-top:14px"><button type="button" class="btn" id="yy-guide-start">开始连接</button><button type="button" class="btn-s" onclick="document.getElementById(\'yy-conn-guide\').remove()">知道了</button></div></div>';
+  document.body.appendChild(m);
+  var s=document.getElementById('yy-guide-start');
+  if(s)s.onclick=function(){m.remove();discover(false)};
+ }
  async function discover(force){
   if(pending)return;var original=fields();if(typeof yySettingsViewGuard==='function')Object.defineProperty(original,'stillLive',{value:yySettingsViewGuard()});
-  if(!original.input){var auto=await ensureInput();if(!auto){T('请输入服务器号、房间号或分享链接；当前没有已连接的服务器','e');return}original.input=auto}
+  if(!original.input){var auto=await ensureInput();if(!auto){showGuide();return}original.input=auto}
   pending=true;var run=++sequence,box=host();if(box)box.replaceChildren(el('p','正在查询租赁服、联机房间和本地房间…'));
   try {var result=await A('POST','/api/youyuan/rooms',Object.assign({force:!!force},original));if(run!==sequence||!same(original,fields()))return;if(!result.ok){if(box)box.replaceChildren(el('p',result.error||'房间发现失败'));return}if(result.selected){renderChoice(result.selected,original);await start(result.selected,original);return}render(result,original);if(result.complete&&(result.candidates||[]).length===1)await choose(result.candidates[0],original)}catch(error){if(run===sequence&&box)box.replaceChildren(el('p','房间查询失败，请重试。'))}finally{pending=false}
  }
  var previous=doConn;
  doConn=async function(){var raw=fields().input;
   if(!raw)raw=await ensureInput()||'';
+  if(!raw){showGuide();return}
   // Keep supported explicit share/domain targets on the existing path.
-  if(raw&&(/^DomainGame:|^LobbyGame:room_id=|^https?:\/\/|mc\.163\.com\//.test(raw)||/^\d{16,20}$/.test(raw)||/^[0-9a-f]{11}(?:_[1-9]\d*)?$/i.test(raw)))return previous();
+  if(/^DomainGame:|^LobbyGame:room_id=|^https?:\/\/|mc\.163\.com\//.test(raw)||/^\d{16,20}$/.test(raw)||/^[0-9a-f]{11}(?:_[1-9]\d*)?$/i.test(raw))return previous();
   return discover(false)
  };
  var previousSettings=Rcfg;
