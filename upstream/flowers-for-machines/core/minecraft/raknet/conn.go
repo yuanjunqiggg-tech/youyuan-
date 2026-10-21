@@ -173,6 +173,13 @@ func (conn *Conn) startTicking() {
 			// Netease: change to 5 seconds per ping
 			if i%5 == 0 {
 				conn.mu.Lock()
+				// 30s matches vanilla client tolerance and the value this fleet ran
+				// stably with. Shorter thresholds (a previous 15s experiment, and the
+				// upstream 5s) turn ordinary server-quiet periods into
+				// disconnect/reconnect cycles, and every reconnect replays the full
+				// RakNet handshake against the server — a handshake storm that shows
+				// up as server-side load, not just a crashed bot. Keep the long
+				// tolerance; the ping/pong cycle (i%50, 5s) keeps live links fresh.
 				if t.Sub(*conn.lastActivity.Load()) > time.Second*30 {
 					// No activity for too long: Start timeout.
 					conn.handler.log().Warn("RakNet idle timeout", "idle", t.Sub(*conn.lastActivity.Load()))

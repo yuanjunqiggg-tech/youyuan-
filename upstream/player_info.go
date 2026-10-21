@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
@@ -63,6 +64,15 @@ type PlayerInfoManager struct {
 	byUUID  map[string]*PlayerInfo // player UUID → PlayerInfo
 	pending map[string]pendingSkin // UUID → 皮肤缓存（玩家名未知时暂存）
 	botName string
+	// skinLogged 记录每个玩家上一次写进终端的皮肤签名。
+	// 服务器会反复广播同一玩家的 PlayerList（进服、皮肤刷新、重连），
+	// 不去重就会把同一条皮肤信息刷满终端。签名变化时才写一行。
+	skinLogged map[string]string
+	// deathAt 记录每个玩家最近一次死亡的时刻。
+	// 死亡时服务端会把玩家从在线列表里摘掉，重生时再放回来，于是
+	// diffPlayerEvents 的 5 秒差量会误报一对「离开服务器 / 进入服务器」。
+	// 留个时间戳，让差量在该窗口内跳过这对假事件。
+	deathAt map[string]time.Time
 }
 
 // NewPlayerInfoManager 创建玩家信息管理器
@@ -73,7 +83,42 @@ func NewPlayerInfoManager() *PlayerInfoManager {
 		byRTID:  make(map[uint64]*PlayerInfo),
 		byUUID:  make(map[string]*PlayerInfo),
 		pending: make(map[string]pendingSkin),
+		skinLogged: make(map[string]string),
+		deathAt:    make(map[string]time.Time),
 	}
+}
+
+// yyDeathGraceWindow 是死亡后抑制进出服差量的窗口。
+// 覆盖「死亡 → 从列表摘掉 → 重生 → 放回列表」整个过程，并留出服务器
+// 广播延迟的余量；超过这个窗口还没回来的，才当作真的退服。
+const yyDeathGraceWindow = 20 * time.Second
+
+// MarkDeath 记录玩家死亡时刻，供 diffPlayerEvents 抑制由此产生的假进出服事件。
+func (pm *PlayerInfoManager) MarkDeath(name string) {
+	if name == "" {
+		return
+	}
+	now := time.Now()
+	pm.mu.Lock()
+	if pm.deathAt == nil {
+		pm.deathAt = make(map[string]time.Time)
+	}
+	// 顺手清理过期记录，避免这个 map 随玩家数无限增长。
+	for n, t := range pm.deathAt {
+		if now.Sub(t) > 4*yyDeathGraceWindow {
+			delete(pm.deathAt, n)
+		}
+	}
+	pm.deathAt[name] = now
+	pm.mu.Unlock()
+}
+
+// RecentlyDied 报告玩家是否在宽限窗口内死亡过。
+func (pm *PlayerInfoManager) RecentlyDied(name string) bool {
+	pm.mu.RLock()
+	t, ok := pm.deathAt[name]
+	pm.mu.RUnlock()
+	return ok && time.Since(t) < yyDeathGraceWindow
 }
 
 // setUUID 更新玩家 UUID 索引，并应用暂存的皮肤数据。
@@ -164,12 +209,17 @@ func (pm *PlayerInfoManager) handlePlayerList(p *packet.PlayerList, logCh chan s
 				pm.players[name] = pi
 				pm.byEID[eid] = pi
 			}
-			// 皮肤诊断：PlayerList ADD 携带皮肤数据时打日志
+			// 皮肤诊断：PlayerList ADD 携带皮肤数据时打日志。
+			// 同一玩家的同一套皮肤只写一次，避免服务器重广播把终端刷屏。
 			if len(entry.Skin.SkinData) > 0 {
-				if logCh != nil {
-					yyReceiveLog(logCh, fmt.Sprintf("[皮肤] PlayerList: %s %dx%d", name, entry.Skin.SkinImageWidth, entry.Skin.SkinImageHeight))
+				sig := fmt.Sprintf("%dx%d:%d", entry.Skin.SkinImageWidth, entry.Skin.SkinImageHeight, len(entry.Skin.SkinData))
+				if pm.skinLogged[name] != sig {
+					pm.skinLogged[name] = sig
+					if logCh != nil {
+						yyReceiveLog(logCh, fmt.Sprintf("[皮肤] PlayerList: %s %dx%d", name, entry.Skin.SkinImageWidth, entry.Skin.SkinImageHeight))
+					}
+					dumpSkinToDebugLog("PlayerListADD name="+name+" uuid="+entry.UUID.String(), &entry.Skin)
 				}
-				dumpSkinToDebugLog("PlayerListADD name="+name+" uuid="+entry.UUID.String(), &entry.Skin)
 			}
 		}
 	} else {
@@ -177,6 +227,8 @@ func (pm *PlayerInfoManager) handlePlayerList(p *packet.PlayerList, logCh chan s
 		for _, e := range p.Entries {
 			entry := e
 			name := entry.Username
+			// 清掉皮肤去重记录：同一玩家再次进服时要重新打印一次。
+			delete(pm.skinLogged, name)
 			if pi, ok := pm.byEID[entry.EntityUniqueID]; ok {
 				pi.Online = false
 				delete(pm.byEID, entry.EntityUniqueID)

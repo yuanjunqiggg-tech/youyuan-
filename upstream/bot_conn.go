@@ -39,6 +39,7 @@ type BotManager struct {
 	physicalNext           time.Time
 	controlCommandMu       sync.Mutex
 	controlBatchMu         sync.Mutex
+	chainFast              yyChainFastGate
 	controlBatchPending    atomic.Int32
 	controlCommandNext     time.Time
 	controlCommands        atomic.Uint64
@@ -1781,11 +1782,16 @@ func (bm *BotManager) sendCommandBuffered(channel CommandChannel, cmd string) er
 	if !connected || conn == nil {
 		return fmt.Errorf("未连接")
 	}
+	// Decide before dimension wrapping: wrapCommandInDimension only adds
+	// "execute in <dim> run", which switches dimension but keeps the executor,
+	// so a bare "tp @s ~ ~ ~" still needs the bot as its executor afterwards.
+	needsBotContext := yyNeedsBotContext(originalCommand)
 	cmd = strings.TrimPrefix(bm.WrapCommandInDimensionWithDim(cmd, dim), "/")
 	if channel == ChannelAI {
-		// SettingsCommand has no CommandOutput flood. Preserve the bot's @s
-		// and relative-coordinate context, rather than using server origin.
-		err := conn.WritePacket(yyFastSettingsPacket(cmd, name))
+		// SettingsCommand has no CommandOutput flood. WritePacketBounded keeps
+		// the 256-packet / 256KiB batch ceiling, so a 20Hz chain still leaves as
+		// a handful of UDP batches per tick instead of one write per command.
+		err := conn.WritePacketBounded(yyFastSettingsPacket(cmd, name, needsBotContext))
 		if err == nil {
 			bm.yyChatSubmitted(originalCommand)
 		}
@@ -1803,8 +1809,21 @@ func (bm *BotManager) sendCommandBuffered(channel CommandChannel, cmd string) er
 	return err
 }
 
-func yyFastSettingsPacket(cmd, name string) *packet.SettingsCommand {
-	if name != "" {
+// yyNeedsBotContext reports whether a command has to run with the bot itself as
+// the executor. A command that already starts with "execute" carries its own
+// executor chain (as/at/positioned...), so wrapping it in yet another
+// "execute as @a[name=...] at @s run" only costs the server one full player-list
+// scan per command and changes nothing about where it runs.
+func yyNeedsBotContext(cmd string) bool {
+	trimmed := strings.TrimSpace(cmd)
+	if strings.HasPrefix(trimmed, "/") {
+		trimmed = strings.TrimSpace(trimmed[1:])
+	}
+	return !strings.HasPrefix(strings.ToLower(trimmed), "execute ")
+}
+
+func yyFastSettingsPacket(cmd, name string, needsBotContext bool) *packet.SettingsCommand {
+	if name != "" && needsBotContext {
 		escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name)
 		cmd = fmt.Sprintf(`execute as @a[name="%s"] at @s run %s`, escaped, cmd)
 	}

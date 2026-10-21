@@ -22,12 +22,12 @@ func (bm *BotManager) diffPlayerEvents() {
 		return // 首次快照只记录
 	}
 	for name := range current {
-		if !prev[name] {
+		if !prev[name] && !playerInfoMgr.RecentlyDied(name) {
 			fireJoinEvent(bm, name)
 		}
 	}
 	for name := range prev {
-		if !current[name] {
+		if !current[name] && !playerInfoMgr.RecentlyDied(name) {
 			fireLeaveEvent(bm, name)
 		}
 	}

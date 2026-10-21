@@ -233,6 +233,20 @@ func (dialer Dialer) DialContext(ctx context.Context, address string) (*Conn, er
 	}
 	dialer.ErrorLog = dialer.ErrorLog.With("src", "dialer", "raddr", conn.RemoteAddr().String())
 
+	// The RakNet handshake must be bounded independently of the caller's login
+	// deadline. Connect() allows 150s for auth+login, and request2 used to fire
+	// every 500ms until that context expired: one dead endpoint turned into a
+	// ~300-packet OpenConnectionRequest2 flood per dial, repeated by the
+	// reconnect loop — the server-side handshake storm. Cap the handshake phase
+	// at 10s (vanilla clients give up around the same point) so an unresponsive
+	// endpoint costs one bounded burst instead of a flood. Normal handshakes
+	// finish in ~1s, so this only ever truncates dead connections.
+	handshakeCtx, cancelHandshake := context.WithTimeout(ctx, time.Second*10)
+	defer cancelHandshake()
+	if deadline, ok := handshakeCtx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+
 	cs := &connState{
 		conn:               conn,
 		raddr:              conn.RemoteAddr(),
@@ -241,9 +255,9 @@ func (dialer Dialer) DialContext(ctx context.Context, address string) (*Conn, er
 		maxTransientErrors: dialer.MaxTransientErrors,
 	}
 	defer cs.ticker.Stop()
-	if err = cs.discoverMTU(ctx); err != nil {
+	if err = cs.discoverMTU(handshakeCtx); err != nil {
 		return nil, dialer.error("dial", fmt.Errorf("发现 MTU: %w", err))
-	} else if err = cs.openConnection(ctx); err != nil {
+	} else if err = cs.openConnection(handshakeCtx); err != nil {
 		return nil, dialer.error("dial", fmt.Errorf("打开连接: %w", err))
 	}
 	return dialer.connect(ctx, cs)

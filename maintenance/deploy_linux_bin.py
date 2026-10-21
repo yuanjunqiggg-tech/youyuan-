@@ -65,6 +65,9 @@ def main() -> int:
     print("远端 sha256 一致")
 
     run(f"chmod +x {REMOTE} && chown root:root {REMOTE}")
+    # Keep one rollback point: the running binary is copied aside before the
+    # swap, so a bad build can be restored without re-uploading anything.
+    run(f"cp -f {TARGET} {TARGET}.rollback && chmod +x {TARGET}.rollback")
     run(f"systemctl stop {SERVICE}")
     run(f"mv {REMOTE} {TARGET}")
     run(f"systemctl start {SERVICE}")

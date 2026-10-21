@@ -837,8 +837,14 @@ func yyQQAssistantEvent(bm *BotManager, e map[string]any) {
 	}
 	text := ""
 	switch {
-	case kind == "death" && cf.Assistant.Death:
-		text = player + " 死亡（服务器事件）"
+	case kind == "death":
+		// Record before the播报 switch: the grace window must apply even when
+		// the death broadcast itself is switched off, otherwise a silent death
+		// still leaks out as "离开服务器 / 进入服务器".
+		playerInfoMgr.MarkDeath(player)
+		if cf.Assistant.Death {
+			text = player + " 死亡（服务器事件）"
+		}
 	case kind == "join" && cf.Assistant.Join:
 		text = player + " 进入服务器"
 	case kind == "leave" && cf.Assistant.Leave:

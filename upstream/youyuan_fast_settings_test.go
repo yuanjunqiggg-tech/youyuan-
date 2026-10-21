@@ -13,11 +13,16 @@ func TestFastArrayDoesNotIgnoreExplicitTransport(t *testing.T) {
 }
 
 func TestFastSettingsPreservesBotContext(t *testing.T) {
-	p := yyFastSettingsPacket("scoreboard players add @s test 1", "机器人")
+	// Both commands are bare (no leading execute), so they rely on @s and must
+	// keep the bot executor wrapper.
+	if !yyNeedsBotContext("scoreboard players add @s test 1") || !yyNeedsBotContext("say test") {
+		t.Fatal("bare commands must be detected as needing bot context")
+	}
+	p := yyFastSettingsPacket("scoreboard players add @s test 1", "机器人", true)
 	if !p.SuppressOutput || p.CommandLine != `execute as @a[name="机器人"] at @s run scoreboard players add @s test 1` {
 		t.Fatalf("lost bot context: %+v", p)
 	}
-	p = yyFastSettingsPacket("say test", `a"b\c`)
+	p = yyFastSettingsPacket("say test", `a"b\c`, true)
 	if p.CommandLine != `execute as @a[name="a\"b\\c"] at @s run say test` {
 		t.Fatalf("unsafe selector: %s", p.CommandLine)
 	}
