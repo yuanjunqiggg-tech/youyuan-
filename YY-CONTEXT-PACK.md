@@ -22,13 +22,19 @@
 - **Python**：`C:/Users/Lenovo/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe`
 - **构建**：`cd upstream && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../build/youyuan-linux-x86_64 .`
 
-## 2. 当前进行中的事故（2026-10-21）
+## 2. 当前进行中的事故（2026-10-21，box 已被重置）
 
-- **box 自 2026-10-20 22:50 起失联**：SSH TCP 秒连但 120s 不出 banner；Cloudflare DO→box 中继全断。
-- **三个症状一个根因**：注册卡死（register-code 503「发信服务暂不可用」）/ Grok MCP 503「游园执行端未连接」/ 机器人重连风暴。
-- **等用户操作**：阿里云控制台重启 47.102.156.125。
-- **恢复后第一件事**：部署已编译好的 `build/youyuan-linux-x86_64`（commit `5d64743`，sha256 `a3a6a94f`）。
-- 恢复守护：`maintenance/server_recovery_daemon.py`（90s/次探测，SSH 恢复后自动诊断+重启服务）。
+- **用户重启无效后误触「重置系统」**：系统盘已还原为全新 Ubuntu 24.04，SSH banner 恢复但
+  host key 已变（，pin 已更新）；**root 仅接受 publickey**，密码认证被禁。
+- box 上原数据（/opt/youyuan、/var/lib/youyuan）随系统盘丢失；**数据盘（若有）待确认**。
+- Cloudflare 侧不受影响：用户账号 DO、游戏账号 vault、隧道 ingress 规则都在 CF，未丢。
+- 恢复套件已全部备好：（一键重建）+ 本地资产：
+  二进制 、cloudflared、、
+  隧道令牌 、发信 、
+  配置快照 + 、插件源码 （ds-r20a 两个包）、
+  命令链 dump （含雪球菜单_综合功能.txt）。
+- **唯一卡点：SSH 进入方式**。等用户在控制台开密码认证（或绑私钥给我），先
+   盘点数据盘，再全量重建。
 
 ## 3. 部署事实（别再猜）
 
