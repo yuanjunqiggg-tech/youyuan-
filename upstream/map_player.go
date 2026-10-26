@@ -204,7 +204,9 @@ type itemFrameInfo struct {
 }
 
 func (mp *MapPlayer) scanViaStructure(minX, minY, minZ, maxX, maxY, maxZ int32) ([]*itemFrameInfo, error) {
+	mp.bm.mu.Lock()
 	gi := mp.bm.gameInterface
+	mp.bm.mu.Unlock()
 	if gi == nil {
 		return nil, errors.New("game interface 不可用")
 	}

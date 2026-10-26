@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "ann-welcome-20261026",
+      "title": "MCORT 主题与公告框架已可用",
+      "content": "打开 /#announce 可查看公告，管理员可在同一页发布。主题放 dataDir/themes/<id>/，插件放 dataDir/plugins/<id>/。主题只改 --mcort-theme-* 变量；MCORT 标识与作者「疣螈」由硬编码层保留，不可移除。",
+      "severity": "info",
+      "pinned": true,
+      "author": "疣螈",
+      "created_at": 1792972800000,
+      "updated_at": 1792972800000
+    }
+  ]
+}

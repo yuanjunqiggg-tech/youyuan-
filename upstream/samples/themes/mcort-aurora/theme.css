@@ -1,0 +1,31 @@
+/* MCORT Aurora · 示例主题
+ *
+ * 只改 --mcort-theme-* 变量与背景。MCORT 标识与「作者 疣螈」由硬编码层
+ * 以 inline !important + MutationObserver 保住，主题层碰不到。
+ * 想换配色就改 :root[data-mcort-theme="mcort-aurora"] 里的变量。
+ */
+:root[data-mcort-theme="mcort-aurora"] {
+  --mcort-theme-bg: #0b1220;
+  --mcort-theme-surface: #121c2e;
+  --mcort-theme-ink: #e8eefc;
+  --mcort-theme-accent: #5eead4;
+  --mcort-theme-line: #22314a;
+  --mcort-theme-radius: 14px;
+}
+
+:root[data-mcort-theme="mcort-aurora"] body {
+  background:
+    radial-gradient(1200px 600px at 12% -10%, #12324a 0%, transparent 62%),
+    radial-gradient(900px 520px at 108% 8%, #1b2a5a 0%, transparent 58%),
+    var(--mcort-theme-bg);
+  color: var(--mcort-theme-ink);
+}
+
+:root[data-mcort-theme="mcort-aurora"] .card,
+:root[data-mcort-theme="mcort-aurora"] .panel {
+  border-color: var(--mcort-theme-line);
+}
+
+:root[data-mcort-theme="mcort-aurora"] a {
+  color: var(--mcort-theme-accent);
+}

@@ -84,9 +84,7 @@ func TestChainFastWriteFailurePoisonsConnectionWithoutReplay(t *testing.T) {
 		}
 		_, unknown, err := yyChainFastChunks(context.Background(), yyFastTestNodes(1), yyChainConfig{}, "", "",
 			func([]packet.Packet) (bool, error) { sent++; return true, writeErr })
-		if unknown {
-			gate.poisoned = err
-		}
+		gate.writeOutcome(unknown, err)
 		return err
 	}
 	if err := run(oldConn, failed); !errors.Is(err, failed) || sent != 1 {
@@ -97,6 +95,28 @@ func TestChainFastWriteFailurePoisonsConnectionWithoutReplay(t *testing.T) {
 	}
 	if err := run(newConn, nil); err != nil || sent != 2 {
 		t.Fatalf("fresh connection remained poisoned: sent=%d err=%v", sent, err)
+	}
+}
+
+func TestChainFastNormalCancellationDoesNotDisableHealthyConnection(t *testing.T) {
+	for _, ended := range []error{context.Canceled, context.DeadlineExceeded} {
+		var gate yyChainFastGate
+		conn := new(minecraft.Conn)
+		if err := gate.bind(conn); err != nil {
+			t.Fatal(err)
+		}
+		_, unknown, err := yyChainFastChunks(context.Background(), yyFastTestNodes(3), yyChainConfig{}, "", "", func([]packet.Packet) (bool, error) { return true, ended })
+		if !unknown || !errors.Is(err, ended) {
+			t.Fatal(unknown, err)
+		}
+		gate.writeOutcome(unknown, err)
+		if err := gate.bind(conn); err != nil {
+			t.Fatal("normal stop disabled later modules on same connection", err)
+		}
+		gate.writeOutcome(true, errors.New("real network write failure"))
+		if gate.bind(conn) == nil {
+			t.Fatal("real network ambiguity no longer blocks replay")
+		}
 	}
 }
 
@@ -123,6 +143,22 @@ func TestChainFastLongModuleKeepsOrderWithoutServerProbe(t *testing.T) {
 	for i, row := range rows {
 		if row["submitted"] != true || row["confirmed"] != false || row["fence_received"] != nil || row["success"] == true {
 			t.Fatalf("business success invented at %d: %v", i, row)
+		}
+	}
+}
+
+func TestChainFastStatusRowsRemainIndependentAcrossInvocations(t *testing.T) {
+	success, _, err := yyChainFastChunks(context.Background(), yyFastTestNodes(2500), yyChainConfig{}, "", "", func([]packet.Packet) (bool, error) { return true, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed, unknown, err := yyChainFastChunks(context.Background(), yyFastTestNodes(2500), yyChainConfig{}, "", "", func([]packet.Packet) (bool, error) { return true, errors.New("unknown write") })
+	if err == nil || !unknown {
+		t.Fatal("failed call lost uncertainty", err)
+	}
+	for i := range success {
+		if success[i]["submitted"] != true || success[i]["unknown"] == true || failed[i]["submitted"] != false || (failed[i]["unknown"] == true) != (i < 1024) {
+			t.Fatal("status was mutated across commands or invocations", i, success[i], failed[i])
 		}
 	}
 }
@@ -248,18 +284,14 @@ func TestChainFastPreservesCallerManagedDelayMetadata(t *testing.T) {
 	}
 }
 
-// A chain line that already starts with execute carries its own executor, so
-// wrapping it in another "execute as @a[name=...] at @s run" adds one full
-// player-list scan per command on the server and changes nothing. Only bare
-// commands that rely on @s / ~ need the bot context wrapper.
-func TestFastSettingsPacketSkipsRedundantExecutorWrap(t *testing.T) {
+func TestFastSettingsPacketKeepsLegacyExecutorWrap(t *testing.T) {
 	cases := []struct {
 		command string
 		wrapped bool
 	}{
-		{"execute as @a[tag=return_surface] at @s run tp @s ~ ~-1 ~", false},
-		{"/execute at @e[type=snowball] as @p[r=3] run scoreboard players add @s 雪球菜单 1", false},
-		{"  EXECUTE in nether run say hi", false},
+		{"execute as @a[tag=return_surface] at @s run tp @s ~ ~-1 ~", true},
+		{"/execute at @e[type=snowball] as @p[r=3] run scoreboard players add @s 雪球菜单 1", true},
+		{"  EXECUTE in nether run say hi", true},
 		{"tp @s ~ ~-1 ~", true},
 		{"/say hello", true},
 		{"give @r snowball 1", true},
@@ -271,4 +303,16 @@ func TestFastSettingsPacketSkipsRedundantExecutorWrap(t *testing.T) {
 			t.Fatalf("%q: wrapped=%v want %v (%s)", c.command, wrapped, c.wrapped, pk.CommandLine)
 		}
 	}
+}
+
+func yyChainFastChunks(ctx context.Context, nodes []yyChainNode, cfg yyChainConfig, dim, name string, send func([]packet.Packet) (bool, error)) ([]map[string]any, bool, error) {
+	result, err := yyChainFastSubmit(ctx, nodes, cfg, dim, name, send)
+	rows := make([]map[string]any, len(nodes))
+	for i := range rows {
+		rows[i] = map[string]any{"submitted": i < result.Submitted, "confirmed": false}
+		if i >= result.Submitted && i < result.UnknownEnd {
+			rows[i]["attempted"], rows[i]["unknown"] = true, true
+		}
+	}
+	return rows, result.UnknownEnd > result.Submitted, err
 }

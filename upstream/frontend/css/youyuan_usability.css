@@ -16,8 +16,15 @@
 input[type=range]{height:44px!important;min-height:44px!important;cursor:pointer;touch-action:pan-y;accent-color:var(--phx-primary)}.yy-document{line-height:1.8;overflow-wrap:anywhere}.yy-document pre{white-space:pre;overflow:auto;padding:16px;border-radius:10px;background:var(--phx-bg-secondary)}
 @media(max-width:760px){.yy-palette-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.yy-account-toolbar{gap:8px}.yy-account-toolbar select{min-width:105px;font-size:12px}.yy-pagination{gap:10px}.yy-stat{min-height:128px}.yy-stat small{line-height:1.65}.sp-header{padding:8px 16px;height:64px}.nav{touch-action:pan-y!important}.yy-form-grid{align-items:start}}
 @media(prefers-reduced-motion:reduce){.nav-glide,.nav-glide-lens{transition:none!important}}
- #yy-identity-gate{position:fixed;inset:0;z-index:2147480000;background:linear-gradient(135deg,#eef7f4,#f0f2fa);overflow:auto;display:grid;place-items:center;padding:24px;color:#263d38}
- .yy-identity-card{width:min(100%,440px);padding:28px;background:#ffffffef;border:1px solid #d5e6df;border-radius:28px;box-shadow:0 20px 70px #35584e18}
+ /* 登录门：360 下曾横向溢出 46px（gate scrollWidth 406 / clientWidth 360，卡片 x24 w358 right382）。
+    原因：`.yy-identity-card{width:min(100%,440px)}` 放在 place-items:center 的自动轨道里，
+    100% 的参照就是这个按 max-content 撑开的轨道 —— 循环依赖，轨道按卡片内容撑到 358，
+    比可用宽度 312 还宽。这里把轨道显式定成 minmax(0,1fr)，卡片改成 width:100% + max-width。 */
+ #yy-identity-gate{position:fixed;inset:0;z-index:2147480000;background:linear-gradient(135deg,#eef7f4,#f0f2fa);overflow:auto;overflow-x:hidden;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;padding:24px;box-sizing:border-box;max-width:100%;color:#263d38}
+ .yy-identity-card{width:100%;max-width:440px;min-width:0;box-sizing:border-box;padding:28px;background:#ffffffef;border:1px solid #d5e6df;border-radius:28px;box-shadow:0 20px 70px #35584e18}
+ /* 卡片内所有可伸缩块都允许收缩，避免某一项 min-content 把卡片顶宽。 */
+ .yy-identity-card input,.yy-identity-card .yy-mail-code,.yy-identity-card .yy-mail-code input,.yy-identity-card .yy-actions,.yy-identity-card .yy-turnstile-slot{min-width:0;max-width:100%;box-sizing:border-box}
+ @media(max-width:420px){#yy-identity-gate{padding:12px}.yy-identity-card{padding:20px;border-radius:20px}.yy-identity-card h1{font-size:24px}}
  .yy-identity-card h1{font-size:30px;margin:20px 0 8px}.yy-identity-card p{line-height:1.7}.yy-identity-card label{display:block;margin:16px 0 6px}.yy-identity-card input{width:100%;min-height:48px;background:#f5f8f7;color:#203a33}.yy-identity-card>.btn{margin-top:22px;width:100%;min-height:48px}.yy-identity-brand{font-weight:700;letter-spacing:1px;color:#187a6b}.yy-identity-card small{display:block;margin-top:8px;color:#687d75}.yy-identity-card details{margin-top:12px}
 #yy-sdk-installed .yy-runtime-row{flex-wrap:wrap;align-items:flex-start;gap:16px}#yy-sdk-installed .yy-runtime-row>div:first-child{flex:1 1 260px;min-width:0}#yy-sdk-installed small{display:block;white-space:normal;overflow-wrap:anywhere}#yy-sdk-installed .yy-actions{flex-wrap:wrap;gap:8px}#yy-sdk-installed .yy-runtime-row .yy-hint{overflow-wrap:anywhere}
 
@@ -26,3 +33,15 @@ input[type=range]{height:44px!important;min-height:44px!important;cursor:pointer
 /* Plugin cards: text and controls occupy separate rows on every screen. */
 .plg-head{display:block!important;padding:16px 0!important}.plg-summary{width:100%;min-width:0}.plg-name{font-weight:650;font-size:16px;line-height:1.5;white-space:normal;word-break:normal;overflow-wrap:anywhere}.plg-description{font-size:12px;color:var(--phx-text-secondary);line-height:1.65;margin-top:6px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;word-break:normal}.plg-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--phx-border-light)}.plg-controls .plg-state{font-size:11px;color:var(--phx-text-secondary);margin-right:auto}.plg-controls .tsk-act{width:auto!important;min-height:38px;white-space:nowrap;padding:7px 10px!important;flex:0 0 auto!important}.plg-controls .plg-sw{width:46px;min-width:46px;padding:0!important;min-height:38px!important}.plg-full-description{font-size:12px;line-height:1.7;white-space:normal;overflow-wrap:anywhere}.plg-body .plg-docs{overflow-wrap:anywhere}.plg-body .plg-docs pre{white-space:pre;overflow:auto;max-width:100%}.plg-body .tsk-act{min-height:38px;white-space:nowrap}.plg-card{padding:0 16px!important}.plg-section{width:100%;box-sizing:border-box}.plg-section>.card{min-width:0}
 @media(max-width:480px){.plg-name{font-size:15px}.plg-controls{gap:6px}.plg-controls .tsk-act{padding:7px 9px!important;font-size:12px}.plg-controls .plg-state{font-size:10px}}
+
+/* 登录/注册前置人机验证：容器只占位，组件由 Turnstile 注入 */
+.yy-identity-card .yy-turnstile-slot{margin:14px 0 2px;min-height:65px;display:flex;justify-content:flex-start;overflow:hidden}
+.yy-identity-card .yy-turnstile-slot[hidden]{display:none}
+.yy-identity-card .yy-turnstile-slot:empty{min-height:0;margin:0}
+
+/* 人机验证：加载提示 / 失败重试 / PoW 兜底状态 */
+.yy-identity-card .yy-turnstile-hint{margin:8px 0 2px;font-size:12px;line-height:1.65;color:var(--phx-text-secondary);display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.yy-identity-card .yy-turnstile-hint[hidden]{display:none}
+.yy-identity-card .yy-turnstile-retry{flex:0 0 auto;padding:4px 12px;font-size:12px;line-height:1.5;border-radius:999px;border:1px solid var(--phx-border);background:var(--phx-bg-secondary);color:var(--phx-text);cursor:pointer;transition:background .18s ease,border-color .18s ease}
+.yy-identity-card .yy-turnstile-retry:hover{background:var(--phx-bg-card);border-color:var(--phx-primary)}
+.yy-identity-card .yy-turnstile-retry:active{transform:translateY(1px)}

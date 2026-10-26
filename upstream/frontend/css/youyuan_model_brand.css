@@ -1,0 +1,176 @@
+/* 模型品牌 logo 自定义选择器（配 youyuan_model_brand.js）。
+ * 原生 select 保留在 DOM（.yyb-native 视觉隐藏），现有 .value 读取逻辑不变。
+ * 走 --phx-* 设计变量；移动端 360px 适配，点选区 ≥44px。 */
+
+.yyb-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+}
+
+.yyb-select {
+  position: relative;
+  min-width: 0;
+}
+
+.yyb-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 11px;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 10px;
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.yyb-trigger:hover { border-color: var(--phx-primary); }
+.yyb-trigger:focus-visible { outline: 2px solid var(--phx-primary); outline-offset: 1px; }
+.yyb-open .yyb-trigger { border-color: var(--phx-primary); }
+
+/* 官方 logo 芯片：白底圆角块，黑 logo（OpenAI/Grok）与彩 logo 都能正常显示 */
+.yyb-chip {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.yyb-chip img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
+.yyb-chip-def {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.yyb-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yyb-caret {
+  flex: 0 0 auto;
+  color: var(--phx-text-secondary);
+  font-size: 11px;
+}
+
+/* 弹出面板：fixed 定位（祖先 .yyq-fold 有 overflow:hidden，absolute 会被裁剪），
+ * JS 打开时按触发器坐标摆放，空间不够自动上翻。 */
+.yyb-panel {
+  position: fixed;
+  z-index: 400;
+  max-height: min(264px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  background: var(--phx-bg-card);
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .38);
+}
+.yyb-panel[hidden] { display: none; }
+
+.yyb-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+}
+.yyb-option:hover,
+.yyb-option.yyb-active { background: var(--phx-bg-secondary); }
+.yyb-option.yyb-sel { box-shadow: inset 0 0 0 1px var(--phx-primary); }
+
+.yyb-text { min-width: 0; flex: 1 1 auto; }
+.yyb-text b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--phx-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yyb-text small {
+  display: block;
+  font-size: 11px;
+  color: var(--phx-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+/* 「获取模型列表」行：select + 按钮并排，窄屏换行 */
+.yyb-fetch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.yyb-fetch-row .yyb-select { flex: 1 1 200px; }
+.yyb-fetch-row .btn-s {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+.yyb-fetch-row .btn-s[disabled] { opacity: .6; pointer-events: none; }
+
+@media (max-width: 760px) {
+  .yyb-fetch-row .yyb-select { flex: 1 1 100%; }
+  .yyb-panel { max-height: min(240px, 46vh); }
+}
+
+/* 手动输入兜底（服务端不返回 /models 时用） */
+.yyb-manual {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.yyb-manual > summary {
+  cursor: pointer;
+  color: var(--phx-text-secondary);
+  padding: 6px 0;
+  min-height: 32px;
+}
+.yyb-manual > summary:hover { color: var(--phx-text); }
+.yyb-manual .yyb-fetch-row { margin-top: 6px; }
+.yyb-manual input {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 10px;
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+  font-size: 13px;
+}

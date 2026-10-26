@@ -1,0 +1,10 @@
+{
+  "id": "seed-query",
+  "name": "种子查询器",
+  "version": "1.0.0",
+  "author": "疣螈",
+  "description": "把种子查询以插件方式接入 MCORT。当前只登记与展示，main.js 不执行；执行层需要显式白名单 + 二次确认。",
+  "entry": "main.js",
+  "mcort_plugin_api": 1,
+  "capabilities": ["panel", "api"]
+}

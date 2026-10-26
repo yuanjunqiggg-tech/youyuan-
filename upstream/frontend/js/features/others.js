@@ -2,29 +2,120 @@
 // 其他功能 — 子页面卡片网格
 // ═══════════════════════════════════════
 
-function RothersHTML() {
-var cards = [
-    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16l-3-3m3 3-3 3M20 17H4l3-3m-3 3 3 3"/></svg>', t:'区域迁移', d:'来源服导出 · 切服后导入', act:function(){openSubPage('区域迁移',RmgrtLiteHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="18" height="18" rx="2"/><line x1="2" y1="7" x2="20" y2="7"/><line x1="2" y1="12" x2="20" y2="12"/><line x1="2" y1="17" x2="20" y2="17"/><line x1="7" y1="2" x2="7" y2="20"/><line x1="12" y1="2" x2="12" y2="20"/><line x1="17" y1="2" x2="17" y2="20"/></svg>', t: '滚动字幕', d: 'ASCII 大字滚动', act: function(){openSubPage('滚动字幕', RmarqueeHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>', t: 'mcfunction 执行器', d: '命令文件执行 / 语法高亮', act: function(){openSubPage('mcfunction 执行器', RmcfunctionHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>', t: '相机工具', d: 'camera 指令生成 / 镜头录制', act: function(){openSubPage('相机工具', RcameraHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14l-5-5-5 5"/><path d="M17 20l-5-5-5 5"/><line x1="12" y1="2" x2="12" y2="9"/></svg>', t: '飞行控制', d: '机器人移动 / 视角 / 传送', act: function(){delete subPageCache['飞行控制'];openSubPage('飞行控制', RflyHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', t: '物品制作器', d: '木桶自定义物品 / 换行 / 颜色', act: function(){delete subPageCache['物品制作器'];openSubPage('物品制作器', RitemmakerHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>', t: '命令方块工程', d: '命令区导入 / 导出', act: function(){delete subPageCache['命令方块工程'];openSubPage('命令方块工程', RcbHTML())}},
-    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h13a1 1 0 0 1 1 1v13"/><path d="M4 3v18"/><rect x="4" y="6" width="9" height="12" rx="1"/></svg>', t: '画板', d: '像素画绘制 · 实时同步', act: function(){openSubPage('画板', RdrawHTML()); setTimeout(function(){try{initDraw()}catch(e){}}, 30)}},
+var yyToolsCards = [
+    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16l-3-3m3 3-3 3M20 17H4l3-3m-3 3 3 3"/></svg>', t:'区域迁移', d:'来源服导出 · 切服后导入', cat:'建筑与世界', act:function(){openSubPage('区域迁移',RmgrtLiteHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="18" height="18" rx="2"/><line x1="2" y1="7" x2="20" y2="7"/><line x1="2" y1="12" x2="20" y2="12"/><line x1="2" y1="17" x2="20" y2="17"/><line x1="7" y1="2" x2="7" y2="20"/><line x1="12" y1="2" x2="12" y2="20"/><line x1="17" y1="2" x2="17" y2="20"/></svg>', t: '滚动字幕', d: 'ASCII 大字滚动', cat:'图形与媒体', act: function(){openSubPage('滚动字幕', RmarqueeHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>', t: 'mcfunction 执行器', d: '命令文件执行 / 语法高亮', cat:'命令与开发', act: function(){openSubPage('mcfunction 执行器', RmcfunctionHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>', t: '相机工具', d: 'camera 指令生成 / 镜头录制', cat:'图形与媒体', act: function(){openSubPage('相机工具', RcameraHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14l-5-5-5 5"/><path d="M17 20l-5-5-5 5"/><line x1="12" y1="2" x2="12" y2="9"/></svg>', t: '飞行控制', d: '机器人移动 / 视角 / 传送', cat:'自动化与机器人', act: function(){delete subPageCache['飞行控制'];openSubPage('飞行控制', RflyHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', t: '物品制作器', d: '木桶自定义物品 / 换行 / 颜色', cat:'命令与开发', act: function(){delete subPageCache['物品制作器'];openSubPage('物品制作器', RitemmakerHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>', t: '命令方块工程', d: '命令区导入 / 导出', cat:'命令与开发', act: function(){delete subPageCache['命令方块工程'];openSubPage('命令方块工程', RcbHTML())}},
+    {i: '<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h13a1 1 0 0 1 1 1v13"/><path d="M4 3v18"/><rect x="4" y="6" width="9" height="12" rx="1"/></svg>', t: '画板', d: '像素画绘制 · 实时同步', cat:'图形与媒体', act: function(){openSubPage('画板', RdrawHTML()); setTimeout(function(){try{initDraw()}catch(e){}}, 30)}},
+    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><circle cx="12" cy="10" r="1.6"/></svg>', t: '总部查询器', d: '厅服房间聚合 · 本机计算', cat:'其他实用工具', act: function(){openSubPage('总部查询器', RhqQueryHTML())}},
+    // 种子查询器：群系地图 + 结构定位 + 全维度。Canvas 本机渲染，见 features/seed_map.js。
+    {i: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/><path d="M2 21h20"/></svg>', t: '种子查询器', d: '群系地图 · 结构定位 · 全维度', cat:'建筑与世界', act: function(){delete subPageCache['种子查询器'];openSubPage('种子查询器', RseedMapHTML());setTimeout(function(){try{ysmInit()}catch(e){}},30)}},
       ];
 
-  var h = '<div class="grid-2" style="margin-top:8px">';
-  for (var i = 0; i < cards.length; i++) {
-    var f = cards[i];
-    h += '<div class="grid-card" onclick="(' + f.act.toString() + ')()">' +
-      '<div class="gc-icon">' + f.i + '</div>' +
-      '<div class="gc-title">' + f.t + '</div>' +
-      '<div class="gc-sub">' + f.d + '</div></div>';
-  }
-  h += '</div>';
-  return h;
+// 分类顺序固定，空分类不渲染——「资源与文件」暂时没有工具，就不会出现光秃秃一个标题。
+var yyToolsCats = ['建筑与世界', '资源与文件', '自动化与机器人', '图形与媒体', '命令与开发', '其他实用工具'];
+var yyToolsRecentKey = 'yy_tools_recent_v1';
+
+function yyToolsRecentRead() {
+  try {
+    var arr = JSON.parse(localStorage.getItem(yyToolsRecentKey) || '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(function (x) { return typeof x === 'string'; }).slice(0, 4);
+  } catch (e) { return []; }
 }
+function yyToolsRecentNote(title) {
+  try {
+    var arr = yyToolsRecentRead().filter(function (x) { return x !== title; });
+    arr.unshift(title);
+    localStorage.setItem(yyToolsRecentKey, JSON.stringify(arr.slice(0, 4)));
+  } catch (e) {}
+}
+function yyToolsIndexByTitle(title) {
+  for (var i = 0; i < yyToolsCards.length; i++) if (yyToolsCards[i].t === title) return i;
+  return -1;
+}
+// 一行一个工具：图标（20px 以内）+ 名称（主信息）+ 描述（次要）+ 箭头。
+// 不用卡片包裹，靠行距和细分隔线分组——卡片只在「整体可点且是独立对象」时才用。
+function yyToolsRowHTML(card, index) {
+  return '<button type="button" class="yyt-row" onclick="yyToolsRun(' + index + ')">' +
+    '<span class="yyt-ico" aria-hidden="true">' + card.i + '</span>' +
+    '<span class="yyt-txt"><strong class="yyt-name">' + card.t + '</strong>' +
+    '<small class="yyt-desc">' + card.d + '</small></span>' +
+    '<span class="yyt-go" aria-hidden="true">\u203A</span></button>';
+}
+function yyToolsListHTML(filter) {
+  var needle = String(filter || '').trim().toLowerCase();
+  var hit = function (c) {
+    return !needle || (c.t + ' ' + c.d + ' ' + c.cat).toLowerCase().indexOf(needle) >= 0;
+  };
+  var out = '', total = 0;
+  for (var c = 0; c < yyToolsCats.length; c++) {
+    var rows = '';
+    for (var i = 0; i < yyToolsCards.length; i++) {
+      if (yyToolsCards[i].cat !== yyToolsCats[c] || !hit(yyToolsCards[i])) continue;
+      rows += yyToolsRowHTML(yyToolsCards[i], i);
+      total++;
+    }
+    if (rows) out += '<section class="yyt-cat"><h3 class="yyt-cat-title">' + yyToolsCats[c] + '</h3>' + rows + '</section>';
+  }
+  if (!total) out = '<p class="yyt-empty">没有匹配「' + String(filter || '').replace(/[<>&]/g, '') + '」的工具。</p>';
+  return out;
+}
+function yyToolsRecentHTML() {
+  var titles = yyToolsRecentRead(), rows = '';
+  for (var i = 0; i < titles.length; i++) {
+    var idx = yyToolsIndexByTitle(titles[i]);
+    if (idx >= 0) rows += yyToolsRowHTML(yyToolsCards[idx], idx);
+  }
+  return rows ? '<section class="yyt-cat yyt-recent"><h3 class="yyt-cat-title">最近使用</h3>' + rows + '</section>' : '';
+}
+function yyToolsSearch(value) {
+  var body = document.getElementById('yyt-body');
+  if (body) body.innerHTML = yyToolsListHTML(value);
+  var recent = document.getElementById('yyt-recent');
+  if (recent) recent.innerHTML = String(value || '').trim() ? '' : yyToolsRecentHTML();
+}
+function yyToolsRun(index) {
+  var card = yyToolsCards[index];
+  if (!card) return;
+  yyToolsRecentNote(card.t);
+  try { card.act(); } catch (e) { if (typeof T === 'function') T('打开失败：' + e.message, 'e'); }
+}
+function RothersHTML() {
+  // 首屏直接把列表灌进字符串：openSubPage 之后不再等一次 setTimeout，
+  // 免得用户看到一瞬空白。搜索只重绘 #yyt-body。
+  return '<div class="yyt">' +
+    '<input type="search" id="yyt-search" class="yyt-search" placeholder="搜索工具" aria-label="搜索工具" oninput="yyToolsSearch(this.value)">' +
+    '<div id="yyt-recent">' + yyToolsRecentHTML() + '</div>' +
+    '<div id="yyt-body">' + yyToolsListHTML('') + '</div>' +
+    '</div>';
+}
+
+// 「更多工具」里每个工具都是"骨架 HTML + 渲染函数"两段式：RxxxHTML() 只返回容器，
+// 真正的步骤内容靠 renderCamStep / cbRenderTab 这类函数填。从缓存或"返回上一页"
+// 恢复时这些函数不会被调用，页面就只剩一个空壳。这里把 8 个工具的初始化登记到
+// app.js 的 subPageInits 表里，缓存恢复时会自动补跑。
+// 用 setTimeout(0) 是因为 app.js 在 others.js 之后才加载，那时 subPageInit 才存在。
+setTimeout(function() {
+  if (typeof subPageInit !== 'function') return;
+  subPageInit('相机工具', function() { renderCamStep(camState.step || 1); });
+  subPageInit('mcfunction 执行器', function() { renderMcfunctionStep(mcfnState.step || 1); });
+  subPageInit('物品制作器', function() { imFetchPos(); imRenderItems(); });
+  subPageInit('命令方块工程', function() { cbRenderTab(); });
+  subPageInit('画板', function() { initDraw(); });
+  subPageInit('滚动字幕', function() { mqRefreshPreview(); });
+  subPageInit('飞行控制', function() {
+    if (flyState.polling) { clearInterval(flyState.polling); flyState.polling = null; }
+    flyActiveDirs = {};
+    flyPollStatus();
+    flyInitCanvases();
+    flyState.polling = setInterval(flyPollStatus, 500);
+  });
+}, 0);
 
 // ═══════════════════════════════════════
 // 滚动字幕 — 控制面板

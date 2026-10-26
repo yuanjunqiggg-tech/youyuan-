@@ -18,6 +18,9 @@ func init() {
 		yyAccountPoolMethods[method] = true
 		yyExtraMethods[method] = doc
 	}
+	yyExtraMethods["accountsPool.captureConfigure"] += " dimension_landings按0/1/2配置{x,y,z}（其他维度标识暂不支持落点坐标）；仅配置过的维度启用上线前救援，实际坐标及子连接确认后停止TP；无确认60秒停止子连接，states中landing:<id>可核对结果。"
+	yyExtraMethods["accountsPool.captureConfigure"] += " game_mode设默认模式，dimension_game_modes按维度标识覆盖；keep保持当前。invisible/quick_tp/auto_respawn分别选择隐身、自动靠近和死亡自动重生；省略或auto_respawn=null沿用账号设置。"
+	yyExtraMethods["accountsPool.captureConfigure"] += " dimension_accounts与dimension_game_modes支持字符串维度标识：0主世界/1下界/2末地老配置照旧，也接受 dm、minecraft:overworld 等自定义标识，最多8条，格式限1～40位小写字母数字与 _ : . -。当前运行时只能调度主世界/下界/末地，映射不到的维度保留配置、跳过并记一条warn，不会崩溃也不会猜维度。"
 }
 
 // Shared capture never grants access to another owner's files, token, console,
@@ -116,6 +119,42 @@ func yyCaptureProvision(actor yyPoolActor, id string, c yyGlobalCaptureConfig) m
 		return map[string]any{"phase": "offline", "auto_provision": false}
 	}
 	yyCaptureLaunches.Lock()
+	for other, pending := range yyCaptureLaunches.Items {
+		if !pending.Busy && pending.Started && !pending.At.IsZero() && time.Since(pending.At) >= 60*time.Second {
+			// The old connection can still be authenticating for several minutes.
+			// Hold the shared admission gate until its actual worker is stopped.
+			pending.Busy = true
+			yyCaptureLaunches.Unlock()
+			a, exists := yyManagedFind(other)
+			var stopErr error
+			if exists && a.CaptureOnly {
+				_, stopErr = yyPoolCall(yyPoolActor{ID: yyPoolOwner(a), Scope: "control"}, "accountsPool.stop", []any{other})
+				if stopErr == nil && a.Slot > 0 {
+					if _, alive := yyChildJSON(a, "GET", "/health", nil); alive == nil {
+						stopErr = fmt.Errorf("旧采集内核仍响应，尚未确认退出")
+					}
+				}
+			} else if exists {
+				stopErr = fmt.Errorf("账号已转为业务用途，未自动停止")
+			}
+			yyCaptureLaunches.Lock()
+			pending.Busy = false
+			pending.At = time.Now()
+			pending.Error = "采集连接60秒内未就绪，旧尝试已停止，冷却后再试"
+			if stopErr == nil {
+				pending.Started = false
+			} else {
+				pending.Error = "旧采集连接未停止，暂停替补: " + stopErr.Error()
+			}
+			message := pending.Error
+			yyCaptureLaunches.Unlock()
+			return map[string]any{"phase": "expired_login_cleanup", "pending_account": other, "error": message}
+		}
+		if pending.Busy || pending.Started && time.Since(pending.At) < 60*time.Second {
+			yyCaptureLaunches.Unlock()
+			return map[string]any{"phase": "waiting_previous_join", "pending_account": other}
+		}
+	}
 	l := yyCaptureLaunches.Items[id]
 	if l == nil {
 		l = &yyCaptureLaunch{}
@@ -264,7 +303,30 @@ func (a *yyCaptureIdentityAudit) snapshot() ([]string, []string) {
 
 var yyCaptureAuditLog yyCaptureIdentityAudit
 
-func yyCaptureRobotNames() []string { names, _ := yyCaptureRobotNamesWithStatus(); return names }
+var yyCaptureVerifiedNames = struct {
+	sync.RWMutex
+	Names []string
+}{}
+
+// Camera ticks use local exclusions; only reconciliation probes child kernels.
+func yyCaptureRobotNames() []string {
+	yyCaptureVerifiedNames.RLock()
+	names := append([]string(nil), yyCaptureVerifiedNames.Names...)
+	yyCaptureVerifiedNames.RUnlock()
+	yyAccounts.Lock()
+	for _, a := range yyAccounts.Items {
+		if a.Name != "" {
+			names = append(names, a.Name)
+		}
+	}
+	yyAccounts.Unlock()
+	if bm := getBotManagerLocked(); bm != nil {
+		bm.mu.Lock()
+		names = append(names, bm.display)
+		bm.mu.Unlock()
+	}
+	return names
+}
 
 // yyCaptureRobotNamesWithStatus collects the machine-readable robot names that
 // must be excluded from player detection, and reports whether every *online*
@@ -352,6 +414,9 @@ func yyCaptureRobotNamesWithStatus() ([]string, bool) {
 		}
 	}
 	sort.Strings(out)
+	yyCaptureVerifiedNames.Lock()
+	yyCaptureVerifiedNames.Names = append([]string(nil), out...)
+	yyCaptureVerifiedNames.Unlock()
 	return out, identitiesKnown
 }
 
@@ -435,7 +500,7 @@ func yyCapturePlayers(excluded []string) ([]yyCapturePlayer, string) {
 				if n == "" {
 					n = byID[r.PlayerUniqueID]
 				}
-				if _, ok := all[n]; ok && r.Dimension <= 2 {
+				if _, ok := all[n]; ok && yyDimensionIDValid(int32(r.Dimension)) {
 					all[n] = yyCapturePlayer{Name: n, Dimension: int32(r.Dimension), Known: true}
 				}
 			}

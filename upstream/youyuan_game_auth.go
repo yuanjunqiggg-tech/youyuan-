@@ -17,7 +17,7 @@ func yyGameAuthOrigin() string {
 	if cfg := config.LoadConfig(); cfg != nil && strings.TrimSpace(cfg.AuthURL) != "" {
 		return strings.TrimRight(strings.TrimSpace(cfg.AuthURL), "/")
 	}
-	return "https://auth.youyuanqi.dpdns.org"
+	return yySecAuthOriginFallback()
 }
 
 // Credentials are managed through the owner's authenticated cloud vault.

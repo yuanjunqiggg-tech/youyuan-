@@ -35,7 +35,7 @@ function RflyHTML() {
   setTimeout(function() {
     flyPollStatus();
     flyInitCanvases();
-    flyState.polling = setInterval(flyPollStatus, 500);
+    flyState.polling = setInterval(flyPollStatus, 2000);
   }, 100);
 
   // 注册清理函数：面板关闭时自动恢复飞行 + 清理轮询
@@ -468,6 +468,8 @@ function flyIsMoving() {
 }
 
 function flyPollStatus() {
+  // 500ms 一次会打穿 Worker 免费额度（7200 次/小时），页面不可见时直接跳过。
+  if (document.hidden) return;
   A('GET', '/api/fly/position').then(function(r) {
     if (r.ok) {
       flyState.x = r.x || 0;
@@ -578,5 +580,5 @@ function flyUpdateUI() {
 function restoreFlyState() {
   if (flyState.polling) { clearInterval(flyState.polling); flyState.polling = null; }
   flyPollStatus();
-  flyState.polling = setInterval(flyPollStatus, 500);
+  flyState.polling = setInterval(flyPollStatus, 2000);
 }

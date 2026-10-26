@@ -52,7 +52,7 @@ type yyStructureHud struct {
 	SizeY     int
 	SizeZ     int
 
-	// Archive is the footer label; empty uses "ARCHIVE v1.0".
+	// Archive is retained for existing callers; the player panel omits build labels.
 	Archive string
 }
 
@@ -164,19 +164,13 @@ func yyStructureHudBar(pct int) string {
 	return "§b" + strings.Repeat("▰", filled) + "§8" + strings.Repeat("▱", cells-filled)
 }
 
-// yyStructureHudRender builds the actionbar text. Layout, box characters and
-// the §b游园·YUAN / YUAN ARCHIVE markers are the house style; content inside is
-// left-aligned so double-width CJK glyphs cannot break the right border.
+// Split metrics and bound names so a long structure filename cannot widen the panel.
 func yyStructureHudRender(h yyStructureHud) string {
 	const (
-		top    = "§8╭━━━━§b ✦ 游园·YUAN §8━━━━╮"
-		rule   = "§8┣━━━━━━━━━━━━━━━━━━┫"
-		bottom = "§8╰━━§b YUAN §8/ §7%s ━╯"
+		top    = "§8╭━━§b ✦ 游园 §8━━━━╮"
+		rule   = "§8┣━━━━━━━━━━━━━━┫"
+		bottom = "§8╰━━━━━━━━━━━━━━╯"
 	)
-	archive := strings.TrimSpace(h.Archive)
-	if archive == "" {
-		archive = "ARCHIVE v1.0"
-	}
 	phase := strings.TrimSpace(h.Phase)
 	if phase == "" {
 		phase = "导入中"
@@ -186,22 +180,44 @@ func yyStructureHudRender(h yyStructureHud) string {
 		colour = "a"
 	}
 	pct := yyStructureHudPercent(h)
+	remainingBlocks := "§8—"
+	if h.BlocksTotal > 0 {
+		remainingBlocks = fmt.Sprintf("§f%d", max(0, h.BlocksTotal-h.BlocksDone))
+	}
 
 	lines := []string{
 		top,
-		fmt.Sprintf("§8┃§b ▌§fSTRUCTURE I/O  §%s● %s", colour, phase),
+		fmt.Sprintf("§8┃ §%s● §f%s", colour, yyStructureHudLabel(phase, 12)),
 		rule,
-		fmt.Sprintf("§8┃ §f进度 §a%d%%  §7(%s§7 区块)", pct, yyStructureHudChunkText(h)),
-		fmt.Sprintf("§8┃ %s  §7[§a%d%%§7]", yyStructureHudBar(pct), pct),
-		fmt.Sprintf("§8┃ §7方块 §f%d§8/§f%d", max(0, h.BlocksDone), max(0, h.BlocksTotal)),
+		fmt.Sprintf("§8┃ %s  §a%d%%", yyStructureHudBar(pct), pct),
+		fmt.Sprintf("§8┃ §7区块 %s", yyStructureHudChunkText(h)),
+		"§8┃ §7方块 " + yyStructureHudBlockText(h),
 		yyStructureHudRateLine(h),
+		"§8┃ §7剩余方块 " + remainingBlocks,
 		yyStructureHudHealthLine(h),
-		fmt.Sprintf("§8┃ §7已用 §f%s  §7剩余 %s", yyHudClock(h.Elapsed), yyStructureHudRemaining(h)),
+		fmt.Sprintf("§8┃ §7已用 §f%s", yyHudClock(h.Elapsed)),
+		"§8┃ §7预计剩余 " + yyStructureHudRemaining(h),
 		rule,
 		yyStructureHudCursorLine(h),
-		fmt.Sprintf(bottom, archive),
+		bottom,
 	}
 	return strings.Join(lines, "\n")
+}
+
+func yyStructureHudLabel(text string, limit int) string {
+	text = strings.NewReplacer("§", "", "\n", " ", "\r", " ").Replace(strings.TrimSpace(text))
+	r := []rune(text)
+	if len(r) > limit {
+		return string(r[:limit-1]) + "…"
+	}
+	return text
+}
+
+func yyStructureHudBlockText(h yyStructureHud) string {
+	if h.BlocksTotal <= 0 {
+		return "§8—"
+	}
+	return fmt.Sprintf("§f%d§8/§f%d", max(0, h.BlocksDone), h.BlocksTotal)
 }
 
 func yyStructureHudChunkText(h yyStructureHud) string {
@@ -217,9 +233,9 @@ func yyStructureHudChunkText(h yyStructureHud) string {
 
 func yyStructureHudRateLine(h yyStructureHud) string {
 	if !h.SpeedKnown || h.Speed <= 0 {
-		return "§8┃ §7速率 §8未知  余量 §f" + fmt.Sprintf("%d", max(0, h.BlocksTotal-h.BlocksDone))
+		return "§8┃ §7速率 §8—"
 	}
-	line := fmt.Sprintf("§8┃ §7速率 §b%s§7块/s  余量 §f%d", yyStructureHudSpeed(h.Speed), max(0, h.BlocksTotal-h.BlocksDone))
+	line := fmt.Sprintf("§8┃ §7速率 §b%s§7块/s %s", yyStructureHudSpeed(h.Speed), yyHudSpark(h.Spark, 4))
 	return line
 }
 
@@ -246,7 +262,7 @@ func yyStructureHudHealthLine(h yyStructureHud) string {
 	if h.RTTKnown && h.RTT > 0 {
 		rtt = fmt.Sprintf("§7RTT §a%dms", h.RTT.Round(time.Millisecond)/time.Millisecond)
 	}
-	return fmt.Sprintf("§8┃ %s  %s %s", tps, rtt, yyHudSpark(h.Spark, 4))
+	return fmt.Sprintf("§8┃ %s  %s", tps, rtt)
 }
 
 func yyStructureHudRemaining(h yyStructureHud) string {
@@ -262,16 +278,16 @@ func yyStructureHudRemaining(h yyStructureHud) string {
 
 func yyStructureHudCursorLine(h yyStructureHud) string {
 	if cursor := strings.TrimSpace(h.Cursor); cursor != "" {
-		return fmt.Sprintf("§8┃ §b⟳ §f正在写入 §7%s", cursor)
+		return fmt.Sprintf("§8┃ §7位置 §f%s\n§8┃ §7建筑 §f%s", yyStructureHudLabel(cursor, 20), yyStructureHudLabel(h.Structure, 12))
 	}
 	name := strings.TrimSpace(h.Structure)
 	if name == "" {
 		name = "结构"
 	}
 	if h.SizeX > 0 && h.SizeY > 0 && h.SizeZ > 0 {
-		return fmt.Sprintf("§8┃ §b⟳ §f正在写入 §7%s §8[§f%d×%d×%d§8]", name, h.SizeX, h.SizeY, h.SizeZ)
+		return fmt.Sprintf("§8┃ §7建筑 §f%s\n§8┃ §7尺寸 §f%d×%d×%d", yyStructureHudLabel(name, 12), h.SizeX, h.SizeY, h.SizeZ)
 	}
-	return fmt.Sprintf("§8┃ §b⟳ §f正在写入 §7%s", name)
+	return fmt.Sprintf("§8┃ §7建筑 §f%s", yyStructureHudLabel(name, 12))
 }
 
 // yyStructureHudForImport maps the counters the import task already tracks onto

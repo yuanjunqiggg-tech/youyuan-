@@ -32,6 +32,8 @@ type aiToolResult struct {
 type aiTurn struct {
 	Role         string         `json:"role"`
 	Text         string         `json:"content"`
+	// Images 随这条消息一起发给模型看图的地址（只有视觉模型才用，最多 3 张）。
+	Images       []string       `json:"images,omitempty"`
 	Reasoning    string         `json:"reasoning_content,omitempty"`
 	Time         string         `json:"time,omitempty"`
 	ToolCalls    []aiToolCall   `json:"tool_calls,omitempty"`
@@ -492,6 +494,18 @@ func (m *AIModel) completeOpenAI(ctx context.Context, messages []aiTurn, tools [
 	return turn, nil
 }
 
+// yyAIVisionModel 判断模型是否能看图。名字里带这些标记就当支持；
+// 判断不出来就不发图——宁可少看一张，也不要把整个请求打挂。
+func yyAIVisionModel(modelID string) bool {
+	id := strings.ToLower(strings.TrimSpace(modelID))
+	for _, mark := range []string{"vision", "-vl", "vl-", "4o", "gpt-4.1", "claude", "gemini", "glm-4v", "internvl", "minicpm-v"} {
+		if strings.Contains(id, mark) {
+			return true
+		}
+	}
+	return false
+}
+
 // openAIBody 组装 OpenAI 兼容请求体。
 func (m *AIModel) openAIBody(messages []aiTurn, tools []ToolDef) (string, error) {
 	var msgs []map[string]any
@@ -509,6 +523,16 @@ func (m *AIModel) openAIBody(messages []aiTurn, tools []ToolDef) (string, error)
 						"content":      tr.Content,
 					})
 				}
+			} else if len(t.Images) > 0 {
+				// 多模态：文本 + 若干图片 URL，OpenAI 兼容接口都认这个形状。
+				parts := []map[string]any{{"type": "text", "text": t.Text}}
+				for _, u := range t.Images {
+					parts = append(parts, map[string]any{
+						"type":      "image_url",
+						"image_url": map[string]any{"url": u},
+					})
+				}
+				msgs = append(msgs, map[string]any{"role": "user", "content": parts})
 			} else {
 				msgs = append(msgs, map[string]any{"role": "user", "content": t.Text})
 			}

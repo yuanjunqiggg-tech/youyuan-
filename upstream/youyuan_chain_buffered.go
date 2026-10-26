@@ -6,7 +6,13 @@ import (
 	"time"
 )
 
+type yyChainActivationKey struct{}
+type yyChainActivation struct{ First, Trigger, Redstone bool }
+
 func yyChainValidate(c yyChainConfig) error {
+	if c.FrequencyMode != "" && c.FrequencyMode != "cap" && c.FrequencyMode != "override" {
+		return fmt.Errorf("frequency_mode支持override（主模块频率）或cap（仅限制上限）")
+	}
 	if c.Hz != 0 {
 		if _, e := yyScheduleDuration("util.scheduleHz", c.Hz); e != nil {
 			return e
@@ -43,9 +49,13 @@ func yyChainNodeChannel(n yyChainNode, c yyChainConfig) string {
 
 // A conditional command is a response barrier, including the preceding window.
 // Positive per-command delays and different channels also delimit windows.
-func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainConfig, delay time.Duration, single func(yyChainNode) (bool, error), batch func([]yyChainNode) ([]map[string]any, error), record func(bool, bool, error)) {
+func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainConfig, delay time.Duration, single func(yyChainNode) (bool, error), batch func([]yyChainNode) ([]map[string]any, error), record func(bool, bool, error), fast ...yyChainFastSender) {
+	activation, ok := ctx.Value(yyChainActivationKey{}).(yyChainActivation)
+	if !ok {
+		activation = yyChainActivation{true, true, true}
+	}
 	if cfg.Mode != "fast" && cfg.Mode != "pipeline" && cfg.Mode != "burst" && cfg.Mode != "stream" {
-		yyChainExecuteDetailed(ctx, plan, true, true, true, delay, single, record)
+		yyChainExecuteDetailed(ctx, plan, activation.First, activation.Trigger, activation.Redstone, delay, single, record)
 		return
 	}
 	window := cfg.Window
@@ -69,12 +79,21 @@ func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainCo
 		}
 		for r := 0; r < repeat; r++ {
 			previous := false
+			inactiveSource := false
+			eligible := func(n yyChainNode) bool {
+				return (!n.Redstone || activation.Redstone) && (n.Type != 1 || activation.First || activation.Trigger)
+			}
 			for i := 0; i < len(chain.Nodes); {
 				if ctx.Err() != nil {
 					return
 				}
 				n := chain.Nodes[i]
-				if n.Conditional && !previous {
+				if !eligible(n) {
+					inactiveSource = true
+				} else if n.Type != 0 {
+					inactiveSource = false
+				}
+				if inactiveSource || n.Conditional && !previous {
 					previous = false
 					record(false, true, nil)
 					i++
@@ -107,7 +126,7 @@ func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainCo
 				channel := yyChainNodeChannel(n, cfg)
 				for end < len(chain.Nodes) && end-i < window {
 					next := chain.Nodes[end]
-					if next.Control != nil || next.Conditional || next.DelayMS > 0 || yyChainNodeChannel(next, cfg) != channel {
+					if !eligible(next) || next.Control != nil || next.Conditional || next.DelayMS > 0 || yyChainNodeChannel(next, cfg) != channel {
 						break
 					}
 					// The transport text bound limits one dispatch, not the TXT.
@@ -122,6 +141,29 @@ func yyChainExecuteBuffered(ctx context.Context, plan yyChainPlan, cfg yyChainCo
 				// unconditional commands still use the no-wait transport.
 				if cfg.Mode == "fast" && end < len(chain.Nodes) && chain.Nodes[end].Conditional && end > i+1 {
 					end--
+				}
+				if cfg.Mode == "fast" && len(fast) > 0 && fast[0].Send != nil {
+					result, err := fast[0].Send(ctx, chain.Nodes[i:end], cfg)
+					if ctx.Err() != nil {
+						return
+					}
+					if err == nil && fast[0].RecordSubmitted != nil {
+						submitted := min(max(result.Submitted, 0), end-i)
+						// Fast records transport submission, never server execution success.
+						fast[0].RecordSubmitted(submitted, end-i-submitted)
+						previous = submitted == end-i
+						i = end
+						continue
+					}
+					for j := i; j < end; j++ {
+						if ctx.Err() != nil {
+							return
+						}
+						previous = err == nil && j-i < result.Submitted
+						record(previous, err == nil && j-i >= result.Submitted, err)
+					}
+					i = end
+					continue
 				}
 				rows, err := batch(chain.Nodes[i:end])
 				if ctx.Err() != nil {

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/layout.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/wizard.css">
+<style>
+  /* 全屏钢琴：横屏优化 + 半透明 + 元素压窄，让键盘占满横向空间 */
+  /* 关键：背景必须透明，否则应用的主题背景遮罩会盖住游戏画面 */
+  html,body{height:100%;margin:0;background:transparent !important;overflow:hidden}
+  body{display:flex;flex-direction:column;color:#e2e8f0;font-family:'Nunito','Noto Sans SC','PingFang SC',system-ui,sans-serif}
+  /* 顶栏：窄、不透明，关闭按钮始终明显 */
+  #piano-top{display:flex;align-items:center;gap:12px;padding:6px 10px;flex-shrink:0;opacity:1;background:rgba(8,11,18,0.7);border-radius:0 0 10px 10px}
+  #piano-top .t{font-size:16px;font-weight:800;color:#fbbf24}
+  #piano-top .op{display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8;margin-left:auto}
+  #piano-top input[type=range]{width:110px;accent-color:#fbbf24}
+  #piano-close{font-size:20px;font-weight:900;color:#fff;background:#dc2626;padding:6px 16px;border-radius:8px;cursor:pointer;opacity:1}
+  /* 音色/本地音 控件行：窄、紧凑 */
+  #piano-ctrls{display:flex;align-items:center;gap:14px;padding:4px 10px;flex-shrink:0;font-size:12px;color:#e2e8f0}
+  .inst-btn{background:#1e293b;border:1px solid #fbbf24;border-radius:8px;padding:3px 10px;cursor:pointer;color:#fbbf24}
+  /* 键盘区：占满剩余高度，viewport 压窄 */
+  #piano-keys{flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:center;padding:0 6px}
+  .piano-viewport{height:150px}
+  /* 底部位置/缩放：窄 */
+  #piano-scroll{display:flex;align-items:center;gap:8px;padding:3px 10px;flex-shrink:0;font-size:10px;color:#94a3b8}
+  #piano-scroll input{flex:1;accent-color:#fbbf24}
+</style>
+</head>
+<body>
+<div id="piano-top">
+  <span class="t">♪ 钢琴</span>
+  <span class="op">透明
+    <input type="range" id="opacity" min="30" max="100" value="80" oninput="setOpacity(this.value)">
+    <span id="op-val">80%</span>
+  </span>
+  <span id="piano-close" onclick="window.floating.closeFullPiano()">✕ 关闭</span>
+</div>
+<div id="piano-ctrls">
+  <label>音色 <span id="inst" class="inst-btn">竖琴</span></label>
+  <label class="tgl-cb"><input type="checkbox" id="lsnd" checked onchange="pianoLocalSound=this.checked"><span class="tgl"></span>本地音</label>
+</div>
+<div id="piano-keys"></div>
+<div id="piano-scroll">
+  <span>位置</span><input type="range" id="scroll-slider" min="0" max="1000" value="0" oninput="onPianoScrollSlide(this.value)">
+  <span>缩放</span><input type="range" id="zoom-slider" min="50" max="250" value="100" oninput="onPianoZoomSlide(this.value)">
+</div>
+
+<script src="/js/theme.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/features/music.js"></script>
+<script>
+  // 音色选择：点按循环切换（避免原生 select 在覆盖层上弹不出）
+  var instIdx=MC_SOUNDS.findIndex(function(s){return s.v===pianoInstrument});
+  if(instIdx<0)instIdx=0;
+  var instBtn=document.getElementById('inst');
+  function renderInst(){instBtn.textContent=MC_SOUNDS[instIdx].l}
+  instBtn.onclick=function(){instIdx=(instIdx+1)%MC_SOUNDS.length;pianoInstrument=MC_SOUNDS[instIdx].v;renderInst()};
+  renderInst();
+  // 键盘
+  document.getElementById('piano-keys').innerHTML=renderPianoKeys();
+  attachPianoEvents();
+  initAudio();
+  // 不透明度调节（只影响内容区，顶栏/关闭按钮保持不透明）
+  function setOpacity(v){
+    document.getElementById('piano-keys').style.opacity=v/100;
+    document.getElementById('piano-ctrls').style.opacity=v/100;
+    document.getElementById('op-val').textContent=v+'%';
+  }
+</script>
+</body>
+</html>

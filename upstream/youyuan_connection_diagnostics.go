@@ -46,14 +46,17 @@ func yyConnectionRetryDelay(base time.Duration, failures uint64, message string)
 	if kind == "connection_error" {
 		return base
 	}
-	if base < 15*time.Second {
-		base = 15 * time.Second
+	// 服务器定时/风控踢出的场景，退避过长会让"闪退重进"空窗越拉越大，
+	// 用户体感为持续断开。下限保持 10s（用户定点：太快会卡出第二个假机器人），
+	// 翻倍上限 45s（保留对连续失败的基本节流）。
+	if base < 10*time.Second {
+		base = 10 * time.Second
 	}
-	for i := uint64(1); i < failures && base < 5*time.Minute; i++ {
+	for i := uint64(1); i < failures && base < 45*time.Second; i++ {
 		base *= 2
 	}
-	if base > 5*time.Minute {
-		base = 5 * time.Minute
+	if base > 45*time.Second {
+		base = 45 * time.Second
 	}
 	return base
 }

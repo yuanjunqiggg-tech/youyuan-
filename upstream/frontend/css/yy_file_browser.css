@@ -1,0 +1,483 @@
+/* ═══ 游园资源浏览器 — 全屏工作区样式 ═══
+ * 目标（任务书第七部分）：不再是与参考产品相似的窄弹窗，而是占满手机屏幕的浏览工作区。
+ * 视觉语言沿用 Mineral Workspace：矿物白底、深墨蓝文字、克制的青色只用于选中与主操作。
+ * 加载顺序在本文件之后无需再覆盖 fp-* 旧规则，这里用同等或更高优先级显式重写。
+ */
+
+/* ── 外壳：全屏，不再居中浮层 ── */
+.fp-overlay.fp-ws {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+  background: var(--phx-bg-card);
+  animation: fp-ws-in .18s ease-out;
+}
+@keyframes fp-ws-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .fp-overlay.fp-ws { animation: none; }
+}
+.fp-ws .fp-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  background: var(--phx-bg-card);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/* 桌面端：仍然是工作区，但收成居中的宽面板，避免横向拉伸成一条 */
+@media (min-width: 900px) {
+  .fp-overlay.fp-ws {
+    align-items: center;
+    padding: 24px;
+    background: color-mix(in srgb, #172b39 46%, transparent);
+  }
+  .fp-ws .fp-sheet {
+    max-width: 820px;
+    height: min(760px, calc(100dvh - 48px));
+    border: 1px solid var(--phx-border-light);
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(16, 44, 55, .18);
+  }
+}
+
+/* ── 顶部：紧凑标题 ── */
+.fp-ws .fp-ws-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 8px 8px;
+  border-bottom: 1px solid var(--phx-border-light);
+  flex-shrink: 0;
+  background: var(--phx-bg-card);
+}
+.fp-ws .fp-ws-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--phx-text);
+  cursor: pointer;
+  padding: 0;
+}
+.fp-ws .fp-ws-icon:active { background: var(--phx-bg); }
+.fp-ws .fp-ws-icon svg { width: 20px; height: 20px; }
+.fp-ws .fp-ws-title { flex: 1; min-width: 0; }
+.fp-ws .fp-ws-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.2px;
+  color: var(--phx-text);
+  line-height: 1.3;
+}
+.fp-ws .fp-ws-title p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--phx-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 数据来源切换：执行设备 / 本机文件 ── */
+.fp-ws .fp-src {
+  display: flex;
+  gap: 4px;
+  padding: 10px 12px 0;
+  flex-shrink: 0;
+}
+.fp-ws .fp-src-tab {
+  flex: 1;
+  min-height: 36px;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 9px;
+  background: var(--phx-bg);
+  color: var(--phx-text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0 10px;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.fp-ws .fp-src-tab.active {
+  color: var(--phx-primary);
+  background: var(--phx-primary-bg);
+  border-color: var(--phx-primary);
+}
+
+/* ── 面包屑 ── */
+.fp-ws .fp-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 12px 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.fp-ws .fp-crumbs::-webkit-scrollbar { display: none; }
+.fp-ws .fp-crumb {
+  border: 0;
+  background: transparent;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--phx-text-secondary);
+  cursor: pointer;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.fp-ws .fp-crumb:active { background: var(--phx-bg); }
+.fp-ws .fp-crumb.cur {
+  color: var(--phx-text);
+  font-weight: 700;
+  cursor: default;
+}
+.fp-ws .fp-crumb-sep { color: var(--phx-text-disabled); font-size: 11px; flex-shrink: 0; }
+
+/* ── 搜索与排序 ── */
+.fp-ws .fp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-bottom: 0;
+  flex-shrink: 0;
+  background: var(--phx-bg-card);
+}
+.fp-ws .fp-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 9px;
+  background: var(--phx-bg);
+  transition: border-color .15s;
+}
+.fp-ws .fp-search:focus-within { border-color: var(--phx-primary); }
+.fp-ws .fp-search-icon { display: flex; color: var(--phx-text-secondary); flex-shrink: 0; }
+.fp-ws .fp-search-icon svg { width: 15px; height: 15px; }
+.fp-ws .fp-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--phx-text);
+  padding: 0;
+}
+.fp-ws .fp-search-input::placeholder { color: var(--phx-text-disabled); }
+.fp-ws .fp-search-clear {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--phx-border-light);
+  color: var(--phx-text-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+.fp-ws .fp-search-clear svg { width: 11px; height: 11px; }
+.fp-ws .fp-sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 9px;
+  background: var(--phx-bg);
+  color: var(--phx-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.fp-ws .fp-sort-btn:active { background: var(--phx-border-light); }
+.fp-ws .fp-sort-icon { display: flex; }
+.fp-ws .fp-sort-icon svg { width: 14px; height: 14px; }
+.fp-ws .fp-sort-label { white-space: nowrap; }
+
+/* ── 列表 ── */
+.fp-ws .fp-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.fp-ws .fp-body.fp-body-flat { display: flex; flex-direction: column; }
+.fp-ws .fp-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 14px !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--phx-border-light);
+  cursor: pointer;
+  transition: background .12s;
+}
+.fp-ws .fp-item:active { background: var(--phx-bg); }
+.fp-ws .fp-item.sel {
+  background: var(--phx-primary-bg);
+  box-shadow: inset 3px 0 0 var(--phx-primary);
+}
+.fp-ws .fp-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  font-weight: 800;
+}
+.fp-ws .fp-icon svg { width: 19px; height: 19px; }
+.fp-ws .fp-icon.fp-head { overflow: hidden; background: var(--phx-bg); }
+.fp-ws .fp-icon.fp-head img { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: pixelated; }
+.fp-ws .fp-info { flex: 1; min-width: 0; }
+.fp-ws .fp-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--phx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+.fp-ws .fp-meta {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--phx-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.fp-ws .fp-size {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--phx-text-secondary);
+  font-variant-numeric: tabular-nums;
+  padding-left: 4px;
+}
+.fp-ws .fp-more {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--phx-text-disabled);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-right: -6px;
+}
+.fp-ws .fp-more:active { background: var(--phx-border-light); color: var(--phx-text); }
+
+/* 空状态 / 加载 */
+.fp-ws .fp-empty {
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--phx-text-secondary);
+}
+.fp-ws .fp-empty b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--phx-text);
+  margin-bottom: 6px;
+}
+.fp-ws .fp-empty span { font-size: 12px; line-height: 1.6; color: var(--phx-text-secondary); }
+.fp-ws .fp-loading {
+  padding: 56px 24px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--phx-text-secondary);
+}
+
+/* ── 底部：选择状态 + 确认 ── */
+.fp-ws .fp-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--phx-border-light);
+  background: var(--phx-bg-card);
+  flex-wrap: nowrap;
+}
+.fp-ws .fp-sel { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fp-ws .fp-sel-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--phx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-ws .fp-sel-meta {
+  font-size: 11px;
+  color: var(--phx-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.fp-ws .fp-foot-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.fp-ws .fp-btn {
+  min-width: 76px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+  width: auto !important;
+}
+.fp-ws .fp-btn-cancel { background: var(--phx-bg); color: var(--phx-text-secondary); }
+.fp-ws .fp-btn-cancel:active { background: var(--phx-border-light); }
+.fp-ws .fp-btn-ok { background: var(--phx-primary); color: #fff; }
+.fp-ws .fp-btn-ok:active { opacity: .85; }
+.fp-ws .fp-btn-ok:disabled { opacity: .38; cursor: default; }
+
+/* ── 本机文件面板 ── */
+.fp-ws .fp-local-panel { padding: 20px 16px; }
+.fp-ws .fp-local-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--phx-text);
+  margin-bottom: 8px;
+}
+.fp-ws .fp-local-desc {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--phx-text-secondary);
+}
+.fp-ws .fp-local-desc b { color: var(--phx-text); font-weight: 600; }
+.fp-ws .fp-local-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--phx-primary);
+  border-radius: 10px;
+  background: var(--phx-primary-bg);
+  color: var(--phx-primary);
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.fp-ws .fp-local-btn svg { width: 17px; height: 17px; }
+.fp-ws .fp-local-btn:active { opacity: .8; }
+.fp-ws .fp-local-note {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--phx-text-secondary);
+  overflow-wrap: anywhere;
+}
+/* 支持格式 / 上传位置：两行事实，不堆装饰 */
+.fp-ws .fp-local-facts {
+  margin-top: 18px;
+  border-top: 1px solid var(--phx-border-light);
+}
+.fp-ws .fp-local-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--phx-border-light);
+}
+.fp-ws .fp-local-facts span { flex-shrink: 0; font-size: 12px; color: var(--phx-text-secondary); }
+.fp-ws .fp-local-facts b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--phx-text);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── 文件信息底部弹层 ── */
+.fp-info-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--phx-border-light);
+  align-items: start;
+}
+.fp-info-row:last-child { border-bottom: 0; }
+.fp-info-row span { font-size: 12px; color: var(--phx-text-secondary); }
+.fp-info-row b {
+  display: block;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--phx-text);
+  text-align: right;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ── 窄屏（320–360）压缩 ── */
+@media (max-width: 360px) {
+  .fp-ws .fp-item { padding: 9px 10px !important; gap: 10px; min-height: 56px; }
+  .fp-ws .fp-name { font-size: 13.5px; }
+  .fp-ws .fp-src, .fp-ws .fp-crumbs, .fp-ws .fp-toolbar { padding-left: 8px; padding-right: 8px; }
+  .fp-ws .fp-btn { min-width: 66px; padding: 0 12px; font-size: 13px; }
+  .fp-ws .fp-size { display: none; }
+}
+
+/* ── 深色模式：独立取值，不是反色 ── */
+[data-theme="dark"] .fp-overlay.fp-ws { background: var(--phx-bg-card); }
+[data-theme="dark"] .fp-ws .fp-item.sel { box-shadow: inset 3px 0 0 var(--phx-primary); }

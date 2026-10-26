@@ -286,7 +286,7 @@ func registerSenseAPI(L *lua.LState) {
 			var e error
 			_, pool := yyAccountPoolMethods[method]
 			_, world := yyWorldMethods[method]
-			if pool || world {
+			if pool || world || strings.HasPrefix(method, "chains.") {
 				v, e = yyLuaWaitValue(L, func(_ context.Context) (any, error) { return yySenseCall(bm, method, args) })
 			} else {
 				v, e = yySenseCall(bm, method, args)
@@ -356,6 +356,9 @@ func yySenseCall(bm *BotManager, method string, args []any) (any, error) {
 	}
 	if _, ok := yyBuildingJobMethods[method]; ok {
 		return yyBuildingJobCall(bm, method, args)
+	}
+	if _, ok := yySeedV2Methods[method]; ok {
+		return yySeedV2Call(method, args)
 	}
 	if method == "packet.catalog" {
 		return yyPacketCatalog(), nil

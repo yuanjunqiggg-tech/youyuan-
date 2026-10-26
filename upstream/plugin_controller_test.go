@@ -5,6 +5,28 @@ import (
 	"time"
 )
 
+func TestPluginReloadPreservesExplicitDisabledState(t *testing.T) {
+	pc := NewPluginController()
+	loads := 0
+	if err := pc.AddDef(&PluginDef{ID: "disabled-reload", Load: func(*BotManager) error {
+		loads++
+		return nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	pc.SetDisabled("disabled-reload", true)
+	if err := pc.Reload(&BotManager{}, "disabled-reload"); err != nil {
+		t.Fatal(err)
+	}
+	if loads != 0 || pc.status("disabled-reload").Running || !pc.IsDisabled("disabled-reload") {
+		t.Fatal("reload started an explicitly disabled plugin")
+	}
+	pc.SetDisabled("disabled-reload", false)
+	if err := pc.Reload(&BotManager{}, "disabled-reload"); err != nil || loads != 1 {
+		t.Fatalf("explicit re-enable no longer works: loads=%d err=%v", loads, err)
+	}
+}
+
 // 验证控制器 AddDef/List/Run/Stop/Reload/Delete 的运行状态流转（用注入的测试插件）。
 func TestPluginControllerLifecycle(t *testing.T) {
 	// 清理触发词注册表避免污染

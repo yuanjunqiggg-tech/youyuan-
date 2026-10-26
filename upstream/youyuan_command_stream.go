@@ -220,7 +220,7 @@ func yyCommandStream(bm *BotManager, commands []string, options yyCommandOptions
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		err := conn.WritePacketBatch(packets)
+		err := bm.writeControlBatch(ctx, func() error { return conn.WritePacketBatch(packets) })
 		if err == nil {
 			bm.controlCommands.Add(uint64(len(packets)))
 			batches++

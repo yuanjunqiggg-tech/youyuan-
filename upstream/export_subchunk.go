@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -24,6 +25,7 @@ import (
 //   - ChunkNotFound 子区块重试（不静默丢弃）
 //   - 包监听器生命周期隔离（每次请求新建/销毁）
 type SubChunkExportTask struct {
+	ctx        context.Context
 	bm         *BotManager
 	minX, maxX int32
 	minY, maxY int32
@@ -216,19 +218,42 @@ func (t *SubChunkExportTask) requestChunkRadius() error {
 
 // moveToChunkCenter 将机器人 TP 到指定 chunk 中心并等待区块加载。
 func (t *SubChunkExportTask) moveToChunkCenter(cx, cz int32, sleepMs int) error {
+	ctx := t.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return t.moveToChunkCenterContext(ctx, cx, cz, sleepMs)
+}
+
+func (t *SubChunkExportTask) moveToChunkCenterContext(ctx context.Context, cx, cz int32, sleepMs int) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	centerX := cx*16 + 8
 	centerZ := cz*16 + 8
 	centerY := (t.minY + t.maxY) / 2
 	if err := t.bm.TP(int(centerX), int(centerY), int(centerZ)); err != nil {
 		return fmt.Errorf("移动机器人到 (%d,%d,%d): %w", centerX, centerY, centerZ, err)
 	}
-	time.Sleep(time.Duration(sleepMs) * time.Millisecond)
+	if err := yySleepContext(ctx, time.Duration(sleepMs)*time.Millisecond); err != nil {
+		return err
+	}
 	return nil
 }
 
 // fetchSubChunks 发送 SubChunkRequest 获取一个 chunk 列中所有子区块的数据。
 // 对 ChunkNotFound 的子区块自动重试，直到全部获取或达到重试上限。
 func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange define.Range) ([]*chunk.SubChunk, []map[string]any, error) {
+	return t.fetchSubChunksContext(context.Background(), chunkX, chunkZ, dimRange)
+}
+
+func (t *SubChunkExportTask) fetchSubChunksContext(ctx context.Context, chunkX, chunkZ int32, dimRange define.Range) ([]*chunk.SubChunk, []map[string]any, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	subMinY := t.minY >> 4
 	subMaxY := t.maxY >> 4
 
@@ -242,7 +267,7 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 	}
 
 	// 首次请求
-	subs, allNBTs, missing, err := t.fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY, positions, dimRange)
+	subs, allNBTs, missing, err := t.fetchSubChunksOnceContext(ctx, chunkX, chunkZ, subMinY, subMaxY, positions, dimRange)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -251,6 +276,9 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 	retryCount := 0
 	prevMissing := len(missing)
 	for len(missing) > 0 && retryCount < 5 {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		// 收敛检测：缺失数量没减少则退出
 		if len(missing) == prevMissing && retryCount > 0 {
 			yyReceiveLog(t.bm.logCh, fmt.Sprintf("[导出] chunk (%d,%d): %d 个子区块持续缺失，跳过", chunkX, chunkZ, len(missing)))
@@ -259,12 +287,16 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 		prevMissing = len(missing)
 
 		retryCount++
-		time.Sleep(300 * time.Millisecond)
+		if err := yySleepContext(ctx, 300*time.Millisecond); err != nil {
+			return nil, nil, err
+		}
 
 		// 重试时重新移动机器人到中心
-		t.moveToChunkCenter(chunkX, chunkZ, 400)
+		if err := t.moveToChunkCenterContext(ctx, chunkX, chunkZ, 400); err != nil {
+			return nil, nil, err
+		}
 
-		retrySubs, retryNBTs, stillMissing, retryErr := t.fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY, missing, dimRange)
+		retrySubs, retryNBTs, stillMissing, retryErr := t.fetchSubChunksOnceContext(ctx, chunkX, chunkZ, subMinY, subMaxY, missing, dimRange)
 		if retryErr != nil {
 			yyReceiveLog(t.bm.logCh, fmt.Sprintf("[导出] chunk (%d,%d) 重试%d失败: %v", chunkX, chunkZ, retryCount, retryErr))
 			break
@@ -290,6 +322,16 @@ func (t *SubChunkExportTask) fetchSubChunks(chunkX, chunkZ int32, dimRange defin
 // fetchSubChunksOnce 发送一次 SubChunkRequest 并解析响应。
 // 返回已解码的子区块列表、NBT 数据列表、和 ChunkNotFound 的位置列表。
 func (t *SubChunkExportTask) fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY int32, positions []protocol.SubChunkPos, dimRange define.Range) ([]*chunk.SubChunk, []map[string]any, []protocol.SubChunkPos, error) {
+	return t.fetchSubChunksOnceContext(context.Background(), chunkX, chunkZ, subMinY, subMaxY, positions, dimRange)
+}
+
+func (t *SubChunkExportTask) fetchSubChunksOnceContext(ctx context.Context, chunkX, chunkZ, subMinY, subMaxY int32, positions []protocol.SubChunkPos, dimRange define.Range) ([]*chunk.SubChunk, []map[string]any, []protocol.SubChunkPos, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, nil, err
+	}
 	if len(positions) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -345,6 +387,9 @@ func (t *SubChunkExportTask) fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY
 	}
 	defer gi.PacketListener().DestroyListener(listenerID)
 
+	if err := ctx.Err(); err != nil {
+		return nil, nil, nil, err
+	}
 	if err := t.bm.WritePacket(&packet.SubChunkRequest{
 		Dimension: t.dimension,
 		Position:  base,
@@ -358,6 +403,8 @@ func (t *SubChunkExportTask) fetchSubChunksOnce(chunkX, chunkZ, subMinY, subMaxY
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 	select {
+	case <-ctx.Done():
+		return nil, nil, nil, ctx.Err()
 	case r := <-respCh:
 		if r.err != nil {
 			return nil, nil, nil, r.err

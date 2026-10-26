@@ -62,6 +62,66 @@ function M.afterCore()
     function_register_timers=M.syncAll
     function_schedule_one=M.sync
     function_runtime_tick=function() return true end -- no duplicate Lua loop
+
+    -- The menu must validate exactly the IR that the native runner executes.
+    local legacyParse=function_parse_document
+    function_parse_document=function(text,opts)
+        if opts and opts.initial_state then return legacyParse(text,opts) end
+        local ok,out=pcall(chains.validate,tostring(text or ""))
+        local doc={nodes={},errors={},warnings={},ended=true,commands=0,chains=0}
+        if not ok or type(out)~="table" or out.ok==false or type(out.plan)~="table" then
+            doc.errors[1]=tostring(type(out)=="table" and out.error or out)
+            return doc
+        end
+        for chain_id,chain in ipairs(out.plan.chains or {}) do
+            doc.chains=chain_id
+            for _,node in ipairs(chain.nodes or {}) do
+                doc.nodes[#doc.nodes+1]={index=#doc.nodes+1,chain_id=chain_id,
+                    state={kind=node.type,conditional=node.conditional and 1 or 0,
+                        redstone=node.redstone and 1 or 0,hz=chain.hz},
+                    command=node.control and node.command or "/"..node.command,
+                    control=node.control,physical_line=node.line}
+            end
+        end
+        doc.commands=#doc.nodes
+        return doc
+    end
+    local serialize=function_serialize_nodes
+    function_serialize_nodes=function(nodes)
+        return (serialize(nodes):gsub("^/@","@"):gsub("\n/@","\n@"))
+    end
+    function_toggle=function(player,id)
+        if not is_admin(player) then send(player,"§c仅管理员可管理命令链。") return true end
+        local item,reg=function_registry_get(id)
+        if not item then send(player,"§c文件编号不存在。") return true end
+        local enabled=item.enabled~=true
+        local ok,out
+        if enabled then
+            local text,err=function_read_text(item.name)
+            if not text then send(player,"§c读取失败："..tostring(err)) return true end
+            local doc=function_parse_document(text)
+            if #doc.errors>0 then send(player,"§c无法开启："..table.concat(doc.errors,"；")) return true end
+            -- Reload retains the existing cadence/channel; a toggle never saves a second runnable copy.
+            ok,out=pcall(chains.reload,nativeName(item.name))
+            if not ok and tostring(out):find("命令链不存在",1,true) then
+                ok,out=pcall(M.sync,id)
+            end
+            if not ok or out==false or (type(out)=="table" and out.ok==false) then
+                send(player,"§c未开启："..tostring(type(out)=="table" and out.error or out)) return true
+            end
+        end
+        ok,out=pcall(enabled and chains.start or chains.stop,nativeName(item.name))
+        if not ok or out==false or (type(out)=="table" and out.ok==false) then
+            send(player,"§c操作失败："..tostring(type(out)=="table" and out.error or out)) return true
+        end
+        item.enabled=enabled;item.timer_registered=enabled;item.loaded=true
+        item.needs_reload=false;item.last_error=nil
+        registryState[nativeName(item.name)]=enabled
+        signatures[tostring(id)]=nil
+        function_registry_save(reg)
+        send(player,"§a"..tostring(item.name)..(enabled and " 已开启。" or " 已停止。"))
+        return true
+    end
     r21a_prepare_function_registry=function()
         for name in pairs(FUNCTION_BUNDLED_TXT) do
             local path=FUNCTION_DIR.."/"..name

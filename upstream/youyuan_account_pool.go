@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	lua "github.com/yuin/gopher-lua"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -163,6 +164,170 @@ func yyPoolRequire(actor yyPoolActor, id string) (yyManagedAccount, error) {
 	}
 	return a, nil
 }
+
+// yyPoolMaskToken 生成列表里可以公开显示的脱敏令牌。规则与普通凭证一致：
+// 默认只保留前 4 位和后 4 位，不足 12 位整体打码，避免从长度反推出内容。
+func yyPoolMaskToken(token string) string {
+	if token == "" {
+		return ""
+	}
+	if len(token) < 12 {
+		return "••••••••"
+	}
+	return token[:4] + "••••" + token[len(token)-4:]
+}
+
+// yyPoolMinecraftName 判断一个名字能否当作 Minecraft 玩家名用于头像兜底。
+func yyPoolMinecraftName(name string) bool {
+	if len(name) < 3 || len(name) > 16 {
+		return false
+	}
+	for _, c := range name {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// yyPoolLocalGameName 从子账号自己的 config.json 读 bot_name；读不到再用账号名兜底。
+// 只服务于头像显示，不参与任何身份或权限判断。
+func yyPoolLocalGameName(a yyManagedAccount) string {
+	if raw, e := os.ReadFile(filepath.Join(yyAccountDir(a.ID), "config.json")); e == nil {
+		var cfg struct {
+			BotName string `json:"bot_name"`
+		}
+		if json.Unmarshal(raw, &cfg) == nil {
+			if name := strings.TrimSpace(cfg.BotName); yyPoolMinecraftName(name) {
+				return name
+			}
+		}
+	}
+	if name := strings.TrimSpace(a.Name); yyPoolMinecraftName(name) {
+		return name
+	}
+	return ""
+}
+
+// yyPoolChildGameIdentity 只在内核运行中时问子进程要当前游戏名和 UUID，供头像使用。
+// 内核没起来或 700ms 内没答复就退回本地兜底，绝不拖住账号池列表。
+func yyPoolChildGameIdentity(a yyManagedAccount) (name, uuid string) {
+	if a.Slot < 1 || a.Slot > yyAccountProcessSlots {
+		return "", ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	defer cancel()
+	response, e := yyChildRequest(ctx, a, "GET", "/api/youyuan/sense/snapshot", nil, "")
+	if e != nil {
+		return "", ""
+	}
+	defer response.Body.Close()
+	var data struct {
+		Scene struct {
+			Bot struct {
+				Name      string `json:"name"`
+				UUID      string `json:"uuid"`
+				UUIDKnown bool   `json:"uuid_known"`
+			} `json:"bot"`
+		} `json:"scene"`
+	}
+	if json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&data) != nil {
+		return "", ""
+	}
+	name, uuid = strings.TrimSpace(data.Scene.Bot.Name), strings.TrimSpace(data.Scene.Bot.UUID)
+	if !data.Scene.Bot.UUIDKnown || uuid == "00000000-0000-0000-0000-000000000000" {
+		uuid = ""
+	}
+	if !yyPoolMinecraftName(name) {
+		name = ""
+	}
+	return name, uuid
+}
+
+// yyPoolRememberedGameIdentity 读回上次记住的游戏名与 UUID。
+// 内核停掉以后头像仍然可用，不必为了头像去拉起进程。
+func yyPoolRememberedGameIdentity(id string) (name, uuid string) {
+	if yyAccounts.Root == "" {
+		return "", ""
+	}
+	raw, e := os.ReadFile(filepath.Join(yyAccountDir(id), "avatar-identity.json"))
+	if e != nil {
+		return "", ""
+	}
+	var data struct {
+		Name string `json:"name"`
+		UUID string `json:"uuid"`
+	}
+	if json.Unmarshal(raw, &data) != nil {
+		return "", ""
+	}
+	name, uuid = strings.TrimSpace(data.Name), strings.TrimSpace(data.UUID)
+	if !yyPoolMinecraftName(name) {
+		name = ""
+	}
+	if uuid == "00000000-0000-0000-0000-000000000000" {
+		uuid = ""
+	}
+	return name, uuid
+}
+
+// yyPoolRememberGameIdentity 只缓存游戏名和 UUID 这两个公开字段，值没变就不落盘。
+func yyPoolRememberGameIdentity(id, name, uuid string) {
+	if (name == "" && uuid == "") || yyAccounts.Root == "" {
+		return
+	}
+	if oldName, oldUUID := yyPoolRememberedGameIdentity(id); oldName == name && oldUUID == uuid {
+		return
+	}
+	dir := yyAccountDir(id)
+	if e := os.MkdirAll(dir, 0700); e != nil {
+		return
+	}
+	raw, e := json.Marshal(map[string]any{"name": name, "uuid": uuid, "updated_at": time.Now().UnixMilli()})
+	if e != nil {
+		return
+	}
+	path := filepath.Join(dir, "avatar-identity.json")
+	if e = os.WriteFile(path+".tmp", raw, 0600); e != nil {
+		return
+	}
+	_ = os.Rename(path+".tmp", path)
+}
+
+// yyPoolLocalGameIdentity 只认用户为这个账号明确填过的机器人名。
+//
+// 为什么不复用 yyPoolLocalGameName：那个函数最后会退回账号备注名 a.Name。
+// 备注名是给人看的标签，可能是"小号1"，也可能是随手打的"test1"；
+// 而 minotar / crafatar 对任何合法英文名都返回一张图（不校验是不是真实正版玩家），
+// 于是拿备注名去查，头像就变成一个毫不相干的陌生人。2026-10-23 用户看到的
+// "一大堆奇葩头像"就是这个原因。所以这里只把确认过的那部分交出去。
+func yyPoolLocalGameIdentity(a yyManagedAccount) (name string, confirmed bool) {
+	if raw, e := os.ReadFile(filepath.Join(yyAccountDir(a.ID), "config.json")); e == nil {
+		var cfg struct {
+			BotName string `json:"bot_name"`
+		}
+		if json.Unmarshal(raw, &cfg) == nil {
+			if n := strings.TrimSpace(cfg.BotName); yyPoolMinecraftName(n) {
+				return n, true
+			}
+		}
+	}
+	return "", false
+}
+
+// yyPoolAvatarIdentity 汇总头像要用的名字与 UUID：
+// 内核在线时问子进程并记住结果；离线时用上次记住的，再退回账号备注名。
+func yyPoolAvatarIdentity(a yyManagedAccount) (name, uuid string) {
+	if name, uuid = yyPoolChildGameIdentity(a); name != "" || uuid != "" {
+		yyPoolRememberGameIdentity(a.ID, name, uuid)
+		return name, uuid
+	}
+	if name, uuid = yyPoolRememberedGameIdentity(a.ID); name != "" || uuid != "" {
+		return name, uuid
+	}
+	return yyPoolLocalGameName(a), ""
+}
+
 func yyPoolOptions(args []any, index int) (map[string]any, error) {
 	if len(args) <= index || args[index] == nil {
 		return map[string]any{}, nil
@@ -258,12 +423,25 @@ func yyPoolCall(actor yyPoolActor, method string, args []any) (any, error) {
 			return nil, e
 		}
 		if op == "list" {
-			rows := []map[string]any{}
+			// 头像要用的游戏名/UUID 只能问子内核。先把租约拷出来解锁，
+			// 避免在持锁状态下做网络请求；明文令牌永不出现在列表里。
 			yyPool.Lock()
-			defer yyPool.Unlock()
-			for _, a := range items {
-				rows = append(rows, map[string]any{"id": a.ID, "name": a.Name, "owner_id": yyPoolOwner(a), "server": a.Server, "enabled": a.Enabled, "keep_alive": a.KeepAlive, "has_token": a.Token != "", "lease": yyPool.Leases[a.ID]})
+			leases := make(map[string]yyPoolLease, len(yyPool.Leases))
+			for id, lease := range yyPool.Leases {
+				leases[id] = lease
 			}
+			yyPool.Unlock()
+			rows := make([]map[string]any, len(items))
+			var wg sync.WaitGroup
+			for i, a := range items {
+				wg.Add(1)
+				go func(i int, a yyManagedAccount) {
+					defer wg.Done()
+					name, uuid := yyPoolAvatarIdentity(a)
+					rows[i] = map[string]any{"id": a.ID, "name": a.Name, "owner_id": yyPoolOwner(a), "server": a.Server, "enabled": a.Enabled, "keep_alive": a.KeepAlive, "has_token": a.Token != "", "token_masked": yyPoolMaskToken(a.Token), "player_name": name, "uuid": uuid, "lease": leases[a.ID]}
+				}(i, a)
+			}
+			wg.Wait()
 			return map[string]any{"accounts": rows, "process_slots": yyAccountProcessSlots}, nil
 		}
 		yyPoolMutationMu.Lock()
@@ -371,16 +549,22 @@ func yyPoolCall(actor yyPoolActor, method string, args []any) (any, error) {
 		defer yyPool.Unlock()
 		return yyPoolBindLocked(actor, a, o)
 	case "release":
-		seconds := 60.0
+		// 托管账号不设时限（用户明确要求）：未显式给出 idle_seconds 时
+		// IdleUntil 保持 0，表示永不自动回收；只有调用方自己要求宽限期时
+		// 才写入截止时间，回收逻辑留给那类租约。
+		seconds, explicit := 60.0, false
 		if n, ok := o["idle_seconds"].(float64); ok {
-			seconds = n
+			seconds, explicit = n, true
 		}
 		if seconds < 0 || seconds > 86400 {
 			return nil, fmt.Errorf("idle_seconds 需要 0..86400")
 		}
 		yyPool.Lock()
 		old, exists := yyPool.Leases[id]
-		lease := yyPoolLease{Account: id, Owner: yyPoolOwner(a), Server: a.Server, Phase: "idle", Updated: time.Now().UnixMilli(), IdleUntil: time.Now().Add(time.Duration(seconds * float64(time.Second))).UnixMilli()}
+		lease := yyPoolLease{Account: id, Owner: yyPoolOwner(a), Server: a.Server, Phase: "idle", Updated: time.Now().UnixMilli()}
+		if explicit {
+			lease.IdleUntil = time.Now().Add(time.Duration(seconds * float64(time.Second))).UnixMilli()
+		}
 		yyPool.Leases[id] = lease
 		e = yyPoolSaveLocked()
 		if e != nil {
@@ -435,7 +619,9 @@ func yyPoolExpire(now int64) {
 	yyPool.Lock()
 	expired := []yyPoolLease{}
 	for _, l := range yyPool.Leases {
-		if l.Phase == "idle" && l.IdleUntil <= now {
+		// 托管账号不设时限，用户明确要求：IdleUntil 为 0 的租约永不自动回收。
+		// 只有调用方显式要过宽限期的租约才进入回收，回收代码本身保留。
+		if l.Phase == "idle" && l.IdleUntil > 0 && l.IdleUntil <= now {
 			expired = append(expired, l)
 		}
 	}
@@ -506,6 +692,36 @@ func yyAccountPoolRoutes(mux *http.ServeMux, root string) {
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true, "result": result})
+	})
+	// 托管账号的明文令牌只在用户点「显示」时按需读取：
+	// 只允许 GET，id 必须通过账号池校验，走与其它账号池操作相同的身份判定，
+	// 不写任何日志，响应禁止缓存。
+	mux.HandleFunc("/api/youyuan/accounts/pool/secret", func(w http.ResponseWriter, r *http.Request) {
+		if yyAccounts.Worker {
+			http.Error(w, "账号池在主控制端调用", 400)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Method != "GET" {
+			http.Error(w, "GET required", 405)
+			return
+		}
+		actor, e := yyPoolActorRequest(r)
+		if e != nil {
+			http.Error(w, e.Error(), 403)
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		if !yyPoolAccountID(id) {
+			http.Error(w, "账号 ID 无效", 400)
+			return
+		}
+		a, e := yyPoolRequire(actor, id)
+		if e != nil {
+			http.Error(w, e.Error(), 403)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "id": a.ID, "token": a.Token})
 	})
 }
 func yyPoolSDKCall(method string, args []any) (any, error) {

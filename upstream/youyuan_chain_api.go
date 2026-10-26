@@ -23,7 +23,7 @@ var yyChainMethods = map[string]string{
 	"chains.get":        "name，读取完整 TXT、配置和状态。",
 	"chains.export":     "name，返回完整 TXT 与配置，插件可自行写入导出目录。",
 	"chains.validate":   "content，预解析并返回命令/条件/通道/行号；失败含报错。",
-	"chains.save":       "name,content,config；config 支持 hz(整链频率，有限正数，无1000Hz上限)/interval_ms(旧版整链毫秒周期)/delay_ms/run_count/channel/enabled/mode/window/rate_cps。mode=fast无等待提交（条件及其前条确认）、remote严格顺序、pipeline有界流水线、burst整批最多1024、stream动态滑动窗口1..1024（默认128，rate_cps=0不设固定CPS，回包立即补位，网络错误停止补发；正常无目标不丢弃无条件后续）；全部在机器人内运行。TXT支持 @branch {command,then,else} 一次真实检测选择一个子链并返回，@call JSON 跨链源文件行号范围/次数/时限/持续，@wait JSON 条件边沿等待，@pause手动触发；读 command-chain 技能。账号固定为当前插件账号。",
+	"chains.save":       "name,content,config；config 支持 hz(显式修改主模块频率，慢模块保持原周期)、frequency_mode=override或cap(仅限制上限)/interval_ms(兼容毫秒周期；单独修改时同步hz)/delay_ms/run_count/channel/enabled/mode/window/rate_cps。mode=fast同账号模块串行有界提交（每批最多1024包/512KiB命令文本，业务未逐条确认；网络写失败停止本连接后续Fast链，不自动重发，重连后恢复；提交成功不代表服务器执行或TPS正常）、remote严格顺序、pipeline有界流水线、burst整批最多1024、stream动态滑动窗口1..1024（默认128，rate_cps=0不设固定CPS，回包立即补位，网络错误停止补发；正常无目标不丢弃无条件后续）；全部在机器人内运行。TXT支持 @gate {command,then,else,poll_ms} 按真实条件启动/回收子模块且保留其频率、最多一个活动子模块；@plugin {plugin_id,function,args} 调用当前账号已运行插件的plugin_api导出，不自动启用目标；@branch {command,then,else} 一次真实检测选择一个子链并返回，@call JSON 跨链源文件行号范围/次数/时限/持续，@wait JSON 条件边沿等待，@pause手动触发；读 command-chain 技能。账号固定为当前插件账号。",
 	"chains.configure":  "name,patch，合并并校验配置，保留 TXT；运行中会停止并按 enabled 重启。",
 	"chains.start":      "name，启用独立常驻实例；已启用不重复启动。",
 	"chains.stop":       "name，停止并等待当前实例退出。",
@@ -171,10 +171,28 @@ func yyChainPluginCall(bm *BotManager, method string, args []any) (any, error) {
 			}
 			for k, v := range patch {
 				switch k {
-				case "hz", "interval_ms", "delay_ms", "run_count", "channel", "enabled", "mode", "window", "rate_cps", "scheduling", "bootstrap":
+				case "hz", "frequency_mode", "interval_ms", "delay_ms", "run_count", "channel", "enabled", "mode", "window", "rate_cps", "scheduling", "bootstrap":
 					config[k] = v
 				default:
 					return nil, fmt.Errorf("不支持配置字段 %s", k)
+				}
+			}
+			if _, explicitMode := patch["frequency_mode"]; !explicitMode {
+				_, explicitHz := patch["hz"]
+				_, explicitInterval := patch["interval_ms"]
+				if explicitHz || explicitInterval {
+					config["frequency_mode"] = "override"
+				}
+			}
+			// Old clients edit milliseconds only: do not retain a stale Hz value.
+			if interval, changed := patch["interval_ms"]; changed {
+				if _, explicit := patch["hz"]; !explicit {
+					raw, err := json.Marshal(interval)
+					var ms float64
+					if err != nil || json.Unmarshal(raw, &ms) != nil || ms <= 0 {
+						return nil, fmt.Errorf("interval_ms 必须是正数")
+					}
+					config["hz"] = 1000 / ms
 				}
 			}
 		}

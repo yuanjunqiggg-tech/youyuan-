@@ -1,6 +1,7 @@
 package nbt_block
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
@@ -540,15 +541,19 @@ func (c *Container) makeNormal() error {
 		return fmt.Errorf("制作普通: %v", err)
 	}
 
-	// Step 8.3: 检测容器是否为空（自动化通道 Replaceitem 可能静默失败，导致容器未收到物品）。
-	// 若空，改用标准玩家通道重放普通物品，确保容器收到物品，否则 Step 9 移出时 Invalid result count。
-	if !containerHasItems(c.console) {
-		for _, item := range c.data.NBT.Items {
-			if item.Item.IsComplex() {
-				continue
-			}
+	// A mixed container can contain complex items while ordinary slots are still missing.
+	readback, err := simpleStructureGetter(c.console)
+	if err != nil {
+		return fmt.Errorf("填充普通物品后读取容器: %w", err)
+	}
+	missing, err := missingOrdinaryContainerItems(c.data, readback)
+	if err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		for _, item := range missing {
 			underlying := item.Item.UnderlyingItem().(*nbt_parser_item.DefaultItem)
-			_ = api.Replaceitem().ReplaceitemInContainerPlayer(
+			err = api.Replaceitem().ReplaceitemInContainerPlayer(
 				c.console.Center(),
 				game_interface.ReplaceitemInfo{
 					Name:     item.Item.ItemName(),
@@ -558,10 +563,24 @@ func (c *Container) makeNormal() error {
 				},
 				utils.MarshalItemComponent(underlying.Enhance.ItemComponent),
 			)
+			if err != nil {
+				return fmt.Errorf("补填容器槽位 %d: %w", item.Slot, err)
+			}
 		}
 		err = api.Commands().AwaitChangesGeneral()
 		if err != nil {
 			return fmt.Errorf("制作普通: %v", err)
+		}
+		readback, err = simpleStructureGetter(c.console)
+		if err != nil {
+			return fmt.Errorf("补填后读取容器: %w", err)
+		}
+		missing, err = missingOrdinaryContainerItems(c.data, readback)
+		if err != nil {
+			return err
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("补填后仍有 %d 个普通物品槽未同步，首个槽位 %d", len(missing), missing[0].Slot)
 		}
 	}
 
@@ -668,17 +687,25 @@ func (c *Container) makeNormal() error {
 	return nil
 }
 
-// containerHasItems 检测操作台中心容器是否已装入物品。
-// 通过 structure save 读取容器方块 NBT 中的 Items 数组。
-// 读失败时保守返回 true（视为已有物品），避免误触发重放造成循环。
-func containerHasItems(console *nbt_console.Console) bool {
-	m, err := simpleStructureGetter(console)
-	if err != nil {
-		return true
+func missingOrdinaryContainerItems(want nbt_parser_block.Container, data map[string]any) ([]nbt_parser_block.ItemWithSlot, error) {
+	actual := want
+	actual.NBT = nbt_parser_block.ContainerNBT{}
+	if err := actual.Parse(data); err != nil {
+		return nil, fmt.Errorf("读取容器槽位: %w", err)
 	}
-	items, ok := m["Items"].([]any)
-	if !ok {
-		return false
+	slots := make(map[uint8]nbt_parser_interface.Item, len(actual.NBT.Items))
+	for _, item := range actual.NBT.Items {
+		slots[item.Slot] = item.Item
 	}
-	return len(items) > 0
+	var missing []nbt_parser_block.ItemWithSlot
+	for _, item := range want.NBT.Items {
+		if item.Item.IsComplex() {
+			continue
+		}
+		got := slots[item.Slot]
+		if got == nil || got.ItemCount() != item.Item.ItemCount() || !bytes.Equal(got.NBTStableBytes(), item.Item.NBTStableBytes()) {
+			missing = append(missing, item)
+		}
+	}
+	return missing, nil
 }

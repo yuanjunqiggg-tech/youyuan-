@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>审查用 · 命令链中心</title>
+<link rel="stylesheet" href="../../frontend/css/base.css">
+<link rel="stylesheet" href="../../frontend/css/layout.css">
+<link rel="stylesheet" href="../../frontend/css/components.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_design.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_chain_center.css">
+<style>
+  html,body{margin:0;padding:0;min-height:100%;background:var(--phx-bg);color:var(--phx-text)}
+  #sub-page{height:100vh}
+  .sub-page.show{display:flex;flex-direction:column;height:100vh}
+  .sp-body{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .yy-intro{margin:0 0 10px}
+  .yy-intro h2{margin:0;font-size:16px;font-weight:700}
+  .yy-intro p{margin:4px 0 0;font-size:11px;color:var(--phx-text-secondary);line-height:1.6}
+</style>
+</head>
+<body class="sp-open">
+<div id="sub-page" class="sub-page show"></div>
+
+<script src="stub.js"></script>
+<script>
+  var now = Date.now();
+  window.__API__ = {
+    "/api/youyuan/chains": function () {
+      if (window.__EMPTY__) return { ok: true, files: [], warnings: [] };
+      return {
+        ok: true,
+        warnings: ["broken_chain.txt：第 3 行不是合法命令，已跳过", "旧备份_20260901.txt：文件编码不是 UTF-8"],
+        files: [
+          {
+            config: { name: "自动收菜_全服_每30秒一轮_第三赛季专用.txt", hz: 0, interval_ms: 500, delay_ms: 120 },
+            state: "运行中", commands: 12, size_bytes: 2048, modified_at: new Date(now - 120000).toISOString(),
+            executed: 8421, submitted: 8400, skipped: 21, cycles: 700, actual_hz: 2.01, error: ""
+          },
+          {
+            config: { name: "夜间巡逻.txt", hz: 0, interval_ms: 1000, delay_ms: 80 },
+            state: "错误：WebSocket 已断开", commands: 4, size_bytes: 512, modified_at: new Date(now - 86400000 * 2).toISOString(),
+            executed: 0, submitted: 0, skipped: 0, cycles: 0, actual_hz: 0,
+            error: "第 2 行执行失败：send command failed: connection reset by peer; 重试 3 次后放弃\n第 3 行执行失败：timeout after 5000ms"
+          },
+          {
+            config: { name: "build.txt", interval_ms: 2000, delay_ms: 0 },
+            state: "", commands: 120, size_bytes: 15360000, modified_at: new Date(now - 60000).toISOString(),
+            loaded: false
+          }
+        ]
+      };
+    }
+  };
+</script>
+<script src="../../frontend/js/youyuan_chain_center.js"></script>
+<script>
+  window.yyChainEdit = function () {};
+  window.yyChainUpload = function () {};
+  window.yyCreateWorkspaceDialog = function () {};
+  window.yyChainsPage();
+</script>
+</body>
+</html>

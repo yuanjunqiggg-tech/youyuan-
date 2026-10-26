@@ -1,0 +1,15 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/youyuan_qq_console.css">
+</head><body>
+<div id="yyq-root"><div class="yyq-grid"><section class="yyq-caps" id="yyq-caps"></section></div><div class="yyq-fold-grid"></div></div>
+<script>window.A=function(){return Promise.resolve({ok:true,caps:[]})};</script>
+<script src="/js/youyuan_qq_console.js"></script>
+<script>
+yyQQC.caps=[
+ {kind:"like",label:"点赞",icon:"👍",desc:"给群友名片点赞",min_level:0,min_level_text:"成员",cool_seconds:120,gap_seconds:10,daily:3,default:true,onebot_only:true,command:".点赞 QQ号",enabled:true,custom:false,defaults:{min_level:0,cool_seconds:120,gap_seconds:10,daily:3}},
+ {kind:"qzone",label:"发动态",icon:"📮",desc:"发QQ空间动态",min_level:1,min_level_text:"管理员",cool_seconds:0,gap_seconds:30,daily:0,default:true,onebot_only:true,command:".动态",enabled:true,custom:true,defaults:{min_level:1,cool_seconds:300,gap_seconds:30,daily:6}}
+];
+yyQQC.openCap="like";
+document.getElementById("yyq-caps").outerHTML=yyQQCaps();
+</script>
+</body></html>

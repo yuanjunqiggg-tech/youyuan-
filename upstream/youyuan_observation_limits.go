@@ -25,7 +25,7 @@ var yyObservationConfigMu sync.Mutex
 var yyObservationConfigPath string
 
 func init() {
-	yyObservationConfig.Store(yyObservationLimits{EventQueue: 128, PriorityQueue: 128, RuntimeQueue: 256, AsyncTickets: 128, EventHistory: 512, Actors: 2048, StaleMS: 15000})
+	yyObservationConfig.Store(yyObservationLimits{EventQueue: 256, PriorityQueue: 256, RuntimeQueue: 256, AsyncTickets: 128, EventHistory: 512, Actors: 2048, StaleMS: 15000})
 }
 func yyObservationSettings() yyObservationLimits {
 	return yyObservationConfig.Load().(yyObservationLimits)

@@ -2,9 +2,36 @@ package main
 
 import (
 	"bot-apk/config"
+	"math"
 	"strings"
 	"testing"
 )
+
+func TestEmptyDimensionUsesOnlyExplicitLanding(t *testing.T) {
+	d := int32(1)
+	o := yyObserverDimensionOptions{Dimension: &d}
+	if yyObserverDimensionTransfer("Observer", o) != "" {
+		t.Fatal("unconfigured landing must not load arbitrary chunks")
+	}
+	o.Landing = &yyCaptureLanding{X: -10000, Y: 100, Z: -10000}
+	if got := yyObserverDimensionTransfer("Observer", o); got != `execute in nether run tp "Observer" -10000.000 100.000 -10000.000` {
+		t.Fatal(got)
+	}
+	o.Player = "Target"
+	if got := yyObserverDimensionTransfer("Observer", o); got != `execute in nether at @a[name="Target"] run tp "Observer" ~ ~6 ~` {
+		t.Fatal("live target must take precedence over idle landing", got)
+	}
+}
+
+func TestDimensionAssignmentRejectsInvalidLandingBeforeSending(t *testing.T) {
+	for _, p := range []yyCaptureLanding{{Y: 321}, {X: 30000001}, {Y: math.Inf(1)}} {
+		bm := &BotManager{connected: true, dimension: 0, isOP: true}
+		_, err := yyObserverDimensionCall(bm, "observerBridge.assignDimension", []any{map[string]any{"dimension": 1, "landing": p}})
+		if err == nil {
+			t.Fatal("invalid landing accepted", p)
+		}
+	}
+}
 
 func TestDimensionAssignmentDoesNotForceGameMode(t *testing.T) {
 	config.InitConfig(t.TempDir())
@@ -26,6 +53,19 @@ func TestDimensionAssignmentDoesNotForceGameMode(t *testing.T) {
 		if len(status["controls"].([]any)) != 0 {
 			t.Fatal("sent game commands while already in assigned dimension")
 		}
+	}
+}
+
+func TestEmptyDimensionDoesNotLoadArbitraryLandingChunks(t *testing.T) {
+	config.InitConfig(t.TempDir())
+	bm := &BotManager{connected: true, dimension: 0, isOP: true, display: "observer"}
+	v, err := yyObserverDimensionCall(bm, "observerBridge.assignDimension", []any{map[string]any{"dimension": 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := v.(map[string]any)
+	if s["ready"] != false || s["submitted"] != false || len(s["controls"].([]any)) != 0 {
+		t.Fatal(s)
 	}
 }
 
@@ -65,7 +105,12 @@ func TestRelativeCameraUsesNativeEntityFrameAndDimensionFilter(t *testing.T) {
 			t.Fatal(command)
 		}
 	}
-	if _, e = yyWatchParse(map[string]any{"auto_players": true, "observe_dimension": 3}); e == nil {
+	// 2026-10-26 第 27 条：维度上限 2 → 31，dm3/dm4 必须能配。
+	if _, e = yyWatchParse(map[string]any{"auto_players": true, "observe_dimension": 3}); e != nil {
+		t.Fatalf("observe_dimension=3（dm3）应被接受，实际报错 %v", e)
+	}
+	// 超出上限 31 的才是非法值
+	if _, e = yyWatchParse(map[string]any{"auto_players": true, "observe_dimension": 40}); e == nil {
 		t.Fatal("invalid dimension accepted")
 	}
 }

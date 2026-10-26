@@ -44,11 +44,37 @@ var (
 	thinkingEffort = map[string]string{"low": "low", "medium": "medium", "high": "high"}
 )
 
+// AIModelRole 一个用途（语言/画图/语音）指向模型库里的哪条记录。
+// 模型库只存一份地址与密钥，用途只存选择，避免同一套密钥在三个页面各配一遍。
+type AIModelRole struct {
+	Model string `json:"model"`           // 指向 models 里的 name；空 = 该用途未选模型
+	Size  string `json:"size,omitempty"`  // 仅 image：出图尺寸
+	Voice string `json:"voice,omitempty"` // 仅 speech：音色
+	Mode  string `json:"mode,omitempty"`  // 仅 speech：off / auto / always
+}
+
+// aiModelRoles 三个用途的选择。
+type aiModelRoles struct {
+	Language AIModelRole `json:"language"`
+	Image    AIModelRole `json:"image"`
+	Speech   AIModelRole `json:"speech"`
+}
+
+// aiModelsFile 是 ai_models.json 的落盘结构。
+// 旧版本这个文件是裸数组（只有模型列表），读的时候要兼容，否则升级后模型全丢。
+type aiModelsFile struct {
+	Version int          `json:"version"`
+	Models  []*AIModel   `json:"models"`
+	Roles   aiModelRoles `json:"roles"`
+}
+
 // aiModelStore 模型注册表：内存 + 落盘 <dataDir>/ai_models.json。
+// 模型列表与三个用途的选择共用一个文件、一把锁，避免两处各写一半。
 type aiModelStore struct {
 	mu     sync.Mutex
 	path   string
 	models []*AIModel
+	roles  aiModelRoles
 }
 
 // aiStore 全局模型注册表。路径由 StartServer 里 aiModelStore.setPath(dataDir) 初始化。
@@ -59,8 +85,17 @@ func (s *aiModelStore) setPath(dataDir string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.path = dataDir + "/ai_models.json"
+	// 重新指向另一个数据目录时，先清掉上一次的用途选择，避免把旧目录的选择带过去。
+	s.roles = aiModelRoles{}
 	if data, err := os.ReadFile(s.path); err == nil {
-		_ = json.Unmarshal(data, &s.models)
+		// 新格式是 {models,roles}；老格式是裸数组。两种都要读得进来。
+		var file aiModelsFile
+		if err := json.Unmarshal(data, &file); err == nil && file.Models != nil {
+			s.models = file.Models
+			s.roles = file.Roles
+		} else {
+			_ = json.Unmarshal(data, &s.models)
+		}
 	}
 	if s.models == nil {
 		s.models = []*AIModel{}
@@ -85,12 +120,16 @@ func (s *aiModelStore) setPath(dataDir string) {
 	}
 }
 
-// saveLocked 把模型列表写回磁盘（调用方需持锁）。
+// saveLocked 把模型列表与用途选择一起写回磁盘（调用方需持锁）。
 func (s *aiModelStore) saveLocked() error {
 	if s.path == "" {
 		return nil
 	}
-	data, err := json.MarshalIndent(s.models, "", "  ")
+	models := s.models
+	if models == nil {
+		models = []*AIModel{}
+	}
+	data, err := json.MarshalIndent(aiModelsFile{Version: 2, Models: models, Roles: s.roles}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -213,6 +252,26 @@ func (s *aiModelStore) Delete(name string) error {
 	}
 	if err := s.saveLocked(); err != nil {
 		s.models = before
+		return err
+	}
+	return nil
+}
+
+// Roles 返回三个用途选择的拷贝。
+func (s *aiModelStore) Roles() aiModelRoles {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.roles
+}
+
+// SetRoles 写入三个用途的选择并落盘；写盘失败回滚，避免内存与磁盘不一致。
+func (s *aiModelStore) SetRoles(next aiModelRoles) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	before := s.roles
+	s.roles = next
+	if err := s.saveLocked(); err != nil {
+		s.roles = before
 		return err
 	}
 	return nil

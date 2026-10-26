@@ -15,7 +15,7 @@ import (
 // caller's control; the packet reader never performs queries or HTTP requests.
 func init() {
 	for k, v := range map[string]string{
-		"observerBridge.watchStart":  "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:15}；camera模式只用摄像机视角、不切旁观模式，但服务端只在身体附近广播实体与属性包，因此默认把身体保持在目标body_radius_blocks内（0关闭，可能抓不到远处包）；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
+		"observerBridge.watchStart":  "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:15}；camera模式只用摄像机视角、不切旁观模式，默认可把身体保持在目标body_radius_blocks内（0关闭）；远处可见性以实际下发包核对，切换期间会有观察空档；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
 		"observerBridge.watchStatus": "返回本账号常驻观察目标、真实区域发布时间、submitted、missed_intervals、错误。region_updated只是收到对应区域包，不等于零漏包。",
 		"observerBridge.watchStop":   "取消本账号常驻观察，清除本次相机并恢复已确认的原位置；不会关闭其他插件拥有的观察。",
 	} {
@@ -63,6 +63,7 @@ type yyWatch struct {
 	RegionOrigin    mgl32.Vec3
 	TargetDimension int32
 	SubmittedAt     time.Time
+	SubmissionGap   time.Duration
 	TargetSince     time.Time
 	Submitted       uint64
 	FollowTeleports uint64
@@ -97,7 +98,7 @@ func yyWatchParse(v any) (yyWatchConfig, error) {
 	if e = json.Unmarshal(raw, &c); e != nil {
 		return c, e
 	}
-	if c.ObserveDimension != nil && (*c.ObserveDimension < 0 || *c.ObserveDimension > 2) {
+	if c.ObserveDimension != nil && !yyDimensionIDValid(*c.ObserveDimension) {
 		return c, fmt.Errorf("observe_dimension需要0/1/2")
 	}
 	if math.IsNaN(c.PhaseSeconds) || math.IsInf(c.PhaseSeconds, 0) || c.PhaseSeconds < 0 || c.PhaseSeconds > 3600 || c.TargetOffset < 0 {
@@ -231,6 +232,13 @@ func (w *yyWatch) snapshot() map[string]any {
 	result["query_failures"] = w.QueryFailures
 	result["dimension_skips"] = w.DimensionSkips
 	result["last_skip"] = w.LastSkip
+	result["requested_interval_ms"] = w.Config.Interval * 1000
+	result["command_limit_per_second"] = yyObserverCommandRate
+	result["minimum_command_interval_ms"] = 1000.0 / yyObserverCommandRate
+	result["last_host_submission_interval_ms"] = nil
+	if w.SubmissionGap > 0 {
+		result["last_host_submission_interval_ms"] = float64(w.SubmissionGap) / float64(time.Millisecond)
+	}
 	if w.Config.Mode == "camera" && (w.Config.CameraSelector || len(w.Config.Players) > 1 || w.Config.AutoPlayers) {
 		result["region_updated"] = false
 		result["target_position_known"] = false
@@ -330,6 +338,10 @@ func (w *yyWatch) run(ctx context.Context) {
 		defer cancel()
 	}
 	interval, _ := yyPatrolDuration(w.Config.Interval)
+	idleInterval := interval
+	if idleInterval < 100*time.Millisecond {
+		idleInterval = 100 * time.Millisecond
+	}
 	next := time.Now()
 	index := 0
 watchLoop:
@@ -345,13 +357,13 @@ watchLoop:
 			return
 		}
 		if busy, _ := yySpatialJobState(w.Bot); busy {
-			next = time.Now().Add(interval)
+			next = time.Now().Add(idleInterval)
 			continue
 		}
 		// This is a separate worker: query RTT does not hold a Lua VM or packet queue.
 		targets := w.targets()
 		if len(targets) == 0 {
-			next = time.Now().Add(interval)
+			next = time.Now().Add(idleInterval)
 			continue
 		}
 		targetName := targets[index%len(targets)]
@@ -420,8 +432,8 @@ watchLoop:
 			w.Unlock()
 			teleport = first || yyWatchNeedsTeleport(known, yyPatrolFeetPosition(bodyPosition), feet, dim, int32(p.Dimension), w.Config.FollowRadius)
 		} else if w.Config.BodyRadius > 0 {
-			// Camera-only observers still need the body inside the broadcast
-			// radius, otherwise no entity/attribute packets reach this account.
+			// Body proximity is an optional fallback; camera visibility alone can
+			// publish remote actors, but fast switching leaves gaps between views.
 			body := yySenseActor(w.Bot, "self")
 			bodyPosition, known := body["position"].(mgl32.Vec3)
 			known = known && body["position_known"] == true && body["position_stale"] != true
@@ -480,7 +492,11 @@ watchLoop:
 		w.Target = expected
 		w.TargetDimension = int32(p.Dimension)
 		if len(commands) > 0 {
-			w.SubmittedAt = at
+			submittedAt := time.Now()
+			if !w.SubmittedAt.IsZero() {
+				w.SubmissionGap = submittedAt.Sub(w.SubmittedAt)
+			}
+			w.SubmittedAt = submittedAt
 		}
 		w.Submitted += uint64(len(commands))
 		if teleport {
@@ -496,13 +512,23 @@ watchLoop:
 		w.Unlock()
 	}
 }
+
+// yyWatchDimension 维度 ID → execute in 可用的维度名。
+// 0/1/2 是原版三维度；3 以上按网易自定义维度约定映射成 dm3/dm4…，
+// 这样 `execute in dm3 run tp ...` 就能把机体送进去。
+// 用户原话：「如果直接测不到维度，你直接用原生的指令去做啊，不也行吗？」
 func yyWatchDimension(d int32) string {
 	switch d {
 	case 1:
 		return "nether"
 	case 2:
 		return "the_end"
+	case 0:
+		return "overworld"
 	default:
+		if yyDimensionIDValid(d) {
+			return fmt.Sprintf("dm%d", d)
+		}
 		return "overworld"
 	}
 }

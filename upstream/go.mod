@@ -10,10 +10,14 @@ require (
 	github.com/df-mc/goleveldb v1.1.9
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-gl/mathgl v1.2.0
+	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/google/uuid v1.6.0
 	github.com/lucasb-eyer/go-colorful v1.4.0
 	github.com/yuin/gopher-lua v1.1.2
 	go.etcd.io/bbolt v1.4.2
+	golang.org/x/crypto v0.50.0
+	golang.org/x/image v0.21.0
+	golang.org/x/sys v0.43.0
 )
 
 require (
@@ -26,7 +30,6 @@ require (
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/database64128/chacha8-go v0.0.0-20250815115417-e0f2726d8bd0 // indirect
 	github.com/deatil/go-cryptobin v1.1.1005 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
@@ -54,10 +57,7 @@ require (
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/image v0.21.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 )

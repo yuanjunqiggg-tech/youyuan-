@@ -37,6 +37,7 @@ func openConnection(
 		UpstreamDialer:       cfg.GameUpstreamDialer,
 		DisablePharos:        cfg.DisablePharos,
 		OnGameRoute:          cfg.OnGameRoute,
+		PacketFunc:           cfg.PacketFunc,
 		Authenticator:        authenticator,
 		DownloadResourcePack: func(id uuid.UUID, version string, current, total int) bool { return false },
 	}

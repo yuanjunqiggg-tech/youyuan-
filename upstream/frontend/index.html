@@ -1,25 +1,50 @@
 <!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>游园工具箱</title>
-<link rel="stylesheet" href="/css/base.css?v=20261021">
-<link rel="stylesheet" href="/css/layout.css?v=20261021">
-<link rel="stylesheet" href="/css/components.css?v=20261021">
+<title>MCORT · Minecraft Open Robot Toolbox</title>
+<meta name="author" content="疣螈">
+<meta name="application-name" content="MCORT">
+<script>/* 主题预设：theme.js 在 body 末尾才执行，深色用户首屏会先按亮色绘制再切换（闪一下）。
+   在 head 最早按 localStorage 落 data-theme，保证首帧即正确主题。 */try{var __t=localStorage.getItem('youyuan_theme');if(__t)document.documentElement.setAttribute('data-theme',__t)}catch(e){}</script>
+<link rel="preconnect" href="https://challenges.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://challenges.cloudflare.com">
+<link rel="stylesheet" href="/css/base.css?v=2026102824">
+<link rel="stylesheet" href="/css/layout.css?v=2026102824">
+<link rel="stylesheet" href="/css/components.css?v=2026102824">
 
-<link rel="stylesheet" href="/css/youyuan_design.css?v=20261021">
+<link rel="stylesheet" href="/css/youyuan_design.css?v=2026102824">
 
-<link rel="stylesheet" href="/css/youyuan_accounts.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_usability.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_agent_scroll.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_agent_layout.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_reference.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_connection_policy.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_room_discovery.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_settings_groups.css?v=20261021"><link rel="stylesheet" href="/css/youyuan_studio.css?v=20261021"><link rel="stylesheet" href="/css/youyuan_terminal.css?v=20261021"><link rel="stylesheet" href="/css/youyuan_agent_studio.css?v=20261021">
-<link rel="stylesheet" href="/css/youyuan_plugin_studio.css?v=20261021"><link rel="stylesheet" href="/css/youyuan_game_controls.css?v=20261021"><link rel="stylesheet" href="/css/youyuan_navigation.css?v=20261021">
+<link rel="stylesheet" href="/css/youyuan_accounts.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_account_pool.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_skin_library.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_usability.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_agent_scroll.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_agent_layout.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_reference.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_connection_policy.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_connection_diagnostics.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_room_discovery.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_seed_page.css?v=2026102824">
+<link id="yy-seedmap-v2-css" rel="stylesheet" href="/css/youyuan_seedmap_v2.css?v=2026102826">
+<link rel="stylesheet" href="/css/youyuan_hq_query.css?v=2026102824">
+<link rel="stylesheet" href="/css/yy_seed_map.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_qq_console.css?v=2026102825">
+<link rel="stylesheet" href="/css/youyuan_qq_console_quicknav.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_model_brand.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_qq_serverinfo.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_settings_groups.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_studio.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_terminal.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_agent_studio.css?v=2026102824"><link rel="stylesheet" href="/css/yy_agent_workspace.css?v=2026102824"><link rel="stylesheet" href="/css/yy_file_browser.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_plugin_studio.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_game_controls.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_navigation.css?v=2026102824"><link rel="stylesheet" href="/css/youyuan_chain_center.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_mcp_scope.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_agent_mobile.css?v=2026102824">
+<link rel="stylesheet" href="/css/yy_tools_browser.css?v=2026102824">
+<link rel="stylesheet" href="/css/yy_home_workbench.css?v=2026102824">
+<link rel="stylesheet" href="/css/yy_building_deploy.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_qq_member_ui.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_qq_assistant_tools.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_market.css?v=2026102824">
+<link rel="stylesheet" href="/css/youyuan_boot_stable.css?v=2026102824">
 </head><body>
 <div id="app">
 <div class="conn-bar" id="conn-bar">
-  <div class="cb-left"><h1>游园工具箱</h1></div>
+  <div class="cb-left"><h1>MCORT</h1></div>
   <div class="cb-center">
     <span class="cb-dot" id="gdot"></span>
     <span class="cb-status" id="conn-st">未连接</span>
@@ -51,112 +76,113 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- ═══ 首次启动向导(隐藏) ═══ -->
-<div class="wz-overlay" id="wizard-overlay" style="display:none">
-  <div class="wz-bg">
-    <div class="wz-blob wz-blob-gold"></div>
-    <div class="wz-blob wz-blob-green"></div>
-    <div class="wz-blob wz-blob-brown"></div>
-    <div class="wz-dots"></div>
-    <div class="wz-noise"></div>
-    <div class="wz-lines"></div>
-  </div>
-  <div class="wz-content">
-    <div class="wz-pages">
-      <div class="wz-page active" id="wz-page-1"></div>
-      <div class="wz-page" id="wz-page-2"></div>
-      <div class="wz-page" id="wz-page-3"></div>
-      <div class="wz-page" id="wz-page-4"></div>
-    </div>
-    <div class="wz-dot-bar" id="wz-dot-bar">
-      <span class="wz-dot active" onclick="goToStep(1)"></span>
-      <span class="wz-dot" onclick="goToStep(2)"></span>
-      <span class="wz-dot" onclick="goToStep(3)"></span>
-      <span class="wz-dot" onclick="goToStep(4)"></span>
-    </div>
-  </div>
-</div>
 
 <script>window.onerror=function(m,s,l,c,e){console.error('GLOBAL ERROR:',m,'at',s+':'+l);return false}</script>
-<script src="/js/theme.js?v=20261021"></script>
-<script src="/js/youyuan_boot.js?v=20261021"></script>
-<script src="/js/youyuan_account_boot.js?v=20261021"></script>
-<script src="/js/api.js?v=20261021"></script>
-<script src="/js/utils.js?v=20261021"></script>
-<script src="/js/sse.js?v=20261021"></script>
-<script src="/js/pages/home.js?v=20261021"></script>
-<script src="/js/pages/tasks.js?v=20261021"></script>
-<script src="/js/pages/terminal.js?v=20261021"></script>
-<script src="/js/pages/settings.js?v=20261021"></script>
-<script src="/js/pages/plugins.js?v=20261021"></script>
-<script src="/js/features/filepicker.js?v=20261021"></script>
-<script src="/js/features/helpers.js?v=20261021"></script>
-<script src="/js/features/building.js?v=20261021"></script>
-<script src="/js/features/mapart.js?v=20261021"></script>
-<script src="/js/features/drawing.js?v=20261021"></script>
-<script src="/js/features/music.js?v=20261021"></script>
-<script src="/js/features/skin.js?v=20261021"></script>
-<script src="/js/features/mapplayer.js?v=20261021"></script>
-<script src="/js/features/announcements.js?v=20261021"></script>
-<script src="/js/features/notifications.js?v=20261021"></script>
-<script src="/js/features/building_mgmt.js?v=20261021"></script>
-<script src="/js/features/others.js?v=20261021"></script>
-<script src="/js/features/migrate_lite.js?v=20261021"></script>
-<script src="/js/features/cb_engineering.js?v=20261021"></script>
-<script src="/js/features/itemmaker.js?v=20261021"></script>
-  <script src="/js/features/camera.js?v=20261021"></script>
-<script src="/js/features/mcfunction.js?v=20261021"></script>
-<script src="/js/features/fly.js?v=20261021"></script>
-<script src="/js/features/personalize.js?v=20261021"></script>
-<script src="/js/features/plugin_mgmt.js?v=20261021"></script>
-<script src="/js/features/plugin_market.js?v=20261021"></script>
-<script src="/js/features/ai_assist.js?v=20261021"></script>
-<script src="/js/app.js?v=20261021"></script>
-<script src="/js/features/preview.js?v=20261021"></script>
+<script src="/js/compat.js?v=2026102824"></script>
+<script src="/js/theme.js?v=2026102824"></script>
+<script src="/js/youyuan_console_token.js?v=2026102825"></script>
+<script src="/js/youyuan_boot.js?v=2026102824"></script>
+<script src="/js/youyuan_account_boot.js?v=2026102824"></script>
+<script src="/js/youyuan_poll_policy.js?v=2026102824"></script>
+<script src="/js/api.js?v=2026102824"></script>
+<script src="/js/utils.js?v=2026102824"></script>
+<script src="/js/sse.js?v=2026102824"></script>
+<script src="/js/pages/home.js?v=2026102824"></script>
+<script src="/js/pages/tasks.js?v=2026102824"></script>
+<script src="/js/pages/terminal.js?v=2026102824"></script>
+<script src="/js/pages/settings.js?v=2026102824"></script>
+<script src="/js/pages/plugins.js?v=2026102824"></script>
+<script src="/js/features/filepicker.js?v=2026102824"></script>
+<script src="/js/features/helpers.js?v=2026102824"></script>
+<script src="/js/features/building.js?v=2026102824"></script>
+<script src="/js/features/mapart.js?v=2026102824"></script>
+<script src="/js/features/drawing.js?v=2026102824"></script>
+<script src="/js/features/music.js?v=2026102824"></script>
+<script src="/js/features/skin.js?v=2026102824"></script>
+<script src="/js/features/mapplayer.js?v=2026102824"></script>
+<script src="/js/features/announcements.js?v=2026102824"></script>
+<script src="/js/features/intro_video.js?v=2026102824"></script>
+<script src="/js/features/notifications.js?v=2026102824"></script>
+<script src="/js/features/building_mgmt.js?v=2026102824"></script>
+<script src="/js/features/others.js?v=2026102824"></script>
+<script src="/js/features/hq_query.js?v=2026102824"></script>
+<script src="/js/features/seed_map.js?v=2026102824"></script>
+<script src="/js/features/migrate_lite.js?v=2026102824"></script>
+<script src="/js/features/cb_engineering.js?v=2026102824"></script>
+<script src="/js/features/itemmaker.js?v=2026102824"></script>
+  <script src="/js/features/camera.js?v=2026102824"></script>
+<script src="/js/features/mcfunction.js?v=2026102824"></script>
+<script src="/js/features/fly.js?v=2026102824"></script>
+<script src="/js/features/personalize.js?v=2026102824"></script>
+<script src="/js/features/plugin_mgmt.js?v=2026102824"></script>
+<script src="/js/features/plugin_market.js?v=2026102824"></script>
+<script src="/js/features/ai_assist.js?v=2026102824"></script>
+<script src="/js/app.js?v=2026102824"></script>
+<script src="/js/features/preview.js?v=2026102824"></script>
 
-<script src="/js/vendor/marked.min.js?v=20261021"></script>
-<script src="/js/vendor/three.min.js?v=20261021"></script>
+<script src="/js/vendor/marked.min.js?v=2026102824"></script>
+<script src="/js/vendor/three.min.js?v=2026102824"></script>
 <script>console.log('THREE loaded:',typeof THREE,'marked loaded:',typeof marked)</script>
 <script>console.log('RmusicHTML exists:',typeof RmusicHTML,'openSubPage exists:',typeof openSubPage,'tabTo exists:',typeof tabTo)</script>
-<script src="/js/features/qq_bridge.js?v=20261021"></script><script src="/js/features/qq_template.js?v=20261021"></script><script src="/js/youyuan.js?v=20261021"></script>
+<script src="/js/features/qq_bridge.js?v=2026102824"></script><script src="/js/features/qq_template.js?v=2026102824"></script><script src="/js/youyuan.js?v=2026102824"></script>
 <script>var yyOriginalPluginMarket=pmOpenMarket,yyOriginalBuildingMarket=bmOpenMarket,yyOriginalBuildingContribute=bmOpenContribute;</script>
-<script src="/js/youyuan_library.js?v=20261021"></script>
-<script src="/js/vendor/youyuan_editor.js?v=20261021"></script>
-<script src="/js/youyuan_dashboard.js?v=20261021"></script>
-<script src="/js/youyuan_settings.js?v=20261021"></script>
-<script src="/js/youyuan_chain_upgrade.js?v=20261021"></script>
-<script src="/js/youyuan_workspace.js?v=20261021"></script>
-<script src="/js/youyuan_social.js?v=20261021"></script>
-<script src="/js/youyuan_accounts.js?v=20261021"></script>
-<script src="/js/youyuan_appearance.js?v=20261021"></script>
-<script src="/js/youyuan_agent_profiles.js?v=20261021"></script>
-<script src="/js/youyuan_agent_attachments.js?v=20261021"></script>
-<script src="/js/youyuan_skill_library.js?v=20261021"></script>
-<script src="/js/youyuan_execution_options.js?v=20261021"></script>
-<script src="/js/youyuan_upload.js?v=20261021"></script>
-<script src="/js/youyuan_usability.js?v=20261021"></script>
-<script src="/js/youyuan_sdk.js?v=20261021"></script>
-<script src="/js/youyuan_sense.js?v=20261021"></script>
-<script src="/js/youyuan_identity.js?v=20261021"></script>
-<script src="/js/youyuan_identity_recovery.js?v=20261021"></script>
-<script src="/js/youyuan_exports.js?v=20261021"></script>
-<script src="/js/youyuan_export_center.js?v=20261021"></script>
-<script src="/js/youyuan_block_video.js?v=20261021"></script>
-<script src="/js/youyuan_converters.js?v=20261021"></script>
-<script src="/js/youyuan_qq_diagnostics.js?v=20261021"></script>
-<script src="/js/youyuan_qq_assistant.js?v=20261021"></script>
-<script src="/js/youyuan_qq_memory.js?v=20261021"></script>
-<script src="/js/youyuan_qq_groups.js?v=20261021"></script>
-<script src="/js/youyuan_skin_viewer.js?v=20261021"></script>
-<script src="/js/youyuan_game_auth.js?v=20261021"></script>
-<script src="/js/youyuan_host_files.js?v=20261021"></script>
-<script src="/js/youyuan_tunnel.js?v=20261021"></script>
-<script src="/js/youyuan_mcp_tutorial.js?v=20261021"></script>
-<script src="/js/youyuan_agent_layout.js?v=20261021"></script>
-<script src="/js/youyuan_reference.js?v=20261021"></script>
-<script src="/js/youyuan_connections.js?v=20261021"></script>
-<script src="/js/youyuan_connection_policy.js?v=20261021"></script>
-<script src="/js/youyuan_global_capture.js?v=20261021"></script>
-<script src="/js/youyuan_room_discovery.js?v=20261021"></script>
-<script src="/js/youyuan_settings_groups.js?v=20261021"></script><script src="/js/youyuan_studio.js?v=20261021"></script><script src="/js/youyuan_terminal.js?v=20261021"></script><script src="/js/youyuan_agent_studio.js?v=20261021"></script><script src="/js/youyuan_plugin_studio.js?v=20261021"></script><script src="/js/youyuan_game_controls.js?v=20261021"></script><script src="/js/youyuan_navigation.js?v=20261021"></script><script>initPersonalize();tabTo('home')</script>
+<script src="/js/youyuan_library.js?v=2026102824"></script>
+<script src="/js/vendor/youyuan_editor.js?v=2026102824"></script>
+<script src="/js/youyuan_dashboard.js?v=2026102824"></script>
+<script src="/js/youyuan_settings.js?v=2026102824"></script>
+<script src="/js/youyuan_chain_upgrade.js?v=2026102824"></script>
+<script src="/js/youyuan_chain_center.js?v=2026102824"></script>
+<script src="/js/youyuan_workspace.js?v=2026102824"></script>
+<script src="/js/youyuan_social.js?v=2026102824"></script>
+<script src="/js/youyuan_skin_media.js?v=2026102824"></script>
+<script src="/js/youyuan_accounts.js?v=2026102826"></script>
+<script src="/js/youyuan_skin_library.js?v=2026102824"></script>
+<script src="/js/youyuan_appearance.js?v=2026102824"></script>
+<script src="/js/youyuan_agent_profiles.js?v=2026102824"></script>
+<script src="/js/youyuan_agent_attachments.js?v=2026102824"></script>
+<script src="/js/youyuan_skill_library.js?v=2026102824"></script>
+<script src="/js/youyuan_execution_options.js?v=2026102824"></script>
+<script src="/js/youyuan_upload.js?v=2026102824"></script>
+<script src="/js/youyuan_usability.js?v=2026102824"></script>
+<script src="/js/youyuan_sdk.js?v=2026102824"></script>
+<script src="/js/youyuan_sense.js?v=2026102824"></script>
+<script src="/js/youyuan_identity.js?v=2026102824"></script>
+<script src="/js/youyuan_identity_recovery.js?v=2026102824"></script>
+<script src="/js/youyuan_exports.js?v=2026102824"></script>
+<script src="/js/youyuan_export_center.js?v=2026102824"></script>
+<script src="/js/youyuan_block_video.js?v=2026102824"></script>
+<script src="/js/youyuan_converters.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_diagnostics.js?v=2026102824"></script>
+<script src="/js/youyuan_model_brand.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_assistant.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_memory.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_groups.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_console.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_config.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_member_ui.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_knowledge.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_serverinfo.js?v=2026102824"></script>
+<script src="/js/youyuan_skin_viewer.js?v=2026102824"></script>
+<script src="/js/youyuan_game_auth.js?v=2026102824"></script>
+<script src="/js/youyuan_host_files.js?v=2026102824"></script>
+<script src="/js/youyuan_tunnel.js?v=2026102824"></script>
+<script src="/js/youyuan_mcp_scope.js?v=2026102824"></script>
+<script src="/js/youyuan_mcp_tutorial.js?v=2026102824"></script>
+<script src="/js/youyuan_agent_layout.js?v=2026102824"></script>
+<script src="/js/youyuan_reference.js?v=2026102824"></script>
+<script src="/js/youyuan_connections.js?v=2026102824"></script>
+<script src="/js/youyuan_connection_policy.js?v=2026102824"></script>
+<script src="/js/youyuan_connection_diagnostics.js?v=2026102824"></script>
+<script src="/js/youyuan_global_capture.js?v=2026102825"></script>
+<script src="/js/youyuan_seed_local.js?v=2026102824"></script>
+<script src="/js/youyuan_seed_page.js?v=2026102824"></script>
+<script src="/js/youyuan_seedmap_v2.js?v=2026102824"></script>
+<script src="/js/youyuan_room_discovery.js?v=2026102824"></script>
+<script src="/js/youyuan_settings_groups.js?v=2026102824"></script><script src="/js/youyuan_studio.js?v=2026102824"></script><script src="/js/youyuan_terminal.js?v=2026102824"></script><script src="/js/youyuan_agent_studio.js?v=2026102824"></script><script src="/js/youyuan_agent_workspace_ui.js?v=2026102824"></script><script src="/js/youyuan_plugin_studio.js?v=2026102824"></script><script src="/js/youyuan_game_controls.js?v=2026102824"></script><script src="/js/youyuan_market.js?v=2026102824"></script><script src="/js/youyuan_navigation.js?v=2026102824"></script><script>initPersonalize();tabTo('home')</script>
+<script src="/js/youyuan_qq_assistant_tools.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_guard.js?v=2026102824"></script>
+<script src="/js/youyuan_qq_moderation.js?v=2026102824"></script>
+<script>/* 首屏稳定层：必须在全部业务脚本之后加载，才能包住最终的 Rhome / A / yyOpenModule。
+   只合并重复触发与占位，不改功能路径。 */</script>
+<script src="/js/youyuan_boot_stable.js?v=2026102824"></script>
 </body></html>

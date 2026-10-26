@@ -285,19 +285,22 @@ var yyChainTestHeader = regexp.MustCompile(`^#\s*(?:定义|测试|规定)[：: �
 var yyChainExecHeader = regexp.MustCompile(`^#\s*(?:执行|运行)[：: 　]\s*(.+)$`)
 
 type yyChainConfig struct {
-	Name       string  `json:"name"`
-	Account    string  `json:"account"`
-	IntervalMS int     `json:"interval_ms"`
-	Hz         float64 `json:"hz,omitempty"` // Whole-chain cadence; legacy interval_ms remains compatible.
-	DelayMS    int     `json:"delay_ms"`
-	Channel    string  `json:"channel,omitempty"`
-	RunCount   int     `json:"run_count"` // 0 means continuous; positive values count complete file rounds.
-	Enabled    bool    `json:"enabled"`
-	Mode       string  `json:"mode,omitempty"`
-	Window     int     `json:"window,omitempty"`
-	RateCPS    int     `json:"rate_cps,omitempty"`
-	Scheduling string  `json:"scheduling,omitempty"` // auto, file, segments
-	Bootstrap  bool    `json:"bootstrap,omitempty"`  // Leading pulse segments finish before loop workers are started.
+	preparedSource *yyChainNode
+	Name           string  `json:"name"`
+	Account        string  `json:"account"`
+	IntervalMS     int     `json:"interval_ms"`
+	Hz             float64 `json:"hz,omitempty"`
+	FrequencyMode  string  `json:"frequency_mode,omitempty"` // Empty retains legacy ceiling; override changes the fastest source segments.
+	CadenceBaseHz  float64 `json:"-"`
+	DelayMS        int     `json:"delay_ms"`
+	Channel        string  `json:"channel,omitempty"`
+	RunCount       int     `json:"run_count"` // 0 means continuous; positive values count complete file rounds.
+	Enabled        bool    `json:"enabled"`
+	Mode           string  `json:"mode,omitempty"`
+	Window         int     `json:"window,omitempty"`
+	RateCPS        int     `json:"rate_cps,omitempty"`
+	Scheduling     string  `json:"scheduling,omitempty"` // auto, file, segments
+	Bootstrap      bool    `json:"bootstrap,omitempty"`  // Leading pulse segments finish before loop workers are started.
 }
 type yyChainInstance struct {
 	sync.Mutex
@@ -426,7 +429,7 @@ func (in *yyChainInstance) run(ctx context.Context) {
 	in.Lock()
 	segmented := in.Config.Scheduling == "segments" || in.Config.Scheduling != "file" && in.Plan.Segmented
 	in.Unlock()
-	if segmented && !in.Ephemeral {
+	if segmented && (!in.Ephemeral || len(in.Plan.Chains) > 1) {
 		in.runSegments(ctx)
 		return
 	}
@@ -447,12 +450,22 @@ func (in *yyChainInstance) run(ctx context.Context) {
 		close(done)
 	}()
 	failures := 0
+	var fastProgram yyChainFastModules
 	for {
 		roundStarted := time.Now()
 		in.Lock()
 		cfg := in.Config
 		plan := in.Plan
 		in.Unlock()
+		if !in.Ephemeral {
+			cfg.CadenceBaseHz = 0
+		}
+		cfg = yyChainCadenceConfig(plan, cfg)
+		if cfg.Mode != "fast" {
+			fastProgram = yyChainFastModules{}
+		} else {
+			fastProgram.bindRoot(plan)
+		}
 		bm := getBotManagerLocked()
 		if cfg.Account != "" && cfg.Account != "main" {
 			bm = yyAccountBot(cfg.Account)
@@ -464,9 +477,32 @@ func (in *yyChainInstance) run(ctx context.Context) {
 		} else {
 			in.Lock()
 			in.State = "运行中"
+			activation := yyChainActivation{First: in.Cycles == 0, Trigger: in.Trigger, Redstone: in.Redstone}
+			in.Trigger = false
 			in.Unlock()
 			roundCtx, stopRound := context.WithCancel(ctx)
-			graphErr := yyChainExecuteGraph(roundCtx, plan, cfg, []string{cfg.Name}, yyChainLookup, func(callCtx context.Context, node yyChainNode, callCfg yyChainConfig) (bool, error) {
+			roundCtx = context.WithValue(roundCtx, yyChainActivationKey{}, activation)
+			pendingTrigger := activation.Trigger
+			fastModule := func(callCtx context.Context, nodes []yyChainNode, callCfg yyChainConfig) (yyChainFastResult, error) {
+				result, err := bm.sendChainFastModule(callCtx, nodes, callCfg, &fastProgram)
+				for i := 0; i < result.Submitted; i++ {
+					bm.yyChatSubmitted(nodes[i].Command)
+				}
+				in.Lock()
+				in.Submitted += uint64(result.Submitted)
+				if err != nil && ctx.Err() == nil && !yyChainFastInvocationEnded(callCtx, err, result.UnknownEnd > result.Submitted) {
+					in.LastError = err.Error()
+					failures = 3
+					// Unknown writes must not replay next round.
+					stopRound()
+				}
+				in.Unlock()
+				return result, err
+			}
+			graphErr := yyChainExecuteGraph(roundCtx, plan, cfg, yyChainCallPath(roundCtx, cfg.Name), yyChainLookup, func(callCtx context.Context, node yyChainNode, callCfg yyChainConfig) (bool, error) {
+				if node.Control != nil && node.Control.Kind == "plugin" {
+					return yyChainInvokePlugin(callCtx, bm, node.Control)
+				}
 				if failures >= 3 {
 					return false, fmt.Errorf("连续 3 次响应失败，当前轮已停止")
 				}
@@ -482,12 +518,7 @@ func (in *yyChainInstance) run(ctx context.Context) {
 					return false, e
 				}
 				if callCfg.Mode == "fast" && !node.RequireResult {
-					e := bm.SendCommandNoWaitRate(ch, node.Command, callCfg.RateCPS)
-					if e == nil {
-						in.Lock()
-						in.Submitted++
-						in.Unlock()
-					}
+					_, e := fastModule(callCtx, []yyChainNode{node}, callCfg)
 					return e == nil, e
 				}
 				value, e := yyCommandBatchDefaultsContext(callCtx, bm, []any{[]any{node.Command}}, yyCommandOptions{Mode: "ordered", Channel: string(ch), Window: 1, TimeoutMS: 8000})
@@ -509,25 +540,7 @@ func (in *yyChainInstance) run(ctx context.Context) {
 				return row["success"] == true, nil
 			}, func(callCtx context.Context, nodes []yyChainNode, callCfg yyChainConfig) ([]map[string]any, error) {
 				if callCfg.Mode == "fast" {
-					rows := make([]map[string]any, len(nodes))
-					accepted := map[string]any{"submitted": true, "confirmed": false}
-					var submitted uint64
-					defer func() { in.Lock(); in.Submitted += submitted; in.Unlock() }()
-					for i, n := range nodes {
-						if e := callCtx.Err(); e != nil {
-							return rows[:i], e
-						}
-						e := bm.SendCommandNoWaitRate(CommandChannel(yyChainNodeChannel(n, callCfg)), n.Command, callCfg.RateCPS)
-						if e != nil {
-							rows[i] = map[string]any{"submitted": false, "confirmed": false, "error": e.Error()}
-							return rows[:i+1], e
-						}
-						// Read-only shared dispatch status avoids a map allocation and
-						// statistics lock for every command in a large Fast segment.
-						rows[i] = accepted
-						submitted++
-					}
-					return rows, nil
+					return nil, fmt.Errorf("快速模块缺少原生发送器")
 				}
 				values := make([]any, len(nodes))
 				for i, n := range nodes {
@@ -563,7 +576,17 @@ func (in *yyChainInstance) run(ctx context.Context) {
 				}
 				return result, nil
 
-			}, func() bool { in.Lock(); defer in.Unlock(); v := in.Trigger; in.Trigger = false; return v },
+			}, func() bool {
+				if pendingTrigger {
+					pendingTrigger = false
+					return true
+				}
+				in.Lock()
+				defer in.Unlock()
+				v := in.Trigger
+				in.Trigger = false
+				return v
+			},
 				func(state string) { in.Lock(); in.State = state; in.Unlock() }, func(success, skip bool, e error) {
 					in.Lock()
 					defer in.Unlock()
@@ -586,7 +609,15 @@ func (in *yyChainInstance) run(ctx context.Context) {
 					} else if !skip {
 						failures = 0
 					}
-				})
+				}, yyChainFastSender{Send: fastModule, RecordSubmitted: func(submitted, skipped int) {
+					in.Lock()
+					in.Executed += uint64(submitted)
+					in.Skipped += uint64(skipped)
+					if submitted > 0 {
+						failures = 0
+					}
+					in.Unlock()
+				}})
 			if graphErr != nil && ctx.Err() == nil && roundCtx.Err() == nil {
 				in.Lock()
 				in.LastError = graphErr.Error()
@@ -629,6 +660,10 @@ func (in *yyChainInstance) run(ctx context.Context) {
 	}
 }
 
+func yyChainFastInvocationEnded(ctx context.Context, err error, unknown bool) bool {
+	return ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && !unknown
+}
+
 func yyChainRoundWait(period, elapsed time.Duration) time.Duration {
 	if elapsed >= period {
 		return 0
@@ -638,7 +673,11 @@ func yyChainRoundWait(period, elapsed time.Duration) time.Duration {
 
 func yyChainPeriod(plan yyChainPlan, cfg yyChainConfig) time.Duration {
 	hz := plan.Hz
-	if hz == 0 {
+	if cfg.FrequencyMode == "override" && cfg.Hz > 0 {
+		if hz == 0 || cfg.CadenceBaseHz == 0 || hz >= cfg.CadenceBaseHz {
+			hz = cfg.Hz
+		}
+	} else if cfg.Hz > 0 && (hz == 0 || cfg.Hz < hz) {
 		hz = cfg.Hz
 	}
 	if hz > 0 {
@@ -650,6 +689,18 @@ func yyChainPeriod(plan yyChainPlan, cfg yyChainConfig) time.Duration {
 		return time.Duration(cfg.IntervalMS) * time.Millisecond
 	}
 	return time.Second
+}
+
+func yyChainCadenceConfig(plan yyChainPlan, cfg yyChainConfig) yyChainConfig {
+	if cfg.CadenceBaseHz == 0 {
+		cfg.CadenceBaseHz = plan.Hz
+		for _, chain := range plan.Chains {
+			if chain.Hz > cfg.CadenceBaseHz {
+				cfg.CadenceBaseHz = chain.Hz
+			}
+		}
+	}
+	return cfg
 }
 func yyChainStop(in *yyChainInstance) error {
 	in.Lock()
@@ -708,22 +759,101 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 				writeJSON(w, map[string]any{"ok": true, "content": string(data)})
 				return
 			}
+			// 列表 = 磁盘目录 ∪ 内存运行态。
+			// 旧实现只遍历 yyChains.items，而目录只在进程启动时扫一次；
+			// 启动后上传/拷贝进来的 TXT 永远不会出现在列表里，用户只看到“一个 txt”甚至空目录。
+			warnings := []string{}
 			list := []map[string]any{}
-			yyChains.Lock()
-			for _, in := range yyChains.items {
+			// 有运行态的行：字段名与旧版完全一致，只追加 loaded / size_bytes / modified_at。
+			instanceRow := func(in *yyChainInstance, info os.FileInfo) map[string]any {
 				in.Lock()
 				hz := float64(0)
 				if in.ElapsedMS > 0 {
 					hz = float64(in.Cycles) * 1000 / float64(in.ElapsedMS)
 				}
-				list = append(list, map[string]any{"config": in.Config, "segments": in.Segments, "segmented": in.Config.Scheduling == "segments" || in.Config.Scheduling != "file" && in.Plan.Segmented, "state": in.State, "cycles": in.Cycles, "executed": in.Executed, "submitted": in.Submitted, "skipped": in.Skipped, "error": in.LastError, "commands": in.Plan.Commands, "redstone": in.Redstone, "elapsed_ms": in.ElapsedMS, "last_round_ms": in.LastRoundMS, "actual_hz": hz, "results_confirmed": in.Config.Mode != "fast", "counter_semantics": "executed=attempted nodes; submitted=host accepted; cycles=file rounds or sum of independent segment rounds, not proof of server execution"})
+				row := map[string]any{"config": in.Config, "condition_modules": yyChainGateRows(in.Config.Name, in.Config.Account), "segments": in.Segments, "segmented": in.Config.Scheduling == "segments" || in.Config.Scheduling != "file" && in.Plan.Segmented, "state": in.State, "cycles": in.Cycles, "executed": in.Executed, "submitted": in.Submitted, "skipped": in.Skipped, "error": in.LastError, "commands": in.Plan.Commands, "redstone": in.Redstone, "elapsed_ms": in.ElapsedMS, "last_round_ms": in.LastRoundMS, "actual_hz": hz, "results_confirmed": in.Config.Mode != "fast", "counter_semantics": "executed=attempted nodes; submitted=host accepted; cycles=file rounds or sum of independent segment rounds, not proof of server execution"}
 				in.Unlock()
+				row["loaded"] = true
+				if info != nil {
+					row["size_bytes"] = info.Size()
+					row["modified_at"] = info.ModTime().Format(time.RFC3339)
+				} else {
+					// 内存里还挂着、磁盘上已经被删掉（外部删除/还没清理），照样返回，让前端提示。
+					row["size_bytes"] = int64(0)
+					row["modified_at"] = ""
+					row["missing"] = true
+				}
+				return row
+			}
+			// 只在磁盘上、没有运行态的行：给一个“未启动”的静态条目，前端不必再点一层目录。
+			diskRow := func(name string, info os.FileInfo) map[string]any {
+				cfg := yyChainConfig{Name: name, Account: "main", IntervalMS: 1000}
+				if meta, me := os.ReadFile(filepath.Join(yyChainRoot, name+".json")); me == nil {
+					_ = json.Unmarshal(meta, &cfg)
+					cfg.Name = name
+				}
+				if cfg.Account == "" {
+					cfg.Account = "main"
+				}
+				if cfg.IntervalMS < 1 {
+					cfg.IntervalMS = 1000
+				}
+				commands := 0
+				if text, re := os.ReadFile(filepath.Join(yyChainRoot, name)); re == nil {
+					if plan, pe := yyParseChains(string(text)); pe == nil {
+						commands = plan.Commands
+					} else {
+						warnings = append(warnings, name+"："+pe.Error())
+					}
+				} else {
+					warnings = append(warnings, name+"：读取失败（"+re.Error()+"）")
+				}
+				return map[string]any{"config": cfg, "condition_modules": []any{}, "segments": []map[string]any{}, "segmented": cfg.Scheduling == "segments", "state": "未启动", "cycles": uint64(0), "executed": uint64(0), "submitted": uint64(0), "skipped": uint64(0), "error": "", "commands": commands, "redstone": false, "elapsed_ms": int64(0), "last_round_ms": int64(0), "actual_hz": float64(0), "results_confirmed": cfg.Mode != "fast", "counter_semantics": "executed=attempted nodes; submitted=host accepted; cycles=file rounds or sum of independent segment rounds, not proof of server execution", "loaded": false, "size_bytes": info.Size(), "modified_at": info.ModTime().Format(time.RFC3339)}
+			}
+			disk := map[string]os.FileInfo{}
+			entries, dirErr := os.ReadDir(yyChainRoot)
+			if dirErr != nil && !os.IsNotExist(dirErr) {
+				warnings = append(warnings, "读取命令链目录失败："+dirErr.Error())
+			}
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				fileName, ne := yyChainName(entry.Name())
+				if ne != nil {
+					continue
+				}
+				info, ie := entry.Info()
+				if ie != nil {
+					warnings = append(warnings, entry.Name()+"：无法读取文件信息")
+					continue
+				}
+				disk[fileName] = info
+			}
+			// 先给内存运行态拍快照，避免持着 yyChains 锁去做磁盘 IO。
+			snapshot := map[string]*yyChainInstance{}
+			yyChains.Lock()
+			for k, v := range yyChains.items {
+				snapshot[k] = v
 			}
 			yyChains.Unlock()
+			for name, info := range disk {
+				if in, ok := snapshot[name]; ok && in != nil {
+					list = append(list, instanceRow(in, info))
+					continue
+				}
+				list = append(list, diskRow(name, info))
+			}
+			for name, in := range snapshot {
+				if _, ok := disk[name]; ok || in == nil {
+					continue
+				}
+				list = append(list, instanceRow(in, nil))
+			}
 			sort.Slice(list, func(i, j int) bool {
 				return list[i]["config"].(yyChainConfig).Name < list[j]["config"].(yyChainConfig).Name
 			})
-			writeJSON(w, map[string]any{"ok": true, "files": list, "directory": "插件数据文件/ds_ai_agent/command_txt/"})
+			writeJSON(w, map[string]any{"ok": true, "files": list, "directory": "插件数据文件/ds_ai_agent/command_txt/", "warnings": warnings})
 			return
 		}
 		var p struct {
@@ -751,6 +881,33 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 		in := yyChains.items[name]
 		yyChains.Unlock()
 		fail := func(e error) { writeJSON(w, map[string]any{"ok": false, "error": e.Error()}) }
+		// 进程启动后才放进目录的文件没有运行态；点“启动”时按需从磁盘装载一次。
+		loadFromDisk := func() (*yyChainInstance, error) {
+			text, re := os.ReadFile(filepath.Join(yyChainRoot, name))
+			if re != nil {
+				return nil, fmt.Errorf("读取文件失败：%w", re)
+			}
+			plan, pe := yyParseChains(string(text))
+			if pe != nil {
+				return nil, pe
+			}
+			cfg := yyChainConfig{Name: name, Account: "main", IntervalMS: 1000}
+			if meta, me := os.ReadFile(filepath.Join(yyChainRoot, name+".json")); me == nil {
+				_ = json.Unmarshal(meta, &cfg)
+				cfg.Name = name
+			}
+			if cfg.Account == "" {
+				cfg.Account = "main"
+			}
+			if cfg.IntervalMS < 1 {
+				cfg.IntervalMS = 1000
+			}
+			fresh := &yyChainInstance{Config: cfg, Plan: plan, State: "已停止"}
+			yyChains.Lock()
+			yyChains.items[name] = fresh
+			yyChains.Unlock()
+			return fresh, nil
+		}
 		switch p.Action {
 		case "preview":
 			plan, parseErr := yyParseChains(p.Content)
@@ -770,13 +927,8 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 				fail(e)
 				return
 			}
-			if in != nil {
-				if e = yyChainStop(in); e != nil {
-					fail(e)
-					return
-				}
-			}
 			p.Config.Name = name
+			p.Config = yyChainCadenceConfig(plan, p.Config)
 			if p.Config.Account == "" {
 				p.Config.Account = "main"
 			}
@@ -790,6 +942,9 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 			if p.Config.DelayMS < 0 {
 				p.Config.DelayMS = 0
 			}
+			if p.Config.Hz > 0 && p.Config.FrequencyMode == "" {
+				p.Config.FrequencyMode = "override"
+			}
 			if p.Config.Channel != "" {
 				if _, e = normalizeCommandChannel(p.Config.Channel); e != nil {
 					fail(e)
@@ -799,6 +954,15 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 			if e = yyChainValidate(p.Config); e != nil {
 				fail(e)
 				return
+			}
+			if p.Config.Hz > 0 {
+				p.Config.IntervalMS = max(1, int(1000/p.Config.Hz+0.5))
+			}
+			if in != nil {
+				if e = yyChainStop(in); e != nil {
+					fail(e)
+					return
+				}
 			}
 			if e = os.WriteFile(filepath.Join(yyChainRoot, name), []byte(p.Content), 0600); e != nil {
 				fail(e)
@@ -820,9 +984,47 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 			}
 			writeJSON(w, map[string]any{"ok": true, "plan": plan})
 			return
-		case "start", "stop", "trigger", "redstone", "delete", "reload":
+		case "delete":
+			// 删除磁盘上的文件本身，不要求内存里有运行态。
+			// 旧实现把 delete 放在“in == nil 就报文件不存在”的分支里，磁盘上的 TXT 因此删不掉。
+			if ext := strings.ToLower(filepath.Ext(name)); ext != ".txt" && ext != ".mcfunction" {
+				fail(fmt.Errorf("只能删除 TXT 或 mcfunction 文件"))
+				return
+			}
+			target := filepath.Join(yyChainRoot, name)
+			// 二次防穿越：即使 yyChainName 将来放宽，也不允许跳出命令链目录。
+			if rel, re := filepath.Rel(yyChainRoot, target); re != nil || rel != filepath.Base(rel) || strings.HasPrefix(rel, "..") {
+				fail(fmt.Errorf("文件路径越界，已拒绝删除"))
+				return
+			}
+			if in != nil {
+				if e = yyChainStop(in); e != nil {
+					fail(e)
+					return
+				}
+			}
+			if e = os.Remove(target); e != nil && !os.IsNotExist(e) {
+				fail(fmt.Errorf("删除失败：%w", e))
+				return
+			}
+			_ = os.Remove(target + ".json")
+			yyChains.Lock()
+			delete(yyChains.items, name)
+			yyChains.Unlock()
+			yyChainWatch.Lock()
+			delete(yyChainWatch.Stamps, name)
+			yyChainWatch.Unlock()
+			writeJSON(w, map[string]any{"ok": true, "deleted": name})
+			return
+		case "start", "stop", "trigger", "redstone", "reload":
+			if in == nil && p.Action == "start" {
+				if in, e = loadFromDisk(); e != nil {
+					fail(e)
+					return
+				}
+			}
 			if in == nil {
-				fail(fmt.Errorf("文件不存在"))
+				fail(fmt.Errorf("该文件未启动，请先启动后再操作"))
 				return
 			}
 			switch p.Action {
@@ -843,14 +1045,6 @@ func yyCommandRoutes(mux *http.ServeMux, dataDir string) {
 				in.Unlock()
 			case "reload":
 				e = yyReloadChainResource(in)
-			case "delete":
-				if e = yyChainStop(in); e == nil {
-					e = os.Remove(filepath.Join(yyChainRoot, name))
-					_ = os.Remove(filepath.Join(yyChainRoot, name+".json"))
-					yyChains.Lock()
-					delete(yyChains.items, name)
-					yyChains.Unlock()
-				}
 			}
 			if e != nil {
 				fail(e)

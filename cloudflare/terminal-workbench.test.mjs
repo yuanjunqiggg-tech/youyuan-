@@ -7,7 +7,7 @@ const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolv
 function setup(){
  const fields=new Map(),frames=[],calls=[],copies=[],events={},streams=[];let scope='owner/main',response=async()=>({ok:true});
  function element(tag='div'){
-  const el={tagName:tag.toUpperCase(),children:[],dataset:{},style:{},value:'',textContent:'',scrollTop:0,clientHeight:120,hidden:false,offsetParent:{},attributes:{},parentElement:null,focus(){},setAttribute(k,v){this.attributes[k]=v},append(...nodes){for(const n of nodes){n.parentElement=this;this.children.push(n)}},appendChild(n){this.append(n)},replaceChildren(...nodes){for(const n of this.children)n.parentElement=null;this.children=[];this.append(...nodes)},remove(){if(this.parentElement){const rows=this.parentElement.children;rows.splice(rows.indexOf(this),1);this.parentElement=null}},querySelector(selector){return this.children.find(n=>'.'+n.className===selector)||null}};
+  const el={tagName:tag.toUpperCase(),children:[],dataset:{},style:{},value:'',textContent:'',scrollTop:0,clientHeight:120,hidden:false,offsetParent:{},attributes:{},parentElement:null,focus(){},addEventListener(k,fn){this['on'+k]=fn},setAttribute(k,v){this.attributes[k]=v},append(...nodes){for(const n of nodes){n.parentElement=this;this.children.push(n)}},appendChild(n){this.append(n)},replaceChildren(...nodes){for(const n of this.children)n.parentElement=null;this.children=[];this.append(...nodes)},remove(){if(this.parentElement){const rows=this.parentElement.children;rows.splice(rows.indexOf(this),1);this.parentElement=null}},querySelector(selector){return this.children.find(n=>'.'+n.className===selector)||null}};
   Object.defineProperty(el,'firstChild',{get(){return this.children[0]}});Object.defineProperty(el,'scrollHeight',{get(){return this.children.length*40+200}});
   let html='';Object.defineProperty(el,'innerHTML',{get(){return html},set(v){html=v;if(this===fields.get('tab-terminal')){for(const key of [...fields.keys()])if(key!=='tab-terminal')fields.delete(key);for(const m of v.matchAll(/<([a-z]+)[^>]*\bid="([^"]+)"[^>]*>/g))fields.set(m[2],element(m[1]));}}});return el;
  }
@@ -18,7 +18,7 @@ function setup(){
  return {context,fields,calls,copies,events,streams,field:id=>fields.get(id),flush(){while(frames.length)frames.shift()()},response(fn){response=fn},scope(value){scope=value;context.yyActiveAccount=value.split('/').at(-1)}};
 }
 test('final enhancement owns terminal render after dashboard and studio, preserves business IDs and handlers',()=>{
- const html=read('index.html');assert.ok(html.indexOf('/js/youyuan_terminal.js')>html.indexOf('/js/youyuan_studio.js'));assert.ok(html.indexOf('/js/youyuan_terminal.js')>html.indexOf('/js/youyuan_dashboard.js'));assert.equal((html.match(/src="\/js\/youyuan_terminal.js"/g)||[]).length,1);assert.ok(html.indexOf('/css/youyuan_terminal.css')>html.indexOf('/css/youyuan_studio.css'));
+ const html=read('index.html');assert.ok(html.indexOf('/js/youyuan_terminal.js')>html.indexOf('/js/youyuan_studio.js'));assert.ok(html.indexOf('/js/youyuan_terminal.js')>html.indexOf('/js/youyuan_dashboard.js'));assert.equal((html.match(/src="\/js\/youyuan_terminal.js(?:\?[^\"]*)?"/g)||[]).length,1);assert.ok(html.indexOf('/css/youyuan_terminal.css')>html.indexOf('/css/youyuan_studio.css'));
  const p=setup();p.context.Rconsole();const markup=p.field('tab-terminal').innerHTML;for(const id of ['console-log','console-input','console-send'])assert.ok(p.field(id),id);assert.match(markup,/onclick="sendConsole\(\)"/);assert.match(markup,/onkeydown="yyTerminalKey\(event\)"/);assert.doesNotMatch(markup,/\/api\/|连接服务器|API 目录/);assert.equal(p.calls.length,0);assert.equal(p.streams.length,1);
 });
 test('SSE keeps the same subscription and logs survive leaving and returning to terminal',()=>{
@@ -59,4 +59,29 @@ test('browsing terminal history restores the unsent draft and modified arrows re
  const key=(name,extra={})=>p.context.yyTerminalKey({key:name,preventDefault(){prevented++},...extra});key('ArrowUp',{altKey:true});assert.equal(prevented,0);assert.equal(p.field('console-input').value,'unfinished draft');
  key('ArrowUp');assert.equal(p.field('console-input').value,'/previous');key('ArrowDown');assert.equal(p.field('console-input').value,'unfinished draft');assert.equal(p.calls.length,1);
  p.context.Rconsole();assert.equal(p.field('console-input').value,'unfinished draft');
+});
+
+test('status and ping separate sampled game RTT from one control API roundtrip',async()=>{
+ const p=setup();p.context.Rconsole();p.response(async()=>({ok:true,connected:true,game_rtt_ms:35.17,game_rtt_source:'raknet_ack'}));
+ p.field('console-input').value='status';await p.context.sendConsole();p.flush();
+ assert.equal(p.calls.length,1);assert.equal(p.calls[0].args[1],'/api/bot/status');
+ assert.ok(p.context.allLogs.some(row=>row.msg==='游戏网络往返 (RakNet ACK)  35.17 ms'));
+ assert.ok(p.context.allLogs.some(row=>/^控制接口往返  \d+ ms$/.test(row.msg)));
+ p.field('console-input').value='ping';await p.context.sendConsole();p.flush();
+ assert.equal(p.calls.length,2);assert.equal(p.calls[1].args[1],'/api/bot/status');
+ assert.equal(p.context.allLogs.filter(row=>row.msg==='游戏网络往返 (RakNet ACK)  35.17 ms').length,2);
+ assert.ok(p.context.allLogs.filter(row=>/^控制接口往返  \d+ ms$/.test(row.msg)).length>=2);
+ assert.ok(!p.context.allLogs.some(row=>/流畅|正常|偏慢/.test(row.msg)));
+});
+
+test('status latency never calls a failed response successful and labels missing game RTT unknown',async()=>{
+ const p=setup();p.context.Rconsole();p.response(async()=>({ok:false,error:'status unavailable'}));
+ p.field('console-input').value='ping';await p.context.sendConsole();p.flush();
+ assert.equal(p.calls.length,1);assert.ok(p.context.allLogs.some(row=>row.cl==='e'&&row.msg==='[错误] status unavailable'));
+ assert.ok(!p.context.allLogs.some(row=>row.msg.startsWith('控制接口往返')));
+ p.response(async()=>({ok:true,connected:false,game_rtt_ms:null,game_rtt_source:'raknet_ack'}));
+ p.field('console-input').value='status';await p.context.sendConsole();p.flush();
+ assert.equal(p.calls.length,2);
+ assert.ok(p.context.allLogs.some(row=>row.msg==='游戏网络往返 (RakNet ACK)  未取得'));
+ assert.ok(p.context.allLogs.some(row=>/^控制接口往返  \d+ ms$/.test(row.msg)));
 });

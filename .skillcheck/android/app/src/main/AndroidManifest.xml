@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <application
+        android:label="游园工具箱"
+        android:icon="@drawable/youyuan_icon"
+        android:roundIcon="@drawable/youyuan_icon"
+        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:usesCleartextTraffic="true"
+        android:hardwareAccelerated="true"
+        android:extractNativeLibs="true">
+
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="org.youyuan.toolbox.updates"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
+
+        <activity android:name="org.youyuan.toolbox.VerificationActivity" android:exported="false" />
+        <service android:name="org.youyuan.toolbox.KeepService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse" />
+
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot1" android:process=":account1" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot2" android:process=":account2" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot3" android:process=":account3" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot4" android:process=":account4" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot5" android:process=":account5" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot6" android:process=":account6" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot7" android:process=":account7" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot8" android:process=":account8" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.FloatingWindowService"
+            android:exported="false" />
+
+        <receiver android:name="org.youyuan.toolbox.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="org.youyuan.toolbox.NotificationActionReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <!-- DocumentsProvider：把应用私有数据目录暴露给系统，第三方文件管理器可直接浏览/复制。
+             MANAGE_DOCUMENTS 是框架强制要求（缺少会启动即崩溃）；它只声明本应用是一个
+             「文档来源」，供文件管理器（Files/第三方）浏览，不会让应用变成文件管理器。 -->
+        <provider
+            android:name=".PrismDataProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:enabled="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/AppTheme.Splash"
+            android:configChanges="orientation|screenSize"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 接收文件管理器「打开方式」：只注册本 App 允许的类型（建筑 / MIDI / 插件 ZIP） -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:mimeType="application/zip" />
+                <data android:scheme="content" android:mimeType="application/x-zip-compressed" />
+                <data android:scheme="content" android:mimeType="audio/midi" />
+                <data android:scheme="content" android:mimeType="audio/x-midi" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+                <data android:scheme="file" android:mimeType="application/zip" />
+                <data android:scheme="file" android:mimeType="application/x-zip-compressed" />
+                <data android:scheme="file" android:mimeType="audio/midi" />
+                <data android:scheme="file" android:mimeType="audio/x-midi" />
+                <data android:scheme="file" android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- 接收「分享到」：单个文件（仅允许的类型） -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="audio/midi" />
+                <data android:mimeType="audio/x-midi" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- 接收「分享到」：多个文件（仅允许的类型） -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="audio/midi" />
+                <data android:mimeType="audio/x-midi" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot9" android:process=":account9" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot10" android:process=":account10" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot11" android:process=":account11" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot12" android:process=":account12" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot13" android:process=":account13" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot14" android:process=":account14" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot15" android:process=":account15" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot16" android:process=":account16" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot17" android:process=":account17" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot18" android:process=":account18" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot19" android:process=":account19" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot20" android:process=":account20" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot21" android:process=":account21" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot22" android:process=":account22" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot23" android:process=":account23" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot24" android:process=":account24" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot25" android:process=":account25" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot26" android:process=":account26" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot27" android:process=":account27" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot28" android:process=":account28" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot29" android:process=":account29" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot30" android:process=":account30" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot31" android:process=":account31" android:exported="false" android:foregroundServiceType="specialUse" />
+        <service android:name="org.youyuan.toolbox.AccountProcessService$Slot32" android:process=":account32" android:exported="false" android:foregroundServiceType="specialUse" />
+    </application>
+</manifest>

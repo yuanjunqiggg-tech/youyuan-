@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"image/color"
+	"unsafe"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/nbt"
 
@@ -157,6 +158,10 @@ func SliceOfLen[T any, S ~*[]T, A PtrMarshaler[T]](r IO, l uint32, x S) {
 	limit, ok := r.(sliceReader)
 	if ok {
 		limit.SliceLimit(l, maxSliceLength)
+		if budget, ok := r.(interface{ SliceAllocation(uint32, uintptr) }); ok {
+			var element T
+			budget.SliceAllocation(l, unsafe.Sizeof(element))
+		}
 		*x = make([]T, l)
 	}
 
@@ -170,6 +175,10 @@ func FuncSliceOfLen[T any, S ~*[]T](r IO, l uint32, x S, f func(*T)) {
 	limit, ok := r.(sliceReader)
 	if ok {
 		limit.SliceLimit(l, maxSliceLength)
+		if budget, ok := r.(interface{ SliceAllocation(uint32, uintptr) }); ok {
+			var element T
+			budget.SliceAllocation(l, unsafe.Sizeof(element))
+		}
 		*x = make([]T, l)
 	}
 

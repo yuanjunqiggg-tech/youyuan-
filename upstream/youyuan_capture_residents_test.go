@@ -45,7 +45,9 @@ func TestOrdinaryCaptureDefaultsCannotBeOverridden(t *testing.T) {
 	no := false
 	input := yyGlobalCaptureConfig{Mode: "follow", Interval: 1, Height: 99, Pitch: 0, Yaw: 42, PauseJobs: false, AutoFleet: &no, AutoPlayers: false, Players: []string{"manual"}, ResidentObservers: 1}
 	got := yyGlobalCaptureForActor(input, yyPoolActor{ID: "member"})
-	if got.Mode != "camera" || got.Interval != .015 || got.Height != 6 || got.Pitch != 90 || got.Yaw != 0 || !got.PauseJobs || !got.AutoPlayers || len(got.Players) != 0 || got.ResidentObservers != 3 || !*got.AutoFleet {
+	// 2026-10-26 第 31 条：用户明确抓包默认 2000Hz（0.0005s）、上限 1,000,000Hz。
+	// 本用例锁的是「普通成员不能覆盖默认值」，默认值本身按用户要求更新。
+	if got.Mode != "camera" || got.Interval != .0005 || got.Height != 6 || got.Pitch != 90 || got.Yaw != 0 || !got.PauseJobs || !got.AutoPlayers || len(got.Players) != 0 || got.ResidentObservers != 3 || !*got.AutoFleet {
 		t.Fatal(got)
 	}
 	admin := yyGlobalCaptureForActor(input, yyPoolActor{Admin: true})

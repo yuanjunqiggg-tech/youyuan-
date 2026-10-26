@@ -39,11 +39,9 @@
     if (sessions) side.append(sessions);
     const links = document.createElement("div");
     links.className = "yy-studio-side-links";
-    links.append(button("\u6280\u80FD\u4E0E\u5DE5\u5177", () => yyAgentPreferences()), button("\u6280\u80FD\u52A0\u8F7D\u5E93", () => yyOpenSkillLibrary()), button("MCP \u8FDE\u63A5", () => {
-      var _a2;
-      yyWorkspacePane("context");
-      (_a2 = document.getElementById("yy-mcp-name")) == null ? void 0 : _a2.focus();
-    }), button("\u8FD0\u884C\u9884\u7B97", yyAgentRunBudgetDialog));
+    // 只留这里独有的两个入口。「MCP 连接」「运行预算」在输入框上方的「配置」菜单里
+    // 已有同一功能（离手更近），两处并存只会让侧栏挤、手机上更容易点错。
+    links.append(button("\u6280\u80FD\u4E0E\u5DE5\u5177", () => yyAgentPreferences()), button("\u6280\u80FD\u52A0\u8F7D\u5E93", () => yyOpenSkillLibrary()));
     side.append(links);
     shell.append(side, workspace);
     const context = document.getElementById("yy-workspace-context");

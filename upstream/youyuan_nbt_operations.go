@@ -98,6 +98,10 @@ func yyNormalizeNBTAt(v any, path string, depth int) (any, error) {
 				var n int64
 				n, e = yyNBTBoundedInteger(value, 0, 255)
 				a = byte(n)
+			} else if k == "facing" {
+				var n int64
+				n, e = yyNBTBoundedInteger(value, 0, 5)
+				a = byte(n)
 			} else if item && k == "Damage" || strings.Contains(path, ".ench[") && (k == "id" || k == "lvl") {
 				var n int64
 				n, e = yyNBTBoundedInteger(value, -32768, 32767)
@@ -216,6 +220,17 @@ func yyContainerNBT(name string, rows []any, options map[string]any) (map[string
 		items = append(items, normal)
 	}
 	out := map[string]any{"Items": items}
+	if strings.Contains(name, "shulker") {
+		facing := any(1)
+		if v, ok := options["facing"]; ok {
+			facing = v
+		}
+		n, e := yyNBTBoundedInteger(facing, 0, 5)
+		if e != nil {
+			return nil, fmt.Errorf("潜影箱朝向: %w", e)
+		}
+		out["facing"] = byte(n)
+	}
 	if s, ok := options["custom_name"].(string); ok && s != "" {
 		out["CustomName"] = s
 	}

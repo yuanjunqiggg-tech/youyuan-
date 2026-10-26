@@ -254,6 +254,11 @@ func (pm *PlayerInfoManager) handlePlayerList(p *packet.PlayerList, logCh chan s
 // updateSkinInfo 从 PlayerListEntry 复制皮肤数据到 PlayerInfo。
 func updateSkinInfo(pi *PlayerInfo, entry *protocol.PlayerListEntry) {
 	copyPlayerSkin(pi, entry.Skin)
+	// 收到就落盘：进程重启后 PlayerList 不一定马上把这些玩家送回来，
+	// 账号页的立体皮肤不能因此空着。
+	if pi != nil && len(pi.SkinData) > 0 {
+		yySkinCacheEnqueue(pi.Name, pi.SkinData, pi.SkinWidth, pi.SkinHeight)
+	}
 }
 
 func validPlayerSkin(s protocol.Skin) bool {
@@ -293,6 +298,9 @@ func (pm *PlayerInfoManager) handlePlayerSkin(p *packet.PlayerSkin, logCh chan s
 		return
 	}
 	copyPlayerSkin(pi, p.Skin)
+	if len(pi.SkinData) > 0 {
+		yySkinCacheEnqueue(pi.Name, pi.SkinData, pi.SkinWidth, pi.SkinHeight)
+	}
 	if logCh != nil {
 		yyReceiveLog(logCh, fmt.Sprintf("[皮肤] PlayerSkin: %s %dx%d", pi.Name, p.Skin.SkinImageWidth, p.Skin.SkinImageHeight))
 	}
@@ -340,6 +348,11 @@ func (pm *PlayerInfoManager) handleSyncSkin(p *packet.SyncSkin, logCh chan strin
 	}
 	debugLog("[皮肤] SyncSkin 收到: playerData=%d uuids=%v playerUIDs=%v unknown=%v skinItemIDs=%v",
 		len(p.PlayerData), uuids, p.PlayerUIDs, p.Unknown, p.SkinItemIDs)
+	// 2026-10-26 第 31 条：把抓到的组件码并入组件码库，供「组件码 → PNG」A 链使用。
+	// 过去这里只打日志，码被丢掉了，所以皮肤库永远只有机器人正好穿着的那一款。
+	if len(p.SkinItemIDs) > 0 {
+		yySkinItemCaptureCodes(p.SkinItemIDs)
+	}
 	dumpSkinToDebugLog("SyncSkin", &p.Skin)
 	if logCh != nil {
 		yyReceiveLog(logCh, fmt.Sprintf("[皮肤] SyncSkin: %d 条记录", len(p.PlayerData)))

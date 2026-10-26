@@ -215,3 +215,92 @@ func TestRespawnResourceCloseStopsWithoutParentCancellation(t *testing.T) {
 	case <-time.After(170 * time.Millisecond):
 	}
 }
+
+func TestZeroHealthStartsRespawnOnceWithoutServerSearchPacket(t *testing.T) {
+	r, writes, _ := respawnFixture(t)
+	for range 100 {
+		r.respawn.health(42, 42, 0)
+	}
+	got := nextRespawnWrite(t, writes).packet
+	if !reflect.DeepEqual(got, &packet.PlayerAction{EntityRuntimeID: 42, ActionType: protocol.PlayerActionRespawn, BlockFace: -1}) {
+		t.Fatal(got)
+	}
+	select {
+	case <-writes:
+		t.Fatal("duplicate death requests")
+	case <-time.After(220 * time.Millisecond):
+	}
+}
+
+func TestDeathRequestIgnoresOtherEntitiesAndCancelsOnServerHandshake(t *testing.T) {
+	r, writes, _ := respawnFixture(t)
+	r.respawn.health(43, 42, 0)
+	r.respawn.health(42, 42, 0)
+	r.respawn.search(42)
+	_ = nextRespawnWrite(t, writes)
+	_ = nextRespawnWrite(t, writes)
+	select {
+	case <-writes:
+		t.Fatal("server handshake duplicated")
+	case <-time.After(250 * time.Millisecond):
+	}
+}
+
+func TestPendingDeathRequestCancelsOnHealthRecoveryAndDisconnect(t *testing.T) {
+	for _, recover := range []bool{true, false} {
+		r, writes, cancel := respawnFixture(t)
+		r.respawn.health(42, 42, 0)
+		if recover {
+			r.respawn.health(42, 42, 20)
+		} else {
+			cancel()
+		}
+		select {
+		case <-writes:
+			t.Fatal("obsolete death wrote a respawn request")
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+func TestAutoRespawnCanBeDisabledAndReenabledForThisConnection(t *testing.T) {
+	r, writes, _ := respawnFixture(t)
+	r.SetAutoRespawn(false)
+	r.respawn.health(42, 42, 0)
+	r.respawn.search(42)
+	r.respawn.start(mgl32.Vec3{1, 64, 2})
+	select {
+	case <-writes:
+		t.Fatal("disabled policy sent respawn packets")
+	case <-time.After(250 * time.Millisecond):
+	}
+	r.SetAutoRespawn(true)
+	r.respawn.health(42, 42, 0)
+	if _, ok := nextRespawnWrite(t, writes).packet.(*packet.PlayerAction); !ok {
+		t.Fatal("policy did not re-enable")
+	}
+}
+
+func TestDisableRespawnCancelsPendingZeroHealthRequest(t *testing.T) {
+	r, writes, _ := respawnFixture(t)
+	r.respawn.health(42, 42, 0)
+	r.SetAutoRespawn(false)
+	select {
+	case <-writes:
+		t.Fatal("pending respawn survived disabling")
+	case <-time.After(250 * time.Millisecond):
+	}
+}
+
+func TestRespawnPolicyToggleDoesNotResumeObsoleteAcknowledgements(t *testing.T) {
+	r, writes, _ := respawnFixture(t)
+	r.respawn.start(mgl32.Vec3{1, 64, 2})
+	_ = nextRespawnWrite(t, writes)
+	r.SetAutoRespawn(false)
+	r.SetAutoRespawn(true)
+	select {
+	case <-writes:
+		t.Fatal("re-enabling resumed the previous respawn sequence")
+	case <-time.After(250 * time.Millisecond):
+	}
+}

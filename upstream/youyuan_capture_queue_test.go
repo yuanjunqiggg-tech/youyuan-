@@ -158,8 +158,10 @@ func TestSenseCaptureStopRouteRetiresTheMatcher(t *testing.T) {
 // A global-capture.json written before body_radius_blocks existed must keep the
 // safe default, otherwise upgrading silently disables entity packet reception.
 func TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs(t *testing.T) {
-	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{})["body_radius_blocks"]; got != float64(15) {
-		t.Fatalf("absent field must default to 15, got %v", got)
+	// 2026-10-26 第 27 条：用户明确要求接近半径默认 48 格（前端界面早就写的是 48，
+	// 后端却还是 15，两边对不上）。所以「未设置」的期望值从 15 改成 48。
+	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{})["body_radius_blocks"]; got != float64(48) {
+		t.Fatalf("absent field must default to 48, got %v", got)
 	}
 	zero, twenty := float64(0), float64(20)
 	if got := yyGlobalWatchOptions(yyGlobalCaptureConfig{BodyRadius: &zero})["body_radius_blocks"]; got != float64(0) {
@@ -172,8 +174,9 @@ func TestGlobalCaptureBodyRadiusKeepsDefaultForOldConfigs(t *testing.T) {
 	if e := json.Unmarshal([]byte(`{"mode":"camera"}`), &saved); e != nil || saved.BodyRadius != nil {
 		t.Fatalf("old config must decode to nil, got %v %v", saved.BodyRadius, e)
 	}
-	if got := yyGlobalBodyRadius(saved); got != 15 {
-		t.Fatalf("old config must resolve to 15, got %v", got)
+	// 老配置解码出 nil，走 yyGlobalBodyRadius 的默认值；第 27 条起默认 48 格。
+	if got := yyGlobalBodyRadius(saved); got != 48 {
+		t.Fatalf("old config 应解析为 48，got %v", got)
 	}
 }
 

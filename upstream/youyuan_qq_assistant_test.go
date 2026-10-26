@@ -49,8 +49,12 @@ func TestQQAssistantAuthorizationAndPersistence(t *testing.T) {
 	if yyQQRole(yyQQ, "target") != 0 {
 		t.Fatal("unsaved permission applied")
 	}
-	if !strings.Contains(yyQQHelp(0), "/命令") || !strings.Contains(yyQQHelp(0), "仅超级管理员") {
-		t.Fatal("help omitted restricted commands")
+	// 帮助菜单按当前权限过滤：受限指令只对够权限的人显示（注册表驱动，见 youyuan_qq_help.go）。
+	if !strings.Contains(yyQQHelp(yyQQ, 2), "/命令") || !strings.Contains(yyQQHelp(yyQQ, 2), "仅超级管理员") {
+		t.Fatal("help omitted restricted commands for super admin")
+	}
+	if strings.Contains(yyQQHelp(yyQQ, 0), "/命令") || strings.Contains(yyQQHelp(yyQQ, 0), "仅超级管理员") {
+		t.Fatal("member help must not list restricted commands")
 	}
 }
 func TestQQAssistantWrongPlayerCannotConfirmBinding(t *testing.T) {
@@ -67,14 +71,14 @@ func TestQQAssistantWrongPlayerCannotConfirmBinding(t *testing.T) {
 		yyQQHelper.Path = oldPath
 		yyQQHelper.Unlock()
 	}()
-	yyQQConfirmBinding("imposter", ".绑定 proof")
+	yyQQConfirmBinding(yyQQConfig{}, "imposter", ".绑定 proof")
 	if yyQQHelper.Bindings["qq-user"] != "" {
 		t.Fatal("unverified binding")
 	}
 	// Preserve a prior binding when writing the proof transaction fails.
 	yyQQHelper.Bindings["qq-user"] = "previous"
 	yyQQHelper.Path = filepath.Join(t.TempDir(), "missing", "qq.json")
-	yyQQConfirmBinding("real-player", ".绑定 proof")
+	yyQQConfirmBinding(yyQQConfig{}, "real-player", ".绑定 proof")
 	if yyQQHelper.Bindings["qq-user"] != "previous" {
 		t.Fatal("binding not rolled back")
 	}
@@ -131,13 +135,26 @@ func TestQQAssistantLogPaginationRetainsAllMessages(t *testing.T) {
 }
 func TestQQMemberAIToolsRejectPrivilegeAndHideCoordinates(t *testing.T) {
 	for _, name := range []string{"game_call", "mcp_call", "mcp_list", "mcp_describe", "load_skill"} {
-		result, failed := yyQQRunAITool(context.Background(), yyQQConfig{}, &yyWorkspace{}, name, map[string]any{"function": "sendCommand", "args": []any{"kill @a"}}, false)
+		result, failed := yyQQRunAITool(context.Background(), yyQQConfig{}, &yyWorkspace{}, name, map[string]any{"function": "sendCommand", "args": []any{"kill @a"}}, 0)
 		if !failed || !strings.Contains(result, "无此工具权限") {
 			t.Fatal(name, result)
 		}
 	}
-	if len(yyQQAITools(false)) != 3 {
-		t.Fatal("unexpected member tool")
+	// 成员工具集 = 4 个只读查询 + 社交工具（拍一拍/表情包/群总结/看图）。
+	// 社交工具不涉及服务器权限，成员也需要能自然互动；关键约束是
+	// 「成员永远拿不到游戏/外部MCP/联网/种子/发动态」这些能改服务器或对外发声的工具。
+	memberTools := yyQQAITools(false)
+	if len(memberTools) != 4+len(yyQQSocialTools(0)) {
+		t.Fatal("unexpected member tool count", len(memberTools))
+	}
+	for _, tl := range memberTools {
+		switch tl.Name {
+		case "game_call", "mcp_call", "mcp_list", "mcp_describe", "load_skill", "web_fetch", "post_qzone":
+			t.Fatal("member must not get privileged tool", tl.Name)
+		}
+		if strings.HasPrefix(tl.Name, "seed_") {
+			t.Fatal("member must not get seed tool", tl.Name)
+		}
 	}
 	sanitized := yyQQHideCoordinates("玩家位置：-120.5, 64, 123。x=42。积分：80。")
 	if strings.Contains(sanitized, "-120.5") || strings.Contains(sanitized, "x=42") || !strings.Contains(sanitized, "积分：80") {
@@ -153,8 +170,16 @@ func TestQQMemberAIModelCannotForceMCPCall(t *testing.T) {
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
 		tools := body["tools"].([]any)
-		if len(tools) != 3 {
-			t.Error("privileged tools offered")
+		// 下发给成员的工具集必须与宿主一致：多一个都说明有提权工具漏出去了。
+		if len(tools) != len(yyQQAITools(false)) {
+			t.Error("privileged tools offered", len(tools))
+		}
+		for _, raw := range tools {
+			if fn, ok := raw.(map[string]any)["function"].(map[string]any); ok {
+				if name := fmt.Sprint(fn["name"]); name == "mcp_call" || name == "game_call" || name == "web_fetch" {
+					t.Error("privileged tool offered", name)
+				}
+			}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if calls == 1 {

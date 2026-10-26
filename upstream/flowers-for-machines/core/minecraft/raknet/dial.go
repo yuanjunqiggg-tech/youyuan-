@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"runtime"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/raknet/internal"
@@ -260,7 +262,7 @@ func (dialer Dialer) DialContext(ctx context.Context, address string) (*Conn, er
 	} else if err = cs.openConnection(handshakeCtx); err != nil {
 		return nil, dialer.error("dial", fmt.Errorf("打开连接: %w", err))
 	}
-	return dialer.connect(ctx, cs)
+	return dialer.connect(handshakeCtx, cs)
 }
 
 // dial finishes the RakNet connection sequence and returns a Conn if
@@ -268,42 +270,60 @@ func (dialer Dialer) DialContext(ctx context.Context, address string) (*Conn, er
 func (dialer Dialer) connect(ctx context.Context, state *connState) (*Conn, error) {
 	conn := newConn(internal.ConnToPacketConn(state.conn), state.raddr, state.mtu, dialerConnectionHandler{l: dialer.ErrorLog})
 	if err := conn.send((&message.ConnectionRequest{ClientGUID: state.id, RequestTime: timestamp()})); err != nil {
+		conn.closeImmediately()
 		return nil, dialer.error("dial", fmt.Errorf("发送连接请求: %w", err))
 	}
 
-	go dialer.clientListen(conn, state.conn)
+	readErr := make(chan error, 1)
+	go func() { readErr <- dialer.clientListen(conn, state.conn) }()
 
 	select {
 	case <-conn.connected:
 		// Remove connection deadline.
 		_ = conn.conn.SetDeadline(time.Time{})
 		return conn, nil
+	case err := <-readErr:
+		return nil, dialer.error("dial", err)
 	case <-ctx.Done():
-		_ = conn.Close()
+		conn.closeImmediately()
 		return nil, dialer.error("dial", ctx.Err())
 	}
 }
 
 // clientListen makes the RakNet connection passed listen as a client for
 // packets received in the connection passed.
-func (dialer Dialer) clientListen(rakConn *Conn, conn net.Conn) {
+func (dialer Dialer) clientListen(rakConn *Conn, conn net.Conn) error {
 	// Create a buffer with the maximum size a UDP packet sent over RakNet is
 	// allowed to have. We can re-use this buffer for each packet.
 	b := make([]byte, rakConn.effectiveMTU())
 	for {
 		n, err := conn.Read(b)
+		var timeout net.Error
+		if err != nil && (errors.Is(err, net.ErrClosed) || isUDPConnectionRefused(err) || errors.As(err, &timeout) && timeout.Timeout()) {
+			// A refused endpoint or expired deadline must stop this socket, not replay reads until the idle timer.
+			rakConn.closeImmediately()
+			if !errors.Is(err, net.ErrClosed) {
+				dialer.ErrorLog.Error("handle packet: " + err.Error())
+			}
+			return err
+		}
 		if err == nil && n != 0 {
 			err = rakConn.receive(b[:n])
 		}
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
-				return
+				return err
 			}
 			// Errors reading a packet other than the connection being
 			// closed may be worth logging.
 			dialer.ErrorLog.Error("handle packet: " + err.Error())
 		}
 	}
+}
+
+func isUDPConnectionRefused(err error) bool {
+	// Winsock reports WSAECONNREFUSED (10061), distinct from Go's Windows compatibility errno.
+	return errors.Is(err, syscall.ECONNREFUSED) || runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10061))
 }
 
 // connState represents a state of a connection before the connection is

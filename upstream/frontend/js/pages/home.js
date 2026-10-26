@@ -1,7 +1,16 @@
 async function Rhome(){
   try{
     document.getElementById('tab-home').innerHTML='<div class="content-inner"><div style="text-align:center;padding:36px"><span class="spin" style="color:var(--phx-primary)"></span><span class="dim"> 加载中...</span></div></div>';
-    var s=await A('GET','/api/bot/status'),t=await A('GET','/api/task/list');
+    // 状态与任务列表合并走统一快照（1 次请求），旧内核回退两条并发读。
+    var s, t;
+    try {
+      var snap = await A('GET', '/api/youyuan/snapshot');
+      if (snap && snap.snapshot === true && snap.ok) { s = snap.game; t = snap.tasks; }
+      else throw 0;
+    } catch (e) {
+      s = await A('GET', '/api/bot/status');
+      t = await A('GET', '/api/task/list');
+    }
     U(s.ok&&s.connected, s.ok&&s.is_op, s.ok?s.server:'');
 
     var features=[
@@ -15,41 +24,94 @@ async function Rhome(){
 	      {i:`<svg width="26" height="26" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,t:'其他',d:'更多功能',act:function(){openSubPage('其他',RothersHTML())}},
     ];
 
-    // Grid card layout (参考 HOSDLA)
-    var h='<div class="grid-2" style="margin-top:4px">';
-    for(var i=0;i<features.length;i++){
-      var f=features[i];
-      h+='<div class="grid-card" onclick="('+f.act.toString()+')()">'+
-        '<div class="gc-icon">'+f.i+'</div>'+
-        '<div class="gc-title">'+f.t+'</div>'+
-        '<div class="gc-sub">'+f.d+'</div></div>'
+    // ── 主页改工作台（任务书第 3 部分）────────────────────────────
+    // 旧版：8 个等大方形卡片排在前面，任务列表压在最后——进来先看到一片宫格，
+    // 正在跑的任务反而要往下翻。
+    // 新版顺序：状态条 → 当前任务 → 常用 → 最近活动 → 全部功能。
+    // 数据全部来自已有的 /api/bot/status 与 /api/task/list，不编造任何数字。
+    var tasks = (t.ok && t.tasks) ? t.tasks : [];
+    var liveTasks = [], historyTasks = [];
+    for (var qi = 0; qi < tasks.length; qi++) {
+      var qst = tasks[qi].status || '';
+      if (qst === 'running' || qst === 'paused' || qst === 'waiting') liveTasks.push(tasks[qi]);
+      else historyTasks.push(tasks[qi]);
     }
-    h+='</div>';
 
-    // Task list
-    h+='<div class="tsk-section" style="margin-top:14px"><div class="tsk-header">任务列表</div>';
-    if(t.ok&&t.tasks&&t.tasks.length){
-      for(var ti=0;ti<t.tasks.length;ti++){
-        var tk=t.tasks[ti];
-        var tIcon={'import':'<svg width="28" height="28" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>','export':'<svg width="28" height="28" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><rect x="3" y="3" width="16" height="6" rx="1"/></svg>','mapart':'<svg width="28" height="28" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="16" rx="2"/><line x1="3" y1="9" x2="19" y2="9"/><line x1="9" y1="3" x2="9" y2="19"/></svg>','skin':'<svg width="28" height="28" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'}[tk.type]||'·';
-        var tSt=tk.status||'unknown';
-        var tCl=tSt==='running'?'running':tSt==='done'?'done':tSt==='failed'?'failed':'paused';
-        var tLb=tSt==='running'?'运行中':tSt==='done'?'完成':tSt==='failed'?'失败':'暂停';
-        var tName=tk.name||tk.type||'未知';
-        var tMeta=tk.message||'';
-        if(tk.progress!=null)tMeta='进度: '+(tk.progress*100).toFixed(0)+'%';
-        var tpp={};try{tpp=JSON.parse(tk.params)}catch(e){}var tpath=tpp.path||'';var tismc=tpath.toLowerCase().endsWith('.mcworld');
-        h+='<div class="tsk-item" style="cursor:pointer" data-taskid="'+tk.task_id+'" data-path="'+tpath.replace(/"/g,'&quot;')+'" data-ismc="'+(tismc?1:0)+'" data-progress="'+(tk.progress||0)+'" data-msg="'+escHtml(tMeta).replace(/"/g,'&quot;')+'" data-status="'+tSt+'" data-name="'+escHtml(tName).replace(/"/g,'&quot;')+'" onclick="var d=this.dataset;showTaskDetail(d.taskid,d.name,parseFloat(d.progress),d.msg,d.status,d.path,d.ismc==1)">'+
-          '<div class="tsk-icon">'+tIcon+'</div>'+
-          '<div class="tsk-body"><div class="tsk-name">'+escHtml(tName)+'</div>'+
-          '<div class="tsk-meta">'+escHtml(tMeta)+'</div></div>'+
-          '<span class="tsk-status '+tCl+'">'+tLb+'</span>'+
-          '<span class="tsk-chev" style="opacity:.5;margin-left:6px">›</span></div>'
-      }
-    } else {
-      h+='<div class="tsk-empty">暂无任务</div>'
+    function hmTaskRow(tk) {
+      var name = escHtml(tk.name || tk.type || '未知任务');
+      var st = tk.status || 'unknown';
+      var lb = st === 'running' ? '运行中' : st === 'done' ? '完成' : st === 'failed' ? '失败' : '暂停';
+      var cls = st === 'running' ? 'running' : st === 'done' ? 'done' : st === 'failed' ? 'failed' : 'paused';
+      var meta = tk.message || '';
+      if (tk.progress != null) meta = '进度 ' + (tk.progress * 100).toFixed(0) + '%';
+      var pp = {};
+      try { pp = JSON.parse(tk.params) } catch (e) {}
+      var path = pp.path || '';
+      var ismc = path.toLowerCase().endsWith('.mcworld');
+      var tIcon = {
+        import: '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+        export: '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><rect x="3" y="3" width="16" height="6" rx="1"/></svg>',
+        mapart: '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="16" rx="2"/><line x1="3" y1="9" x2="19" y2="9"/><line x1="9" y1="3" x2="9" y2="19"/></svg>',
+        skin: '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+      }[tk.type] || '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M11 7v8M7 11h8"/></svg>';
+      return '<button type="button" class="yyt-row hm-task" data-taskid="' + tk.task_id + '" data-path="' + path.replace(/"/g, '&quot;') + '" data-ismc="' + (ismc ? 1 : 0) + '" data-progress="' + (tk.progress || 0) + '" data-msg="' + escHtml(meta).replace(/"/g, '&quot;') + '" data-status="' + st + '" data-name="' + name.replace(/"/g, '&quot;') + '" onclick="var d=this.dataset;showTaskDetail(d.taskid,d.name,parseFloat(d.progress),d.msg,d.status,d.path,d.ismc==1)">' +
+        '<span class="yyt-ico" aria-hidden="true">' + tIcon + '</span>' +
+        '<span class="yyt-txt"><strong class="yyt-name">' + name + '</strong>' +
+        '<small class="yyt-desc">' + escHtml(meta || lb) + '</small></span>' +
+        '<span class="tsk-status ' + cls + '">' + lb + '</span></button>';
     }
-    h+='</div></div>';
+
+    function hmFeatureRow(f) {
+      return '<button type="button" class="yyt-row" onclick="(' + f.act.toString() + ')()">' +
+        '<span class="yyt-ico" aria-hidden="true">' + f.i + '</span>' +
+        '<span class="yyt-txt"><strong class="yyt-name">' + f.t + '</strong>' +
+        '<small class="yyt-desc">' + f.d + '</small></span>' +
+        '<span class="yyt-go" aria-hidden="true">›</span></button>';
+    }
+
+    // A. 紧凑状态条：服务器 / 连接 / OP / 延迟，全是接口真实字段，没有就留空
+    var connected = !!(s.ok && s.connected);
+    var h = '<div class="hm">' +
+      '<div class="hm-status">' +
+        '<i class="hm-dot" data-on="' + (connected ? 1 : 0) + '" aria-hidden="true"></i>' +
+        '<strong>' + escHtml(s.ok ? (s.server || '未连接服务器') : '状态读取失败') + '</strong>' +
+        (s.ok && s.is_op ? '<em class="hm-badge">OP</em>' : '') +
+        (s.ok && typeof s.game_rtt_ms === 'number' ? '<span class="hm-rtt">' + Math.round(s.game_rtt_ms) + 'ms</span>' : '') +
+        '<span class="hm-refreshwrap">' +
+          '<small class="hm-autonote">30 秒自动刷新</small>' +
+          '<button type="button" class="hm-refresh" onclick="yyManualRefresh()" aria-label="立即刷新（15 秒冷却）">⟳ 刷新</button>' +
+        '</span>' +
+      '</div>';
+
+    // B. 当前任务：有运行中的就置顶，没有就给一个直接开始的入口
+    h += '<section class="hm-block"><h3 class="yyt-cat-title">当前任务</h3>';
+    if (liveTasks.length) {
+      for (var li = 0; li < liveTasks.length; li++) h += hmTaskRow(liveTasks[li]);
+    } else {
+      h += '<p class="yyt-empty">没有运行中的任务。<button type="button" class="btn-s" onclick="(function(){openSubPage(\'建筑导入\',RimpHTML())})()">开始建筑导入</button></p>';
+    }
+    h += '</section>';
+
+    // C. 常用：最高频的四个入口，一行一个
+    h += '<section class="hm-block"><h3 class="yyt-cat-title">常用</h3>' +
+      hmFeatureRow(features[0]) + hmFeatureRow(features[1]) + hmFeatureRow(features[7]) + hmFeatureRow(features[6]) +
+      '</section>';
+
+    // D. 最近活动：只显示最近三条，完整历史去任务中心
+    h += '<section class="hm-block"><h3 class="yyt-cat-title">最近活动</h3>';
+    if (historyTasks.length) {
+      for (var di = 0; di < historyTasks.length && di < 3; di++) h += hmTaskRow(historyTasks[di]);
+    } else {
+      h += '<p class="yyt-empty">暂无记录。</p>';
+    }
+    h += '</section>';
+
+    // E. 全部功能：其余入口
+    h += '<section class="hm-block"><h3 class="yyt-cat-title">全部功能</h3>' +
+      hmFeatureRow(features[2]) + hmFeatureRow(features[3]) + hmFeatureRow(features[4]) + hmFeatureRow(features[5]) +
+      '</section>';
+
+    h += '</div>';
 
     document.getElementById('tab-home').innerHTML=h;
     if(!window.wzActive){ fetchAnnouncements(); if(typeof loadPendingNotifs==='function')loadPendingNotifs() }

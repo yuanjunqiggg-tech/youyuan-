@@ -22,7 +22,6 @@ import (
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/nbt"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
-	"github.com/OmineDev/flowers-for-machines/utils"
 
 	"github.com/google/uuid"
 )
@@ -33,6 +32,10 @@ var brandName = "游园"
 func dispatchTaskWithResume(tc *state.TaskController, taskType string, params json.RawMessage, resumeID string) {
 	var p map[string]any
 	json.Unmarshal(params, &p)
+	if err := yyValidateImportRegionParams(taskType, p); err != nil {
+		hub.Emit("task_error", mustJSON(map[string]any{"error": err.Error()}))
+		return
+	}
 	var workers []*BotManager
 	if taskType == "import_multi" {
 		var err error
@@ -243,8 +246,13 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	}
 
 	bm := getBotManager()
+	if bm == nil || !bm.IsConnected() {
+		hub.Emit("task_error", mustJSON(map[string]any{"error": "未连接到服务器，请先连接"}))
+		return
+	}
 	hub.Emit("task_start", mustJSON(map[string]any{"type": "导入: " + shortName(path)}))
-	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 0}))
+	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 0, "phase": "正在解析建筑", "structure": shortName(path)}))
+	sendActionbar(yyStructureHudRender(yyStructureHud{Phase: "导入准备", PhaseColour: "b", Structure: shortName(path)}))
 	hub.Emit("progress", mustJSON(map[string]any{"msg": "加载建筑文件: " + shortName(path)}))
 
 	// 输出缓存命中状态
@@ -271,6 +279,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	}
 
 	stats := data.ComputeStats()
+	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 0, "phase": "正在准备导入", "structure": shortName(path), "total_blocks": stats.SolidBlocks}))
 	hub.Emit("progress", mustJSON(map[string]any{
 		"msg": fmt.Sprintf("建筑: %dx%dx%d, %d 实体方块, %d 种方块", data.SizeX, data.SizeY, data.SizeZ, stats.SolidBlocks, len(stats.BlockCountsList)),
 	}))
@@ -321,7 +330,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			// Follow the same serpentine region order as Run. Replay the saved
 			// region and two predecessors conservatively after interruption.
 			var resumeErr error
-			startChunkX, startChunkZ, resumeErr = building.ImportResumeStart(rd.LastCX, rd.LastCZ, data.SizeX, data.SizeZ, getInt(p, "region_mode", 1), 2)
+			startChunkX, startChunkZ, resumeErr = building.ImportResumeStart(rd.LastCX, rd.LastCZ, data.SizeX, data.SizeZ, getInt(p, "region_mode", 1), 2, getInt(p, "region_size_chunks", 0))
 			if resumeErr != nil {
 				cp.Status, cp.Message = "failed", resumeErr.Error()
 				state.SaveCheckpointNow(cp)
@@ -354,12 +363,12 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	if regionMode < 1 {
 		regionMode = 1
 	}
-	if regionMode > 3 {
-		regionMode = 3
+	if regionMode > 4 {
+		regionMode = 4
 	}
 	// 常加载区预加载：批次 TP 前提前加载目标区块（用户指定方案），默认开启
 	tickingPreload := getBool(p, "ticking_preload", true)
-	tickPre, tickRel, tickClean := yyTickingCallbacks(bm, "", tickingPreload)	// keep 模式：不破坏原有地形地貌，setblock/fill 追加 keep、NBT 方块只放空气位。
+	tickPre, tickRel, tickClean := yyTickingCallbacks(bm, "", tickingPreload) // keep 模式：不破坏原有地形地貌，setblock/fill 追加 keep、NBT 方块只放空气位。
 	// 与预清空互斥——保留模式本质就是不清空目标区，故强制 PreClearMode=0。
 	keepMode := getBool(p, "keep_mode", false)
 	preClearMode := getInt(p, "pre_clear_mode", 0)
@@ -374,7 +383,8 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	stats = data.ComputeStats()
 	totalSolid := 0
 	for _, bi := range data.Blocks {
-		if bi != 0 {
+		block := data.Palette[bi]
+		if !block.IsAir && !(excludeWater && block.IsWater) && !(excludeLava && block.IsLava) {
 			totalSolid++
 		}
 	}
@@ -409,20 +419,22 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 	abStopTicker := make(chan struct{})
 	var consoleCenter protocol.BlockPos
 	task := &building.ImportTask{
-		Data:         data,
-		BaseX:        getInt(p, "x", 0),
-		BaseY:        getInt(p, "y", 64),
-		BaseZ:        getInt(p, "z", 0),
-		Speed:        getInt(p, "speed", -1),
-		StartCX:      startChunkX,
-		StartCZ:      startChunkZ,
-		SkipPreClear: resuming, // 恢复时不清空已建区域（见上方 resuming 逻辑）
-		PreClearMode: preClearMode,
-		KeepMode:     keepMode,
-		IsAir:        botIsAir(bm),
-		ExcludeNBT:   excludeNBT,
-		Dimension:    dimension,
-		RegionMode:   regionMode,
+		Data:              data,
+		BaseX:             getInt(p, "x", 0),
+		BaseY:             getInt(p, "y", 64),
+		BaseZ:             getInt(p, "z", 0),
+		Speed:             getInt(p, "speed", -1),
+		StartCX:           startChunkX,
+		StartCZ:           startChunkZ,
+		SkipPreClear:      resuming, // 恢复时不清空已建区域（见上方 resuming 逻辑）
+		PreClearMode:      preClearMode,
+		KeepMode:          keepMode,
+		IsAir:             botIsAir(bm),
+		ExcludeNBT:        excludeNBT,
+		Dimension:         dimension,
+		RegionMode:        regionMode,
+		RegionSizeChunks:  getInt(p, "region_size_chunks", 0),
+		PreloadSizeChunks: getInt(p, "preload_size_chunks", 0),
 		ChunkLoaded: func(cx, cz int) bool {
 			if bm == nil || bm.conn == nil {
 				return true
@@ -494,16 +506,17 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			abMu.Unlock()
 			hub.Emit("clear_done", mustJSON(map[string]any{"done": true}))
 		},
-		OnNBT: func(x, y, z int32, nbtData map[string]any, blockName, blockStates string) {
+		OnNBTChecked: func(x, y, z int32, nbtData map[string]any, blockName, blockStates string) (err error) {
 			defer func() {
 				if r := recover(); r != nil {
+					err = fmt.Errorf("NBT处理异常: %v", r)
 					hub.Emit("progress", mustJSON(map[string]any{
 						"msg": fmt.Sprintf("NBT 方块处理异常 (%d,%d,%d %s): %v", x, y, z, blockName, r),
 					}))
 				}
 			}()
 			if bm == nil || bm.conn == nil {
-				return
+				return fmt.Errorf("NBT处理期间连接已断开")
 			}
 
 			// 等待 setblock 生效后再处理 NBT
@@ -515,8 +528,9 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 					hub.Emit("progress", mustJSON(map[string]any{
 						"msg": fmt.Sprintf("告示牌放置失败 (%d,%d,%d): %v", x, y, z, err),
 					}))
+					return err
 				}
-				return
+				return nil
 			}
 
 			// 指令方块: TP 靠近后发送 CommandBlockUpdate 包
@@ -559,7 +573,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 					ShouldTrackOutput: trackOut, ExecuteOnFirstTick: exeFirst,
 					TickDelay: tickDelay,
 				})
-				return
+				return nil
 			}
 
 			// 结构方块: TP 靠近后发送 StructureBlockUpdate 包
@@ -568,7 +582,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 				upd := buildStructureBlockUpdate(nbtData)
 				upd.Position = protocol.BlockPos{x, y, z}
 				bm.conn.WritePacket(&upd)
-				return
+				return nil
 			}
 			// TP 到目标位置确保区块加载（NBTAssigner 和 BlockActorData 都需要）
 			bm.TP(int(x), int(y+1), int(z))
@@ -584,10 +598,9 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 				if needsNBT {
 					var seq int
 					if err := placeOneNBTBlock(bm, x, y, z, blockName, blockStates, nbtData, consoleCenter, &seq); err != nil {
-						hub.Emit("progress", mustJSON(map[string]any{"msg": fmt.Sprintf("游园 · NBT制作失败 (%d,%d,%d): %v", x, y, z, err)}))
-					} else {
-						handled = true
+						return err
 					}
+					handled = true
 				}
 
 			} // 回退：简单方块实体补发 BlockActorData
@@ -608,6 +621,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 					}
 				}
 			}
+			return nil
 		},
 		OnProgress: func(cx, cz, chunk, total, blocks int) {
 			progress := float64(chunk) / float64(total)
@@ -623,6 +637,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			abChunkCZ = cz
 			abMu.Unlock()
 			hub.Emit("task_progress", mustJSON(map[string]any{
+				"structure":    shortName(path),
 				"progress":     progress,
 				"sub_progress": 1.0,
 				"chunk":        chunk,
@@ -678,9 +693,7 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			abMu.Lock()
 			abSubBarPct = int(sp * 100)
 			abMu.Unlock()
-			hub.Emit("task_progress", mustJSON(map[string]any{
-				"sub_progress": sp,
-			}))
+
 		},
 		OnRegionProgress: func(ri, totalRegions, rx, rz int) {
 			abMu.Lock()
@@ -691,21 +704,30 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 		StopCh: tc.StopCh(),
 	}
 	targetImportSpeed = task.Speed
+	task.OnSubmitted = func(blocks, chunks int) {
+		abMu.Lock()
+		abBlocks = blocks
+		liveChunks := max(abChunkDone, chunks)
+		abChunkDone = liveChunks
+		abChunkTotal = (data.SizeX + 15) / 16 * ((data.SizeZ + 15) / 16)
+		progress := float64(blocks) / float64(max(1, task.TotalSolidBlocks))
+		if task.TotalSolidBlocks == 0 {
+			progress = float64(liveChunks) / float64(max(1, abChunkTotal))
+		}
+		progress = min(progress, 0.999)
+		abTotalBarPct = int(progress * 100)
+		abMu.Unlock()
+		hub.Emit("task_progress", mustJSON(map[string]any{"structure": shortName(path), "task_id": taskID, "progress": progress, "blocks": blocks, "total_blocks": task.TotalSolidBlocks, "chunk": liveChunks, "total": (data.SizeX + 15) / 16 * ((data.SizeZ + 15) / 16), "phase": "建筑写入", "unit": "方块已提交", "counter_source": "local_submission"}))
+		link := yyStructureHudWithHealth(yyStructureHud{})
+		hub.Emit("structure_progress", mustJSON(map[string]any{"structure": shortName(path), "task_id": taskID, "phase": "导入中", "blocks": blocks, "total_blocks": task.TotalSolidBlocks, "chunks": liveChunks, "chunks_total": (data.SizeX + 15) / 16 * ((data.SizeZ + 15) / 16), "elapsed_ms": time.Since(importStartTime).Milliseconds(), "tps": link.TPS, "tps_known": link.TPSKnown, "rtt_ms": link.RTT.Milliseconds(), "rtt_known": link.RTTKnown, "counter_source": "local_submission"}))
+	}
 	// 设置 NBT 操作台位置并清空旧缓存（每个导入任务重建，确保位置正确）
-	if bm != nil {
+	needsWorkspace := !excludeNBT && len(data.NBTBlocks) > 0
+	if bm != nil && needsWorkspace {
 		// 工作台坐标按机器人编号分配，跨机器人互不重叠（§8.3）
 		wx, wy, wz := building.WorkspaceCenter(bm.BotIndex, getInt(p, "x", 0), getInt(p, "z", 0), data.SizeX, data.SizeZ)
 		consoleCenter = protocol.BlockPos{int32(wx), int32(wy), int32(wz)}
-		// 异步清理工作区块（fire-and-forget，不阻塞导入启动）
-		bmCopy := bm
-		centerCopy := consoleCenter
-		go func() {
-			if bmCopy != nil && bmCopy.conn != nil && centerCopy != (protocol.BlockPos{}) {
-				bmCopy.SendPlayerCommand(fmt.Sprintf("execute as @s at @s run fill %d %d %d %d %d %d air",
-					centerCopy[0]-5, centerCopy[1]-2, centerCopy[2]-5,
-					centerCopy[0]+5, centerCopy[1]+2, centerCopy[2]+5))
-			}
-		}()
+		// Console initialization already clears the workspace; a second async clear can erase newly made NBT.
 		bm.cleanupNBTWorkspace()
 	}
 
@@ -816,13 +838,17 @@ func runImportTask(tc *state.TaskController, p map[string]any, resumeFromCheckpo
 			consoleCenter[0]-5, consoleCenter[1]-2, consoleCenter[2]-5,
 			consoleCenter[0]+5, consoleCenter[1]+2, consoleCenter[2]+5))
 	}
-	// 任务结束：删除本机 NBT 缓存的所有结构（相同方块复用同一 uniqueID，统一在此清理）
-	bm.mu.Lock()
-	if bm.nbtAssigner != nil {
-		bm.nbtAssigner.CleanCache()
+	if needsWorkspace {
+		// 任务结束：删除本机 NBT 缓存的所有结构（相同方块复用同一 uniqueID，统一在此清理）
+		bm.mu.Lock()
+		finishedAssigner := bm.nbtAssigner
+		bm.mu.Unlock()
+		if finishedAssigner != nil {
+			finishedAssigner.CleanCache()
+		}
+		bm.cleanupNBTWorkspace()
+
 	}
-	bm.mu.Unlock()
-	bm.cleanupNBTWorkspace()
 
 	cp.Progress = 1.0
 	state.SaveCheckpointNow(cp)
@@ -959,9 +985,9 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 		TickingPreload: tickPre,
 		TickingRelease: tickRel,
 		TickingCleanup: tickClean,
-		OnNBT: func(x, y, z int32, nbtData map[string]any, blockName, blockStates string) {
+		OnNBTChecked: func(x, y, z int32, nbtData map[string]any, blockName, blockStates string) (err error) {
 			if bm == nil || bm.conn == nil {
-				return
+				return fmt.Errorf("NBT处理期间连接已断开")
 			}
 			// 告示牌
 			if strings.Contains(blockName, "sign") {
@@ -970,8 +996,9 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 					hub.Emit("progress", mustJSON(map[string]any{
 						"msg": fmt.Sprintf("告示牌放置失败 (%d,%d,%d): %v", x, y, z, err),
 					}))
+					return err
 				}
-				return
+				return nil
 			}
 			// 命令方块
 			if cmd, ok := nbtData["Command"].(string); ok {
@@ -1013,7 +1040,7 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 					ShouldTrackOutput: trackOut, ExecuteOnFirstTick: exeFirst,
 					TickDelay: tickDelay,
 				})
-				return
+				return nil
 			}
 			// 结构方块
 			if strings.Contains(blockName, "structure_block") {
@@ -1021,32 +1048,14 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 				upd := buildStructureBlockUpdate(nbtData)
 				upd.Position = protocol.BlockPos{x, y, z}
 				bm.conn.WritePacket(&upd)
-				return
+				return nil
 			}
 			// 需要 NBT 工作区的方块（容器、展示框等），复用 building 分类器（§8.1）
 			needsNBT := building.IsWorkspaceNBTBlock(blockName, nbtData)
 			if needsNBT {
-				assigner, aErr := bm.getNBTAssigner(consoleCenter)
-				if aErr == nil {
-					bm.TP(int(consoleCenter[0]), int(consoleCenter[1]+1), int(consoleCenter[2]))
-					time.Sleep(50 * time.Millisecond)
-					statesMap := utils.ParseBlockStatesString(blockStates)
-					_, _, _, _ = assigner.PlaceNBTBlock(blockName, statesMap, nbtData)
-					cleanName := strings.ReplaceAll(strings.TrimPrefix(blockName, "minecraft:"), ":", "_")
-					structID := building.NBTStructName(bm.BotIndex, cleanName, nbtStructSeq)
-					nbtStructSeq++
-					saveCmd := fmt.Sprintf("structure save \"%s\" %d %d %d %d %d %d", structID, consoleCenter[0], consoleCenter[1], consoleCenter[2], consoleCenter[0], consoleCenter[1], consoleCenter[2])
-					bm.SendPlayerCommand(saveCmd)
-					time.Sleep(100 * time.Millisecond)
-					bm.TP(int(x), int(y+1), int(z))
-					time.Sleep(100 * time.Millisecond)
-					loadCmd := fmt.Sprintf("structure load \"%s\" %d %d %d", structID, x, y, z)
-					bm.SendAICommand(loadCmd)
-					time.Sleep(100 * time.Millisecond)
-					bm.SendPlayerCommand(fmt.Sprintf("structure delete \"%s\"", structID))
-				}
-				return
+				return placeOneNBTBlock(bm, x, y, z, blockName, blockStates, nbtData, consoleCenter, &nbtStructSeq)
 			}
+
 			// 其他方块实体：补发 BlockActorData
 			if !strings.Contains(blockName, "command_block") &&
 				!strings.Contains(blockName, "structure_block") &&
@@ -1060,6 +1069,7 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 					NBTData:  norm,
 				})
 			}
+			return nil
 		},
 		OnProgress: func(cx, cz, chunk, total, blocks int) {
 			progress := float64(chunk) / float64(total)
@@ -1078,13 +1088,6 @@ func runRepairTask(tc *state.TaskController, p map[string]any) {
 	if bm != nil {
 		wx, wy, wz := building.WorkspaceCenter(bm.BotIndex, x, z, data.SizeX, data.SizeZ)
 		consoleCenter = protocol.BlockPos{int32(wx), int32(wy), int32(wz)}
-		go func() {
-			if bm.conn != nil {
-				bm.SendPlayerCommand(fmt.Sprintf("execute as @s at @s run fill %d %d %d %d %d %d air",
-					consoleCenter[0]-5, consoleCenter[1]-2, consoleCenter[2]-5,
-					consoleCenter[0]+5, consoleCenter[1]+2, consoleCenter[2]+5))
-			}
-		}()
 		bm.cleanupNBTWorkspace()
 	}
 
@@ -1116,6 +1119,9 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 
 	outputPath := getString(p, "output", "/sdcard/Download/export.mcstructure")
 	format := getString(p, "format", "mcstructure")
+	hub.Emit("task_start", mustJSON(map[string]any{"type": "export", "structure": shortName(outputPath)}))
+	hub.Emit("task_progress", mustJSON(map[string]any{"progress": 0, "phase": "正在准备导出"}))
+	sendActionbar(yyTaskActionbar("导出准备", shortName(outputPath), "6", 0, 0, 0, 0))
 
 	// Auto-rename if file exists: append (1), (2), ...
 	if outputPath != "" {
@@ -1184,10 +1190,12 @@ func runExportTask(tc *state.TaskController, p map[string]any) {
 		return
 	}
 	totalChunks := len(yyRegionTiles(origin, size))
+	exportStart := time.Now()
 	allChunks, workersUsed, readErr := yyReadRegionTiles(bm, origin, size, max(1, getInt(p, "workers", 1)), tc.StopCh(), func(done, total int) {
 		cp.Progress = float64(done) / float64(total)
 		cp.Message = fmt.Sprintf("游园 · 读取 %d/%d 分区", done, total)
 		state.SaveCheckpoint(cp)
+		sendActionbar(yyTaskActionbar("导出中", shortName(outputPath), "6", done, total, 0, time.Since(exportStart)))
 		hub.Emit("task_progress", mustJSON(map[string]any{"progress": cp.Progress, "completed": done, "total": total, "phase": "游园 · 建筑读取", "unit": "分区", "location": "游戏服务器 → 工具箱设备"}))
 	}, getBool(p, "ticking_preload", true))
 	if readErr != nil {
@@ -2757,9 +2765,7 @@ func buildV5Actionbar(sendFn func(string), name string, sx, sy, sz int,
 	regionIdx, totalRegions int, chunkDone, chunkTotal, chunkCX, chunkCZ int,
 	startTime time.Time, brandName string) {
 	phase, colour := "导入中", "a"
-	if regionMode != 0 {
-		phase, colour = "导出中", "b"
-	}
+	// regionMode selects the import footprint, never the transfer direction.
 	if totalSolid > 0 && blocks >= totalSolid {
 		phase, colour = "已完成", "a"
 	}
@@ -2777,7 +2783,8 @@ func buildV5Actionbar(sendFn func(string), name string, sx, sy, sz int,
 	hud = yyStructureHudWithHealth(hud)
 	text := yyStructureHudRender(hud)
 	if totalRegions > 0 {
-		text += fmt.Sprintf("\n§r§d分区 §f%d §7/ %d  ·  本区 §d%s§8%s", regionIdx, totalRegions, strings.Repeat("┃", max(0, min(10, subPct/10))), strings.Repeat("┃", 10-max(0, min(10, subPct/10))))
+		footer := strings.LastIndex(text, "\n")
+		text = text[:footer] + fmt.Sprintf("\n§8┃ §7分区 §f%d / %d\n§8┃ §7本区 §d%s§8%s", regionIdx, totalRegions, strings.Repeat("┃", max(0, min(10, subPct/10))), strings.Repeat("┃", 10-max(0, min(10, subPct/10)))) + text[footer:]
 	}
 	sendFn(text)
 }

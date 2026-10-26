@@ -1,0 +1,102 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ui-fix harness</title>
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/layout.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/youyuan_design.css">
+<link rel="stylesheet" href="../css/youyuan_accounts.css">
+<link rel="stylesheet" href="../css/youyuan_usability.css">
+</head><body>
+<div id="app">
+  <div class="conn-bar"><div class="cb-left"><h1>MCORT</h1></div><div class="cb-center"><span class="cb-status">未连接</span></div></div>
+  <div class="content show" id="tab-accounts"><div class="content-inner" id="tab-accounts-inner">
+    <div class="yy-heading" id="yy-heading-stub"><h2>账号与项目</h2><p class="yy-hint">游戏账号与服务器项目，统一管理。</p></div>
+    <div class="yy-actions yy-account-toolbar yy-cred-toolbar" id="toolbar">
+      <button class="yy-primary">添加账号</button>
+      <button class="yy-secondary">刷新账号</button>
+      <button class="yy-secondary">皮肤库</button>
+      <button class="yy-secondary yy-acct-toolbar-wide">进入主账号</button>
+    </div>
+    <p class="yy-hint">当前操作：<b id="yy-current-account">尚未选择账号</b> · 选择账号后，可连接服务器并管理对应的机器人。</p>
+    <div id="yy-accounts-grid" class="yy-form-grid yy-account-list">
+      <details class="card yy-account-card" open>
+        <summary class="yy-account-summary">
+          <span class="yy-compact-avatar yy-avatar-frame"></span>
+          <span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot"></i><strong>示例账号</strong></span><small>example.server</small></span>
+          <span class="yy-compact-status">已连接</span>
+          <span class="yy-row-chevron">›</span>
+        </summary>
+        <div class="yy-account-detail">
+          <div class="yy-acct-hero">
+            <div class="yy-acct-figure-col">
+              <div class="yy-acct-figure" id="figure">
+                <div class="yy-acct-figure-stage" id="figure-stage" style="background:#ddd"></div>
+                <span class="yy-acct-figure-tip">皮肤加载中…</span>
+              </div>
+              <div class="yy-acct-skin-bar" id="skin-bar">
+                <button type="button" class="yy-acct-skin-btn" data-on="1">走动</button>
+                <button type="button" class="yy-acct-skin-btn" data-on="0">纤细</button>
+                <button type="button" class="yy-acct-skin-btn">正视角</button>
+                <span class="yy-acct-skin-hint" id="skin-hint">拖动旋转 · 双击复位</span>
+              </div>
+            </div>
+            <div class="yy-acct-hero-main">
+              <div class="yy-acct-hero-line">
+                <span class="yy-compact-avatar"></span>
+                <div class="yy-acct-hero-text"><strong>示例账号</strong><span class="yy-acct-hero-tags"></span>
+                  <div class="yy-acct-hero-facts"><div><span>服务器</span><b>example.server</b></div><div><span>游戏 UID</span><b>未绑定</b></div><div><span>连接</span><b>已连接</b></div></div>
+                </div>
+              </div>
+              <div class="yy-acct-hero-acts"><button class="btn">切换到此账号</button><button class="btn-s">查看令牌</button></div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div></div>
+</div>
+<div id="yy-identity-gate">
+  <form class="yy-identity-card">
+    <div class="yy-identity-brand">游园 · 自己的创作空间</div>
+    <h1>登录游园</h1>
+    <p>平台账号管理你的设备和云端资料；游戏令牌在登录后单独添加。</p>
+    <div class="yy-actions"><button type="button" class="btn-s">登录</button><button type="button" class="btn-s">注册账号</button></div>
+    <label>账号名称</label><input value="demo-user">
+    <div><label>QQ 邮箱</label><input type="email" placeholder="123456@qq.com">
+    <label>邮箱验证码</label><div class="yy-mail-code"><input placeholder="6 位验证码"><button type="button" class="btn-s">发送验证码</button></div>
+    <small>验证码 10 分钟内有效。</small></div>
+    <label>密码</label><input type="password" value="0123456789">
+    <div class="yy-turnstile-slot" hidden></div>
+    <button class="btn" type="submit">登录</button>
+    <p role="status"></p>
+  </form>
+</div>
+<script>
+window.__measure = function () {
+  var vw = window.innerWidth;
+  function box(sel) { var el = document.querySelector(sel); if (!el) return null; var r = el.getBoundingClientRect();
+    return { w: Math.round(r.width * 100) / 100, h: Math.round(r.height * 100) / 100, x: Math.round(r.left), right: Math.round(r.right), sw: el.scrollWidth, cw: el.clientWidth }; }
+  var gate = document.getElementById('yy-identity-gate');
+  var btns = Array.prototype.map.call(document.querySelectorAll('#toolbar>button'), function (b) {
+    var r = b.getBoundingClientRect();
+    return { t: b.textContent.trim(), w: Math.round(r.width), h: Math.round(r.height), sx: b.scrollWidth, cx: b.clientWidth, clipped: b.scrollWidth > b.clientWidth + 1 };
+  });
+  var card = document.querySelector('.yy-identity-card').getBoundingClientRect();
+  return {
+    vw: vw,
+    docSW: document.documentElement.scrollWidth,
+    gate: { sw: gate.scrollWidth, cw: gate.clientWidth, sh: gate.scrollHeight, ch: gate.clientHeight },
+    idCard: { w: Math.round(card.width), x: Math.round(card.left), right: Math.round(card.right), leftGap: Math.round(card.left), rightGap: Math.round(vw - card.right) },
+    skinBar: box('#skin-bar'),
+    skinHint: box('#skin-hint'),
+    figure: box('#figure'),
+    figureStage: box('#figure-stage'),
+    toolbar: box('#toolbar'),
+    buttons: btns,
+    detail: box('.yy-account-detail')
+  };
+};
+</script>
+</body></html>

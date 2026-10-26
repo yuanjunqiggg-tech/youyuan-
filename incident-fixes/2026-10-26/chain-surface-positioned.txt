@@ -1,0 +1,314 @@
+# R102: 条件触发时开启20Hz快速批量111级下探；无任务时不得独立启动。地狱129/末地256/主世界318。
+1,0,0
+/scoreboard objectives add yy_surface_owner dummy
+/scoreboard objectives add yy_surface_age dummy
+/scoreboard objectives add yy_surface_scan dummy
+.
+2,0,0 20
+# 每整轮开始前确认请求仍存在，不在上一轮尚未处理完时持续堆下探批次。
+@wait {"command":"testfor @a[tag=yy_surface_latched,tag=!yy_surface_cancel]","edge":false,"poll_ms":100}
+# Cancel pending/active marker by matching private owner scoreboard before any descent.
+# Cleanup works even if marker is high above the player.
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp] at @s as @a[tag=yy_surface_cancel] if score @s yy_surface_owner = @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=0.2,c=1] yy_surface_owner run tag @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=0.2,c=1] add yy_surface_cleanup
+/kill @e[type=armor_stand,name="YY_SURFACE_R83",tag=yy_surface_cleanup]
+# R97: Bedrock dimension-local selector; no Java if dimension
+/tag @a[tag=yy_surface_latched] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_latched] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_latched] remove yy_surface_dim_overworld
+/execute in nether positioned 0 -100 0 as @a[rm=1,tag=yy_surface_latched,tag=!yy_surface_cancel] run tag @s add yy_surface_dim_nether
+/execute in the_end positioned 0 -100 0 as @a[rm=1,tag=yy_surface_latched,tag=!yy_surface_cancel] run tag @s add yy_surface_dim_end
+/execute in overworld positioned 0 -100 0 as @a[rm=1,tag=yy_surface_latched,tag=!yy_surface_cancel] run tag @s add yy_surface_dim_overworld
+/scoreboard players set @a[tag=yy_surface_latched,tag=!yy_surface_spawn_issued] yy_surface_age 0
+/scoreboard players random @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] yy_surface_owner 1 2000000000
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel,tag=!yy_surface_spawn_issued] at @s run summon armor_stand "YY_SURFACE_R83" ~ ~ ~
+/tag @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] add yy_surface_spawn_issued
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] at @s run scoreboard players operation @e[type=armor_stand,name="YY_SURFACE_R83",tag=!surface_tp,r=1,c=1] yy_surface_owner = @s yy_surface_owner
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] at @s run tag @e[type=armor_stand,name="YY_SURFACE_R83",tag=!surface_tp,r=1,c=1] add surface_tp
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] at @s if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=1,c=1] run tag @s add return_surface
+# R98 fix: Nether uses a single teleport to Y=129 on the following line; Duplicated teleport caused the stand to leave r=2 selection.
+/execute as @a[tag=return_surface,tag=yy_surface_dim_nether,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s run tp @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] ~ 129 ~
+/execute as @a[tag=return_surface,tag=yy_surface_dim_end,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s run tp @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] ~ 256 ~
+/execute as @a[tag=return_surface,tag=yy_surface_dim_overworld,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s run tp @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] ~ 318 ~
+/execute as @a[tag=return_surface,tag=yy_surface_dim_nether,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s positioned ~ 129 ~ if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] run tag @s add yy_surface_top
+/execute as @a[tag=return_surface,tag=yy_surface_dim_end,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s positioned ~ 256 ~ if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] run tag @s add yy_surface_top
+/execute as @a[tag=return_surface,tag=yy_surface_dim_overworld,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s positioned ~ 318 ~ if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] run tag @s add yy_surface_top
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,tag=!yy_surface_active] at @s positioned ~ 129 ~ if entity @s[r=0.2] run tag @s add yy_surface_active
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,tag=!yy_surface_active] at @s positioned ~ 256 ~ if entity @s[r=0.2] run tag @s add yy_surface_active
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,tag=!yy_surface_active] at @s positioned ~ 318 ~ if entity @s[r=0.2] run tag @s add yy_surface_active
+/scoreboard players reset @a[tag=return_surface,scores={雪球菜单=2}] 雪球菜单
+/scoreboard players add @a[tag=yy_surface_latched] yy_surface_age 1
+/scoreboard players add @e[type=armor_stand,tag=yy_surface_active] yy_surface_age 1
+# Keep all 111 floor probes; position-only probes avoid 111 entity teleports.
+/scoreboard players set @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] yy_surface_scan -1
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-0 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 0
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-1 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 1
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-2 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 2
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-3 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 3
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-4 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 4
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-5 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 5
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-6 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 6
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-7 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 7
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-8 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 8
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-9 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 9
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-10 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 10
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-11 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 11
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-12 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 12
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-13 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 13
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-14 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 14
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-15 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 15
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-16 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 16
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-17 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 17
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-18 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 18
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-19 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 19
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-20 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 20
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-21 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 21
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-22 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 22
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-23 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 23
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-24 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 24
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-25 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 25
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-26 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 26
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-27 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 27
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-28 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 28
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-29 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 29
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-30 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 30
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-31 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 31
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-32 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 32
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-33 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 33
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-34 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 34
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-35 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 35
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-36 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 36
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-37 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 37
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-38 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 38
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-39 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 39
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-40 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 40
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-41 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 41
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-42 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 42
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-43 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 43
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-44 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 44
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-45 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 45
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-46 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 46
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-47 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 47
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-48 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 48
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-49 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 49
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-50 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 50
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-51 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 51
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-52 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 52
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-53 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 53
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-54 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 54
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-55 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 55
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-56 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 56
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-57 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 57
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-58 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 58
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-59 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 59
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-60 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 60
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-61 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 61
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-62 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 62
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-63 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 63
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-64 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 64
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-65 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 65
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-66 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 66
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-67 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 67
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-68 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 68
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-69 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 69
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-70 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 70
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-71 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 71
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-72 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 72
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-73 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 73
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-74 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 74
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-75 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 75
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-76 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 76
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-77 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 77
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-78 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 78
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-79 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 79
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-80 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 80
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-81 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 81
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-82 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 82
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-83 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 83
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-84 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 84
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-85 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 85
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-86 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 86
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-87 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 87
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-88 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 88
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-89 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 89
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-90 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 90
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-91 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 91
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-92 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 92
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-93 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 93
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-94 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 94
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-95 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 95
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-96 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 96
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-97 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 97
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-98 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 98
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-99 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 99
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-100 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 100
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-101 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 101
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-102 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 102
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-103 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 103
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-104 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 104
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-105 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 105
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-106 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 106
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-107 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 107
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-108 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 108
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-109 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 109
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s positioned ~ ~-110 ~ if score @s yy_surface_scan matches -1 if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run scoreboard players set @s yy_surface_scan 110
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=0}] at @s run tp @s ~ ~-0 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=1}] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=2}] at @s run tp @s ~ ~-2 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=3}] at @s run tp @s ~ ~-3 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=4}] at @s run tp @s ~ ~-4 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=5}] at @s run tp @s ~ ~-5 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=6}] at @s run tp @s ~ ~-6 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=7}] at @s run tp @s ~ ~-7 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=8}] at @s run tp @s ~ ~-8 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=9}] at @s run tp @s ~ ~-9 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=10}] at @s run tp @s ~ ~-10 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=11}] at @s run tp @s ~ ~-11 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=12}] at @s run tp @s ~ ~-12 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=13}] at @s run tp @s ~ ~-13 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=14}] at @s run tp @s ~ ~-14 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=15}] at @s run tp @s ~ ~-15 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=16}] at @s run tp @s ~ ~-16 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=17}] at @s run tp @s ~ ~-17 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=18}] at @s run tp @s ~ ~-18 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=19}] at @s run tp @s ~ ~-19 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=20}] at @s run tp @s ~ ~-20 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=21}] at @s run tp @s ~ ~-21 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=22}] at @s run tp @s ~ ~-22 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=23}] at @s run tp @s ~ ~-23 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=24}] at @s run tp @s ~ ~-24 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=25}] at @s run tp @s ~ ~-25 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=26}] at @s run tp @s ~ ~-26 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=27}] at @s run tp @s ~ ~-27 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=28}] at @s run tp @s ~ ~-28 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=29}] at @s run tp @s ~ ~-29 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=30}] at @s run tp @s ~ ~-30 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=31}] at @s run tp @s ~ ~-31 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=32}] at @s run tp @s ~ ~-32 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=33}] at @s run tp @s ~ ~-33 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=34}] at @s run tp @s ~ ~-34 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=35}] at @s run tp @s ~ ~-35 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=36}] at @s run tp @s ~ ~-36 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=37}] at @s run tp @s ~ ~-37 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=38}] at @s run tp @s ~ ~-38 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=39}] at @s run tp @s ~ ~-39 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=40}] at @s run tp @s ~ ~-40 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=41}] at @s run tp @s ~ ~-41 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=42}] at @s run tp @s ~ ~-42 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=43}] at @s run tp @s ~ ~-43 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=44}] at @s run tp @s ~ ~-44 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=45}] at @s run tp @s ~ ~-45 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=46}] at @s run tp @s ~ ~-46 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=47}] at @s run tp @s ~ ~-47 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=48}] at @s run tp @s ~ ~-48 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=49}] at @s run tp @s ~ ~-49 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=50}] at @s run tp @s ~ ~-50 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=51}] at @s run tp @s ~ ~-51 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=52}] at @s run tp @s ~ ~-52 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=53}] at @s run tp @s ~ ~-53 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=54}] at @s run tp @s ~ ~-54 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=55}] at @s run tp @s ~ ~-55 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=56}] at @s run tp @s ~ ~-56 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=57}] at @s run tp @s ~ ~-57 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=58}] at @s run tp @s ~ ~-58 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=59}] at @s run tp @s ~ ~-59 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=60}] at @s run tp @s ~ ~-60 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=61}] at @s run tp @s ~ ~-61 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=62}] at @s run tp @s ~ ~-62 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=63}] at @s run tp @s ~ ~-63 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=64}] at @s run tp @s ~ ~-64 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=65}] at @s run tp @s ~ ~-65 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=66}] at @s run tp @s ~ ~-66 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=67}] at @s run tp @s ~ ~-67 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=68}] at @s run tp @s ~ ~-68 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=69}] at @s run tp @s ~ ~-69 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=70}] at @s run tp @s ~ ~-70 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=71}] at @s run tp @s ~ ~-71 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=72}] at @s run tp @s ~ ~-72 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=73}] at @s run tp @s ~ ~-73 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=74}] at @s run tp @s ~ ~-74 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=75}] at @s run tp @s ~ ~-75 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=76}] at @s run tp @s ~ ~-76 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=77}] at @s run tp @s ~ ~-77 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=78}] at @s run tp @s ~ ~-78 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=79}] at @s run tp @s ~ ~-79 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=80}] at @s run tp @s ~ ~-80 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=81}] at @s run tp @s ~ ~-81 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=82}] at @s run tp @s ~ ~-82 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=83}] at @s run tp @s ~ ~-83 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=84}] at @s run tp @s ~ ~-84 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=85}] at @s run tp @s ~ ~-85 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=86}] at @s run tp @s ~ ~-86 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=87}] at @s run tp @s ~ ~-87 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=88}] at @s run tp @s ~ ~-88 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=89}] at @s run tp @s ~ ~-89 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=90}] at @s run tp @s ~ ~-90 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=91}] at @s run tp @s ~ ~-91 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=92}] at @s run tp @s ~ ~-92 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=93}] at @s run tp @s ~ ~-93 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=94}] at @s run tp @s ~ ~-94 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=95}] at @s run tp @s ~ ~-95 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=96}] at @s run tp @s ~ ~-96 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=97}] at @s run tp @s ~ ~-97 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=98}] at @s run tp @s ~ ~-98 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=99}] at @s run tp @s ~ ~-99 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=100}] at @s run tp @s ~ ~-100 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=101}] at @s run tp @s ~ ~-101 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=102}] at @s run tp @s ~ ~-102 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=103}] at @s run tp @s ~ ~-103 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=104}] at @s run tp @s ~ ~-104 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=105}] at @s run tp @s ~ ~-105 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=106}] at @s run tp @s ~ ~-106 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=107}] at @s run tp @s ~ ~-107 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=108}] at @s run tp @s ~ ~-108 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=109}] at @s run tp @s ~ ~-109 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=110}] at @s run tp @s ~ ~-110 ~
+/tag @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=0..110}] add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready,scores={yy_surface_scan=-1}] at @s run tp @s ~ ~-111 ~
+0,0,0
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s unless block ~ ~-1 ~ air as @a[tag=return_surface,tag=!yy_surface_cancel] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run effect @s slow_falling 12 0 true
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=yy_surface_ready] at @s as @a[tag=return_surface,tag=!yy_surface_cancel] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run tp @s ~ ~ ~
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s unless block ~ ~-1 ~ air as @a[tag=return_surface] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner if entity @s[r=2] run tag @s add yy_surface_done
+/execute as @a[tag=yy_surface_done] run titleraw @s actionbar {"rawtext":[{"text":"§b✦ 已安全返回地面"}]}
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s as @a[tag=yy_surface_done] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run tag @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] add yy_surface_cleanup
+/kill @e[type=armor_stand,tag=yy_surface_cleanup]
+/tag @a[tag=yy_surface_done] remove yy_surface_latched
+/tag @a[tag=yy_surface_done] remove return_surface
+/tag @a[tag=yy_surface_done] remove yy_surface_top
+/tag @a[tag=yy_surface_done] remove yy_surface_spawn_issued
+/tag @a[tag=yy_surface_done] remove yy_surface_confirm_sound
+/scoreboard players reset @a[tag=yy_surface_done] yy_surface_age
+/tag @a[tag=yy_surface_done] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_done] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_done] remove yy_surface_dim_overworld
+/tag @a[tag=yy_surface_done] remove yy_surface_done
+/tag @a[tag=yy_surface_latched,scores={yy_surface_age=25..}] add yy_surface_failed
+/execute as @a[tag=yy_surface_failed] run tellraw @s {"rawtext":[{"text":"§c寻找地面超时，已停止本次查找。"}]}
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s as @a[tag=yy_surface_failed] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run tag @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] add yy_surface_cleanup
+/kill @e[type=armor_stand,tag=yy_surface_cleanup]
+/tag @a[tag=yy_surface_failed] remove yy_surface_latched
+/tag @a[tag=yy_surface_failed] remove return_surface
+/tag @a[tag=yy_surface_failed] remove yy_surface_top
+/tag @a[tag=yy_surface_failed] remove yy_surface_spawn_issued
+/tag @a[tag=yy_surface_failed] remove yy_surface_confirm_sound
+/scoreboard players reset @a[tag=yy_surface_failed] yy_surface_age
+/tag @a[tag=yy_surface_failed] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_failed] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_failed] remove yy_surface_dim_overworld
+/tag @a[tag=yy_surface_failed] remove yy_surface_failed
+# Cancellation explicitly clears score, persistent latch and all session flags.
+/scoreboard players reset @a[tag=yy_surface_cancel,scores={雪球菜单=2}] 雪球菜单
+/tag @a[tag=yy_surface_cancel] remove return_surface
+/tag @a[tag=yy_surface_cancel] remove yy_surface_latched
+/tag @a[tag=yy_surface_cancel] remove yy_surface_top
+/tag @a[tag=yy_surface_cancel] remove yy_surface_spawn_issued
+/tag @a[tag=yy_surface_cancel] remove yy_surface_confirm_sound
+/tag @a[tag=yy_surface_cancel] remove yy_surface_cancel_sound
+/scoreboard players reset @a[tag=yy_surface_cancel] yy_surface_age
+/tag @a[tag=yy_surface_cancel] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_cancel] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_cancel] remove yy_surface_dim_overworld
+/tag @a[tag=yy_surface_cancel] remove yy_surface_cancel
+# R97: cleanup only owned markers; 1Hz not repeated high-frequency scans
+/execute unless entity @a[tag=return_surface] run kill @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp]
+/kill @e[type=armor_stand,name="YY_SURFACE_R83",scores={yy_surface_age=25..}]
+# YY_R97_SURFACE_20261024

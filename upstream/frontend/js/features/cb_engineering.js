@@ -7,6 +7,9 @@ var cbState = {tab:'import',content:'',proj:null,stats:null,importing:false,expo
 // ── 入口 ──
 
 function RcbHTML(){
+  // 打开子页后必须主动渲染当前 tab：openSubPage 只插入静态骨架，
+  // 之前漏了这一步，导致点进来只有两个 tab、正文一片空白。
+  setTimeout(function(){try{cbRenderTab()}catch(e){}},30);
   return '<div id="cb-wrap" style="width:100%">'+
     '<div class="row" style="gap:6px;margin-bottom:10px">'+
       '<button class="btn-s '+(cbState.tab==='import'?'active':'')+'" id="cb-tab-import" onclick="cbSwitchTab(\'import\')" style="flex:1;font-size:12px">📥 导入</button>'+

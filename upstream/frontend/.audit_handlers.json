@@ -1,0 +1,2120 @@
+{
+ "handlers": {
+  "drawSetTool": [
+   "draw.html:43",
+   "draw.html:44",
+   "draw.html:45",
+   "js/features/drawing.js:78",
+   "js/features/drawing.js:79",
+   "js/features/drawing.js:80"
+  ],
+  "drawPickBrush": [
+   "draw.html:46",
+   "js/features/drawing.js:81"
+  ],
+  "drawUndo": [
+   "draw.html:48",
+   "js/features/drawing.js:84"
+  ],
+  "drawRedo": [
+   "draw.html:49",
+   "js/features/drawing.js:85"
+  ],
+  "drawApply": [
+   "draw.html:50",
+   "js/features/drawing.js:86"
+  ],
+  "drawSync": [
+   "draw.html:51",
+   "js/features/drawing.js:87"
+  ],
+  "ftogglePalette": [
+   "draw.html:53"
+  ],
+  "fopacity": [
+   "draw.html:55"
+  ],
+  "fclose": [
+   "draw.html:56"
+  ],
+  "closeSubPage": [
+   "js/app.js:131",
+   "js/features/preview.js:238",
+   "js/features/preview.js:1323",
+   "js/youyuan_accounts.js:1119"
+  ],
+  "resumeTask": [
+   "js/app.js:299"
+  ],
+  "delHomeTask": [
+   "js/app.js:301"
+  ],
+  "aiOpenManage": [
+   "js/features/ai_assist.js:31",
+   "js/youyuan.js:42",
+   "js/youyuan_qq_console.js:951"
+  ],
+  "aiOpenSkills": [
+   "js/features/ai_assist.js:32"
+  ],
+  "aiOpenSession": [
+   "js/features/ai_assist.js:33"
+  ],
+  "aiSend": [
+   "js/features/ai_assist.js:42"
+  ],
+  "aiFetchModels": [
+   "js/features/ai_assist.js:88"
+  ],
+  "closeOverlay": [
+   "js/features/ai_assist.js:101",
+   "js/features/ai_assist.js:221",
+   "js/features/ai_assist.js:265",
+   "js/pages/plugins.js:129"
+  ],
+  "aiSaveModel": [
+   "js/features/ai_assist.js:102"
+  ],
+  "aiEditModel": [
+   "js/features/ai_assist.js:123"
+  ],
+  "aiDeleteModel": [
+   "js/features/ai_assist.js:124"
+  ],
+  "aiChooseFetchedModel": [
+   "js/features/ai_assist.js:173"
+  ],
+  "aiToggleSkill": [
+   "js/features/ai_assist.js:237"
+  ],
+  "aiAnswerQuestion": [
+   "js/features/ai_assist.js:263"
+  ],
+  "aiNewChat": [
+   "js/features/ai_assist.js:290"
+  ],
+  "aiCloseSession": [
+   "js/features/ai_assist.js:291"
+  ],
+  "aiSaveSnapshot": [
+   "js/features/ai_assist.js:300"
+  ],
+  "aiRenameSession": [
+   "js/features/ai_assist.js:350"
+  ],
+  "aiLoadSession": [
+   "js/features/ai_assist.js:351"
+  ],
+  "aiDeleteSession": [
+   "js/features/ai_assist.js:352"
+  ],
+  "aiRestoreSnapshot": [
+   "js/features/ai_assist.js:400"
+  ],
+  "aiDeleteSnapshot": [
+   "js/features/ai_assist.js:401"
+  ],
+  "dismissToday": [
+   "js/features/announcements.js:132",
+   "js/features/announcements.js:147"
+  ],
+  "closeModalOverlay": [
+   "js/features/announcements.js:146",
+   "js/features/building.js:645",
+   "js/features/building.js:667",
+   "js/features/plugin_mgmt.js:14",
+   "js/features/plugin_mgmt.js:82",
+   "js/features/plugin_mgmt.js:447",
+   "js/features/preview.js:19"
+  ],
+  "doPick": [
+   "js/features/building.js:135"
+  ],
+  "setImpMode": [
+   "js/features/building.js:135",
+   "js/features/building.js:135",
+   "js/features/building.js:135"
+  ],
+  "doReanalyze": [
+   "js/features/building.js:135"
+  ],
+  "showRotPicker": [
+   "js/features/building.js:135"
+  ],
+  "onImpKeepToggle": [
+   "js/features/building.js:135"
+  ],
+  "onExcludeNBTChange": [
+   "js/features/building.js:135"
+  ],
+  "toggleSub": [
+   "js/features/building.js:135",
+   "js/features/building.js:135",
+   "js/features/building.js:135",
+   "js/features/building.js:135"
+  ],
+  "showDimPicker": [
+   "js/features/building.js:135"
+  ],
+  "showRegionPicker": [
+   "js/features/building.js:135"
+  ],
+  "showPreclearPicker": [
+   "js/features/building.js:135"
+  ],
+  "toggleAdvImp": [
+   "js/features/building.js:135"
+  ],
+  "showRepairAreaPicker": [
+   "js/features/building.js:135"
+  ],
+  "fillBotPos": [
+   "js/features/building.js:135"
+  ],
+  "showRepRotPicker": [
+   "js/features/building.js:135"
+  ],
+  "showRepDimPicker": [
+   "js/features/building.js:135"
+  ],
+  "doImp": [
+   "js/features/building.js:135"
+  ],
+  "doImpStop": [
+   "js/features/building.js:135"
+  ],
+  "showExpFmtPicker": [
+   "js/features/building.js:155"
+  ],
+  "onExpFmtChange": [
+   "js/features/building.js:155"
+  ],
+  "doExpGo": [
+   "js/features/building.js:155"
+  ],
+  "doExpStop": [
+   "js/features/building.js:155"
+  ],
+  "setScMode": [
+   "js/features/building.js:158",
+   "js/features/building.js:158"
+  ],
+  "if": [
+   "js/features/building.js:158",
+   "js/features/building_mgmt.js:658",
+   "js/features/building_mgmt.js:659",
+   "js/features/building_mgmt.js:660",
+   "js/features/preview.js:571",
+   "js/features/preview.js:571",
+   "js/features/preview.js:571",
+   "js/pages/terminal.js:9",
+   "js/youyuan_qq_config.js:537",
+   "js/youyuan_qq_console.js:957",
+   "js/youyuan_settings.js:28",
+   "js/youyuan_workspace.js:148"
+  ],
+  "doSearch": [
+   "js/features/building.js:158"
+  ],
+  "doGenVoxel": [
+   "js/features/building.js:430"
+  ],
+  "showServerDetail": [
+   "js/features/building.js:590"
+  ],
+  "showPlayerDetail": [
+   "js/features/building.js:611"
+  ],
+  "bmMktAll": [
+   "js/features/building_mgmt.js:111"
+  ],
+  "bmMktMine": [
+   "js/features/building_mgmt.js:113"
+  ],
+  "bmOpenMarketCat": [
+   "js/features/building_mgmt.js:117"
+  ],
+  "bmMktSearch": [
+   "js/features/building_mgmt.js:125"
+  ],
+  "bmMktClear": [
+   "js/features/building_mgmt.js:126"
+  ],
+  "bmOpenDetail": [
+   "js/features/building_mgmt.js:197"
+  ],
+  "bmShowImage": [
+   "js/features/building_mgmt.js:222",
+   "js/features/building_mgmt.js:562"
+  ],
+  "bmDownload": [
+   "js/features/building_mgmt.js:252"
+  ],
+  "bmReportFile": [
+   "js/features/building_mgmt.js:260"
+  ],
+  "bmAddComment": [
+   "js/features/building_mgmt.js:297"
+  ],
+  "bmReplyTo": [
+   "js/features/building_mgmt.js:317"
+  ],
+  "bmDelComment": [
+   "js/features/building_mgmt.js:319"
+  ],
+  "bmCloseReport": [
+   "js/features/building_mgmt.js:363"
+  ],
+  "bmReportSubmit": [
+   "js/features/building_mgmt.js:364"
+  ],
+  "bmoeSetCover": [
+   "js/features/building_mgmt.js:400"
+  ],
+  "bmoeSave": [
+   "js/features/building_mgmt.js:405"
+  ],
+  "bmoeToggleStatus": [
+   "js/features/building_mgmt.js:406"
+  ],
+  "bmoeDelToggle": [
+   "js/features/building_mgmt.js:407"
+  ],
+  "bmPickStruct": [
+   "js/features/building_mgmt.js:491"
+  ],
+  "bmCatLimit": [
+   "js/features/building_mgmt.js:500"
+  ],
+  "bmPaidSync": [
+   "js/features/building_mgmt.js:506"
+  ],
+  "bmSubmit": [
+   "js/features/building_mgmt.js:511"
+  ],
+  "bmPickAngles": [
+   "js/features/building_mgmt.js:543",
+   "js/features/building_mgmt.js:548"
+  ],
+  "bmRemovePreview": [
+   "js/features/building_mgmt.js:564"
+  ],
+  "bmSetCover": [
+   "js/features/building_mgmt.js:566"
+  ],
+  "closeBsOverlay": [
+   "js/features/building_mgmt.js:620",
+   "js/features/building_mgmt.js:621",
+   "js/features/building_mgmt.js:622",
+   "js/features/building_mgmt.js:623",
+   "js/features/building_mgmt.js:624",
+   "js/features/building_mgmt.js:626",
+   "js/features/building_mgmt.js:645",
+   "js/features/building_mgmt.js:663",
+   "js/features/personalize.js:256",
+   "js/features/personalize.js:257",
+   "js/features/personalize.js:270",
+   "js/features/personalize.js:271",
+   "js/features/personalize.js:276",
+   "js/features/preview.js:386",
+   "js/features/preview.js:386",
+   "js/features/preview.js:405",
+   "js/features/preview.js:432",
+   "js/features/preview.js:432",
+   "js/features/preview.js:453",
+   "js/features/preview.js:494",
+   "js/features/preview.js:541",
+   "js/features/preview.js:541",
+   "js/features/preview.js:541",
+   "js/features/preview.js:551",
+   "js/features/preview.js:571",
+   "js/features/preview.js:571",
+   "js/features/preview.js:766",
+   "js/features/preview.js:798",
+   "js/features/preview.js:832",
+   "js/features/preview.js:857"
+  ],
+  "bmAngleConfirm": [
+   "js/features/building_mgmt.js:646"
+  ],
+  "bmAngleCustomConfirm": [
+   "js/features/building_mgmt.js:664"
+  ],
+  "camGoStep2": [
+   "js/features/camera.js:87"
+  ],
+  "camSelectPlayer": [
+   "js/features/camera.js:124"
+  ],
+  "camStartRec": [
+   "js/features/camera.js:210"
+  ],
+  "camStopRec": [
+   "js/features/camera.js:211"
+  ],
+  "renderCamStep": [
+   "js/features/camera.js:215",
+   "js/features/camera.js:327",
+   "js/features/camera.js:530"
+  ],
+  "camGoStep3": [
+   "js/features/camera.js:216"
+  ],
+  "camTestAllShots": [
+   "js/features/camera.js:328"
+  ],
+  "camGoStep4": [
+   "js/features/camera.js:329"
+  ],
+  "camTestShot": [
+   "js/features/camera.js:354"
+  ],
+  "camDeleteShot": [
+   "js/features/camera.js:355"
+  ],
+  "camApplyShotEdits": [
+   "js/features/camera.js:398"
+  ],
+  "camRecaptureShot": [
+   "js/features/camera.js:399"
+  ],
+  "camCopyOutput": [
+   "js/features/camera.js:525"
+  ],
+  "camExportMcfunction": [
+   "js/features/camera.js:526"
+  ],
+  "camReset": [
+   "js/features/camera.js:531"
+  ],
+  "cbSwitchTab": [
+   "js/features/cb_engineering.js:15",
+   "js/features/cb_engineering.js:16"
+  ],
+  "cbPickImportFile": [
+   "js/features/cb_engineering.js:45"
+  ],
+  "cbStartImport": [
+   "js/features/cb_engineering.js:117"
+  ],
+  "cbStopImport": [
+   "js/features/cb_engineering.js:160"
+  ],
+  "cbStartScan": [
+   "js/features/cb_engineering.js:216"
+  ],
+  "cbSaveExport": [
+   "js/features/cb_engineering.js:312"
+  ],
+  "drawPickCreateMode": [
+   "js/features/drawing.js:66"
+  ],
+  "drawPickFill": [
+   "js/features/drawing.js:67"
+  ],
+  "drawPickSync": [
+   "js/features/drawing.js:68"
+  ],
+  "drawCreate": [
+   "js/features/drawing.js:69"
+  ],
+  "drawCloseCanvas": [
+   "js/features/drawing.js:90"
+  ],
+  "drawToggleFloat": [
+   "js/features/drawing.js:91"
+  ],
+  "flyToggle": [
+   "js/features/fly.js:106"
+  ],
+  "imAddEnch": [
+   "js/features/itemmaker.js:70"
+  ],
+  "imClearForm": [
+   "js/features/itemmaker.js:75"
+  ],
+  "imAddItem": [
+   "js/features/itemmaker.js:76"
+  ],
+  "doItemMake": [
+   "js/features/itemmaker.js:86"
+  ],
+  "imShowEnchPicker": [
+   "js/features/itemmaker.js:137"
+  ],
+  "imRemoveEnch": [
+   "js/features/itemmaker.js:141"
+  ],
+  "imEditItem": [
+   "js/features/itemmaker.js:239"
+  ],
+  "imRemoveItem": [
+   "js/features/itemmaker.js:240"
+  ],
+  "doMaPick": [
+   "js/features/mapart.js:3"
+  ],
+  "alignMaCoords": [
+   "js/features/mapart.js:3"
+  ],
+  "toggleMaRelief": [
+   "js/features/mapart.js:3",
+   "js/features/mapart.js:3"
+  ],
+  "toggleGravitySub": [
+   "js/features/mapart.js:3"
+  ],
+  "showColorSpacePicker": [
+   "js/features/mapart.js:3"
+  ],
+  "showDitherPicker": [
+   "js/features/mapart.js:3"
+  ],
+  "doMa": [
+   "js/features/mapart.js:3"
+  ],
+  "doMaStop": [
+   "js/features/mapart.js:3"
+  ],
+  "doMapScan": [
+   "js/features/mapplayer.js:5"
+  ],
+  "doMapPick": [
+   "js/features/mapplayer.js:8"
+  ],
+  "doMapDisplay": [
+   "js/features/mapplayer.js:11"
+  ],
+  "doMapPlay": [
+   "js/features/mapplayer.js:12"
+  ],
+  "doMapStop": [
+   "js/features/mapplayer.js:13"
+  ],
+  "mcfnPickFile": [
+   "js/features/mcfunction.js:132",
+   "js/features/mcfunction.js:170"
+  ],
+  "mcfnGenerateExample": [
+   "js/features/mcfunction.js:133"
+  ],
+  "s2": [
+   "js/features/mcfunction.js:135",
+   "js/features/mcfunction.js:211"
+  ],
+  "mcfnScrollToGroup": [
+   "js/features/mcfunction.js:166"
+  ],
+  "mcfnSaveFile": [
+   "js/features/mcfunction.js:174"
+  ],
+  "mcfnRevert": [
+   "js/features/mcfunction.js:174"
+  ],
+  "s1": [
+   "js/features/mcfunction.js:175"
+  ],
+  "s3": [
+   "js/features/mcfunction.js:175",
+   "js/features/mcfunction.js:254"
+  ],
+  "mcfnUpdateGlobal": [
+   "js/features/mcfunction.js:191",
+   "js/features/mcfunction.js:192",
+   "js/features/mcfunction.js:193"
+  ],
+  "mcfnToggleGroup": [
+   "js/features/mcfunction.js:198"
+  ],
+  "mcfnSetGroup": [
+   "js/features/mcfunction.js:199",
+   "js/features/mcfunction.js:200",
+   "js/features/mcfunction.js:201"
+  ],
+  "mcfnToggleTest": [
+   "js/features/mcfunction.js:208"
+  ],
+  "mcfnStartExec": [
+   "js/features/mcfunction.js:211"
+  ],
+  "mcfnStopExec": [
+   "js/features/mcfunction.js:241",
+   "js/features/mcfunction.js:254"
+  ],
+  "mcfnRestart": [
+   "js/features/mcfunction.js:254"
+  ],
+  "yyMigrateExport": [
+   "js/features/migrate_lite.js:7"
+  ],
+  "yyMigrateCheck": [
+   "js/features/migrate_lite.js:7"
+  ],
+  "yyMigratePick": [
+   "js/features/migrate_lite.js:9"
+  ],
+  "yyNavigate": [
+   "js/features/migrate_lite.js:9",
+   "js/youyuan_dashboard.js:71",
+   "js/youyuan_usability.js:7"
+  ],
+  "yyMigrateImport": [
+   "js/features/migrate_lite.js:9"
+  ],
+  "A": [
+   "js/features/migrate_lite.js:9"
+  ],
+  "pickMidi": [
+   "js/features/music.js:76"
+  ],
+  "showMuTargetPicker": [
+   "js/features/music.js:79"
+  ],
+  "showMuSpeedPicker": [
+   "js/features/music.js:80"
+  ],
+  "showMuInstPicker": [
+   "js/features/music.js:81"
+  ],
+  "doMusicPlay": [
+   "js/features/music.js:83"
+  ],
+  "previewMidi": [
+   "js/features/music.js:84"
+  ],
+  "doMusicStop": [
+   "js/features/music.js:85",
+   "js/features/music.js:95"
+  ],
+  "doMusicPrev": [
+   "js/features/music.js:94"
+  ],
+  "doMusicNext": [
+   "js/features/music.js:96"
+  ],
+  "cycleLoopMode": [
+   "js/features/music.js:98"
+  ],
+  "clearQueue": [
+   "js/features/music.js:99"
+  ],
+  "openSubPage": [
+   "js/features/music.js:103",
+   "js/youyuan.js:42",
+   "js/youyuan.js:42",
+   "js/youyuan.js:42",
+   "js/youyuan.js:42"
+  ],
+  "showPianoInstPicker": [
+   "js/features/music.js:112"
+  ],
+  "onPianoScrollSlide": [
+   "js/features/music.js:126",
+   "piano.html:47"
+  ],
+  "onPianoZoomSlide": [
+   "js/features/music.js:128",
+   "piano.html:48"
+  ],
+  "playQueueItem": [
+   "js/features/music.js:368"
+  ],
+  "pickMarqueeColor": [
+   "js/features/others.js:120"
+  ],
+  "toggleMarqueeRainbow": [
+   "js/features/others.js:128"
+  ],
+  "mqDebouncePreview": [
+   "js/features/others.js:129"
+  ],
+  "doMarqueeStart": [
+   "js/features/others.js:137"
+  ],
+  "doMarqueeStop": [
+   "js/features/others.js:138"
+  ],
+  "dbgRefreshLog": [
+   "js/features/others.js:337"
+  ],
+  "zoomStep": [
+   "js/features/personalize.js:244",
+   "js/features/personalize.js:248"
+  ],
+  "applyZoom": [
+   "js/features/personalize.js:247"
+  ],
+  "setBgOverlay": [
+   "js/features/personalize.js:263"
+  ],
+  "pmMktAll": [
+   "js/features/plugin_market.js:119"
+  ],
+  "pmMktMine": [
+   "js/features/plugin_market.js:121"
+  ],
+  "pmMktCat": [
+   "js/features/plugin_market.js:125"
+  ],
+  "pmMktSearch": [
+   "js/features/plugin_market.js:133"
+  ],
+  "pmMktClear": [
+   "js/features/plugin_market.js:134"
+  ],
+  "pmMktRetry": [
+   "js/features/plugin_market.js:168"
+  ],
+  "pmOpenDetail": [
+   "js/features/plugin_market.js:232"
+  ],
+  "pmInstall": [
+   "js/features/plugin_market.js:260"
+  ],
+  "pmReportFile": [
+   "js/features/plugin_market.js:278"
+  ],
+  "pmCloseRiskModal": [
+   "js/features/plugin_market.js:296",
+   "js/features/plugin_market.js:297"
+  ],
+  "pmAddComment": [
+   "js/features/plugin_market.js:323"
+  ],
+  "pmReplyTo": [
+   "js/features/plugin_market.js:343"
+  ],
+  "pmDelComment": [
+   "js/features/plugin_market.js:345"
+  ],
+  "pmCloseReport": [
+   "js/features/plugin_market.js:389"
+  ],
+  "pmReportSubmit": [
+   "js/features/plugin_market.js:390"
+  ],
+  "pmoeSave": [
+   "js/features/plugin_market.js:424"
+  ],
+  "pmoeToggleStatus": [
+   "js/features/plugin_market.js:425"
+  ],
+  "pmoeDelToggle": [
+   "js/features/plugin_market.js:426"
+  ],
+  "pmPickColor": [
+   "js/features/plugin_market.js:488",
+   "js/features/plugin_market.js:490"
+  ],
+  "pmSubmit": [
+   "js/features/plugin_market.js:493"
+  ],
+  "plgImportLocal": [
+   "js/features/plugin_mgmt.js:12"
+  ],
+  "plgCreate": [
+   "js/features/plugin_mgmt.js:13"
+  ],
+  "plgDoCreate": [
+   "js/features/plugin_mgmt.js:83"
+  ],
+  "openAIAssist": [
+   "js/features/plugin_mgmt.js:109"
+  ],
+  "plgEditTab": [
+   "js/features/plugin_mgmt.js:111",
+   "js/features/plugin_mgmt.js:112",
+   "js/features/plugin_mgmt.js:113"
+  ],
+  "plgSaveCode": [
+   "js/features/plugin_mgmt.js:159"
+  ],
+  "plgMdMode": [
+   "js/features/plugin_mgmt.js:188",
+   "js/features/plugin_mgmt.js:189"
+  ],
+  "plgSaveDocs": [
+   "js/features/plugin_mgmt.js:194"
+  ],
+  "plgDataOpen": [
+   "js/features/plugin_mgmt.js:278"
+  ],
+  "plgSaveDataFile": [
+   "js/features/plugin_mgmt.js:302"
+  ],
+  "plgSaveConfig": [
+   "js/features/plugin_mgmt.js:427"
+  ],
+  "plgExportZip": [
+   "js/features/plugin_mgmt.js:446"
+  ],
+  "previewCancelGenerate": [
+   "js/features/preview.js:200",
+   "js/features/preview.js:880"
+  ],
+  "previewPickFolder": [
+   "js/features/preview.js:238"
+  ],
+  "previewStep1Next": [
+   "js/features/preview.js:238"
+  ],
+  "renderPreviewStep": [
+   "js/features/preview.js:262",
+   "js/features/preview.js:262",
+   "js/features/preview.js:262",
+   "js/features/preview.js:521",
+   "js/features/preview.js:521",
+   "js/features/preview.js:521",
+   "js/features/preview.js:755",
+   "js/features/preview.js:755"
+  ],
+  "previewOpenFilter": [
+   "js/features/preview.js:280"
+  ],
+  "previewRemoveFile": [
+   "js/features/preview.js:351"
+  ],
+  "previewFilterTextConfirm": [
+   "js/features/preview.js:405"
+  ],
+  "previewFilterSizeConfirm": [
+   "js/features/preview.js:453"
+  ],
+  "previewFilterFormatsConfirm": [
+   "js/features/preview.js:494"
+  ],
+  "previewShowAnglePicker": [
+   "js/features/preview.js:521",
+   "js/features/preview.js:551"
+  ],
+  "previewRemoveAngle": [
+   "js/features/preview.js:534"
+  ],
+  "previewAngleCategoryConfirm": [
+   "js/features/preview.js:551"
+  ],
+  "previewAngleCustomConfirm": [
+   "js/features/preview.js:571"
+  ],
+  "previewShowFormatPicker": [
+   "js/features/preview.js:755"
+  ],
+  "previewShowResolutionPicker": [
+   "js/features/preview.js:755"
+  ],
+  "previewShowOutputModePicker": [
+   "js/features/preview.js:755"
+  ],
+  "previewShowDirPicker": [
+   "js/features/preview.js:755"
+  ],
+  "previewStartGenerate": [
+   "js/features/preview.js:755"
+  ],
+  "previewFormatConfirm": [
+   "js/features/preview.js:766"
+  ],
+  "previewResolutionConfirm": [
+   "js/features/preview.js:798"
+  ],
+  "previewOutputModeConfirm": [
+   "js/features/preview.js:832"
+  ],
+  "previewDirConfirm": [
+   "js/features/preview.js:857"
+  ],
+  "qbToggle": [
+   "js/features/qq_bridge.js:215"
+  ],
+  "qbOpenWizard": [
+   "js/features/qq_bridge.js:224",
+   "js/features/qq_bridge.js:257",
+   "js/features/qq_bridge.js:274"
+  ],
+  "renderQQPanel": [
+   "js/features/qq_bridge.js:251"
+  ],
+  "qbOpenTemplates": [
+   "js/features/qq_bridge.js:277"
+  ],
+  "qbCloseWizard": [
+   "js/features/qq_bridge.js:612"
+  ],
+  "qbWizGo": [
+   "js/features/qq_bridge.js:620",
+   "js/features/qq_bridge.js:621"
+  ],
+  "qbPickAdapter": [
+   "js/features/qq_bridge.js:628"
+  ],
+  "qbPickPerm": [
+   "js/features/qq_bridge.js:694"
+  ],
+  "qbSbHint": [
+   "js/features/qq_bridge.js:745"
+  ],
+  "qbSbDel": [
+   "js/features/qq_bridge.js:747"
+  ],
+  "qbSbAdd": [
+   "js/features/qq_bridge.js:755"
+  ],
+  "qbTplUse": [
+   "js/features/qq_template.js:68"
+  ],
+  "qbTplNew": [
+   "js/features/qq_template.js:69"
+  ],
+  "qbTplSave": [
+   "js/features/qq_template.js:79"
+  ],
+  "qbTplPreviewDraft": [
+   "js/features/qq_template.js:80"
+  ],
+  "qbTplRevert": [
+   "js/features/qq_template.js:81"
+  ],
+  "qbTplCopyPrompt": [
+   "js/features/qq_template.js:101"
+  ],
+  "doSkinPick": [
+   "js/features/skin.js:36"
+  ],
+  "showSkinScalePicker": [
+   "js/features/skin.js:40"
+  ],
+  "showSkinArmPicker": [
+   "js/features/skin.js:41"
+  ],
+  "showSkinBlockPicker": [
+   "js/features/skin.js:42"
+  ],
+  "showSkinRotPicker": [
+   "js/features/skin.js:44"
+  ],
+  "doSkinBuild": [
+   "js/features/skin.js:46"
+  ],
+  "doSkinStop": [
+   "js/features/skin.js:47"
+  ],
+  "doSwitchAcc": [
+   "js/pages/home.js:85"
+  ],
+  "plgImport": [
+   "js/pages/plugins.js:47",
+   "js/youyuan_dashboard.js:123",
+   "js/youyuan_workspace.js:30"
+  ],
+  "pmOpenMarket": [
+   "js/pages/plugins.js:48",
+   "js/youyuan_studio.js:105",
+   "js/youyuan_workspace.js:30"
+  ],
+  "plgSwitch": [
+   "js/pages/plugins.js:64"
+  ],
+  "plgToggle": [
+   "js/pages/plugins.js:67"
+  ],
+  "plgEdit": [
+   "js/pages/plugins.js:79"
+  ],
+  "plgReload": [
+   "js/pages/plugins.js:82"
+  ],
+  "plgEditConfig": [
+   "js/pages/plugins.js:83"
+  ],
+  "plgRename": [
+   "js/pages/plugins.js:84"
+  ],
+  "pmOpenUpload": [
+   "js/pages/plugins.js:85"
+  ],
+  "plgExportSAF": [
+   "js/pages/plugins.js:86"
+  ],
+  "plgRenameSave": [
+   "js/pages/plugins.js:130"
+  ],
+  "restartServer": [
+   "js/pages/settings.js:15"
+  ],
+  "toggleServerPass": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "doConn": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "doDisc": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "onTokenInput": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "addSubToken": [
+   "js/pages/settings.js:15",
+   "js/pages/settings.js:252",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28",
+   "js/youyuan_settings.js:119"
+  ],
+  "showServerPicker": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "saveCfg": [
+   "js/pages/settings.js:15",
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28",
+   "js/youyuan_settings.js:28",
+   "js/youyuan_settings_groups.js:60"
+  ],
+  "doFleetConn": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "doFleetDisc": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "showThemePicker": [
+   "js/pages/settings.js:15"
+  ],
+  "openPersonalizeSheet": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "setPickerMode": [
+   "js/pages/settings.js:15"
+  ],
+  "reopenAnnouncements": [
+   "js/pages/settings.js:15"
+  ],
+  "checkUpdateManual": [
+   "js/pages/settings.js:15",
+   "js/youyuan_settings.js:28"
+  ],
+  "clearCache": [
+   "js/pages/settings.js:15",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "openQA": [
+   "js/pages/settings.js:15"
+  ],
+  "hideConnModal": [
+   "js/pages/settings.js:115",
+   "js/pages/settings.js:115"
+  ],
+  "onSubTokenInput": [
+   "js/pages/settings.js:252",
+   "js/youyuan_settings.js:117"
+  ],
+  "removeSubToken": [
+   "js/pages/settings.js:252",
+   "js/youyuan_settings.js:117"
+  ],
+  "yyTaskCenterSetRange": [
+   "js/pages/tasks.js:100"
+  ],
+  "yyTaskCenterPage": [
+   "js/pages/tasks.js:106",
+   "js/pages/tasks.js:108"
+  ],
+  "sendConsole": [
+   "js/pages/terminal.js:10",
+   "js/youyuan_terminal.js:381"
+  ],
+  "f": [
+   "js/utils.js:74"
+  ],
+  "yyPlatformPage": [
+   "js/youyuan.js:5",
+   "js/youyuan_identity.js:352"
+  ],
+  "yyRemoteSave": [
+   "js/youyuan.js:6",
+   "js/youyuan_dashboard.js:116"
+  ],
+  "yyImportPython": [
+   "js/youyuan.js:12",
+   "js/youyuan_dashboard.js:119",
+   "js/youyuan_workspace.js:30"
+  ],
+  "yyLanguageCall": [
+   "js/youyuan.js:12",
+   "js/youyuan.js:12",
+   "js/youyuan.js:12",
+   "js/youyuan_dashboard.js:119",
+   "js/youyuan_dashboard.js:119",
+   "js/youyuan_dashboard.js:119"
+  ],
+  "yyQQAdapter": [
+   "js/youyuan.js:21",
+   "js/youyuan_dashboard.js:120"
+  ],
+  "yyQQSave": [
+   "js/youyuan.js:30",
+   "js/youyuan_dashboard.js:120"
+  ],
+  "yyQQSend": [
+   "js/youyuan.js:30",
+   "js/youyuan_dashboard.js:120"
+  ],
+  "yyRemotePage": [
+   "js/youyuan.js:42",
+   "js/youyuan_settings.js:28"
+  ],
+  "yyLanguagePage": [
+   "js/youyuan.js:42",
+   "js/youyuan_dashboard.js:123"
+  ],
+  "yyQQPage": [
+   "js/youyuan.js:42",
+   "js/youyuan_settings.js:28"
+  ],
+  "yyCatalogPage": [
+   "js/youyuan.js:42",
+   "js/youyuan_settings.js:28"
+  ],
+  "yyLibraryPage": [
+   "js/youyuan.js:42",
+   "js/youyuan_dashboard.js:119",
+   "js/youyuan_dashboard.js:123",
+   "js/youyuan_library.js:11",
+   "js/youyuan_settings.js:28",
+   "js/youyuan_studio.js:105"
+  ],
+  "yyEditAccount": [
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyCenterRefresh": [
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:95"
+  ],
+  "yySkinLibraryOpen": [
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyEnterAccount": [
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:74",
+   "js/youyuan_accounts.js:1653"
+  ],
+  "yyAccountPanel": [
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyPoolPanel": [
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyGameAuthPage": [
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyChatFilterChanged": [
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyChatResetFilters": [
+   "js/youyuan_accounts.js:15"
+  ],
+  "yyChatChooseBucket": [
+   "js/youyuan_accounts.js:15",
+   "js/youyuan_accounts.js:304"
+  ],
+  "yyAccountTokenAction": [
+   "js/youyuan_accounts.js:189",
+   "js/youyuan_accounts.js:189"
+  ],
+  "yySaveAccount": [
+   "js/youyuan_accounts.js:189"
+  ],
+  "yyDeleteAccount": [
+   "js/youyuan_accounts.js:189"
+  ],
+  "yyChooseProject": [
+   "js/youyuan_accounts.js:729"
+  ],
+  "yyPoolRefresh": [
+   "js/youyuan_accounts.js:798"
+  ],
+  "yyPoolDetail": [
+   "js/youyuan_accounts.js:842"
+  ],
+  "yyPoolTokenToggle": [
+   "js/youyuan_accounts.js:862"
+  ],
+  "yyPoolTokenCopy": [
+   "js/youyuan_accounts.js:862"
+  ],
+  "yyCopyAccountToken": [
+   "js/youyuan_accounts.js:1084"
+  ],
+  "yyStartPatrolUI": [
+   "js/youyuan_accounts.js:1119"
+  ],
+  "yyStopPatrolUI": [
+   "js/youyuan_accounts.js:1119"
+  ],
+  "yyPatrolStatusUI": [
+   "js/youyuan_accounts.js:1119"
+  ],
+  "yySubmitGameRelog": [
+   "js/youyuan_accounts.js:1154"
+  ],
+  "yyCloseGameRelog": [
+   "js/youyuan_accounts.js:1154"
+  ],
+  "yySkinLibraryClose": [
+   "js/youyuan_accounts.js:1241",
+   "js/youyuan_accounts.js:1243",
+   "js/youyuan_accounts.js:1251"
+  ],
+  "yySkinLibraryApply": [
+   "js/youyuan_accounts.js:1251"
+  ],
+  "yySkinLibraryPreviewCustom": [
+   "js/youyuan_accounts.js:1257"
+  ],
+  "yySkinLibrarySaveCustom": [
+   "js/youyuan_accounts.js:1257"
+  ],
+  "yySkinLibraryPick": [
+   "js/youyuan_accounts.js:1294"
+  ],
+  "yyPoolEnter": [
+   "js/youyuan_accounts.js:1654"
+  ],
+  "yyAcctUnbind": [
+   "js/youyuan_accounts.js:1655"
+  ],
+  "yyAcctTokenToggle": [
+   "js/youyuan_accounts.js:1656"
+  ],
+  "yyAcctTokenCopy": [
+   "js/youyuan_accounts.js:1657"
+  ],
+  "yyAcctCardCopy": [
+   "js/youyuan_accounts.js:1723"
+  ],
+  "yyAcctCardImage": [
+   "js/youyuan_accounts.js:1724"
+  ],
+  "yyAttachAgentFiles": [
+   "js/youyuan_agent_attachments.js:25"
+  ],
+  "yyPasteAgentClipboard": [
+   "js/youyuan_agent_attachments.js:25"
+  ],
+  "yyWorkspacePane": [
+   "js/youyuan_agent_attachments.js:25",
+   "js/youyuan_workspace.js:148",
+   "js/youyuan_workspace.js:148",
+   "js/youyuan_workspace.js:148"
+  ],
+  "yySaveAgentPreferences": [
+   "js/youyuan_agent_profiles.js:27"
+  ],
+  "yyLanguageDocument": [
+   "js/youyuan_agent_profiles.js:27",
+   "js/youyuan_agent_profiles.js:61"
+  ],
+  "yyAgentPreferences": [
+   "js/youyuan_agent_profiles.js:61"
+  ],
+  "yyOpenSkillLibrary": [
+   "js/youyuan_agent_profiles.js:61"
+  ],
+  "yyToggleAgentFocus": [
+   "js/youyuan_agent_profiles.js:77"
+  ],
+  "yyFullConversation": [
+   "js/youyuan_agent_profiles.js:77"
+  ],
+  "yyAgentJumpLatest": [
+   "js/youyuan_agent_profiles.js:77",
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyNewAgentSession": [
+   "js/youyuan_agent_profiles.js:156"
+  ],
+  "yySavedAgentSessions": [
+   "js/youyuan_agent_profiles.js:156"
+  ],
+  "yySaveAgentSession": [
+   "js/youyuan_agent_profiles.js:156"
+  ],
+  "yyForkAgentMessage": [
+   "js/youyuan_agent_profiles.js:337"
+  ],
+  "yyAppearancePage": [
+   "js/youyuan_appearance.js:4",
+   "js/youyuan_appearance.js:12"
+  ],
+  "yyUploadAppearance": [
+   "js/youyuan_appearance.js:5",
+   "js/youyuan_appearance.js:5"
+  ],
+  "yyClearBackground": [
+   "js/youyuan_appearance.js:5"
+  ],
+  "yyRemoveCover": [
+   "js/youyuan_appearance.js:6"
+  ],
+  "yyBlockVideoConvert": [
+   "js/youyuan_block_video.js:6"
+  ],
+  "yyBlockVideoCancel": [
+   "js/youyuan_block_video.js:6"
+  ],
+  "yyChainsPage": [
+   "js/youyuan_block_video.js:6",
+   "js/youyuan_converters.js:10"
+  ],
+  "yyChainEdit": [
+   "js/youyuan_chain_center.js:117",
+   "js/youyuan_chain_center.js:288",
+   "js/youyuan_settings.js:40",
+   "js/youyuan_settings.js:42"
+  ],
+  "yyChainCenterRefresh": [
+   "js/youyuan_chain_center.js:129"
+  ],
+  "yyChainsRefresh": [
+   "js/youyuan_chain_center.js:210",
+   "js/youyuan_settings.js:40"
+  ],
+  "yyChainUpload": [
+   "js/youyuan_chain_center.js:289",
+   "js/youyuan_settings.js:40"
+  ],
+  "yyCreateWorkspaceDialog": [
+   "js/youyuan_chain_center.js:290",
+   "js/youyuan_settings.js:40",
+   "js/youyuan_workspace.js:30"
+  ],
+  "yyChainCenterStopAll": [
+   "js/youyuan_chain_center.js:291"
+  ],
+  "yyChainSave": [
+   "js/youyuan_chain_upgrade.js:24",
+   "js/youyuan_settings.js:44"
+  ],
+  "yyChainPreview": [
+   "js/youyuan_chain_upgrade.js:25"
+  ],
+  "yyChainInsertBranch": [
+   "js/youyuan_chain_upgrade.js:58"
+  ],
+  "yyChainInsertCall": [
+   "js/youyuan_chain_upgrade.js:58"
+  ],
+  "yyChainInsertWait": [
+   "js/youyuan_chain_upgrade.js:58"
+  ],
+  "yyChainInsertText": [
+   "js/youyuan_chain_upgrade.js:58"
+  ],
+  "yyBridgeAdd": [
+   "js/youyuan_connections.js:6"
+  ],
+  "yyBridgeRemove": [
+   "js/youyuan_connections.js:8"
+  ],
+  "yyMCPLinkCreate": [
+   "js/youyuan_connections.js:16"
+  ],
+  "yyTunnelCopy": [
+   "js/youyuan_connections.js:16",
+   "js/youyuan_tunnel.js:3",
+   "js/youyuan_tunnel.js:3"
+  ],
+  "yyMCPLinkRevoke": [
+   "js/youyuan_connections.js:16"
+  ],
+  "yyPlatformPasswordSave": [
+   "js/youyuan_connections.js:26"
+  ],
+  "yyResumeReconnect": [
+   "js/youyuan_connection_policy.js:143"
+  ],
+  "yyRefreshConnectionPolicy": [
+   "js/youyuan_connection_policy.js:143"
+  ],
+  "yyChangeServerRefresh": [
+   "js/youyuan_connection_policy.js:143"
+  ],
+  "yyConversionTab": [
+   "js/youyuan_converters.js:10",
+   "js/youyuan_converters.js:10"
+  ],
+  "yyConvertStructure": [
+   "js/youyuan_converters.js:10",
+   "js/youyuan_converters.js:10"
+  ],
+  "yyReadCommandFile": [
+   "js/youyuan_converters.js:10"
+  ],
+  "yyConvertMode": [
+   "js/youyuan_converters.js:10"
+  ],
+  "yyConvertCommands": [
+   "js/youyuan_converters.js:10"
+  ],
+  "yyCopyConversion": [
+   "js/youyuan_converters.js:10"
+  ],
+  "yyDownloadConversion": [
+   "js/youyuan_converters.js:10"
+  ],
+  "yyImportConversion": [
+   "js/youyuan_converters.js:10"
+  ],
+  "yyOpenModule": [
+   "js/youyuan_dashboard.js:71",
+   "js/youyuan_dashboard.js:71",
+   "js/youyuan_dashboard.js:71",
+   "js/youyuan_dashboard.js:93",
+   "js/youyuan_dashboard.js:103",
+   "js/youyuan_dashboard.js:112",
+   "js/youyuan_settings.js:17",
+   "js/youyuan_settings.js:17",
+   "js/youyuan_settings.js:17"
+  ],
+  "tabTo": [
+   "js/youyuan_dashboard.js:87",
+   "js/youyuan_dashboard.js:89"
+  ],
+  "yyScrollTools": [
+   "js/youyuan_dashboard.js:89"
+  ],
+  "yyToggleOrder": [
+   "js/youyuan_dashboard.js:89"
+  ],
+  "yySetSort": [
+   "js/youyuan_dashboard.js:89"
+  ],
+  "yyPin": [
+   "js/youyuan_dashboard.js:103"
+  ],
+  "yyMove": [
+   "js/youyuan_dashboard.js:103",
+   "js/youyuan_dashboard.js:103"
+  ],
+  "yySetCategory": [
+   "js/youyuan_dashboard.js:104"
+  ],
+  "yyResetOrder": [
+   "js/youyuan_dashboard.js:104"
+  ],
+  "yyClearFilters": [
+   "js/youyuan_dashboard.js:104"
+  ],
+  "yyCopyField": [
+   "js/youyuan_dashboard.js:116",
+   "js/youyuan_identity.js:486"
+  ],
+  "yyRevealField": [
+   "js/youyuan_dashboard.js:116",
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_game_auth.js:37",
+   "js/youyuan_settings.js:28",
+   "js/youyuan_settings.js:117",
+   "js/youyuan_tunnel.js:3"
+  ],
+  "yyMCPLinksPage": [
+   "js/youyuan_dashboard.js:116",
+   "js/youyuan_settings.js:28"
+  ],
+  "yyRemoteMCPLinks": [
+   "js/youyuan_dashboard.js:116"
+  ],
+  "yyToggleTheme": [
+   "js/youyuan_dashboard.js:121",
+   "js/youyuan_settings.js:28"
+  ],
+  "yyLibraryUpload": [
+   "js/youyuan_dashboard.js:127",
+   "js/youyuan_library.js:3"
+  ],
+  "yyLibraryDownload": [
+   "js/youyuan_dashboard.js:128",
+   "js/youyuan_library.js:4"
+  ],
+  "yyLibraryInstall": [
+   "js/youyuan_dashboard.js:128",
+   "js/youyuan_library.js:4"
+  ],
+  "yyPluginCommandSettings": [
+   "js/youyuan_execution_options.js:7"
+  ],
+  "yyOpenAccountRegistration": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyOpen4399Registration": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyGameAuthMode": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyGameAuthCreate": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyGameAuthCopy": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyGameAuthUse": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyGameAuthRefresh": [
+   "js/youyuan_game_auth.js:37"
+  ],
+  "yyRoomSearchPage": [
+   "js/youyuan_game_auth.js:368"
+  ],
+  "yyOpen4399Official": [
+   "js/youyuan_game_auth.js:377"
+  ],
+  "yy4399ReturnLogin": [
+   "js/youyuan_game_auth.js:377"
+  ],
+  "yyExperiencePage": [
+   "js/youyuan_game_controls.js:46"
+  ],
+  "yyGameEgressPage": [
+   "js/youyuan_game_controls.js:46"
+  ],
+  "yyGlobalCapturePage": [
+   "js/youyuan_global_capture.js:51"
+  ],
+  "yyUploadHostFiles": [
+   "js/youyuan_host_files.js:3"
+  ],
+  "yyRefreshHostFiles": [
+   "js/youyuan_host_files.js:3"
+  ],
+  "yyIdentitySubmit": [
+   "js/youyuan_identity.js:191"
+  ],
+  "yyIdentityChange": [
+   "js/youyuan_identity.js:191",
+   "js/youyuan_identity.js:191"
+  ],
+  "yyIdentitySendCode": [
+   "js/youyuan_identity.js:191"
+  ],
+  "yyIdentityExisting": [
+   "js/youyuan_identity.js:191"
+  ],
+  "yyPlatformLogout": [
+   "js/youyuan_identity.js:331",
+   "js/youyuan_identity.js:362"
+  ],
+  "yyPlatformDeletePage": [
+   "js/youyuan_identity.js:331",
+   "js/youyuan_identity.js:362"
+  ],
+  "yySubscriptionsPage": [
+   "js/youyuan_identity.js:388",
+   "js/youyuan_identity.js:447"
+  ],
+  "yySubscriptionDetail": [
+   "js/youyuan_identity.js:401"
+  ],
+  "yySubscriptionSave": [
+   "js/youyuan_identity.js:411",
+   "js/youyuan_identity.js:411"
+  ],
+  "yyResetPasswordPage": [
+   "js/youyuan_identity.js:411"
+  ],
+  "yyPlatformDelete": [
+   "js/youyuan_identity.js:503"
+  ],
+  "yyPlatformDeleteBack": [
+   "js/youyuan_identity.js:503"
+  ],
+  "bmOpenBatch": [
+   "js/youyuan_library.js:11",
+   "js/youyuan_settings.js:19"
+  ],
+  "yyMCPTutorial": [
+   "js/youyuan_mcp_tutorial.js:2"
+  ],
+  "yySubNav": [
+   "js/youyuan_navigation.js:42"
+  ],
+  "yySubNavOpen": [
+   "js/youyuan_navigation.js:85"
+  ],
+  "yyCheckPluginUpdates": [
+   "js/youyuan_plugin_studio.js:219",
+   "js/youyuan_studio.js:105"
+  ],
+  "yyQQCreateClaim": [
+   "js/youyuan_qq_assistant.js:8"
+  ],
+  "yyQQSaveImageModel": [
+   "js/youyuan_qq_assistant.js:8"
+  ],
+  "yyQQSaveModel": [
+   "js/youyuan_qq_assistant.js:8"
+  ],
+  "yyQQAssistantSave": [
+   "js/youyuan_qq_assistant.js:8"
+  ],
+  "yyQQRefreshMembers": [
+   "js/youyuan_qq_assistant.js:8"
+  ],
+  "yyQQRefreshMessages": [
+   "js/youyuan_qq_assistant.js:22"
+  ],
+  "yyTLoad": [
+   "js/youyuan_qq_config.js:111"
+  ],
+  "yyTNew": [
+   "js/youyuan_qq_config.js:114"
+  ],
+  "yyTFromPreset": [
+   "js/youyuan_qq_config.js:121"
+  ],
+  "yyTEdit": [
+   "js/youyuan_qq_config.js:135"
+  ],
+  "yyTToggle": [
+   "js/youyuan_qq_config.js:141"
+  ],
+  "yyTCancel": [
+   "js/youyuan_qq_config.js:213",
+   "js/youyuan_qq_config.js:258"
+  ],
+  "yyTField": [
+   "js/youyuan_qq_config.js:216",
+   "js/youyuan_qq_config.js:226",
+   "js/youyuan_qq_config.js:248",
+   "js/youyuan_qq_config.js:249"
+  ],
+  "yyTSetType": [
+   "js/youyuan_qq_config.js:220"
+  ],
+  "yyTToggleGroup": [
+   "js/youyuan_qq_config.js:242"
+  ],
+  "yyTAddAction": [
+   "js/youyuan_qq_config.js:254"
+  ],
+  "yyTSave": [
+   "js/youyuan_qq_config.js:257"
+  ],
+  "yyTDel": [
+   "js/youyuan_qq_config.js:259"
+  ],
+  "yyTSetActionType": [
+   "js/youyuan_qq_config.js:268"
+  ],
+  "yyTDelAction": [
+   "js/youyuan_qq_config.js:277"
+  ],
+  "yyTSetParam": [
+   "js/youyuan_qq_config.js:282",
+   "js/youyuan_qq_config.js:285",
+   "js/youyuan_qq_config.js:287",
+   "js/youyuan_qq_config.js:289",
+   "js/youyuan_qq_config.js:292",
+   "js/youyuan_qq_config.js:295",
+   "js/youyuan_qq_config.js:296",
+   "js/youyuan_qq_config.js:299"
+  ],
+  "yyTInsertVar": [
+   "js/youyuan_qq_config.js:309"
+  ],
+  "yyILoad": [
+   "js/youyuan_qq_config.js:517"
+  ],
+  "yyIField": [
+   "js/youyuan_qq_config.js:522",
+   "js/youyuan_qq_config.js:526",
+   "js/youyuan_qq_config.js:541",
+   "js/youyuan_qq_config.js:548",
+   "js/youyuan_qq_config.js:552",
+   "js/youyuan_qq_config.js:560",
+   "js/youyuan_qq_config.js:562",
+   "js/youyuan_qq_config.js:565",
+   "js/youyuan_qq_config.js:568",
+   "js/youyuan_qq_config.js:570",
+   "js/youyuan_qq_config.js:573"
+  ],
+  "yyIModelDel": [
+   "js/youyuan_qq_config.js:534"
+  ],
+  "yyIModelAdd": [
+   "js/youyuan_qq_config.js:538"
+  ],
+  "yyISave": [
+   "js/youyuan_qq_config.js:575"
+  ],
+  "yyQQOpenAccess": [
+   "js/youyuan_qq_console.js:184",
+   "js/youyuan_qq_console.js:191",
+   "js/youyuan_qq_console.js:304"
+  ],
+  "yyQQRefreshAll": [
+   "js/youyuan_qq_console.js:186",
+   "js/youyuan_qq_console.js:189",
+   "js/youyuan_qq_console.js:836"
+  ],
+  "yyQQToggleMenu": [
+   "js/youyuan_qq_console.js:187"
+  ],
+  "yyQQMenuFaces": [
+   "js/youyuan_qq_console.js:190"
+  ],
+  "yyQQReconnectNow": [
+   "js/youyuan_qq_console.js:210"
+  ],
+  "yyQQDropDismiss": [
+   "js/youyuan_qq_console.js:211"
+  ],
+  "yyQQQrRefresh": [
+   "js/youyuan_qq_console.js:348"
+  ],
+  "yyQQPollLogin": [
+   "js/youyuan_qq_console.js:349"
+  ],
+  "yyQQWatchdogToggle": [
+   "js/youyuan_qq_console.js:404"
+  ],
+  "yyQQSetCapGroup": [
+   "js/youyuan_qq_console.js:463"
+  ],
+  "yyQQCapDetail": [
+   "js/youyuan_qq_console.js:502"
+  ],
+  "yyQQCapKey": [
+   "js/youyuan_qq_console.js:502"
+  ],
+  "yyQQToggleCap": [
+   "js/youyuan_qq_console.js:508"
+  ],
+  "yyQQCapSave": [
+   "js/youyuan_qq_console.js:527"
+  ],
+  "yyQQCapReset": [
+   "js/youyuan_qq_console.js:528"
+  ],
+  "yyQQOpenTriggers": [
+   "js/youyuan_qq_console.js:529"
+  ],
+  "yyQQSetStream": [
+   "js/youyuan_qq_console.js:690"
+  ],
+  "yyQQRefreshStream": [
+   "js/youyuan_qq_console.js:701",
+   "js/youyuan_qq_console.js:717"
+  ],
+  "yyQQTermSend": [
+   "js/youyuan_qq_console.js:734"
+  ],
+  "yyQQLoadGroups": [
+   "js/youyuan_qq_console.js:794",
+   "js/youyuan_qq_console.js:829"
+  ],
+  "yyQQPickGroup": [
+   "js/youyuan_qq_console.js:803"
+  ],
+  "yyQQSetAdapter": [
+   "js/youyuan_qq_console.js:819",
+   "js/youyuan_qq_console.js:820"
+  ],
+  "yyQQSaveAccess": [
+   "js/youyuan_qq_console.js:835"
+  ],
+  "yyQQInsertVar": [
+   "js/youyuan_qq_console.js:942"
+  ],
+  "yyQQPromptCount": [
+   "js/youyuan_qq_console.js:946"
+  ],
+  "yyQQLoadModels": [
+   "js/youyuan_qq_console.js:950"
+  ],
+  "yyQQAsk": [
+   "js/youyuan_qq_console.js:958"
+  ],
+  "yyQQSavePersona": [
+   "js/youyuan_qq_console.js:960"
+  ],
+  "yyQQClearSandbox": [
+   "js/youyuan_qq_console.js:961"
+  ],
+  "yyQQCmpToggle": [
+   "js/youyuan_qq_console.js:983"
+  ],
+  "yyQQSaveCompanion": [
+   "js/youyuan_qq_console.js:1001"
+  ],
+  "yyQQLoadFaces": [
+   "js/youyuan_qq_console.js:1212"
+  ],
+  "yyQQDiagnose": [
+   "js/youyuan_qq_diagnostics.js:24"
+  ],
+  "yyQQCallbackLabel": [
+   "js/youyuan_qq_diagnostics.js:24"
+  ],
+  "yyQQGroupClaim": [
+   "js/youyuan_qq_groups.js:3"
+  ],
+  "yyQQGroupAdd": [
+   "js/youyuan_qq_groups.js:3"
+  ],
+  "yyQQGroupRefresh": [
+   "js/youyuan_qq_groups.js:3"
+  ],
+  "yyGReload": [
+   "js/youyuan_qq_guard.js:70"
+  ],
+  "yyGToggle": [
+   "js/youyuan_qq_guard.js:77"
+  ],
+  "yyGShowAll": [
+   "js/youyuan_qq_guard.js:83"
+  ],
+  "yyGExtraDel": [
+   "js/youyuan_qq_guard.js:88"
+  ],
+  "yyGExtraAdd": [
+   "js/youyuan_qq_guard.js:96"
+  ],
+  "yyGSave": [
+   "js/youyuan_qq_guard.js:99"
+  ],
+  "yyGReset": [
+   "js/youyuan_qq_guard.js:100"
+  ],
+  "yyKTab": [
+   "js/youyuan_qq_knowledge.js:118"
+  ],
+  "yyKReload": [
+   "js/youyuan_qq_knowledge.js:127",
+   "js/youyuan_qq_knowledge.js:155",
+   "js/youyuan_qq_knowledge.js:234"
+  ],
+  "yyKRagAdd": [
+   "js/youyuan_qq_knowledge.js:152"
+  ],
+  "yyKRagUpload": [
+   "js/youyuan_qq_knowledge.js:153"
+  ],
+  "yyKRagReindex": [
+   "js/youyuan_qq_knowledge.js:154"
+  ],
+  "yyKRagFile": [
+   "js/youyuan_qq_knowledge.js:156"
+  ],
+  "yyKRagSubmit": [
+   "js/youyuan_qq_knowledge.js:162"
+  ],
+  "yyKRagDel": [
+   "js/youyuan_qq_knowledge.js:170"
+  ],
+  "yyKRagSearch": [
+   "js/youyuan_qq_knowledge.js:178"
+  ],
+  "yyQQMemorySave": [
+   "js/youyuan_qq_memory.js:154"
+  ],
+  "yyQQMemoryRefreshGroups": [
+   "js/youyuan_qq_memory.js:154"
+  ],
+  "yyQQMemoryClear": [
+   "js/youyuan_qq_memory.js:154"
+  ],
+  "yySIReload": [
+   "js/youyuan_qq_serverinfo.js:202",
+   "js/youyuan_qq_serverinfo.js:249"
+  ],
+  "yySITab": [
+   "js/youyuan_qq_serverinfo.js:211"
+  ],
+  "yySISearch": [
+   "js/youyuan_qq_serverinfo.js:308"
+  ],
+  "yySIPlayerFrom": [
+   "js/youyuan_qq_serverinfo.js:335",
+   "js/youyuan_qq_serverinfo.js:707"
+  ],
+  "yySIKey": [
+   "js/youyuan_qq_serverinfo.js:335"
+  ],
+  "yySIPage": [
+   "js/youyuan_qq_serverinfo.js:352",
+   "js/youyuan_qq_serverinfo.js:355",
+   "js/youyuan_qq_serverinfo.js:707"
+  ],
+  "yySIPlayer": [
+   "js/youyuan_qq_serverinfo.js:443"
+  ],
+  "yySIDetailClose": [
+   "js/youyuan_qq_serverinfo.js:461"
+  ],
+  "yySIDraft": [
+   "js/youyuan_qq_serverinfo.js:559"
+  ],
+  "yySISay": [
+   "js/youyuan_qq_serverinfo.js:561",
+   "js/youyuan_qq_serverinfo.js:562"
+  ],
+  "yySensePage": [
+   "js/youyuan_sense.js:11"
+  ],
+  "yyCallbackQueueSettings": [
+   "js/youyuan_sense.js:11"
+  ],
+  "yySenseRefresh": [
+   "js/youyuan_sense.js:18"
+  ],
+  "yySenseSchema": [
+   "js/youyuan_sense.js:18"
+  ],
+  "yyRequestViewDistance": [
+   "js/youyuan_sense.js:18"
+  ],
+  "yyCaptureAction": [
+   "js/youyuan_sense.js:18",
+   "js/youyuan_sense.js:18",
+   "js/youyuan_sense.js:18"
+  ],
+  "yyCaptureExport": [
+   "js/youyuan_sense.js:18"
+  ],
+  "yyObservationSave": [
+   "js/youyuan_sense.js:18"
+  ],
+  "yyObservationLoad": [
+   "js/youyuan_sense.js:18"
+  ],
+  "yyCaptureView": [
+   "js/youyuan_sense.js:82",
+   "js/youyuan_sense.js:82",
+   "js/youyuan_sense.js:82",
+   "js/youyuan_sense.js:82"
+  ],
+  "yyWatchUI": [
+   "js/youyuan_sense.js:212",
+   "js/youyuan_sense.js:212",
+   "js/youyuan_sense.js:212"
+  ],
+  "yyWatchPluginCode": [
+   "js/youyuan_sense.js:212"
+  ],
+  "yyTeamUI": [
+   "js/youyuan_sense.js:212",
+   "js/youyuan_sense.js:212",
+   "js/youyuan_sense.js:212"
+  ],
+  "yyObserverPlanUI": [
+   "js/youyuan_sense.js:212"
+  ],
+  "yyObserverHandoffUI": [
+   "js/youyuan_sense.js:212"
+  ],
+  "bmOpenMarket": [
+   "js/youyuan_settings.js:19"
+  ],
+  "bmOpenContribute": [
+   "js/youyuan_settings.js:19"
+  ],
+  "yySaveReconnectSeconds": [
+   "js/youyuan_settings.js:28",
+   "js/youyuan_settings.js:28"
+  ],
+  "yyAccountBridgePage": [
+   "js/youyuan_settings.js:28"
+  ],
+  "refreshFleetOverview": [
+   "js/youyuan_settings.js:28"
+  ],
+  "yyHostFilesPage": [
+   "js/youyuan_settings.js:28"
+  ],
+  "yyFeedbackPage": [
+   "js/youyuan_settings.js:28"
+  ],
+  "yyPlatformPasswordPage": [
+   "js/youyuan_settings.js:28"
+  ],
+  "yySendFeedback": [
+   "js/youyuan_settings.js:35"
+  ],
+  "yyChainAction": [
+   "js/youyuan_settings.js:42",
+   "js/youyuan_settings.js:42",
+   "js/youyuan_settings.js:42"
+  ],
+  "yySaveNotices": [
+   "js/youyuan_social.js:3"
+  ],
+  "yySearchServers": [
+   "js/youyuan_social.js:6"
+  ],
+  "yyAddVisit": [
+   "js/youyuan_social.js:6",
+   "js/youyuan_social.js:15"
+  ],
+  "yyStartVisits": [
+   "js/youyuan_social.js:6"
+  ],
+  "yyStopSocial": [
+   "js/youyuan_social.js:6",
+   "js/youyuan_social.js:6"
+  ],
+  "yyStartSocialBatch": [
+   "js/youyuan_social.js:6"
+  ],
+  "yySaveSocialAdapter": [
+   "js/youyuan_social.js:6"
+  ],
+  "yyOpenExportCenter": [
+   "js/youyuan_studio.js:58"
+  ],
+  "yyPluginAutoCheck": [
+   "js/youyuan_studio.js:105"
+  ],
+  "yyPluginSourceDialog": [
+   "js/youyuan_studio.js:105"
+  ],
+  "yyTerminalKey": [
+   "js/youyuan_terminal.js:381"
+  ],
+  "yyTunnelAction": [
+   "js/youyuan_tunnel.js:3",
+   "js/youyuan_tunnel.js:3"
+  ],
+  "yyTunnelRefresh": [
+   "js/youyuan_tunnel.js:3"
+  ],
+  "setTheme": [
+   "js/youyuan_usability.js:3"
+  ],
+  "yyOpenLanguageDoc": [
+   "js/youyuan_usability.js:5",
+   "js/youyuan_usability.js:5",
+   "js/youyuan_usability.js:5",
+   "js/youyuan_usability.js:5"
+  ],
+  "yyOpenWorkspace": [
+   "js/youyuan_workspace.js:34",
+   "js/youyuan_workspace.js:34"
+  ],
+  "yyArchiveProject": [
+   "js/youyuan_workspace.js:34"
+  ],
+  "Rplg": [
+   "js/youyuan_workspace.js:36"
+  ],
+  "yyRuntimeAction": [
+   "js/youyuan_workspace.js:37",
+   "js/youyuan_workspace.js:37"
+  ],
+  "yyCreateWorkspace": [
+   "js/youyuan_workspace.js:66"
+  ],
+  "yyWorkspacePublish": [
+   "js/youyuan_workspace.js:148",
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyWorkspaceStop": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyOpenProjectFile": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyNewProjectFile": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyUploadProject": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyCheckSyntax": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yySaveProjectFile": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yySearchProject": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yySelectAgentModel": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyAgentModels": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyAgentTask": [
+   "js/youyuan_workspace.js:148",
+   "js/youyuan_workspace.js:148",
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyLoadHistory": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yySearchHistory": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyWorkspaceSkill": [
+   "js/youyuan_workspace.js:148"
+  ],
+  "yyRiskForget": [
+   "js/youyuan_workspace.js:428"
+  ],
+  "yyShowDiff": [
+   "js/youyuan_workspace.js:828"
+  ],
+  "yyRollback": [
+   "js/youyuan_workspace.js:828"
+  ],
+  "yySaveMCP": [
+   "js/youyuan_workspace.js:871"
+  ],
+  "yyCallMCP": [
+   "js/youyuan_workspace.js:871"
+  ],
+  "yyRiskClearPolicy": [
+   "js/youyuan_workspace.js:871"
+  ],
+  "yySelectMCP": [
+   "js/youyuan_workspace.js:877"
+  ],
+  "yyMCPList": [
+   "js/youyuan_workspace.js:877",
+   "js/youyuan_workspace.js:877"
+  ],
+  "yyDeleteMCP": [
+   "js/youyuan_workspace.js:877"
+  ],
+  "setOpacity": [
+   "piano.html:36"
+  ]
+ },
+ "missing": [
+  "if"
+ ]
+}

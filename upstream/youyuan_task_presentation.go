@@ -28,25 +28,26 @@ func yyTaskActionbarMetrics(kind, name, colour string, done, total, speed int, e
 	}
 	filled := 0
 	if total > 0 {
-		filled = int(float64(done) / float64(total) * 18)
+		filled = int(float64(done) / float64(total) * 10)
 	}
-	if filled > 18 {
-		filled = 18
+	if filled > 10 {
+		filled = 10
 	}
-	bar := "§" + colour + strings.Repeat("┃", filled) + "§8" + strings.Repeat("┃", 18-filled)
+	bar := "§" + colour + strings.Repeat("┃", filled) + "§8" + strings.Repeat("┃", 10-filled)
 	name = strings.NewReplacer("§", "", "\n", " ", "\r", " ").Replace(name)
-	if r := []rune(name); len(r) > 24 {
-		name = string(r[:23]) + "…"
+	if r := []rune(name); len(r) > 12 {
+		name = string(r[:11]) + "…"
 	}
-	metric := fmt.Sprintf("§f%d §7/ %d", done, total)
+	lines := []string{fmt.Sprintf("§r§%s游园 · %s", colour, kind), "§r§f" + name, "§r" + bar, fmt.Sprintf("§r§7数量 §f%d §7/ %d", done, total)}
 	if speed > 0 && done < total {
-		metric += fmt.Sprintf("  ·  §f%d§7/秒  ·  剩余约 %s", speed, ((time.Duration(total-done) * time.Second) / time.Duration(speed)).Round(time.Second))
-	} else if elapsed > 0 {
-		metric += "  ·  已用 " + elapsed.Round(time.Second).String()
+		lines = append(lines, fmt.Sprintf("§r§7速率 §f%d§7/秒", speed), "§r§7预计剩余 §f"+yyHudClock((time.Duration(total-done)*time.Second)/time.Duration(speed)))
+	}
+	if elapsed > 0 {
+		lines = append(lines, "§r§7已用 §f"+yyHudClock(elapsed))
 	}
 	tpsText := "§7TPS 暂不可用"
 	if tpsKnown {
 		tpsText = fmt.Sprintf("§7TPS §f%.1f", tps)
 	}
-	return fmt.Sprintf("§r§%s游园 · %s §7| §f%s\n§r%s  %s\n§r%s", colour, kind, name, bar, tpsText, metric)
+	return strings.Join(append(lines, "§r"+tpsText), "\n")
 }

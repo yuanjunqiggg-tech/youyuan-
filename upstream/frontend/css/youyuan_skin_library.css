@@ -1,0 +1,98 @@
+/* 皮肤库抽屉 + 头像加载 / 失败态。
+   背景：以前头像失败后只剩一块 background:var(--phx-bg-secondary) 的空占位，和卡片背景同色，
+   玩家看到的就是"根本没加载皮肤"。这里给占位补上边框、底色、骨架动画和默认头像兜底。 */
+
+/* 头像：骨架 / 就绪 / 失败三态，任何一态都有可见的底色与边框 */
+.yy-avatar-frame{background:linear-gradient(135deg,rgba(127,127,127,.16),rgba(127,127,127,.3));border:1px solid var(--phx-border);box-sizing:border-box}
+.yy-avatar-frame>img{background:var(--phx-bg-secondary)}
+.yy-avatar-skeleton{position:relative;overflow:hidden}
+.yy-avatar-skeleton::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 18%,rgba(255,255,255,.45) 50%,transparent 82%);transform:translateX(-100%);animation:yyAvatarSweep 1.15s ease-in-out infinite}
+@keyframes yyAvatarSweep{to{transform:translateX(100%)}}
+.yy-avatar-fallback{background:linear-gradient(135deg,rgba(86,140,128,.3),rgba(52,86,82,.46));border:1px solid var(--phx-primary)}
+.yy-avatar-fallback>.yy-avatar-initial{font-size:17px;font-weight:700;color:var(--phx-primary);letter-spacing:.02em}
+.yy-avatar-ready>.yy-avatar-initial{display:none}
+
+/* 换肤页舞台：加载中给骨架 + 呼吸，不再是一块和背景同色的空 div */
+.yy-skin-stage{position:relative}
+.yy-skin-skeleton{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;border-radius:16px;border:1px solid var(--phx-border);background:linear-gradient(135deg,rgba(127,127,127,.1),rgba(127,127,127,.24));animation:yySkinBreathe 1.8s ease-in-out infinite}
+@keyframes yySkinBreathe{0%,100%{opacity:.7}50%{opacity:1}}
+.yy-skin-skeleton-figure{width:76px;height:76px;border-radius:18px;display:grid;place-items:center;font-size:30px;font-weight:800;color:var(--phx-primary);background:rgba(127,127,127,.22);border:1px solid var(--phx-border)}
+.yy-skin-skeleton-text{font-size:12px;color:var(--phx-text-secondary)}
+.yy-skin-skeleton-failed{animation:none;background:linear-gradient(135deg,rgba(86,140,128,.22),rgba(52,86,82,.36));border-color:var(--phx-primary)}
+
+/* 皮肤库抽屉 */
+.yy-skin-drawer{position:fixed;inset:0;z-index:120;display:flex;justify-content:flex-end}
+.yy-skin-drawer[hidden]{display:none}
+.yy-skin-drawer-mask{position:absolute;inset:0;background:rgba(0,0,0,.44)}
+.yy-skin-drawer-panel{position:relative;width:min(430px,94vw);height:100%;overflow:auto;overscroll-behavior:contain;box-sizing:border-box;padding:18px 16px 32px;background:var(--phx-bg-card);border-left:1px solid var(--phx-border);animation:yySkinSlide .22s ease-out}
+@keyframes yySkinSlide{from{transform:translateX(26px);opacity:.55}to{transform:none;opacity:1}}
+.yy-skin-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.yy-skin-drawer-head h3{margin:0;font-size:17px}
+
+/* 拖动转身：四面方块，纯 CSS rotateY，不引入 3D 引擎 */
+.yy-skin-turn-stage{height:206px;display:grid;place-items:center;perspective:640px;touch-action:none;cursor:grab;border-radius:16px;border:1px solid var(--phx-border);background:radial-gradient(circle at 50% 38%,rgba(127,127,127,.18),rgba(127,127,127,.06))}
+.yy-skin-turn-stage:active{cursor:grabbing}
+.yy-skin-turn{position:relative;width:104px;height:104px;transform-style:preserve-3d;transform:rotateX(-6deg) rotateY(0deg);transition:transform .1s linear}
+.yy-skin-turn-face{position:absolute;inset:0;border-radius:6px;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated;backface-visibility:hidden;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.yy-skin-turn-face.front{transform:translateZ(52px)}
+.yy-skin-turn-face.back{transform:rotateY(180deg) translateZ(52px)}
+.yy-skin-turn-face.left{transform:rotateY(-90deg) translateZ(52px)}
+.yy-skin-turn-face.right{transform:rotateY(90deg) translateZ(52px)}
+.yy-skin-preview-meta{display:flex;flex-direction:column;gap:2px;margin:10px 0 4px;text-align:center}
+.yy-skin-preview-meta strong{font-size:15px}
+.yy-skin-preview-meta .yy-hint{margin:0}
+
+/* 预选皮肤网格 */
+.yy-skin-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+.yy-skin-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;margin:0;padding:10px 6px;min-height:98px;border:1px solid var(--phx-border);border-radius:12px;background:var(--phx-bg-secondary);color:var(--phx-text);cursor:pointer}
+.yy-skin-card.selected{border-color:var(--phx-primary);box-shadow:inset 0 0 0 1px var(--phx-primary)}
+.yy-skin-card-face{width:44px;height:44px;border-radius:10px;border:1px solid var(--phx-border);background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}
+.yy-skin-card-name{font-size:11px;line-height:1.35;text-align:center}
+.yy-skin-card-tag{font-size:9px;color:var(--phx-text-secondary)}
+/* 内置 6 款 + 自己的组件码：选中 / 悬停 / 按下 / 键盘聚焦四态，点击区一律 ≥44px。 */
+.yy-skin-card{min-height:128px;transition:border-color .15s ease,box-shadow .15s ease,transform .12s ease}
+.yy-skin-card:hover{border-color:var(--phx-primary);box-shadow:0 4px 14px rgba(0,0,0,.14)}
+.yy-skin-card:active{transform:translateY(1px);background:rgba(127,127,127,.16)}
+.yy-skin-card:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}
+/* 还没有真实纹理时只放组件码前三位：方块占位，不拿生成的图案冒充皮肤。 */
+.yy-skin-card-face-code{display:grid;place-items:center;font:600 13px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;color:var(--phx-text-secondary);background:linear-gradient(135deg,rgba(127,127,127,.16),rgba(127,127,127,.3))}
+.yy-skin-card-apply{width:100%;min-height:44px;margin-top:2px;padding:0 4px;border:1px solid var(--phx-primary);border-radius:10px;background:transparent;color:var(--phx-primary);font:inherit;font-size:11px;line-height:1.2;cursor:pointer}
+.yy-skin-card-apply:hover{background:rgba(86,140,128,.14)}
+.yy-skin-card-apply:active{background:rgba(86,140,128,.24)}
+.yy-skin-card-apply:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}
+.yy-skin-card-apply[disabled]{opacity:.6;cursor:progress}
+.yy-skin-card-del{width:100%;min-height:44px;padding:0 4px;border:1px solid var(--phx-border);border-radius:10px;background:rgba(127,127,127,.2);color:var(--phx-text-secondary);font:inherit;font-size:11px;line-height:1.2;cursor:pointer}
+.yy-skin-card-del:hover{color:var(--phx-text);background:rgba(127,127,127,.3)}
+.yy-skin-card-del:active{background:rgba(127,127,127,.4)}
+.yy-skin-card-del:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}
+
+/* 拿不到真实皮肤图时，舞台整块显示「暂无预览 + 组件码」，不转拼出来的假方块。 */
+.yy-skin-turn-stage.yy-skin-stage-empty .yy-skin-turn{display:none}
+.yy-skin-turn-empty{display:none;margin:0;text-align:center;font-size:12px;line-height:1.5;color:var(--phx-text-secondary)}
+.yy-skin-turn-stage.yy-skin-stage-empty .yy-skin-turn-empty{display:block}
+.yy-skin-turn-empty small{display:block;margin-top:4px;font-size:11px;opacity:.85}
+
+/* 自己的组件码 */
+.yy-skin-custom{border-top:1px solid var(--phx-border);padding-top:14px}
+.yy-skin-custom h4{margin:0 0 10px;font-size:13px}
+.yy-skin-custom label{display:block;font-size:12px;margin-bottom:10px}
+.yy-skin-custom input{width:100%;box-sizing:border-box;margin-top:6px}
+
+@media(max-width:420px){
+  .yy-skin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .yy-skin-turn-stage{height:180px}
+}
+
+/* 详情字段网格复用「我的账号」卡片的 .yy-account-detail / .yy-account-meta 排版，
+   这里只去掉外层多出来的那条分隔线，保证两张卡片看起来是同一套。 */
+.yy-pool-facts{border-top:0;padding-top:0}
+
+/* 群友分享组件码：和「我自己的组件码」同构，但单独一段，避免两个输入区被看成一回事。 */
+.yy-skin-share{border-top:1px solid var(--phx-border);margin-top:8px;padding-top:14px}
+.yy-skin-share h4{margin:0 0 10px;font-size:13px}
+.yy-skin-share label{display:block;font-size:12px;margin-bottom:10px}
+.yy-skin-share input{width:100%;box-sizing:border-box;margin-top:6px}
+
+/* 卡片标签可能是「群友 · 暂无图」这种三段文字，允许换行，别撑破卡片。 */
+.yy-skin-card-tag{display:block;white-space:normal;word-break:break-word;text-align:center}
+

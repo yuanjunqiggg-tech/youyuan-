@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -95,21 +96,12 @@ func FleetConnect(cfg *config.AppConfig) {
 			return
 		}
 		cur := joinedCount()
-		pct := 0
-		if total > 0 {
-			pct = cur * 100 / total
-		}
-		if pct > 99 {
-			pct = 99
-		}
-		bar := buildParBar(pct*14/100, 14, "a", "7")
-		main.SendWOCmd(fmt.Sprintf(`titleraw @a actionbar {"rawtext":[{"text":"§r§c导入中  §d游园  §7┃  §f子机器人进服\n§l§d> §7已加入 %s  §a§l%d%%\n§r§7%d/%d（还要 %d 个）"}]}`, bar, pct, cur, total, total-cur))
+		text := yyFleetConnectionPanel(GetEffectiveName(), cur, total)
+		payload, _ := json.Marshal(map[string]any{"rawtext": []any{map[string]any{"text": text}}})
+		main.SendWOCmd("titleraw @a actionbar " + string(payload))
 	}
 	fleetTell := func(msg string) {
-		main := fleet.Main
-		if main != nil && main.IsConnected() {
-			main.SendTellraw(msg)
-		}
+		fleetLog(fleet.Main, msg)
 	}
 
 	// 进服进度条每 0.5s 自动刷新一次：不依赖"某个机器人完成初始化才跳一下"，

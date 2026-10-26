@@ -11,13 +11,5 @@ func registerWorldAPI(L *lua.LState) {
 	L.SetGlobal("world", w)
 
 	// world.block(x, y, z) → 方块名（传送加载再查询，防 outOfWorld）
-	L.SetField(w, "block", L.NewFunction(func(L *lua.LState) int {
-		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
-		name, err := abot(L).GetBlockTileSafe(x, y, z)
-		if err != nil {
-			L.RaiseError("world.block: %v", err)
-		}
-		L.Push(lua.LString(name))
-		return 1
-	}))
+	L.SetField(w, "block", L.GetField(L.GetGlobal("game"), "getBlockTile"))
 }

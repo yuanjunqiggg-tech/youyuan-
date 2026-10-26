@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>审查用 · 群服互通</title>
+<link rel="stylesheet" href="../../frontend/css/base.css">
+<link rel="stylesheet" href="../../frontend/css/layout.css">
+<link rel="stylesheet" href="../../frontend/css/components.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_design.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_qq_console.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_qq_serverinfo.css">
+<style>
+  html,body{margin:0;padding:0;min-height:100%;background:var(--phx-bg);color:var(--phx-text)}
+  #sub-page{height:100vh}
+  .sub-page.show{display:flex;flex-direction:column;height:100vh}
+  .sp-body{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .yy-intro{margin:0 0 10px}
+  .yy-intro h2{margin:0;font-size:16px;font-weight:700}
+  .yy-intro p{margin:4px 0 0;font-size:11px;color:var(--phx-text-secondary);line-height:1.6}
+</style>
+</head>
+<body class="sp-open">
+<div id="sub-page" class="sub-page show"><div class="sp-body"><div id="yyq-root"></div></div></div>
+
+<script src="stub.js"></script>
+<script>
+  window.__API__ = {
+    "/api/qq/rag/stats": { ok: true, docs: 12, chunks: 348, indexed: 340, dims: 1024, db_bytes: 7864320 },
+    "/api/qq/rag/docs": { ok: true, mode: "hybrid", settings: { embedding_configured: true }, docs: [
+      { ID: "d1", Title: "服务器规则与白名单申请流程（含常见拒绝原因说明）", Kind: "note", Chunks: 24 },
+      { ID: "d2", Title: "开服活动排期", Kind: "file", Chunks: 8 },
+      { ID: "d3", Title: "FAQ", Kind: "note", Chunks: 31 }
+    ] },
+    "/api/qq/usage/context": { ok: true, note: "按最近一次请求估算", context: { model: "deepseek-v4.1-flash", window: 131072, used_tokens: 41230, percent: 31, messages_count: 18, reserved_output: 4096, source: "calibrated_estimate" }, budget: { memory_chars: 1800, rag_chars: 2400, history_turns: 12 } },
+    "/api/qq/server/info": { ok: true, name: "星野生存服 · 第三赛季", group_number: "1148000000", online: 7, players: 42, bindings: 31, adapter: "onebot", enabled: true, game_connected: true, bot_player: "PolarisBot", online_note: "在线人数每 30 秒刷新一次", bot: { nickname: "北极星", uin: "3900112233", avatar: "" } },
+    "/api/qq/server/players": { ok: true, players: [
+      { player: "XiaoMing_2024", qq: "10001", online: true, online_seconds: 7320, messages: 42, last_message: "有人一起去下界挖远古残骸吗，我带了 12 个钻石镐" },
+      { player: "Steve", qq: "", online: false, online_seconds: 120, messages: 3, last_message: "服主我白名单没过" },
+      { player: "Alex_The_Builder", qq: "10086", online: null, online_seconds: 0, messages: 0 }
+    ] },
+    "/api/qq/server/events": { ok: true, events: [
+      { player: "XiaoMing_2024", type: "join", qq: "10001", time: new Date(Date.now() - 120000).toISOString() },
+      { player: "Steve", type: "leave", time: new Date(Date.now() - 3600000).toISOString() },
+      { player: "Alex_The_Builder", type: "first_join", qq: "10086", time: new Date(Date.now() - 86400000).toISOString() }
+    ] },
+    "/api/qq/server/logs": { ok: true, logs: [
+      { kind: "点赞", target: "XiaoMing_2024", ok: true, source: "skill", detail: "给 10 个群友点赞", time: new Date(Date.now() - 60000).toISOString() },
+      { kind: "执行指令", target: "/list", ok: false, detail: "命令被安全策略拒绝：/list 不在白名单", time: new Date(Date.now() - 300000).toISOString() }
+    ] },
+    "/api/qq/send": { ok: true },
+    "/api/qq/server/say": { ok: true, note: "已发送到服务器" }
+  };
+</script>
+<script src="../../frontend/js/youyuan_qq_console.js"></script>
+<script>
+  // 复刻 console 页的渲染骨架：状态带 + 身份卡 + 能力矩阵 + 折叠区容器
+  window.yyQQC.adapter = "qqofficial";
+  window.yyQQC.picked = "星野生存服交流群";
+  window.yyQQC.dropAt = Date.now() - 4 * 60 * 1000;
+  window.yyQQC.dropReason = "OneBot WebSocket 连接被对端关闭（1006）";
+  window.yyQQC.openCap = "like";
+  window.yyQQC.loading = { caps: 0, stream: 0 };
+  window.yyQQC.caps = [
+    { kind: "like", label: "群友点赞", desc: "给群成员的主页点赞，每天有上限", enabled: true, cool_seconds: 60, gap_seconds: 5, daily: 100, min_level: 0, min_level_text: "成员", command: "", custom: true },
+    { kind: "qzone", label: "发说说", desc: "以机器人身份发一条 QQ 空间说说", enabled: true, cool_seconds: 0, gap_seconds: 30, daily: 5, min_level: 1, min_level_text: "管理员" },
+    { kind: "avatar", label: "换头像", desc: "把机器人头像换成指定图片", enabled: false, onebot_only: true, min_level: 2, min_level_text: "超级管理员" },
+    { kind: "long_nick", label: "长昵称", desc: "临时改一个超长群昵称", enabled: false, onebot_only: true, min_level: 1, min_level_text: "管理员" },
+    { kind: "kick", label: "踢人", desc: "把指定群成员移出群聊", enabled: true, cool_seconds: 300, gap_seconds: 10, daily: 20, min_level: 2, min_level_text: "超级管理员" },
+    { kind: "relay_history", label: "拉取历史消息", desc: "补拉群里最近的消息记录", enabled: true, min_level: 0, min_level_text: "成员" }
+  ];
+  window.yyQQC.profile = { nickname: "北极星", user_id: "3900112233", friend_count: 128, group_count: 6, avatar: "" };
+  window.yyQQC.cfg = { adapter: "qqofficial", assistant: { bot_player: "PolarisBot" }, groups: [{ id: "1148000000", name: "星野生存服交流群" }] };
+  window.yyQQC.status = { connected: false };
+  window.yyQQC.login = { state: "need_login", qrcode: { data_url: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='180' height='180' fill='%23fff'/><rect x='10' y='10' width='40' height='40'/><rect x='130' y='10' width='40' height='40'/><rect x='10' y='130' width='40' height='40'/></svg>", age_seconds: 186, stale: true, fresh: false } };
+  window.yyQQC.actions = [];
+
+  window.yyQQRenderAll = function () {
+    var root = document.getElementById("yyq-root");
+    var main = document.getElementById("yyq-main");
+    if (!main) {
+      root.innerHTML = '<div id="yyq-main"></div><div class="yyq-fold-grid" id="yyq-fold-grid"></div>';
+      main = document.getElementById("yyq-main");
+    }
+    main.innerHTML = yyQQStatusBar() + yyQQHero() + yyQQCaps();
+  };
+  window.yyQQEnabledGroups = function () { return window.yyQQC.cfg.groups; };
+  window.yyQQGroupName = function (g) { return (g && g.name) || ""; };
+</script>
+<script src="../../frontend/js/youyuan_qq_knowledge.js"></script>
+<script src="../../frontend/js/youyuan_qq_messenger.js"></script>
+<script src="../../frontend/js/youyuan_qq_serverinfo.js"></script>
+<script>
+  window.yyQQRenderAll();
+  // 三个折叠区默认全部展开，方便一次截图看完整内容
+  ["yyq-knowledge", "yyq-messenger", "yyq-serverinfo"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.open = true;
+    el.dispatchEvent(new Event("toggle"));
+  });
+  // 让服务端信息停在「说话」页，覆盖表单控件
+  setTimeout(function () { if (window.yySITab) window.yySITab("say"); }, 300);
+</script>
+</body>
+</html>

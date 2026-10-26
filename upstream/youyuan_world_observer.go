@@ -18,6 +18,17 @@ import (
 
 var yyWorldSerial atomic.Uint64
 
+// Camera region churn must not evict hits before a plugin can consume them.
+func yyWorldCombatEvent(e map[string]any) bool {
+	switch e["type"] {
+	case "health", "hurt", "swing", "equipment", "death", "player_death", "respawn", "entity_kill", "damage_display":
+		return true
+	case "entity_spawn":
+		return e["entity_type"] == "minecraft:player"
+	}
+	return false
+}
+
 func yyWorldSessionID() string {
 	return fmt.Sprintf("%x-%x", time.Now().UnixNano(), yyWorldSerial.Add(1))
 }
@@ -26,7 +37,7 @@ var yyWorldMethods = map[string]string{
 	"observerBridge.coverage":    "options={server?}；按需汇总本宿主主账号、舰队与托管子账号的实际观测覆盖、维度和错误；不表示全服覆盖。",
 	"observerBridge.health":      "runtimeId字符串,options={server?,dimension?}；读取各在线观测账号最新真实血量，附观察者/session/来源/过期状态；维度或实体身份冲突返回未知。不会覆盖本机entities缓存。",
 	"observerBridge.locator":     "玩家名或UniqueID字符串,options={server?}；汇总真实PlayerLocation广播，即使没有AddPlayer也保留；包没有维度、血量或RuntimeID，这些字段明确未知。",
-	"observerBridge.worldEvents": "options={server?,dimension?,cursors?,limit?}；汇总各账号规范事件，返回每账号session/sequence游标；重连标明reset，历史覆盖标明lost。再次使用返回cursors避免重复；limit是每观察者返回条数。",
+	"observerBridge.worldEvents": "options={server?,dimension?,cursors?,limit?,stream:combat|actions}；汇总各账号规范事件，返回每账号session/sequence游标；重连标明reset，历史覆盖标明lost。再次使用返回cursors避免重复；limit是每观察者返回条数。combat独立保留真实战斗事件，区域切换的生物出现/消失不会挤掉命中。",
 	"observerBridge.localView":   "options={mode:coverage|health|events,target?,dimension?,session?,after?,limit?}；仅当前连接快照，供观测聚合使用；无递归，不执行游戏指令。",
 }
 
@@ -125,8 +136,12 @@ func yyWorldLocal(bm *BotManager, o map[string]any) (map[string]any, error) {
 		history := s.Events
 		stream, _ := o["stream"].(string)
 		actions := stream == "actions"
+		combat := stream == "combat"
 		if actions {
 			history = s.ActionEvents
+		}
+		if combat {
+			history = s.CombatEvents
 		}
 		limit := 256
 		if v, ok := o["limit"]; ok {
@@ -160,13 +175,17 @@ func yyWorldLocal(bm *BotManager, o map[string]any) (map[string]any, error) {
 		if oldest > after+1 {
 			lost = oldest - after - 1
 		}
-		if actions {
+		if actions || combat {
 			lost = 0
-			if after < s.ActionEvictedSeq {
+			evicted := s.ActionEvictedSeq
+			if combat {
+				evicted = s.CombatEvictedSeq
+			}
+			if after < evicted {
 				lost = 1
 			}
 			r["lost_count_known"] = false
-			r["stream"] = "actions"
+			r["stream"] = stream
 		}
 		rows := []any{}
 		cursor := after

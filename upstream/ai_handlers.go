@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,14 +20,40 @@ func maskKey(k string) string {
 	return k[:4] + "****" + k[len(k)-4:]
 }
 
-// handleAIModels 按方法分发：GET=列出（key 脱敏）、POST=新增/更新、DELETE=删除。
+// handleAIModels 按方法分发：GET=列出（key 脱敏）+ 三个用途的选择、
+// POST=新增/更新模型，或 body 里带 roles 时只更新用途选择、DELETE=删除。
 func handleAIModels(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		handleAIModelAdd(w, r)
+		// 同一个入口两种 body：带 roles 的是「统一模型配置」里的用途选择，
+		// 不带的仍是原来的模型增改。分成两个路由反而要多登记两份目录。
+		raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": "读取请求失败"})
+			return
+		}
+		var body struct {
+			Roles *aiModelRoles `json:"roles"`
+			AIModel
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
+			return
+		}
+		if body.Roles != nil {
+			if _, err := yyAISaveRoles(*body.Roles); err != nil {
+				writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]any{"ok": true, "roles": yyAIRolesView()})
+			return
+		}
+		yyAIUpsertModel(w, &body.AIModel)
 	case http.MethodDelete:
 		handleAIModelDelete(w, r)
 	default:
+		// 老用户第一次打开统一配置时，把群服互通里已选的模型迁过来。
+		yyAISeedRolesFromQQ()
 		list := aiStore.List()
 		out := make([]map[string]any, 0, len(list))
 		for _, m := range list {
@@ -46,7 +73,7 @@ func handleAIModels(w http.ResponseWriter, r *http.Request) {
 				"builtin":                  m.Builtin,
 			})
 		}
-		writeJSON(w, map[string]any{"ok": true, "models": out})
+		writeJSON(w, map[string]any{"ok": true, "models": out, "roles": yyAIRolesView()})
 	}
 }
 
@@ -57,15 +84,19 @@ func handleAIModelAdd(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "无效JSON"})
 		return
 	}
+	yyAIUpsertModel(w, &m)
+}
+
+// yyAIUpsertModel 校验并写入一条模型记录；名称未变且 key 被脱敏回传时保留原 key。
+func yyAIUpsertModel(w http.ResponseWriter, m *AIModel) {
 	if m.Name == BuiltinModelName {
 		writeJSON(w, map[string]any{"ok": false, "error": "内置模型「" + BuiltinModelName + "」不可编辑"})
 		return
 	}
-	// 名称未变但 key 被脱敏回传时，保留原 key
 	if cur := aiStore.Get(m.Name); cur != nil && (m.APIKey == "" || strings.Contains(m.APIKey, "****")) {
 		m.APIKey = cur.APIKey
 	}
-	if err := aiStore.Add(&m); err != nil {
+	if err := aiStore.Add(m); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

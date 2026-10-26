@@ -115,6 +115,9 @@ func (r *Resources) Commands() *CommandRequestCallback {
 	return r.commands
 }
 
+// SetAutoRespawn changes only this client's death handshake policy.
+func (r *Resources) SetAutoRespawn(enabled bool) { r.respawn.setEnabled(enabled) }
+
 // Inventories 返回库存的相关资源
 func (r *Resources) Inventories() *Inventories {
 	return r.inventory

@@ -16,6 +16,8 @@ type yySpatialSlot struct {
 	Reasons map[string]int
 }
 
+const yyObserverCommandRate = 20
+
 func yySpatialSlotFor(bm *BotManager) *yySpatialSlot {
 	yySpatialJobs.Lock()
 	defer yySpatialJobs.Unlock()
@@ -33,7 +35,8 @@ func yyObserverSend(bm *BotManager, command string, allowDuringJob bool) (bool, 
 	if len(slot.Reasons) > 0 && !allowDuringJob {
 		return false, nil
 	}
-	return true, bm.SendCommandNoWaitRate(ChannelAI, command, 0)
+	// Bound all observation loops together; millisecond target intervals must not flood the server.
+	return true, bm.SendCommandNoWaitRate(ChannelAI, command, yyObserverCommandRate)
 }
 
 func init() {
@@ -81,7 +84,7 @@ func yySpatialJobState(bm *BotManager) (bool, []string) {
 }
 func yyPluginMovementAllowed(bm *BotManager) error {
 	if active, reasons := yySpatialJobState(bm); active {
-		return fmt.Errorf("机器人正在导入/导出，插件传送已暂停：%s", strings.Join(reasons, ","))
+		return fmt.Errorf("机器人空间作业正在进行，插件传送已暂停：%s", strings.Join(reasons, ","))
 	}
 	return nil
 }

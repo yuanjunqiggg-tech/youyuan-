@@ -31,8 +31,14 @@ test('filtered-out account action does not open a detached detail or fail',()=>{
 test('console uses neutral unknown portraits and only accepts the account official HTTPS portrait',()=>{
  const element=()=>({children:[],append(child){this.children.push(child)},setAttribute(key,value){this[key]=value}});const images=[],opened=[];
  function Image(){this.remove=()=>this.removed=true;images.push(this)}
- const context=vm.createContext({URL,Image,authButton:(label,click)=>({...element(),click}),authText:()=>element(),authOpenDetail:row=>opened.push(row.id)});vm.runInContext(source.slice(source.indexOf('function authAvatar('),source.indexOf('function authRender(')),context);
+ const context=vm.createContext({URL,Image,authReturnURL:'https://toolbox.example/',authButton:(label,click)=>({...element(),click}),authText:()=>element(),authOpenDetail:row=>opened.push(row.id)});vm.runInContext(source.slice(source.indexOf('function yyAvatarSrc('),source.indexOf('function authRender(')),context);
  const unknown=context.authAvatar({id:'u',name:'unknown',avatar:'/assets/default-head.jpg'});assert.equal(images.length,0);assert.match(unknown.children[0].innerHTML,/<svg/);unknown.click();assert.deepEqual(opened,['u']);
- context.authAvatar({id:'u',avatar_source:'netease',avatar:'https://official.example/avatar.png'});assert.equal(images.length,1);assert.equal(images[0].src,'https://official.example/avatar.png');images[0].onerror();assert.equal(images[0].removed,true);
+ const official='https://official.example/avatar.png';context.authAvatar({id:'u',avatar_source:'netease',avatar:official});assert.equal(images.length,1);
+ // 头像先走工具箱代理：直连网易 CDN 既慢又可能被墙
+ assert.equal(images[0].src,'https://toolbox.example/api/skin/proxy?url='+encodeURIComponent(official));
+ // 代理不可用时回退原图，不能直接塌成占位色块
+ images[0].onerror();assert.equal(images[0].src,official);assert.notEqual(images[0].removed,true);
+ // 原图也失败才撤掉图片，露出中性占位
+ images[0].onerror();assert.equal(images[0].removed,true);
  for(const row of [{avatar_source:'local',avatar:'https://platform.example/avatar.png'},{avatar_source:'netease',avatar:'data:image/png;base64,AA'},{avatar_source:'netease',avatar:'https://user:secret@official.example/avatar.png'}])context.authAvatar(row);assert.equal(images.length,1);assert.doesNotMatch(source,/img\.src\s*=\s*['"]\/assets\/default-head/);
 });

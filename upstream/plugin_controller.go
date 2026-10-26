@@ -101,6 +101,14 @@ func (pc *PluginController) IsDisabled(id string) bool {
 	return pc.disabled[id]
 }
 
+// Has 插件是否已注册。未连接时用它区分「排队等待加载」与「根本不存在的 id」。
+func (pc *PluginController) Has(id string) bool {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	_, ok := pc.defs[id]
+	return ok
+}
+
 // SetDisabled 设置插件持久禁用状态并落盘。
 func (pc *PluginController) SetDisabled(id string, disabled bool) {
 	pc.mu.Lock()
@@ -292,8 +300,20 @@ func (pc *PluginController) status(id string) *PluginStatus {
 	return pc.defStatus(def)
 }
 
+func yyCapturePluginPermission(root string) error {
+	if _, err := os.Stat(filepath.Join(root, "capture-only")); err == nil {
+		return fmt.Errorf("采集专用内核不启动业务插件")
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("不能确认采集内核模式: %w", err)
+	}
+	return nil
+}
+
 // Run 加载并运行插件。
 func (pc *PluginController) Run(bm *BotManager, id string) error {
+	if err := yyCapturePluginPermission(pc.privateDir); err != nil {
+		return err
+	}
 	debugLog("[插件] Run id=%s", id)
 	pc.mu.Lock()
 	if pc.running[id] {
@@ -473,6 +493,7 @@ func (pc *PluginController) Reload(bm *BotManager, id string) error {
 	debugLog("[插件] Reload id=%s", id)
 	pc.mu.Lock()
 	wasRunning := pc.running[id]
+	disabled := pc.disabled[id]
 	_, ok := pc.defs[id]
 	pc.mu.Unlock()
 	if !ok {
@@ -482,6 +503,10 @@ func (pc *PluginController) Reload(bm *BotManager, id string) error {
 		if err := pc.Stop(bm, id); err != nil {
 			return err
 		}
+	}
+	// Saving code must not restart a plugin the user has explicitly disabled.
+	if disabled {
+		return nil
 	}
 	err := pc.Run(bm, id)
 	debugLog("[插件] Reload 完成 id=%s err=%v", id, err)

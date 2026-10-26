@@ -9,9 +9,10 @@ test('capture save reads back unknown transport result without replaying the wri
 
 // 0 is not a valid interval: yyPatrolDuration rejects sec<=0, so a user who
 // typed 0 got a server-side "间隔需要正有限秒数" instead of a field hint.
-// 1 ms stays the floor because 0.001 s is a documented, tested value.
+// The user requested fractional milliseconds; keep the 0.001 ms boundary.
 test('the switch interval field cannot submit a zero interval',()=>{
- assert.match(source,/id="yy-gc-interval" type="number" step="any" min="1"/);
+ assert.match(source,/id="yy-gc-interval" type="number" step="any" min="0.001"/);
  assert.doesNotMatch(source,/id="yy-gc-interval" type="number" step="any" min="0"/);
- assert.match(source,/interval_seconds:Math\.max\(1,n\('yy-gc-interval'\)\)\/1000/);
+ assert.ok(source.includes('interval_seconds: n("yy-gc-interval") / 1000'));
+ assert.ok(source.includes('document.getElementById("yy-gc-interval").checkValidity()'));
 });

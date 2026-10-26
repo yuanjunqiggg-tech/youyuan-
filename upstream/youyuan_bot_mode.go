@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"bot-apk/config"
+	"github.com/OmineDev/flowers-for-machines/core/minecraft"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/game_control/game_interface"
@@ -15,6 +16,7 @@ const yyOPProbeCommand = "testfor @s"
 
 type yyBotMaintainer struct {
 	bm             *BotManager
+	conn           *minecraft.Conn
 	running        atomic.Bool
 	pending        atomic.Bool
 	lastAttempt    atomic.Int64
@@ -22,7 +24,16 @@ type yyBotMaintainer struct {
 	watching       atomic.Bool
 }
 
+func (m *yyBotMaintainer) currentSession() bool {
+	m.bm.mu.Lock()
+	defer m.bm.mu.Unlock()
+	return m.conn != nil && m.bm.conn == m.conn && m.bm.connected
+}
+
 func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) error {
+	if !m.currentSession() {
+		return nil
+	}
 	if !config.ReloadConfig().AutoCreative {
 		return nil
 	}
@@ -34,6 +45,9 @@ func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) err
 	// Coalesce a mode change received during flight setup instead of losing it.
 	// A failed permission/flight request never creates an unbounded retry loop.
 	for attempt := 0; attempt < 2 && m.pending.Swap(false); attempt++ {
+		if !m.currentSession() {
+			return nil
+		}
 		m.lastAttempt.Store(time.Now().UnixNano())
 		if !config.ReloadConfig().AutoCreative {
 			return nil
@@ -44,6 +58,10 @@ func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) err
 		// AutomationPlayer's @s is not reliably the logged-in player on all
 		// NetEase servers. Target the actual account, just like construction.
 		m.bm.mu.Lock()
+		if m.bm.conn != m.conn || !m.bm.connected {
+			m.bm.mu.Unlock()
+			return nil
+		}
 		creative := m.bm.gameMode == packet.GameTypeCreative
 		m.bm.mu.Unlock()
 		var err error
@@ -55,6 +73,10 @@ func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) err
 		// Maintenance must work with sendcommandfeedback=false. Avoid the
 		// querytarget/confirmation path used by interactive movement helpers.
 		m.bm.mu.Lock()
+		if m.bm.conn != m.conn || !m.bm.connected {
+			m.bm.mu.Unlock()
+			return nil
+		}
 		conn, pos := m.bm.conn, m.bm.pos
 		flying := m.bm.isFlying
 		m.bm.flyRequested = true
@@ -79,11 +101,14 @@ func (m *yyBotMaintainer) TouchMaintainer(api *game_interface.GameInterface) err
 // flight setup. One watchdog per connection reconciles server-confirmed state;
 // it never marks an outbound command as a confirmed mode/flight change.
 func (m *yyBotMaintainer) startWatchdog(api *game_interface.GameInterface) {
+	if !m.currentSession() {
+		return
+	}
 	if !m.watching.CompareAndSwap(false, true) {
 		return
 	}
 	m.bm.mu.Lock()
-	stop, conn := m.bm.stopCh, m.bm.conn
+	stop, conn := m.bm.stopCh, m.conn
 	m.bm.mu.Unlock()
 	go func() {
 		defer m.watching.Store(false)
@@ -127,6 +152,9 @@ func (m *yyBotMaintainer) PacketToListen() map[uint32]bool {
 }
 
 func (m *yyBotMaintainer) HandlePacket(pk packet.Packet, api *game_interface.GameInterface) {
+	if !m.currentSession() {
+		return
+	}
 	if !config.LoadConfig().AutoCreative {
 		return
 	}

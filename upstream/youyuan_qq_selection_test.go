@@ -49,14 +49,14 @@ func TestQQCompanionTimeoutAndOwner(t *testing.T) {
 	cf.Assistant.CompanionOwner = "owner"
 	cf.Assistant.CompanionKeywords = []string{"服主"}
 	now := time.Now()
-	k, e, s, initial, ok := yyQQCompanionBegin(cf, "a", "服主在吗", false, now)
+	k, e, s, initial, ok, _ := yyQQCompanionBegin(cf, "a", "服主在吗", false, now)
 	if !ok || !initial {
 		t.Fatal("not started")
 	}
 	if yyQQCompanionCurrent(cf, k, e, s, now.Add(31*time.Second)) {
 		t.Fatal("session did not expire")
 	}
-	k, e, s, _, ok = yyQQCompanionBegin(cf, "a", "后续消息", false, now.Add(10*time.Second))
+	k, e, s, _, ok, _ = yyQQCompanionBegin(cf, "a", "后续消息", false, now.Add(10*time.Second))
 	if !ok {
 		t.Fatal("not continued")
 	}
@@ -64,10 +64,10 @@ func TestQQCompanionTimeoutAndOwner(t *testing.T) {
 	if yyQQCompanionCurrent(cf, k, e, s, now.Add(12*time.Second)) {
 		t.Fatal("owner did not stop session")
 	}
-	if _, _, _, _, ok = yyQQCompanionBegin(cf, "b", "普通消息", false, now); ok {
+	if _, _, _, _, ok, _ = yyQQCompanionBegin(cf, "b", "普通消息", false, now); ok {
 		t.Fatal("untriggered user activated")
 	}
-	if _, _, _, _, ok = yyQQCompanionBegin(cf, "b", "/命令 say test", true, now); ok {
+	if _, _, _, _, ok, _ = yyQQCompanionBegin(cf, "b", "/命令 say test", true, now); ok {
 		t.Fatal("command swallowed")
 	}
 }

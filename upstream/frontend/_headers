@@ -1,0 +1,33 @@
+# 静态资源响应头（仅作用于静态资源；Worker 代码生成的响应不读这个文件）
+#
+# 重要：静态资源请求本身不计入 Workers 请求额度（官方文档
+# https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/ ），
+# 所以这里的目的不是省额度，而是让浏览器少发 138 个 If-None-Match 校验请求、
+# 少下载重复的大文件（three.min.js / intro.mp4 / 图片）。
+#
+# 分级依据：
+#   /vendor /images /sounds /assets —— 第三方库与素材，几乎不改，给长缓存
+#   /js /css —— 业务代码，靠 index.html 的 ?v= 手动打版本；只给 10 分钟，
+#               避免改完没升 ?v= 时用户长时间看到旧代码
+#   *.html —— 保持每次校验，页面结构必须立刻生效
+
+/vendor/*
+  Cache-Control: public, max-age=2592000
+
+/images/*
+  Cache-Control: public, max-age=604800
+
+/sounds/*
+  Cache-Control: public, max-age=604800
+
+/assets/*
+  Cache-Control: public, max-age=604800
+
+/css/*
+  Cache-Control: public, max-age=600, must-revalidate
+
+/js/*
+  Cache-Control: public, max-age=600, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate

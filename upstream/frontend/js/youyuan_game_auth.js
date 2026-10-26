@@ -17,7 +17,10 @@ function yyOpenAccountRegistration() {
   }
 }
 async function yyGameAuthAPI(method, body) {
-  const control = new AbortController(), timer = setTimeout(() => control.abort(), 8e4);
+  // 超时从 80 秒收到 10 秒：认证服务慢的时候，账号页原来会干等 80 秒什么都不显示
+  // （用户反馈「点开互通/账号会特别慢」）。10 秒拿不到就先用本地账号，
+  // 云端账号下次刷新再补，绝不让用户对着空页面等。
+  const control = new AbortController(), timer = setTimeout(() => control.abort(), 1e4);
   try {
     const options = { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : void 0, signal: control.signal };
     let response = await yyRootFetch(yyIsCloud ? "/api/game-auth/accounts" : "/api/youyuan/game-auth", options);
@@ -33,8 +36,8 @@ async function yyGameAuthAPI(method, body) {
   }
 }
 async function yyGameAuthPage() {
-  delete subPageCache["\u81EA\u6709\u6E38\u620F\u51ED\u636E"];
-  openSubPage("\u81EA\u6709\u6E38\u620F\u51ED\u636E", yyIntro("\u6E38\u56ED\u6E38\u620F\u8BA4\u8BC1", "\u76F4\u8FDE\u7F51\u6613\uFF1B\u6E38\u56ED\u6E38\u620F\u4EE4\u724C\u4E0E\u5E73\u53F0\u63A7\u5236\u5BC6\u94A5\u5404\u81EA\u72EC\u7ACB\u3002") + `<section class="card"><h3>\u6DFB\u52A0\u6E38\u620F\u51ED\u636E</h3><div class="yy-actions"><button class="btn-s" onclick="yyOpenAccountRegistration()">\u6253\u5F00\u72EC\u7ACB\u8D26\u53F7\u8BA4\u8BC1\u7F51\u7AD9</button></div><p class="yy-hint">\u5DE5\u5177\u7BB1\u8D26\u53F7\u6CE8\u518C\u4E0E\u7F51\u6613\u6E38\u620F\u8D26\u53F7\u63A5\u5165\u662F\u4E24\u6B65\u3002\u5E73\u53F0QQ\u90AE\u7BB1\u6CE8\u518C\u3001\u9A8C\u8BC1\u7801\u548C\u5BC6\u7801\u627E\u56DE\u5728\u72EC\u7ACB\u8BA4\u8BC1\u7F51\u7AD9\uFF1B\u4E0B\u65B9\u7528\u4E8E\u63A5\u5165\u6E38\u620F\u8D26\u53F7\u3001\u672C\u4EBA\u9A8C\u8BC1\u548C\u7B7E\u53D1\u673A\u5668\u4EBA\u6E38\u620F\u4EE4\u724C\u3002</p><div class="yy-actions"><button class="btn-s" onclick="yyOpen4399Registration()">\u6253\u5F004399\u5B98\u65B9\u6CE8\u518C</button></div><p class="yy-hint">4399\u6E20\u9053\u5F53\u524D\u6682\u4E0D\u53EF\u7528\uFF0C\u6682\u4E0D\u5EFA\u8BAE\u63D0\u4EA4\u6E20\u9053\u767B\u5F55\uFF1B\u5DF2\u4FDD\u5B58\u7684\u8D26\u53F7\u4E0D\u4F1A\u88AB\u5220\u9664\u3002\u53EF\u9009\u62E9\u7F51\u6613\u90AE\u7BB1\u6216\u5DF2\u6709\u7F51\u6613\u767B\u5F55Cookie\u63A5\u5165\u3002</p><label>\u64CD\u4F5C</label><select id="yy-ga-mode" onchange="yyGameAuthMode()"><option value="login_email">\u7F51\u6613\u90AE\u7BB1\u767B\u5F55</option><option value="register_guest">\u521B\u5EFA\u6E38\u5BA2\u8D26\u53F7\u5E76\u8BBE\u7F6E\u6635\u79F0</option><option value="login_4399" disabled>4399\u6E20\u9053\u767B\u5F55\uFF08\u5F53\u524D\u6682\u4E0D\u53EF\u7528\uFF09</option><option value="import_cookie">\u5BFC\u5165\u5DF2\u6709\u7F51\u6613\u767B\u5F55Cookie</option></select><label>\u663E\u793A\u540D\u79F0</label><input id="yy-ga-name" maxlength="48" placeholder="\u81EA\u5DF1\u7684\u673A\u5668\u4EBA\u8D26\u53F7"><div id="yy-ga-email-fields"><label>\u7F51\u6613\u90AE\u7BB1</label><input id="yy-ga-email" type="email" autocomplete="username"><label>\u7F51\u6613\u5BC6\u7801</label><input id="yy-ga-password" type="password" autocomplete="off"></div><div id="yy-ga-guest-fields" hidden><label>\u6E38\u620F\u6635\u79F0</label><input id="yy-ga-nickname" maxlength="20" placeholder="2\u201320\u4E2A\u5B57\u7B26"></div><div id="yy-ga-4399-fields" hidden><label>4399\u7528\u6237\u540D</label><input id="yy-ga-4399-user" autocomplete="username"><label>4399\u5BC6\u7801</label><input id="yy-ga-4399-password" type="password" autocomplete="off"><p class="yy-hint">\u5B98\u65B9\u6CE8\u518C\u540E\u5728\u8FD9\u91CC\u63A5\u5165\uFF0C\u4E0D\u9700\u8981\u57284399\u6E38\u620F\u5217\u8868\u91CC\u5BFB\u627E\u6CE8\u518C\u6309\u94AE\u3002</p></div><div id="yy-ga-cookie-fields" hidden><label>\u7F51\u6613\u767B\u5F55Cookie</label><textarea id="yy-ga-cookie" autocomplete="off"></textarea></div><p class="yy-hint">\u4E0D\u4F1A\u4FDD\u5B58\u7F51\u6613\u660E\u6587\u5BC6\u7801\u3002\u767B\u5F55\u72B6\u6001\u52A0\u5BC6\u5B58\u50A8\u5728\u4F60\u7684\u4E91\u7AEF\u8D44\u6599\u5E93\uFF1B\u6BCF25\u5206\u949F\u5C1D\u8BD5\u5237\u65B0\uFF0C\u5931\u8D25\u4F1A\u663E\u793A\u72B6\u6001\u5E76\u5EF6\u8FDF\u91CD\u8BD5\u3002\u5237\u65B0\u51ED\u636E\u4E0E\u673A\u5668\u4EBA\u5728\u7EBF\u4FDD\u6D3B\u662F\u4E24\u4E2A\u6B65\u9AA4\u3002\u7F51\u6613\u98CE\u63A7\u3001\u5B9E\u540D\u6216\u9A8C\u8BC1\u7801\u5FC5\u987B\u7531\u8D26\u53F7\u672C\u4EBA\u5B8C\u6210\u3002</p><button id="yy-ga-create" class="btn" onclick="yyGameAuthCreate()">\u6DFB\u52A0\u5E76\u7B7E\u53D1\u6E38\u620F\u4EE4\u724C</button><pre id="yy-ga-result" class="yy-readout"></pre><div id="yy-ga-issued" hidden><label>\u672C\u6B21\u6E38\u620F\u4EE4\u724C</label><input id="yy-ga-token" readonly type="password"><div class="yy-actions"><button class="btn-s" onclick="yyGameAuthCopy()">\u590D\u5236\u4EE4\u724C</button><button class="btn-s" onclick="yyRevealField('yy-ga-token')">\u663E\u793A / \u9690\u85CF</button></div><label>\u76EE\u6807\u670D\u52A1\u5668\u53F7 / \u5206\u4EAB\u94FE\u63A5</label><input id="yy-ga-server" placeholder="\u670D\u52A1\u5668\u53F7\u6216\u7F51\u6613\u5206\u4EAB\u94FE\u63A5"><button class="btn" onclick="yyGameAuthUse()">\u4FDD\u5B58\u5230\u672C\u673A\u8D26\u53F7\u5DE5\u4F5C\u7A7A\u95F4</button></div></section><section class="card"><h3>\u6211\u7684\u6E38\u620F\u51ED\u636E</h3><button class="btn-s" onclick="yyGameAuthRefresh()">\u5237\u65B0\u5217\u8868</button><div id="yy-ga-pending"></div><div id="yy-ga-list"></div></section>`);
+  delete subPageCache["\u6E38\u56ED\u51ED\u8BC1"];
+  openSubPage("\u6E38\u56ED\u51ED\u8BC1", yyIntro("\u6E38\u56ED\u6E38\u620F\u8BA4\u8BC1", "\u76F4\u8FDE\u7F51\u6613\uFF1B\u6E38\u56ED\u6E38\u620F\u4EE4\u724C\u4E0E\u5E73\u53F0\u63A7\u5236\u5BC6\u94A5\u5404\u81EA\u72EC\u7ACB\u3002") + `<div class="yy-cred-page"><section class="card"><h3>\u6DFB\u52A0\u6E38\u56ED\u51ED\u8BC1</h3><div class="yy-actions"><button class="btn-s" onclick="yyOpenAccountRegistration()">\u6253\u5F00\u72EC\u7ACB\u8D26\u53F7\u8BA4\u8BC1\u7F51\u7AD9</button><button class="btn-s" onclick="yyOpen4399Registration()">\u6253\u5F004399\u5B98\u65B9\u6CE8\u518C</button></div><p class="yy-hint">\u8D26\u53F7\u6CE8\u518C\u4E0E\u6E38\u620F\u8D26\u53F7\u63A5\u5165\u662F\u4E24\u6B65\uFF1A\u5E73\u53F0QQ\u90AE\u7BB1\u6CE8\u518C\u3001\u9A8C\u8BC1\u7801\u548C\u5BC6\u7801\u627E\u56DE\u5728\u72EC\u7ACB\u8BA4\u8BC1\u7F51\u7AD9\uFF1B4399\u6E20\u9053\u5F53\u524D\u6682\u4E0D\u53EF\u7528\uFF0C\u5DF2\u4FDD\u5B58\u7684\u8D26\u53F7\u4E0D\u4F1A\u88AB\u5220\u9664\u3002</p><label>\u64CD\u4F5C</label><select id="yy-ga-mode" onchange="yyGameAuthMode()"><option value="login_email">\u7F51\u6613\u90AE\u7BB1\u767B\u5F55</option><option value="register_guest">\u521B\u5EFA\u6E38\u5BA2\u8D26\u53F7\u5E76\u8BBE\u7F6E\u6635\u79F0</option><option value="login_4399" disabled>4399\u6E20\u9053\u767B\u5F55\uFF08\u5F53\u524D\u6682\u4E0D\u53EF\u7528\uFF09</option><option value="import_cookie">\u5BFC\u5165\u5DF2\u6709\u7F51\u6613\u767B\u5F55Cookie</option></select><label>\u663E\u793A\u540D\u79F0</label><input id="yy-ga-name" maxlength="48" placeholder="\u81EA\u5DF1\u7684\u673A\u5668\u4EBA\u8D26\u53F7"><div id="yy-ga-email-fields"><label>\u7F51\u6613\u90AE\u7BB1</label><input id="yy-ga-email" type="email" autocomplete="username"><label>\u7F51\u6613\u5BC6\u7801</label><input id="yy-ga-password" type="password" autocomplete="off"></div><div id="yy-ga-guest-fields" hidden><label>\u6E38\u620F\u6635\u79F0</label><input id="yy-ga-nickname" maxlength="20" placeholder="2\u201320\u4E2A\u5B57\u7B26"></div><div id="yy-ga-4399-fields" hidden><label>4399\u7528\u6237\u540D</label><input id="yy-ga-4399-user" autocomplete="username"><label>4399\u5BC6\u7801</label><input id="yy-ga-4399-password" type="password" autocomplete="off"><p class="yy-hint">\u5B98\u65B9\u6CE8\u518C\u540E\u5728\u8FD9\u91CC\u63A5\u5165\uFF0C\u4E0D\u9700\u8981\u57284399\u6E38\u620F\u5217\u8868\u91CC\u5BFB\u627E\u6CE8\u518C\u6309\u94AE\u3002</p></div><div id="yy-ga-cookie-fields" hidden><label>\u7F51\u6613\u767B\u5F55Cookie</label><textarea id="yy-ga-cookie" autocomplete="off"></textarea></div><p class="yy-hint">\u4E0D\u4F1A\u4FDD\u5B58\u7F51\u6613\u660E\u6587\u5BC6\u7801\u3002\u767B\u5F55\u72B6\u6001\u52A0\u5BC6\u5B58\u50A8\u5728\u4F60\u7684\u4E91\u7AEF\u8D44\u6599\u5E93\uFF1B\u6BCF25\u5206\u949F\u5C1D\u8BD5\u5237\u65B0\uFF0C\u5931\u8D25\u4F1A\u663E\u793A\u72B6\u6001\u5E76\u5EF6\u8FDF\u91CD\u8BD5\u3002\u5237\u65B0\u51ED\u636E\u4E0E\u673A\u5668\u4EBA\u5728\u7EBF\u4FDD\u6D3B\u662F\u4E24\u4E2A\u6B65\u9AA4\u3002\u7F51\u6613\u98CE\u63A7\u3001\u5B9E\u540D\u6216\u9A8C\u8BC1\u7801\u5FC5\u987B\u7531\u8D26\u53F7\u672C\u4EBA\u5B8C\u6210\u3002</p><button id="yy-ga-create" class="btn" onclick="yyGameAuthCreate()">\u6DFB\u52A0\u5E76\u7B7E\u53D1\u6E38\u620F\u4EE4\u724C</button><pre id="yy-ga-result" class="yy-readout"></pre><div id="yy-ga-issued" hidden><label>\u672C\u6B21\u6E38\u620F\u4EE4\u724C</label><input id="yy-ga-token" readonly type="password"><div class="yy-actions"><button class="btn-s" onclick="yyGameAuthCopy()">\u590D\u5236\u4EE4\u724C</button><button class="btn-s" onclick="yyRevealField('yy-ga-token')">\u663E\u793A / \u9690\u85CF</button></div><label>\u76EE\u6807\u670D\u52A1\u5668\u53F7 / \u5206\u4EAB\u94FE\u63A5</label><input id="yy-ga-server" placeholder="\u670D\u52A1\u5668\u53F7\u6216\u7F51\u6613\u5206\u4EAB\u94FE\u63A5"><button class="btn" onclick="yyGameAuthUse()">\u4FDD\u5B58\u5230\u672C\u673A\u8D26\u53F7\u5DE5\u4F5C\u7A7A\u95F4</button></div></section><section class="card"><div class="yy-cred-list-head"><h3>\u6211\u7684\u6E38\u56ED\u51ED\u8BC1</h3><button class="btn-s" onclick="yyGameAuthRefresh()">\u5237\u65B0\u5217\u8868</button></div><div id="yy-ga-pending"></div><div id="yy-ga-list"></div></section></div>`);
   await yyGameAuthRefresh();
 }
 function yyGameAuthMode() {
@@ -91,16 +94,31 @@ async function yyGameAuthCreate() {
   }
 }
 function yyGameCredentialRow(row) {
+  // 头像取用顺序从前写在界面上，属于开发说明，挪到这里：
+  // 账号资料上传的头像（data:）→ 网易官方头像 → 本机按玩家名裁的真实皮肤头 → 等距三面占位。
+  // 取不到图时界面不再解释来源，只在图片加载失败时补一个 title。
   const panel = document.createElement("details");
   panel.className = "yy-credential-row";
-  const summary = document.createElement("summary"), avatar = document.createElement("span"), identity = document.createElement("span"), name = document.createElement("strong"), meta = document.createElement("small"), status = document.createElement("span");
-  avatar.innerHTML = typeof yyAccountAvatarHTML === "function" ? yyAccountAvatarHTML(row) : '<span class="yy-avatar-unknown" aria-label="\u6682\u65E0\u5B98\u65B9\u5934\u50CF">\u2014</span>';
+  const summary = document.createElement("summary"), avatar = document.createElement("span"), identity = document.createElement("span"), name = document.createElement("strong"), meta = document.createElement("small"), status = document.createElement("span"), chevron = document.createElement("span");
+  summary.className = "yy-cred-row-head";
+  avatar.className = "yy-cred-avatar";
+  avatar.innerHTML = typeof yyAccountAvatarHTML === "function" ? yyAccountAvatarHTML(row) : '<span class="yy-cred-avatar-ph" aria-hidden="true">\u2014</span>';
+  avatar.addEventListener("error", () => {
+    avatar.title = "\u4F7F\u7528\u9ED8\u8BA4\u5934\u50CF";
+  }, true);
+  identity.className = "yy-cred-identity";
+  name.className = "yy-cred-name";
   name.textContent = row.nickname || row.name;
+  meta.className = "yy-cred-meta";
   meta.textContent = "UID " + row.game_id;
   identity.append(name, meta);
-  status.className = "yy-badge";
+  status.className = "yy-cred-state";
+  status.dataset.state = row.status === "ready" ? "ok" : "warn";
   status.textContent = row.status === "ready" ? "\u51ED\u636E\u53EF\u7528" : "\u9700\u8981\u5904\u7406";
-  summary.append(avatar, identity, status);
+  chevron.className = "yy-row-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.textContent = "\u203A";
+  summary.append(avatar, identity, status, chevron);
   panel.append(summary);
   return panel;
 }
@@ -116,10 +134,10 @@ async function yyGameAuthRefresh() {
   yyCloudGameAccounts = r.accounts || [];
   for (const row of yyCloudGameAccounts) {
     const section = yyGameCredentialRow(row), actions = document.createElement("div");
-    actions.className = "yy-actions";
+    actions.className = "yy-cred-actions";
     for (const [label, action] of [["\u4F7F\u7528\u4EE4\u724C", "token"], ["\u5237\u65B0\u51ED\u636E", "refresh"], ["\u8BBE\u7F6E\u6635\u79F0", "nickname"], [row.keep_alive ? "\u505C\u7528\u81EA\u52A8\u5237\u65B0" : "\u542F\u7528\u81EA\u52A8\u5237\u65B0", "configure"], ["\u64A4\u9500\u51ED\u636E", "delete"]]) {
       const button = document.createElement("button");
-      button.className = "btn-s";
+      button.className = action === "delete" ? "btn-s yy-cred-danger" : "btn-s";
       button.textContent = label;
       button.onclick = () => yyGameAuthAction(row, action);
       actions.append(button);
@@ -132,12 +150,13 @@ async function yyGameAuthRefresh() {
     section.append(actions);
     if (row.last_error) {
       const error = document.createElement("p");
+      error.className = "yy-cred-error";
       error.textContent = row.last_error;
       section.append(error);
     }
     host.append(section);
   }
-  if (!yyCloudGameAccounts.length) host.textContent = "\u5C1A\u672A\u6DFB\u52A0\u6E38\u620F\u8D26\u53F7";
+  if (!yyCloudGameAccounts.length) host.textContent = "\u5C1A\u672A\u6DFB\u52A0\u6E38\u56ED\u51ED\u8BC1";
 }
 var yyGameSkinCleanup = null;
 async function yyGameAccountSkin(row) {
@@ -249,7 +268,7 @@ Rcfg = async function() {
   if (!anchor) return;
   var button = document.createElement("button");
   button.className = "btn-s";
-  button.textContent = "\u7BA1\u7406\u81EA\u6709\u6E38\u620F\u51ED\u636E / \u4E00\u952E\u6E38\u5BA2\u6CE8\u518C";
+  button.textContent = "\u7BA1\u7406\u6E38\u56ED\u51ED\u8BC1 / \u4E00\u952E\u6E38\u5BA2\u6CE8\u518C";
   button.onclick = yyGameAuthPage;
   anchor.append(button);
 };

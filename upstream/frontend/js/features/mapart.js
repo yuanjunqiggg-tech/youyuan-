@@ -42,7 +42,7 @@ async function showMaPreview(path, tw, th, cx, cy, clarity) {
   if (r.voxel && !r.voxel.too_large) {
     var v = document.createElement("div");
     v.className = "viewer";
-    v.id = "viewer";
+    v.id = "viewer-mapart";
     document.getElementById("ma-info").appendChild(v);
     setTimeout(function() {
       if (typeof THREE !== "undefined") show3D(v, r.voxel);
@@ -87,12 +87,12 @@ async function refreshMaPreview() {
   }
   document.getElementById("ma-pick-txt").textContent = "\u5DF2\u9009\u62E9: " + path.split("/").pop();
   document.getElementById("ma-info").innerHTML = '<div class="stats"><div class="s"><div class="n">' + r.blocks + '</div><div class="l">\u65B9\u5757\u6570</div></div><div class="s"><div class="n">' + w + "\xD7" + h + '</div><div class="l">\u5C3A\u5BF8</div></div></div>';
-  var existing = document.getElementById("viewer");
+  var existing = document.getElementById("viewer-mapart");
   if (r.voxel && !r.voxel.too_large) {
     var v = existing || document.createElement("div");
     if (!existing) {
       v.className = "viewer";
-      v.id = "viewer";
+      v.id = "viewer-mapart";
       document.getElementById("ma-info").appendChild(v);
     }
     setTimeout(function() {

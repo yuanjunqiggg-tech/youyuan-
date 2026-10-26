@@ -1,0 +1,27 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]: 游 游园 · 游戏账号
+    - link "打开工作台" [ref=e5] [cursor=pointer]:
+      - /url: https://toolbox.youyuanqi.dpdns.org/
+  - heading "连接游戏，从账号开始。" [level=1] [ref=e6]
+  - paragraph [ref=e7]: 一个入口，管理你的游戏账号与机器人。登录游园后，即可添加账号、选择皮肤和获取连接令牌。
+  - generic [ref=e8]:
+    - heading "游园平台账号" [level=2] [ref=e9]
+    - paragraph [ref=e10]: 使用工具箱的游园账号登录。第一次使用请先注册，并验证你的 QQ 邮箱。
+    - generic [ref=e11]:
+      - button "登录" [pressed] [ref=e12] [cursor=pointer]
+      - button "注册账号" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]:
+      - generic [ref=e15]: 游园账号
+      - textbox "游园账号" [ref=e16]:
+        - /placeholder: 3–32 位，字母或数字
+      - generic [ref=e17]: 密码
+      - generic [ref=e18]:
+        - textbox "密码" [ref=e19]:
+          - /placeholder: 至少 10 位
+        - button "显示密码" [ref=e20] [cursor=pointer]: 显示
+      - button "登录" [ref=e21] [cursor=pointer]
+    - paragraph [ref=e22]:
+      - link "返回工具箱" [ref=e23] [cursor=pointer]:
+        - /url: https://toolbox.youyuanqi.dpdns.org/
+  - generic [ref=e24]: 游园游戏账号服务 · 凭据加密保存

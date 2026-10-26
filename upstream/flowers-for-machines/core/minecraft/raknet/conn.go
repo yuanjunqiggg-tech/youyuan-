@@ -55,8 +55,11 @@ type Conn struct {
 	once      sync.Once
 	connected chan struct{}
 
-	mu  sync.Mutex
-	buf *bytes.Buffer
+	mu                    sync.Mutex
+	buf                   *bytes.Buffer
+	datagramsSent         uint64
+	datagramsResent       uint64
+	datagramsAcknowledged uint64
 
 	ackBuf, nackBuf *bytes.Buffer
 
@@ -645,6 +648,7 @@ func (conn *Conn) handleACK(b []byte) error {
 	for _, sequenceNumber := range ack.packets {
 		// Take out all stored packets from the recovery queue.
 		if p, ok := conn.retransmission.acknowledge(sequenceNumber); ok {
+			conn.datagramsAcknowledged++
 			// Clear the packet and return it to the pool so that it may be
 			// re-used.
 			p.content = p.content[:0]
@@ -676,8 +680,10 @@ func (conn *Conn) resend(sequenceNumbers []uint24) (err error) {
 			continue
 		}
 		if err = conn.sendDatagram(pk); err != nil {
+			conn.datagramsResent++
 			return err
 		}
+		conn.datagramsResent++
 	}
 	return nil
 }
@@ -685,6 +691,7 @@ func (conn *Conn) resend(sequenceNumbers []uint24) (err error) {
 // sendDatagram sends a datagram over the connection that includes the packet
 // passed. It is assigned a new sequence number and added to the retransmission.
 func (conn *Conn) sendDatagram(pk *packet) error {
+	conn.datagramsSent++
 	conn.buf.WriteByte(bitFlagDatagram | bitFlagNeedsBAndAS)
 	seq := conn.seq.Inc()
 	writeUint24(conn.buf, seq)

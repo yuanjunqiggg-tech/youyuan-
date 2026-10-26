@@ -107,6 +107,8 @@ func yyParseConversion(data []byte, ext string) (*building.StructureData, error)
 }
 func yyDecodeConversion(data []byte, ext string) (*building.StructureData, error) {
 	switch ext {
+	case ".txt", ".mcfunction":
+		return yyPlacementText(data)
 	case ".json":
 		return yyParseBlockJSON(data)
 	case ".mcstructure":
@@ -135,9 +137,10 @@ func yyDecodeConversion(data []byte, ext string) (*building.StructureData, error
 	case ".schem", ".schematic":
 		return building.ParseSchematic(data)
 	}
-	return nil, fmt.Errorf("支持 mcstructure/bdx/schem/schematic/json 输入")
+	return nil, fmt.Errorf("支持 mcstructure/bdx/schem/schematic/json/txt/mcfunction 输入")
 }
 func yyConverterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/youyuan/convert/command-structure", yyCommandStructureRoute)
 	mux.HandleFunc("/api/youyuan/convert/commands", func(w http.ResponseWriter, r *http.Request) {
 		var p struct {
 			Content, Mode, Objective, Entity, Selector, Output string
@@ -267,6 +270,23 @@ func yyConverterRoutes(mux *http.ServeMux) {
 		result["palette"] = len(s.Palette)
 		result["block_entities"] = len(s.NBTBlocks)
 		switch p.Target {
+		case "bdx", "schem":
+			var data []byte
+			var e error
+			if p.Target == "bdx" {
+				data, e = yyStructureBDX(s)
+			} else {
+				data, e = yyStructureSchem(s)
+			}
+			if e != nil {
+				fail(e)
+				return
+			}
+			result["data"] = base64.StdEncoding.EncodeToString(data)
+			result["filename"] = name + "." + p.Target
+			if p.Target == "schem" {
+				result["note"] = "保留游园方块状态与NBT；其他Java版工具可能无法还原全部基岩版数据。"
+			}
 		case "command_chains":
 			bundle, e := yyStructureChains(s, name, p.Origin)
 			if e != nil {
@@ -319,7 +339,7 @@ func yyConverterRoutes(mux *http.ServeMux) {
 			result["data"] = base64.StdEncoding.EncodeToString(data)
 			result["filename"] = name + ".mcstructure"
 		default:
-			fail(fmt.Errorf("target 支持 inspect/txt/json/mcstructure/command_chains"))
+			fail(fmt.Errorf("target 支持 inspect/txt/json/mcstructure/bdx/schem/command_chains"))
 			return
 		}
 		writeJSON(w, result)

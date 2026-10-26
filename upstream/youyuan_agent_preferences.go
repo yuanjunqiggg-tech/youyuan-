@@ -119,7 +119,7 @@ func yyAgentPreferencesRoutes(mux *http.ServeMux) {
 			writeJSON(w, map[string]any{"ok": false, "error": "云端测试 AI 仅供项目测试账号使用，请在模型配置中填写自己的 API Key"})
 			return
 		}
-		err := aiStore.Add(&AIModel{Name: "游园云端 AI", Provider: ProviderOpenAI, BaseURL: "https://toolbox.youyuanqi.dpdns.org/ai/v1", APIKey: key, ModelID: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", Thinking: ThinkingOff, Streaming: false})
+		err := aiStore.Add(&AIModel{Name: "游园云端 AI", Provider: ProviderOpenAI, BaseURL: yySecPlatformOrigin() + "/ai/v1", APIKey: key, ModelID: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", Thinking: ThinkingOff, Streaming: false})
 		if err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return

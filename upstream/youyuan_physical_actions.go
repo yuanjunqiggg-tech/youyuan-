@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/OmineDev/flowers-for-machines/core/minecraft"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/game_control/game_interface"
@@ -39,19 +40,13 @@ func yyPhysicalAction(bm *BotManager, method string, args []any) (any, error) {
 	pos := self["position"].(mgl32.Vec3)
 	// Recent Bedrock servers consume block actions from authoritative input.
 	input := func(actions []protocol.PlayerBlockAction) error {
-		bm.mu.Lock()
-		p, pitch, yaw, flying := bm.pos, bm.pitch, bm.yaw, bm.flyRequested
-		bm.mu.Unlock()
-		flags := protocol.NewBitset(packet.PlayerAuthInputBitsetSize)
-		if flying {
-			flags.Set(packet.InputFlagStartFlying)
-		}
-		if len(actions) > 0 {
-			flags.Set(packet.InputFlagPerformBlockActions)
-		}
 		bm.heartbeatWriteMu.Lock()
 		defer bm.heartbeatWriteMu.Unlock()
-		return conn.WritePacket(&packet.PlayerAuthInput{Position: p, Pitch: pitch, Yaw: yaw, HeadYaw: yaw, InputData: flags, BlockActions: actions, InputMode: packet.InputModeMouse, PlayMode: packet.PlayModeScreen, InteractionModel: packet.InteractionModelCrosshair})
+		pk, err := bm.yyPhysicalInput(conn, actions)
+		if err != nil {
+			return err
+		}
+		return conn.WritePacket(pk)
 	}
 	faceIndex, slotIndex := 3, 4
 	var blockPos protocol.BlockPos
@@ -181,4 +176,22 @@ func yyPhysicalAction(bm *BotManager, method string, args []any) (any, error) {
 		return nil, e
 	}
 	return map[string]any{"submitted": true, "confirmed": false, "mode": "inventory_transaction", "completion": "观察 world.blockState/events.onBlockChange；放置、消耗与挖掘由服务器校验"}, nil
+}
+
+// The caller holds heartbeatWriteMu so actions cannot reset or reorder input ticks.
+func (bm *BotManager) yyPhysicalInput(conn *minecraft.Conn, actions []protocol.PlayerBlockAction) (*packet.PlayerAuthInput, error) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	if conn == nil || bm.conn != conn || !bm.connected {
+		return nil, fmt.Errorf("物理动作连接已关闭")
+	}
+	flags := protocol.NewBitset(packet.PlayerAuthInputBitsetSize)
+	if bm.flyRequested {
+		flags.Set(packet.InputFlagStartFlying)
+	}
+	if len(actions) > 0 {
+		flags.Set(packet.InputFlagPerformBlockActions)
+	}
+	bm.tick++
+	return &packet.PlayerAuthInput{Position: bm.pos, Pitch: bm.pitch, Yaw: bm.yaw, HeadYaw: bm.yaw, Tick: bm.tick, InputData: flags, BlockActions: actions, InputMode: packet.InputModeMouse, PlayMode: packet.PlayModeScreen, InteractionModel: packet.InteractionModelCrosshair}, nil
 }

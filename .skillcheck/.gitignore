@@ -1,0 +1,52 @@
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/app/src/main/jniLibs/arm64-v8a/libprism.so
+android/app/src/main/jniLibs/armeabi-v7a/
+
+# Go build artifacts
+bot-apk
+prism-toolbox
+prism-toolbox-new
+prism-server
+
+# APK files (root level, 大小写都覆盖)
+prism工具箱_*.apk
+prism工具箱_*.apk.idsig
+Prism工具箱_*.apk
+Prism工具箱_*.apk.idsig
+android/prism*.apk
+android/prism*.apk.idsig
+
+# 项目备份 zip（大体积，不入库）
+prism(1).zip
+
+# Test binaries
+*.test
+
+# Poster and media build
+poster-assets/
+render-*.mjs
+poster-*.html
+poster-*.png
+
+# Temp files
+*.tmp
+*.swp
+debug.keystore
+keys/
+
+# compose-ui build artifacts
+compose-ui/build/
+compose-ui/local.properties
+
+# 运行时插件目录 / 调试日志（bot-apk 根目录当作数据目录时的产物）
+prism_debug.log
+插件文件/
+插件配置文件/
+插件数据文件/
+# 贡献出口节点打包的 gost 二进制（37MB，本地保留，不入库）
+android/app/src/main/assets/gost
+# 发布 APK（构建产物，不入库）
+*.apk
+*.apk.idsig

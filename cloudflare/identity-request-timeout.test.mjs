@@ -9,10 +9,15 @@ import {readFile} from 'node:fs/promises';
 // "正在连接游园云端…" with the submit button disabled. The request layer must
 // give up on its own, say so, and keep the server-side task usable.
 const source = await readFile(new URL('../upstream/frontend/js/youyuan_identity.js', import.meta.url), 'utf8');
+// Match on a whitespace-tolerant pattern: the ES2019 pass reformatted declarations
+// to `var yyPlatformUser = null`, so a literal `var yyPlatformUser=` lookup missed.
+const startMatch = /var\s+yyPlatformUser\s*=/.exec(source);
+const endMatch = /function\s+yyShowIdentity\s*\(/.exec(source);
 const block = source.slice(
-  source.indexOf('var yyPlatformUser='),
-  source.indexOf('function yyShowIdentity(')
+  startMatch ? startMatch.index : 0,
+  endMatch ? endMatch.index : source.length
 );
+if (!/yyIdentityRequest\s*\(/.test(block)) throw new Error('identity request block extraction failed');
 
 function fixture() {
   const calls = [];

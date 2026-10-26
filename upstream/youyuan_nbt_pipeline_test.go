@@ -65,6 +65,53 @@ func TestYYNBTRejectInvalidItems(t *testing.T) {
 		t.Fatal("empty Lua Items should work", e)
 	}
 }
+
+func TestYYNBTShulkerFacingSurvivesJSONAndDefaultsUp(t *testing.T) {
+	for _, name := range []string{"purple_shulker_box", "undyed_shulker_box"} {
+		data, err := yyContainerNBT(name, nil, nil)
+		if err != nil || data["facing"] != byte(1) {
+			t.Fatal(data, err)
+		}
+		data, err = yyContainerNBT(name, nil, map[string]any{"facing": float64(5)})
+		if err != nil || data["facing"] != byte(5) {
+			t.Fatal(data, err)
+		}
+		if _, err := yyContainerNBT(name, nil, map[string]any{"facing": 6}); err == nil {
+			t.Fatal("accepted invalid facing")
+		}
+	}
+	data, err := yyNormalizeNBT(map[string]any{"facing": float64(1)})
+	if err != nil || data.(map[string]any)["facing"] != byte(1) {
+		t.Fatal(data, err)
+	}
+}
+
+func TestYYNBTImportedBuildingServerExportFixture(t *testing.T) {
+	raw, err := os.ReadFile("testdata/nbt-import-roundtrip-20261025.mcstructure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := building.ParseMCStructure(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.SizeX != 5 || d.SizeY != 1 || d.SizeZ != 1 || d.ComputeStats().SolidBlocks != 3 || len(d.NBTBlocks) != 3 {
+		t.Fatal("server round trip lost block entities")
+	}
+	plain := d.Get(0, 0, 0)
+	if !yyNBTContains(plain.NBT, map[string]any{"Items": []any{map[string]any{"Slot": 0, "Name": "minecraft:stone", "Count": 3}, map[string]any{"Slot": 4, "Name": "minecraft:diamond", "Count": 2}}}) {
+		t.Fatal("ordinary slots lost", plain.NBT)
+	}
+	box := d.Get(2, 0, 0)
+	if box.Name != "minecraft:purple_shulker_box" || !yyNBTContains(box.NBT, map[string]any{"facing": 1, "Items": []any{map[string]any{"Slot": 4, "Name": "minecraft:diamond_sword", "Count": 1, "tag": map[string]any{"display": map[string]any{"Name": "游园 NBT 文件导入测试"}, "ench": []any{map[string]any{"id": 9, "lvl": 1}}}}}}) {
+		t.Fatal("shulker item enhancement lost", box.NBT)
+	}
+	head := d.Get(4, 0, 0)
+	parsed, err := nbtInterface.ParseBlock(nil, head.Name, map[string]any{}, head.NBT)
+	if err != nil || parsed.BlockName() != "minecraft:wither_skeleton_skull" {
+		t.Fatal("skull subtype lost", head, err)
+	}
+}
 func TestYYNBTReadbackRequiresEnchantAndName(t *testing.T) {
 	v := yyTestContainer(t)
 	broken := yyTestContainer(t)

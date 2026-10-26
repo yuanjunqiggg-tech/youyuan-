@@ -1,4 +1,11 @@
-.yy-account-selector{display:flex;align-items:center;gap:10px;color:#c5e6e0;background:#204349;border:1px solid #385b60;border-radius:9px;padding:10px 12px;margin:0 16px 14px;text-align:left;cursor:pointer}.yy-account-meta{display:grid;gap:10px;font-size:12px}.yy-account-meta span{display:flex;justify-content:space-between;gap:12px}.yy-account-meta b{overflow-wrap:anywhere;text-align:right}.yy-account-card{min-width:0}.yy-account-card .yy-actions .btn{flex-grow:1}.yy-monitor{margin-top:22px}.yy-metrics{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.yy-chart{border:1px solid var(--phx-border);border-radius:12px;padding:10px;margin:14px 0 22px;overflow:hidden}.yy-chart svg{width:100%;max-height:280px;font-size:11px;fill:var(--phx-text-secondary)}.yy-chart-axis{fill:none;stroke:var(--phx-border)}.yy-chart-line{fill:none;stroke:var(--phx-primary);stroke-width:2.5;stroke-linecap:round}.yy-chart-bar{fill:var(--phx-primary);opacity:.72}.yy-table-wrap{overflow:auto;border:1px solid var(--phx-border);border-radius:10px}.yy-account-table{border-collapse:collapse;width:100%;font-size:12px;min-width:580px}.yy-account-table th{background:var(--phx-bg-secondary);text-align:left;white-space:nowrap;padding:12px}.yy-account-table td{padding:12px;border-top:1px solid var(--phx-border);vertical-align:top;overflow-wrap:anywhere;max-width:320px}.yy-account-table td:first-child{white-space:nowrap}.yy-monitor .yy-section-head input{max-width:250px;margin:0}.yy-monitor h4{font-size:13px;margin:18px 0 4px}.yy-custom-background::before{content:'';position:fixed;inset:0;z-index:-1;background-image:var(--yy-custom-image);background-size:cover;background-position:center}.yy-custom-background{background:transparent!important}.yy-custom-background .content{background:transparent!important}.yy-custom-background .card,.yy-custom-background .yy-aside-panel,.yy-custom-background .yy-tool{background:rgba(255,255,255,var(--yy-card-opacity))!important;backdrop-filter:blur(10px)}[data-theme="dark"] .yy-custom-background .card,[data-theme="dark"] .yy-custom-background .yy-aside-panel,[data-theme="dark"] .yy-custom-background .yy-tool{background:rgba(27,48,51,var(--yy-card-opacity))!important}.yy-cover-controls{position:absolute;bottom:8px;right:12px;display:flex;gap:4px;z-index:2}.yy-cover-controls button{border:0;border-radius:7px;padding:4px 10px;color:#fff;background:rgba(19,46,50,.82);cursor:pointer;font-size:11px}.yy-cover-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:18px}.yy-cover-gallery img{width:100%;height:150px;object-fit:cover;border-radius:10px}.yy-agent-profile-box{width:min(850px,94vw)!important;max-height:88vh;overflow:auto}.yy-profile-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 22px}.yy-profile-checks label{display:flex;align-items:center;gap:9px;border:1px solid var(--phx-border);padding:10px;border-radius:8px;font-size:12px;overflow-wrap:anywhere}.yy-profile-checks input{width:auto!important;margin:0!important}.yy-profile-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 16px 8px}.yy-doc{line-height:1.7;max-height:none!important;white-space:pre-wrap}.nav button[data-tab="accounts"] .ni{font-size:23px;line-height:24px}@media(max-width:760px){.yy-profile-checks{grid-template-columns:1fr}.yy-cover-controls{right:8px;bottom:5px}.yy-monitor .yy-section-head{flex-wrap:wrap}.yy-monitor .yy-section-head input{max-width:100%}.yy-chart{padding:3px}.yy-account-table{font-size:11px}}
+.yy-account-selector{display:flex;align-items:center;gap:10px;color:#c5e6e0;background:#204349;border:1px solid #385b60;border-radius:9px;padding:10px 12px;margin:0 16px 14px;text-align:left;cursor:pointer}
+/* 侧栏当前账号块：上面是真实账号名，下面固定写「账号与项目」说明它是入口而不是选择器。 */
+.yy-account-selector>svg{flex:0 0 auto}
+.yy-account-selector-text{display:flex;flex-direction:column;gap:1px;min-width:0;text-align:left}
+.yy-account-selector-text b{font-size:13px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.yy-account-selector-text small{font-size:10px;line-height:1.3;opacity:.66}
+#yy-active-account-label[data-empty="1"]{font-weight:500;opacity:.72}
+.yy-account-meta{display:grid;gap:10px;font-size:12px}.yy-account-meta span{display:flex;justify-content:space-between;gap:12px}.yy-account-meta b{overflow-wrap:anywhere;text-align:right}.yy-account-card{min-width:0}.yy-account-card .yy-actions .btn{flex-grow:1}.yy-monitor{margin-top:22px}.yy-metrics{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.yy-chart{border:1px solid var(--phx-border);border-radius:12px;padding:10px;margin:14px 0 22px;overflow:hidden}.yy-chart svg{width:100%;max-height:280px;font-size:11px;fill:var(--phx-text-secondary)}.yy-chart-axis{fill:none;stroke:var(--phx-border)}.yy-chart-line{fill:none;stroke:var(--phx-primary);stroke-width:2.5;stroke-linecap:round}.yy-chart-bar{fill:var(--phx-primary);opacity:.72}.yy-table-wrap{overflow:auto;border:1px solid var(--phx-border);border-radius:10px}.yy-account-table{border-collapse:collapse;width:100%;font-size:12px;min-width:580px}.yy-account-table th{background:var(--phx-bg-secondary);text-align:left;white-space:nowrap;padding:12px}.yy-account-table td{padding:12px;border-top:1px solid var(--phx-border);vertical-align:top;overflow-wrap:anywhere;max-width:320px}.yy-account-table td:first-child{white-space:nowrap}.yy-monitor .yy-section-head input{max-width:250px;margin:0}.yy-monitor h4{font-size:13px;margin:18px 0 4px}.yy-custom-background::before{content:'';position:fixed;inset:0;z-index:-1;background-image:var(--yy-custom-image);background-size:cover;background-position:center}.yy-custom-background{background:transparent!important}.yy-custom-background .content{background:transparent!important}.yy-custom-background .card,.yy-custom-background .yy-aside-panel,.yy-custom-background .yy-tool{background:rgba(255,255,255,var(--yy-card-opacity))!important;backdrop-filter:blur(10px)}[data-theme="dark"] .yy-custom-background .card,[data-theme="dark"] .yy-custom-background .yy-aside-panel,[data-theme="dark"] .yy-custom-background .yy-tool{background:rgba(27,48,51,var(--yy-card-opacity))!important}.yy-cover-controls{position:absolute;bottom:8px;right:12px;display:flex;gap:4px;z-index:2}.yy-cover-controls button{border:0;border-radius:7px;padding:4px 10px;color:#fff;background:rgba(19,46,50,.82);cursor:pointer;font-size:11px}.yy-cover-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:18px}.yy-cover-gallery img{width:100%;height:150px;object-fit:cover;border-radius:10px}.yy-agent-profile-box{width:min(850px,94vw)!important;max-height:88vh;overflow:auto}.yy-profile-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 22px}.yy-profile-checks label{display:flex;align-items:center;gap:9px;border:1px solid var(--phx-border);padding:10px;border-radius:8px;font-size:12px;overflow-wrap:anywhere}.yy-profile-checks input{width:auto!important;margin:0!important}.yy-profile-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 16px 8px}.yy-doc{line-height:1.7;max-height:none!important;white-space:pre-wrap}.nav button[data-tab="accounts"] .ni{font-size:23px;line-height:24px}@media(max-width:760px){.yy-profile-checks{grid-template-columns:1fr}.yy-cover-controls{right:8px;bottom:5px}.yy-monitor .yy-section-head{flex-wrap:wrap}.yy-monitor .yy-section-head input{max-width:100%}.yy-chart{padding:3px}.yy-account-table{font-size:11px}}
 .yy-open-agent-tabs{display:flex;align-items:center;gap:4px;overflow-x:auto;padding:8px 16px;border-bottom:1px solid var(--phx-border);white-space:nowrap}.yy-open-agent-tabs button{flex:0 0 auto;margin:0}.yy-open-agent-tabs .active{border-color:var(--phx-primary);color:var(--phx-primary)}.yy-agent-usage{padding:5px 14px;font-size:11px;color:var(--phx-text-secondary);border-bottom:1px solid var(--phx-border-light)}.yy-message-action{display:inline-block;margin:8px 8px 0 0;font-size:10px!important;vertical-align:middle}.yy-agent-message.user .yy-message-action,.yy-agent-message.assistant .yy-message-action{white-space:nowrap}
 
 /* QQ mailbox verification: keep the send button usable on narrow phones. */
@@ -12,14 +19,51 @@
 /* Account cards keep identity, connection and actions in distinct rows. */
 .yy-account-card{display:flex;flex-direction:column;gap:14px;min-width:0}.yy-account-heading{display:flex;align-items:center;gap:12px;min-width:0}.yy-account-heading-text{flex:1;min-width:0}.yy-account-heading h3{margin:0;overflow-wrap:anywhere;font-size:18px;line-height:1.4}.yy-account-heading .yy-badge{flex:0 0 auto}.yy-account-avatar{width:48px;height:48px;flex:0 0 48px;border-radius:14px;background:var(--phx-bg-secondary);display:grid;place-items:center;overflow:hidden}.yy-account-avatar img{width:100%;height:100%;object-fit:cover}.yy-account-card>.yy-hint{margin:0;line-height:1.65}.yy-account-card>.yy-actions{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px}.yy-account-card .yy-actions button{min-height:44px;white-space:normal;margin:0}.yy-profile-preview{width:96px;height:96px;border-radius:24px;background:var(--phx-bg-secondary);display:grid;place-items:center;overflow:hidden;margin-bottom:20px}.yy-profile-preview img{width:100%;height:100%;object-fit:cover}.yy-account-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.yy-account-toolbar input{flex:1;min-width:180px}.yy-account-toolbar select{width:auto;min-width:130px}.yy-pagination{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:20px;flex-wrap:wrap}@media(max-width:600px){#yy-accounts-grid{grid-template-columns:1fr}.yy-account-heading{flex-wrap:wrap}.yy-account-card .yy-actions button{flex:1 1 135px}}
 
-.yy-credential-row{display:block;width:100%;border:1px solid var(--phx-border);border-radius:14px;margin:10px 0;padding:0 14px;background:var(--phx-bg-card)}.yy-credential-row>summary{display:flex;align-items:center;gap:12px;padding:12px 0;list-style:none;cursor:pointer}.yy-credential-row>summary::-webkit-details-marker{display:none}.yy-credential-row>summary:after{content:'▾';margin-left:8px}.yy-credential-row[open]>summary:after{content:'▴'}.yy-credential-row>summary img{width:48px;height:48px;flex:0 0 48px;object-fit:cover;border-radius:11px;image-rendering:pixelated}.yy-credential-row>summary>span:first-of-type{flex:1;min-width:0}.yy-credential-row strong{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.yy-credential-row small{display:block;font-size:12px;color:var(--phx-text-secondary);margin-top:4px}.yy-credential-row>.yy-actions{padding-bottom:14px}.yy-credential-row .yy-badge{font-size:12px;white-space:nowrap}
+/* 游园凭证卡：头像 44/12 与账号页 .yy-compact-avatar 同尺寸；卡头三段（头像 / 文本 / 状态胶囊）同一水平线。 */
+.yy-credential-row{display:block;width:100%;box-sizing:border-box;border:1px solid var(--phx-border);border-radius:14px;margin:0 0 12px;padding:16px;background:var(--phx-bg-card);transition:border-color .16s ease}
+.yy-credential-row:last-child{margin-bottom:0}
+@media(hover:hover){.yy-credential-row:hover{border-color:color-mix(in srgb,var(--phx-primary) 40%,var(--phx-border))}}
+.yy-credential-row>summary{display:flex;align-items:center;gap:12px;min-height:44px;padding:4px 0;list-style:none;cursor:pointer;border-radius:10px}
+.yy-credential-row>summary::-webkit-details-marker{display:none}
+.yy-credential-row>summary:after{content:none}
+.yy-credential-row>summary:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}
+.yy-credential-row>summary:active{opacity:.86}
+.yy-cred-avatar{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;overflow:hidden;border-radius:12px;background:var(--phx-bg-secondary)}
+.yy-cred-avatar .yy-compact-avatar,.yy-cred-avatar img{width:44px;height:44px;min-width:44px;border-radius:12px;object-fit:cover;image-rendering:pixelated}
+.yy-cred-avatar-ph{font-size:15px;line-height:1;color:var(--phx-text-secondary)}
+.yy-cred-identity{display:flex;flex-direction:column;gap:4px;flex:1 1 auto;min-width:0}
+.yy-cred-name{display:block;font-size:15px;font-weight:600;line-height:1.4;color:var(--phx-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yy-credential-row>summary:hover .yy-cred-name{color:var(--phx-primary)}
+.yy-cred-meta{display:block;font-size:11px;line-height:1.5;color:var(--phx-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yy-cred-state{flex:0 0 auto;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:500;line-height:1.4;white-space:nowrap;background:var(--phx-bg-secondary);color:var(--phx-text-secondary)}
+.yy-cred-state[data-state="ok"]{background:color-mix(in srgb,var(--phx-success) 16%,var(--phx-bg-card));color:color-mix(in srgb,var(--phx-success) 72%,var(--phx-text))}
+.yy-cred-state[data-state="warn"]{background:color-mix(in srgb,var(--phx-warning) 16%,var(--phx-bg-card));color:color-mix(in srgb,var(--phx-warning) 70%,var(--phx-text))}
+.yy-credential-row>summary .yy-row-chevron{flex:0 0 12px;font-size:20px;line-height:1;color:var(--phx-text-secondary);transition:transform .16s ease,color .16s ease}
+.yy-credential-row>summary:hover .yy-row-chevron{color:var(--phx-primary);transform:translateX(2px)}
+.yy-credential-row[open]>summary .yy-row-chevron{transform:rotate(90deg)}
+.yy-credential-row[open]>summary:hover .yy-row-chevron{transform:rotate(90deg)}
+.yy-cred-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}
+.yy-cred-actions .btn-s{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:44px;margin:0;padding:10px 12px;font-size:12px;line-height:1.4;text-align:center;white-space:normal}
+.yy-cred-actions .btn-s:hover{border-color:var(--phx-primary);background:var(--phx-bg-card)}
+.yy-cred-actions .btn-s:active{transform:translateY(1px)}
+.yy-cred-actions .btn-s:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}
+.yy-cred-actions .yy-cred-danger{border-color:color-mix(in srgb,var(--phx-error) 50%,var(--phx-border));color:var(--phx-error);background:transparent}
+.yy-cred-actions .yy-cred-danger:hover{border-color:var(--phx-error);background:color-mix(in srgb,var(--phx-error) 10%,transparent)}
+.yy-cred-error{margin:12px 0 0;font-size:11px;line-height:1.6;color:var(--phx-error)}
 
 /* Compact directories: identities stay on one row; settings appear on demand. */
 .yy-compact-list{display:grid;gap:8px}.yy-compact-row,.yy-account-summary{display:grid;grid-template-columns:44px minmax(0,1fr) auto 12px;gap:12px;align-items:center;min-height:68px;width:100%;box-sizing:border-box;text-align:left}.yy-compact-row{margin:0;padding:12px;border:1px solid var(--phx-border);border-radius:12px;background:var(--phx-bg-card);color:var(--phx-text);cursor:pointer}.yy-compact-row:hover{border-color:var(--phx-primary);background:var(--phx-bg-secondary)}.yy-compact-row:focus-visible,.yy-account-summary:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}.yy-compact-avatar{width:44px;height:44px;min-width:44px;display:block;object-fit:cover;border-radius:11px;image-rendering:pixelated}.yy-compact-identity{min-width:0}.yy-compact-identity strong{display:block;font-size:15px;font-weight:700;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.yy-compact-identity small{display:block;font-size:11px;line-height:1.6;color:var(--phx-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.yy-compact-status{font-size:11px;line-height:1.4;color:var(--phx-text-secondary);text-align:right;max-width:118px;overflow-wrap:anywhere}.yy-row-chevron{font-size:22px;color:var(--phx-text-secondary);text-align:right}.yy-admin-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.yy-admin-toolbar .yy-search{flex:1 1 220px;min-width:0;margin:0}.yy-admin-toolbar .yy-search input{width:100%;margin:0;min-width:0;box-sizing:border-box}.yy-admin-toolbar select{flex:0 1 170px;min-width:140px;margin:0}.yy-admin-toolbar button{margin:0;min-height:44px;flex-shrink:0}.yy-admin-list-panel{max-width:1100px;margin-left:auto;margin-right:auto}.yy-subscription-detail{max-width:640px;margin-left:auto;margin-right:auto}.yy-detail-identity{display:flex;gap:12px;align-items:center;margin-bottom:20px}.yy-detail-identity .yy-hint{margin:3px 0}.yy-inline-check{display:flex!important;align-items:center;gap:10px;line-height:1.6}.yy-inline-check input{width:20px!important;min-height:20px;height:20px;margin:0!important;flex:0 0 20px}
 #yy-accounts-grid.yy-account-list{display:grid;grid-template-columns:1fr!important;gap:10px}.yy-account-list .yy-account-card{display:block;gap:0;margin:0;padding:0 14px;border-radius:14px;overflow:hidden}.yy-account-summary{cursor:pointer;padding:12px 0;list-style:none}.yy-account-summary::-webkit-details-marker{display:none}.yy-account-summary:after{display:none!important}.yy-account-card[open]>.yy-account-summary .yy-row-chevron{transform:rotate(90deg)}.yy-account-detail{border-top:1px solid var(--phx-border);padding:14px 0}.yy-account-detail .yy-actions{display:flex;gap:8px;flex-wrap:wrap}.yy-account-detail .yy-hint{line-height:1.65;overflow-wrap:anywhere}.yy-account-detail .yy-account-meta{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.yy-account-detail .yy-account-meta>span{display:block}.yy-account-detail .yy-account-meta b{display:block;text-align:left;margin-top:5px;font-weight:600}
 /* Chat records use vertical cards instead of a fixed-width off-screen table. */
 .yy-chat-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}.yy-chat-filters label{display:block;font-size:12px;min-width:0}.yy-chat-filters input,.yy-chat-filters select{box-sizing:border-box;max-width:100%;min-width:0;width:100%;margin:7px 0 0}.yy-chat-filters button{margin:0;min-height:44px}.yy-chat-bars{display:grid;gap:6px;max-height:280px;overflow:auto;overscroll-behavior:contain}.yy-chat-bar{display:grid;grid-template-columns:minmax(120px,180px) minmax(30px,1fr) 44px;align-items:center;gap:10px;text-align:left;margin:0;padding:8px;border:1px solid transparent;border-radius:8px;color:var(--phx-text-secondary);background:var(--phx-bg-secondary);cursor:pointer;font-size:11px;min-height:38px}.yy-chat-bar.selected{border-color:var(--phx-primary);color:var(--phx-primary)}.yy-chat-bar-track{background:var(--phx-border-light);height:12px;border-radius:4px;overflow:hidden}.yy-chat-bar-track i{display:block;height:100%;background:var(--phx-primary);border-radius:4px;opacity:.75}.yy-chat-bar strong{text-align:right;font-variant-numeric:tabular-nums}.yy-chat-messages{display:grid;gap:10px;min-width:0}.yy-chat-message{min-width:0;border:1px solid var(--phx-border);border-radius:10px;padding:12px;background:var(--phx-bg-card)}.yy-chat-message header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.yy-chat-message header strong{min-width:0;overflow-wrap:anywhere;font-size:13px}.yy-chat-message time,.yy-chat-server{font-size:11px;color:var(--phx-text-secondary)}.yy-chat-server{display:block;overflow-wrap:anywhere;margin-top:5px}.yy-chat-message p{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.65;font-size:13px;margin:10px 0 0}.yy-chat-message pre{max-width:100%;overflow:auto}
-@media(max-width:600px){.yy-compact-row,.yy-account-summary{grid-template-columns:36px minmax(0,1fr) minmax(50px,78px) 9px;gap:8px;padding-top:10px;padding-bottom:10px;min-height:62px}.yy-compact-avatar{width:36px;height:36px;min-width:36px;border-radius:9px}.yy-compact-identity strong{font-size:14px}.yy-compact-status{font-size:10px}.yy-account-list .yy-account-card{padding:0 10px}.yy-account-detail .yy-account-meta{grid-template-columns:1fr;gap:9px}.yy-account-detail .yy-account-meta>span{display:flex}.yy-account-detail .yy-account-meta b{display:inline;margin:0;text-align:right}.yy-account-detail .yy-actions button{flex:1 1 125px;min-height:42px}.yy-admin-toolbar .yy-search{flex-basis:100%}.yy-admin-toolbar select{flex:1}.yy-admin-toolbar button{flex:0 0 auto}.yy-chat-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.yy-chat-filters label:first-child{grid-column:1/-1}.yy-chat-bar{grid-template-columns:minmax(110px,1.3fr) minmax(30px,1fr) 30px;gap:6px;font-size:10px}.yy-chat-message{padding:10px}.yy-chat-message header{align-items:flex-start}.yy-chat-message time{font-size:10px}}
+@media(max-width:600px){.yy-compact-row,.yy-account-summary{grid-template-columns:36px minmax(0,1fr) 110px 9px;gap:8px;padding-top:10px;padding-bottom:10px;min-height:62px}.yy-compact-avatar{width:36px;height:36px;min-width:36px;border-radius:9px}.yy-compact-identity strong{font-size:14px}.yy-compact-status{font-size:10px;line-height:1.35;max-width:none}.yy-account-list .yy-account-card{padding:0 10px}.yy-account-detail .yy-account-meta{grid-template-columns:1fr;gap:9px}.yy-account-detail .yy-account-meta>span{display:flex}.yy-account-detail .yy-account-meta b{display:inline;margin:0;text-align:right}.yy-account-detail .yy-actions button{flex:1 1 125px;min-height:42px}.yy-admin-toolbar .yy-search{flex-basis:100%}.yy-admin-toolbar select{flex:1}.yy-admin-toolbar button{flex:0 0 auto}.yy-chat-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.yy-chat-filters label:first-child{grid-column:1/-1}.yy-chat-bar{grid-template-columns:minmax(110px,1.3fr) minmax(30px,1fr) 30px;gap:6px;font-size:10px}.yy-chat-message{padding:10px}.yy-chat-message header{align-items:flex-start}.yy-chat-message time{font-size:10px}}
+/* 601–1023px（平板 / 半屏桌面）：以前这一档没有定宽，状态列是 auto，
+   六张卡各自按状态文字长度撑开，"已连接"与"内核在线 · 游戏未连接"同行左缘差 76–82px。
+   这里把 ≥1024 的四条定宽列提前到 601 起，让头像 / 名字 / 状态右缘 / 箭头四条线贯通全档。 */
+@media(min-width:601px){
+  .yy-account-summary{grid-template-columns:44px minmax(0,1fr) 132px 14px;column-gap:12px}
+  .yy-account-summary>.yy-compact-status{max-width:none}
+}
 .yy-monitor-trends{border:1px solid var(--phx-border);border-radius:12px;padding:12px;margin:14px 0}.yy-monitor-trends>summary{font-size:13px;cursor:pointer;color:var(--phx-text-secondary)}#yy-admin-pool-entry[hidden],#yy-chat-all-buckets[hidden]{display:none!important}
 
 /* Fixed image boxes do not expose broken-image text in narrow account rows. */
@@ -30,3 +74,293 @@
 .yy-avatar-frame>svg{width:100%;height:100%;fill:currentColor;opacity:.38}.yy-avatar-frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .yy-linked-local,.yy-linked-credential{min-width:0;padding:12px 0}.yy-linked-local+.yy-linked-local,.yy-linked-credential{border-top:1px solid var(--phx-border-light)}
 .yy-account-detail h4{margin:0 0 8px;font-size:13px}.yy-linked-credential>.yy-actions{flex-wrap:wrap}.yy-linked-credential button:disabled{opacity:.65;cursor:not-allowed}
+
+/* ===== 账号形象区：头像 / 完整皮肤 / 身份卡 =====
+   用户要求「像认证网站一样显示头像，打开能看到皮肤，还能调用牌」。
+   颜色一律走 --phx-* 变量，深浅主题都能看；点击区一律不小于 44px（移动端手指可点）。 */
+.yy-acct-nameline{display:flex;align-items:center;gap:6px;min-width:0}
+.yy-acct-nameline strong{min-width:0;flex:0 1 auto}
+.yy-acct-nameline .yy-acct-chip{flex:0 0 auto}
+.yy-acct-dot{display:inline-block;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--phx-text-disabled)}
+.yy-acct-dot[data-online="on"]{background:var(--phx-success);box-shadow:0 0 0 3px color-mix(in srgb,var(--phx-success) 22%,transparent)}
+.yy-acct-dot[data-online="unknown"]{background:var(--phx-warning)}
+.yy-acct-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px 1px 6px;border-radius:999px;font-size:10px;font-style:normal;line-height:1.7;white-space:nowrap;color:var(--phx-text-secondary);background:color-mix(in srgb,var(--phx-text-secondary) 12%,transparent);border:1px solid color-mix(in srgb,var(--phx-text-secondary) 24%,transparent)}
+.yy-acct-chip-icon{width:9px;height:9px;flex:0 0 auto;fill:currentColor}
+.yy-acct-chip[data-role="main"]{color:var(--phx-primary);background:color-mix(in srgb,var(--phx-primary) 14%,transparent);border-color:color-mix(in srgb,var(--phx-primary) 32%,transparent)}
+.yy-acct-chip[data-role="owner"]{color:var(--phx-primary);background:color-mix(in srgb,var(--phx-primary) 9%,transparent)}
+.yy-acct-chip[data-role="cloud"]{color:var(--phx-text-secondary);background:color-mix(in srgb,var(--phx-text-secondary) 9%,transparent)}
+.yy-acct-chip[data-role="bot"]{color:var(--phx-text-disabled);background:color-mix(in srgb,var(--phx-text-disabled) 10%,transparent)}
+.yy-acct-live{font-style:normal;font-size:11px;color:var(--phx-text-secondary);white-space:nowrap}
+.yy-acct-live[data-online="on"]{color:var(--phx-success)}
+.yy-acct-live[data-online="unknown"]{color:var(--phx-warning)}
+
+/* 形象区：左立绘、右身份与操作。立绘用 contain，皮肤原图 64×32 放大后仍是像素感。
+   形象列 168px：三个控制按钮实测需要 44+44+56+12=156px，112px 的列必然折成两行。 */
+.yy-acct-hero{display:grid;grid-template-columns:168px minmax(0,1fr);gap:14px;align-items:start;margin:0 0 16px;min-width:0}
+.yy-acct-figure{position:relative;width:168px;height:196px;border-radius:16px;overflow:hidden;display:grid;place-items:center;border:1px solid var(--phx-border-light);background:linear-gradient(165deg,color-mix(in srgb,var(--phx-primary) 12%,var(--phx-bg-secondary)),var(--phx-bg-secondary))}
+.yy-acct-figure-ph{width:56px;height:112px;fill:currentColor;color:var(--phx-text-secondary);opacity:.6}
+.yy-acct-figure-img{position:absolute;inset:6px;width:calc(100% - 12px);height:calc(100% - 12px);object-fit:contain;image-rendering:pixelated;z-index:1;opacity:0;transition:opacity .18s ease}
+.yy-acct-media-ready .yy-acct-figure-img{opacity:1}
+/* 立体皮肤挂载点：铺满形象区，透明底，让人形直接站在原有渐变上。
+   YYSkinViewer 自己会加 .yy-skin-stage（perspective/触控旋转），这里只给尺寸。 */
+.yy-acct-figure-stage{position:absolute;inset:0;z-index:1;background:transparent}
+/* 双类名（0,2,0）压过 youyuan_skin_viewer.js 运行时注入的 .yy-skin-stage{position:relative}。
+   那条样式是 append 到 <head> 末尾的，会比本文件更晚生效；只写单类名会被它盖掉，
+   舞台变成 position:relative 后两个子元素都是 absolute 且 0×0 —— 整个容器塌成 0×0，
+   3D 人形建出来了却一点都看不见。这里必须把绝对定位和尺寸夺回来。 */
+.yy-acct-figure-stage.yy-skin-stage{position:absolute;inset:0;width:auto;height:auto;background:transparent}
+/* 3D 模型默认基线 top:48%，在 168×196 的框里上下留白是 10/18（脚低头顶空），
+   视觉上「人往右下坠」。抬到 50% 后上下各 14px，脚底离控制条也更近。 */
+.yy-acct-figure-stage .yy-skin-model{top:50%}
+.yy-acct-figure-stage .yy-skin-floor{opacity:.55}
+.yy-acct-media-ready .yy-acct-figure-ph{opacity:0}
+.yy-acct-media-ready .yy-acct-figure-tip{display:none}
+.yy-acct-img-dead{display:none!important}
+.yy-acct-figure-tip{position:absolute;left:6px;right:6px;bottom:8px;z-index:2;text-align:center;font-size:10px;line-height:1.5;color:var(--phx-text-secondary)}
+.yy-acct-hero-main{min-width:0;display:flex;flex-direction:column;gap:12px}
+.yy-acct-hero-line{display:flex;align-items:center;gap:12px;min-width:0}
+.yy-acct-hero-line .yy-compact-avatar{width:56px;height:56px;min-width:56px;border-radius:15px}
+.yy-acct-hero-text{min-width:0;display:flex;flex-direction:column;gap:6px}
+.yy-acct-hero-text strong{font-size:17px;line-height:1.35;overflow-wrap:anywhere}
+.yy-acct-hero-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.yy-acct-hero-acts{display:flex;gap:8px;flex-wrap:wrap}
+.yy-acct-hero-acts button{min-height:44px;margin:0}
+
+/* 令牌：默认打码，点一下才向后端要明文。 */
+.yy-acct-token{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.yy-acct-token-label{font-size:12px;color:var(--phx-text-secondary)}
+.yy-acct-token code{flex:1 1 150px;min-width:0;padding:8px 10px;border:1px solid var(--phx-border);border-radius:8px;background:var(--phx-bg-secondary);color:var(--phx-text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.yy-acct-token button{min-height:44px;margin:0}
+
+/* 牌：视觉上独立的一块，截图就能直接发人。 */
+.yy-acct-cardwrap{border:1px solid var(--phx-border);border-radius:14px;background:var(--phx-bg-secondary);padding:0 12px}
+.yy-acct-cardwrap>summary{display:flex;align-items:center;gap:10px;min-height:44px;padding:10px 0;cursor:pointer;list-style:none;font-size:13px;font-weight:600;color:var(--phx-text)}
+.yy-acct-cardwrap>summary::-webkit-details-marker{display:none}
+.yy-acct-cardwrap>summary:before{content:'';width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .16s ease;flex:0 0 auto;opacity:.6}
+.yy-acct-cardwrap[open]>summary:before{transform:rotate(45deg)}
+.yy-acct-cardwrap>summary small{font-weight:400;font-size:11px;color:var(--phx-text-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yy-acct-cardwrap-body{padding:0 0 12px}
+.yy-acct-card{position:relative;overflow:hidden;border-radius:16px;border:1px solid color-mix(in srgb,var(--phx-primary) 26%,var(--phx-border));padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--phx-primary) 16%,var(--phx-bg-card)),var(--phx-bg-card) 66%)}
+.yy-acct-card:after{content:'';position:absolute;right:-46px;top:-46px;width:150px;height:150px;border-radius:50%;border:1px solid color-mix(in srgb,var(--phx-primary) 26%,transparent);pointer-events:none}
+.yy-acct-card-head{display:flex;align-items:center;gap:12px;min-width:0;position:relative;z-index:1}
+.yy-acct-card-head .yy-compact-avatar{width:52px;height:52px;min-width:52px;border-radius:14px}
+.yy-acct-card-id{min-width:0;display:flex;flex-direction:column;gap:6px}
+.yy-acct-card-id strong{font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.yy-acct-card-id>span{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.yy-acct-card-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:16px 0 0;position:relative;z-index:1}
+.yy-acct-card-facts>div{min-width:0}
+.yy-acct-card-facts dt{font-size:10px;letter-spacing:.04em;color:var(--phx-text-secondary)}
+.yy-acct-card-facts dd{margin:3px 0 0;font-size:12px;font-weight:600;color:var(--phx-text);overflow-wrap:anywhere}
+.yy-acct-card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--phx-primary) 20%,var(--phx-border-light));font-size:10px;color:var(--phx-text-secondary);position:relative;z-index:1}
+.yy-acct-card-foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;overflow-wrap:anywhere;text-align:right;color:var(--phx-text-secondary)}
+.yy-acct-card-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.yy-acct-card-acts button{min-height:44px;margin:0}
+.yy-acct-card-image{margin-top:12px}
+.yy-acct-card-image:empty{display:none}
+.yy-acct-card-image img{display:block;width:100%;max-width:520px;height:auto;border-radius:12px;border:1px solid var(--phx-border)}
+
+@media(max-width:600px){
+  /* 窄屏改单列：模型在上、控制条紧跟其下、身份与操作在下面。
+     两列布局时右栏的按钮会把整行撑高，控制条就被推到模型下方很远。 */
+  .yy-acct-hero{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .yy-acct-figure-col{width:100%}
+  .yy-acct-hero-main{width:100%}
+  .yy-acct-figure{width:92px;height:158px}
+  .yy-acct-figure-ph{width:44px;height:88px}
+  .yy-acct-hero-line .yy-compact-avatar{width:48px;height:48px;min-width:48px;border-radius:13px}
+  .yy-acct-hero-text strong{font-size:15px}
+  .yy-acct-hero-acts button{flex:1 1 132px}
+  .yy-acct-card{padding:14px}
+  .yy-acct-card-facts{grid-template-columns:1fr 1fr;gap:9px 10px}
+  .yy-acct-token code{flex-basis:100%}
+  .yy-acct-token button{flex:1 1 auto}
+}
+
+/* 账号与项目：顶部动作同一行，不再出现「3 个 + 下一行一个」的错位。
+   「进入主账号」只在有主账号时出现，用 flex 让它占更宽一格。 */
+.yy-account-toolbar{display:flex;flex-wrap:nowrap;gap:8px;align-items:stretch;width:100%}
+.yy-account-toolbar>button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;justify-content:center}
+.yy-account-toolbar>.yy-acct-toolbar-wide{flex:1.4 1 0}
+/* ≤420：四个入口（添加 / 刷新 / 皮肤库 / 进入主账号）一行塞不下 ——
+   实测 360 下是 3×103px，第四个「进入主账号」被压成 0 宽、文字全丢。
+   改成 2×2 网格，每个按钮至少 40px 高、整词不截断。 */
+@media(max-width:420px){
+  .yy-account-toolbar.yy-cred-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(40px,auto);gap:8px;align-items:stretch}
+  .yy-account-toolbar.yy-cred-toolbar>button{flex:0 0 auto;width:100%;min-width:0;min-height:40px;padding:0 8px;white-space:nowrap;overflow:visible;text-overflow:clip}
+}
+@media(max-width:430px){.yy-account-toolbar>button{font-size:12px;padding-left:6px;padding-right:6px}}
+@media(max-width:360px){.yy-account-toolbar>button{font-size:11px;padding-left:4px;padding-right:4px}}
+
+/* 形象区右栏字段：以前头像右边空一大块，把服务器/UID/连接填进去。 */
+.yy-acct-hero-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:2px}
+.yy-acct-hero-facts>div{min-width:0;padding-top:6px;border-top:1px solid var(--phx-border-light)}
+.yy-acct-hero-facts span{display:block;font-size:10px;line-height:1.4}
+.yy-acct-hero-facts span{color:var(--phx-text-secondary)}
+.yy-acct-hero-facts b{display:block;font-size:12px;line-height:1.55;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 形象列：立绘 + 它的控制条是一个 flex 竖列，控制条永远紧跟模型底部并水平居中。
+   以前控制条是形象区的兄弟节点，窄屏右栏一变高就被推到屏幕下方。 */
+.yy-acct-figure-col{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+/* 两列布局里形象列不再死锁 168：控制条是「3 个按钮 + 一段提示」，提示要求
+   min-width:140 且不换行，合计 162 + 18 + 140 = 320 > 168。锁死 168 时提示被压成
+   10px 宽的竖排字、整条被撑到 135 高（实测 168×135、提示 10×135、scrollWidth 170）。
+   改成 minmax(168px,auto)：列宽跟着控制条内容走，模型仍居中在列里。 */
+@media(min-width:601px){
+  .yy-acct-figure-col{width:auto;min-width:168px}
+  .yy-acct-hero{grid-template-columns:minmax(168px,auto) minmax(0,1fr)}
+}
+/* 皮肤控制条：走动 / 纤细 / 正视角 + 提示，强制单行、不折、不裁切。 */
+.yy-acct-skin-bar{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:nowrap;margin:0;width:100%;max-width:100%;box-sizing:border-box;overflow:visible}
+.yy-acct-skin-btn{min-height:32px;padding:5px 9px;border:1px solid var(--phx-border-light);border-radius:999px;background:var(--phx-bg-card);color:var(--phx-text);font-size:12px;line-height:1.2;width:auto;flex:0 0 auto;white-space:nowrap}
+.yy-acct-skin-btn:hover{border-color:var(--phx-primary)}
+.yy-acct-skin-btn.is-on{background:var(--phx-primary-bg);border-color:var(--phx-primary);color:var(--phx-primary);font-weight:600}
+.yy-acct-skin-hint{flex:1 1 auto;min-width:140px;white-space:nowrap;margin:0;text-align:left;font-size:10px;line-height:1.4;color:var(--phx-text-secondary)}
+@media(max-width:430px){.yy-acct-hero-facts{gap:6px}}
+@media(max-width:600px){.yy-acct-skin-hint{display:none}}
+
+/* 账号标识：默认掩码，点「查看」才显示，60 秒后 JS 自动回落。 */
+.yy-account-meta .yy-acct-secret{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;letter-spacing:.02em;overflow-wrap:anywhere}
+.yy-acct-ident-btn{min-height:28px;padding:2px 8px;margin:0;flex:none;font-size:11px;line-height:1.3}
+
+/* ===== A4：游戏登录令牌 / 凭证工具条 =====
+   入口按钮和上方按钮组放进同一行、等宽、不换行，长度对齐，也不再多占一屏。 */
+.yy-cred-toolbar{display:flex;flex-wrap:nowrap;align-items:stretch;gap:8px;width:100%;min-width:0}
+.yy-cred-toolbar>button{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;justify-content:center;text-align:center}
+.yy-cred-mainonly{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;font-size:12px;color:var(--phx-text-secondary)}
+.yy-cred-mainonly input{width:16px;height:16px;flex:none;margin:0}
+
+/* ===== 游园凭证页：卡片间距 16 / 14 / 12，间距一律 4 与 8 的倍数 ===== */
+.yy-cred-page .card{padding:16px;border-radius:14px;margin-bottom:12px}
+.yy-cred-page .card:last-child{margin-bottom:0}
+.yy-cred-page .card h3{font-size:15px;font-weight:600;margin:0 0 8px}
+.yy-cred-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.yy-cred-list-head h3{margin:0}
+.yy-cred-list-head .btn-s{min-height:36px;padding:6px 12px;margin:0;font-size:12px}
+.yy-cred-page .yy-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}
+.yy-cred-page .yy-actions .btn,.yy-cred-page .yy-actions .btn-s{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:44px;margin:0;text-align:center;white-space:normal}
+.yy-cred-page .yy-actions .btn:focus-visible,.yy-cred-page .yy-actions .btn-s:focus-visible{outline:2px solid var(--phx-primary);outline-offset:2px}
+.yy-cred-page .yy-hint{margin:8px 0 0;line-height:1.7}
+
+/* 「另有 N 个账号未显示 · 查看全部」提示（只看主账号过滤时由 JS 插入分页区）：
+   分页区是 flex 行，提示若只占内容宽度会把「下一页」挤成第三行孤行。
+   这里让它独占一行并排在控件上方，桌面与移动端一致；颜色用次要色，不抢主按钮。 */
+.yy-account-hidden-note{order:-1;flex:0 0 100%;box-sizing:border-box;width:100%;
+  margin:0 0 4px;font-size:12px;line-height:1.5;color:var(--phx-muted,#6b7784);text-align:left}
+.yy-account-hidden-note a{color:var(--phx-accent,#2f6e9e);text-decoration:underline;
+  text-underline-offset:2px;cursor:pointer;padding:2px 0;min-height:20px}
+.yy-account-hidden-note a:hover{text-decoration-thickness:2px}
+.yy-account-hidden-note a:active{opacity:.7}
+
+/* ===== 账号页：桌面版排版与对齐线（≥1024px）=====
+   问题来源：账号页的卡片、按钮、筛选行都是按手机宽度写的，放到 1152px 的桌面内容区里
+   被横向拉开——四个动作按钮各占四分之一屏、列表状态列跟着文字长短左右浮动、
+   展开后的令牌和主按钮铺满整行。这里只重排桌面版，移动端（<1024px）沿用上面的原样式。
+   间距只用 4 / 8 / 12 / 16 / 24 五档。 */
+#tab-accounts{
+  --yy-acct-w:1120px;    /* 桌面内容宽度 */
+  --yy-acct-row:36px;    /* 控件统一高度 */
+  --yy-acct-gap:8px;     /* 控件统一间距 */
+}
+
+/* 「进入主账号」在没有主账号时仍会显示：.yy-primary / .yy-secondary 的 display:inline-flex
+   会盖掉 hidden 属性自带的 display:none。 */
+.yy-account-toolbar>button[hidden],
+.yy-cred-toolbar>button[hidden]{display:none!important}
+
+/* 窄屏搜索行：输入框、每页条数、只显示主令牌三件并排会撑出屏幕，改成两行。 */
+@media(max-width:600px){
+  .yy-account-toolbar:not(.yy-cred-toolbar){flex-wrap:wrap;gap:8px}
+  .yy-account-toolbar:not(.yy-cred-toolbar)>input{flex:1 1 100%;min-width:0}
+  .yy-account-toolbar:not(.yy-cred-toolbar)>select{flex:1 1 130px;width:auto;min-width:0}
+  .yy-account-toolbar:not(.yy-cred-toolbar)>.yy-cred-mainonly{flex:0 0 auto;height:44px}
+  /* 三个入口按列均分，不再出现「两个一行、第三个独占一行」。 */
+  .yy-center-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;margin:12px 0}
+  .yy-center-tabs button{min-width:0;padding:0 8px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+
+@media(min-width:1024px){
+  /* 1. 内容宽度：定死 1120，左右留白对称（内容区在 224px 侧栏右侧，居中于内容区）。 */
+  #tab-accounts .content-inner{max-width:var(--yy-acct-w)}
+  #tab-accounts .yy-heading{margin-bottom:20px}
+
+  /* 2. 顶部动作：按内容宽度排列，主按钮只有一个，不再四个各占四分之一屏。 */
+  .yy-account-toolbar.yy-cred-toolbar{flex-wrap:wrap;gap:var(--yy-acct-gap)}
+  .yy-account-toolbar.yy-cred-toolbar>button{flex:0 0 auto;min-width:96px;padding-left:18px;padding-right:18px}
+  .yy-account-toolbar.yy-cred-toolbar>button.yy-primary{min-width:112px}
+  .yy-account-toolbar.yy-cred-toolbar>.yy-acct-toolbar-wide{flex:0 0 auto}
+
+  /* 3. 概览四格：数字与说明共用一条基线。 */
+  .yy-account-overview{gap:12px;margin:16px 0 12px}
+  .yy-account-overview>div{padding:16px;border-radius:12px}
+  .yy-account-overview strong{font-size:24px;line-height:1.25}
+  .yy-account-overview span{margin-top:4px}
+
+  /* 4. 模式入口与项目筛选合成一张工具条：以前是两行同款胶囊各占一段，看着重复。
+        上面一行是入口（文字），下面一行是筛选（胶囊），中间一条细线分开。 */
+  .yy-center-tabs{gap:16px;margin:0;padding:4px 16px;border:1px solid var(--phx-border);border-bottom:1px solid var(--phx-border-light);border-radius:12px 12px 0 0;background:var(--phx-bg-card)}
+  .yy-center-tabs button{min-height:var(--yy-acct-row);padding:0 2px;border:0;background:transparent;color:var(--phx-text-secondary);font-size:12px}
+  .yy-center-tabs button:hover{color:var(--phx-primary);background:transparent}
+  .yy-projects{gap:6px;margin:0 0 12px;padding:8px 16px;border:1px solid var(--phx-border);border-top:0;border-radius:0 0 12px 12px;background:var(--phx-bg-card)}
+  .yy-projects>span{font-size:11px;color:var(--phx-text-secondary)}
+  .yy-projects .btn-s{min-height:32px;padding:0 12px;font-size:12px}
+
+  /* 5. 搜索行：输入框按内容宽度，右侧控件贴着它，右侧不再留大片空白。 */
+  .yy-account-toolbar:not(.yy-cred-toolbar){flex-wrap:wrap;gap:var(--yy-acct-gap);align-items:center}
+  .yy-account-toolbar:not(.yy-cred-toolbar)>input{flex:0 1 320px;min-width:0;height:var(--yy-acct-row);min-height:var(--yy-acct-row);margin:0}
+  .yy-account-toolbar:not(.yy-cred-toolbar)>select{flex:0 0 120px;width:120px;min-width:0;height:var(--yy-acct-row);min-height:var(--yy-acct-row);margin:0}
+  .yy-account-toolbar:not(.yy-cred-toolbar)>.yy-cred-mainonly{height:var(--yy-acct-row);padding-left:4px}
+  #yy-account-cloud-status{margin:12px 0 0}
+  .yy-pagination{margin-top:12px}
+
+  /* 6. 列表行：四列定宽，头像左缘、名字左缘、状态右缘、箭头右缘各自成一条对齐线。 */
+  .yy-account-summary{grid-template-columns:44px minmax(0,1fr) 132px 14px;column-gap:12px;min-height:64px;padding:10px 0}
+  .yy-account-summary>.yy-compact-status{max-width:none;font-size:12px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .yy-account-list .yy-account-card{padding:0 16px}
+  .yy-compact-identity strong{font-size:15px}
+  .yy-compact-identity small{font-size:11px}
+
+  /* 7. 展开详情：主操作只有一个且不铺满，其余按钮与它同高同距。 */
+  .yy-account-detail{padding:16px 0}
+  /* 形象列跟着皮肤控制条内容走（≥168），提示不再被压成竖排字。 */
+  .yy-acct-hero{grid-template-columns:minmax(168px,auto) minmax(0,1fr);gap:16px;margin-bottom:12px}
+  /* 头像右边那一栏以前只按内容宽度撑开，服务器 / UID / 连接三格挤在左边、右边留空。 */
+  .yy-acct-hero-line .yy-acct-hero-text{flex:1 1 auto;min-width:0}
+  .yy-acct-hero-acts{gap:var(--yy-acct-gap)}
+  .yy-acct-hero-acts>.btn{width:auto;flex:0 0 auto;min-width:120px;min-height:var(--yy-acct-row)}
+  .yy-acct-hero-acts>.btn-s{width:auto;flex:0 0 auto;min-height:var(--yy-acct-row)}
+  .yy-acct-token code{flex:0 1 300px}
+  .yy-acct-token button{min-height:var(--yy-acct-row)}
+  .yy-acct-skin-bar{margin:0}
+  .yy-acct-skin-hint{margin-left:0}
+
+  /* 8. 字段表：标签在左、值在右，每格填满列宽；三列共用两条对齐线，读起来是表。 */
+  .yy-account-detail .yy-account-meta{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 24px;margin:0}
+  .yy-account-detail .yy-account-meta>span{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--phx-border-light)}
+  .yy-account-detail .yy-account-meta b{display:inline;margin:0;min-width:0;text-align:right;overflow-wrap:anywhere}
+  .yy-linked-local+.yy-linked-local,.yy-linked-credential{border-top:1px solid var(--phx-border)}
+  .yy-account-detail>.yy-linked-local:first-of-type{border-top:1px solid var(--phx-border);margin-top:12px;padding-top:12px}
+
+  /* 9. 卡片内动作：等宽成组靠左，不再各自 flex-grow 拉散。 */
+  .yy-account-card .yy-actions{gap:var(--yy-acct-gap);margin-top:12px}
+  .yy-account-card .yy-actions .btn{flex-grow:0;min-height:var(--yy-acct-row)}
+  .yy-account-card .yy-actions .btn-s{min-height:var(--yy-acct-row)}
+  .yy-linked-local,.yy-linked-credential{padding:12px 0}
+
+  /* 10. 运行记录 / 聊天记录：五个筛选项加清空按钮排成一行。 */
+  .yy-monitor{margin-top:16px}
+  .yy-monitor-picker{width:220px;min-width:0;max-width:220px;flex:0 0 220px}
+  .yy-chat-filters{grid-template-columns:1.4fr repeat(4,minmax(0,1fr)) auto;gap:12px;align-items:end}
+  .yy-chat-filters label{font-size:11px}
+  .yy-chat-filters input,.yy-chat-filters select{height:var(--yy-acct-row);min-height:var(--yy-acct-row);margin-top:4px;font-size:12px}
+  .yy-chat-filters>button{justify-self:start;min-height:var(--yy-acct-row);margin:0;padding:0 14px;white-space:nowrap}
+  .yy-monitor .yy-section-head{margin-top:20px}
+  .yy-monitor-trends{margin:12px 0}
+
+  /* 11. 「另有 N 个账号未显示 · 查看全部」提示：开启只看主账号时必须可见，
+         不能默默吞掉账号。占满一行、用次要色，不抢主按钮。 */
+  .yy-account-hidden-note{grid-column:1/-1;display:block;width:100%;box-sizing:border-box;
+    margin:2px 0 0;font-size:12px;line-height:1.5;color:var(--phx-muted,#6b7784);text-align:left}
+  .yy-account-hidden-note a{color:var(--phx-accent,#2f6f9e);text-decoration:underline;
+    text-underline-offset:2px;cursor:pointer;padding:2px 0;min-height:20px}
+  .yy-account-hidden-note a:hover{text-decoration-thickness:2px}
+  .yy-account-hidden-note a:active{opacity:.7}
+}

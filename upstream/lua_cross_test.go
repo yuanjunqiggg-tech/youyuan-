@@ -51,11 +51,7 @@ func TestCrossPluginMissing(t *testing.T) {
 
 func TestCrossPluginBusyQueuesAndCycleStillFails(t *testing.T) {
 	bm := &BotManager{}
-	entered, release := make(chan struct{}), make(chan struct{})
-	old := sendTargetedHook
-	setSendTargetedHook(func(string, string) error { close(entered); <-release; return nil })
-	defer setSendTargetedHook(old)
-	if e := LoadLuaPlugin(bm, "busy-target", `plugin_api={value=function()return 7 end};function work()game.sendTargeted('probe','hold')end`); e != nil {
+	if e := LoadLuaPlugin(bm, "busy-target", `plugin_api={value=function()return 7 end}`); e != nil {
 		t.Fatal(e)
 	}
 	if e := LoadLuaPlugin(bm, "busy-caller", `function get()return api.require('busy-target').value()end`); e != nil {
@@ -63,8 +59,15 @@ func TestCrossPluginBusyQueuesAndCycleStillFails(t *testing.T) {
 	}
 	defer yyStopResident(bm, "busy-target")
 	defer yyStopResident(bm, "busy-caller")
-	go yyCallResident(bm, "busy-target", "work", nil, false, false)
-	<-entered
+	// Network waits now yield the VM; hold its lock to test actual VM contention.
+	target, _ := yyGetResident(bm, "busy-target")
+	target.mu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			target.mu.Unlock()
+		}
+	}()
 	done := make(chan any, 1)
 	go func() {
 		v, e := yyCallResident(bm, "busy-caller", "get", nil, false, false)
@@ -79,7 +82,8 @@ func TestCrossPluginBusyQueuesAndCycleStillFails(t *testing.T) {
 		t.Fatalf("busy call did not queue: %v", v)
 	case <-time.After(20 * time.Millisecond):
 	}
-	close(release)
+	target.mu.Unlock()
+	locked = false
 	select {
 	case v := <-done:
 		if v != float64(7) {

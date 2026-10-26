@@ -132,10 +132,10 @@ func TestPacketEventQueueIsBounded(t *testing.T) {
 	r := yyLuaStates[yyLuaKey{bm, id}]
 	yyLuaMu.Unlock()
 	r.mu.Lock()
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < cap(r.senseQueue)+1000; i++ {
 		yyQueueResidentEvent(bm, id, "tick", nil)
 	}
-	if len(r.senseQueue) > 128 || r.senseDropped.Load() < 871 {
+	if cap(r.senseQueue) != yyObservationSettings().EventQueue || r.senseDropped.Load() < 999 {
 		t.Errorf("unbounded/drop missing %d %d", len(r.senseQueue), r.senseDropped.Load())
 	}
 	r.mu.Unlock()

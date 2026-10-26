@@ -1,0 +1,32 @@
+.yy-room-results{margin:10px 0;min-width:0;min-height:170px;overflow-anchor:none}.yy-room-group h4{margin:12px 0 8px}.yy-room-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:10px}.yy-room-card{border:1px solid var(--phx-border-light);border-radius:12px;overflow:hidden;min-width:0;background:var(--phx-surface)}.yy-room-cover{display:block;width:100%;height:112px;object-fit:cover}.yy-room-content{padding:12px;overflow-wrap:anywhere}.yy-room-content strong{font-size:14px}.yy-room-content p,.yy-room-hint{font-size:12px;line-height:1.6;color:var(--phx-text-secondary)}.yy-room-avatar{width:32px;height:32px;object-fit:cover;border-radius:50%;float:left;margin-right:8px}.yy-room-content .btn{width:100%;margin-top:6px}.yy-room-card{position:relative}.yy-room-badge{position:absolute;top:8px;right:8px;z-index:3;background:rgba(20,20,24,.62);color:#fff;font-size:11px;line-height:1;padding:5px 9px;border-radius:999px;letter-spacing:.02em;pointer-events:none;backdrop-filter:blur(2px)}.yy-room-ver{position:absolute;top:8px;left:8px;z-index:3;background:rgba(20,20,24,.62);color:#fff;font-size:10px;line-height:1;padding:5px 8px;border-radius:999px;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}.yy-room-card-selected{border-color:#c8a165;box-shadow:0 0 0 2px rgba(200,161,101,.4)}.yy-room-selected-bar{margin:6px 0 10px;padding:9px 14px;font-size:13px;border-radius:10px;border:1px solid rgba(200,161,101,.45);background:rgba(200,161,101,.12)}.yy-room-owner{color:var(--phx-text-secondary,#7a7a7a)}
+.yy-room-badges{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:8px 10px;min-width:0}.yy-room-badges .yy-room-ver,.yy-room-badges .yy-room-badge{position:static;max-width:100%;white-space:normal;overflow-wrap:anywhere;font-size:11px;padding:4px 7px;line-height:1.25}.yy-room-current{min-width:0;max-width:100%;margin:0 0 14px;overflow-wrap:anywhere}.yy-room-current .yy-room-cover{height:140px}.yy-room-current .yy-room-content{padding:10px}.yy-room-current .yy-room-content p{margin:6px 0 0}.yy-room-current>.yy-hint{margin:7px 0}.yy-room-current-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}.yy-room-refresh{display:grid;flex:1 1 190px;gap:4px;min-width:0;margin:0;font-size:12px}.yy-room-refresh input[type=range]{width:100%;min-width:0;margin:0;padding:0}.yy-room-current .yy-room-card{border-color:var(--phx-border-light);box-shadow:none}@media(max-width:480px){.yy-room-current-actions{align-items:stretch}.yy-room-refresh{flex-basis:100%}.yy-room-current .yy-room-cover{height:112px}}
+
+/* 当前服务器 hero：宽幅横幅版式，位于「终端 / 角色等级与经验」快捷行下方 */
+.yy-server-hero{grid-column:1/-1;position:relative;margin:0 0 24px;border:1px solid var(--phx-border);border-radius:20px;background:var(--phx-bg-card);overflow:hidden;box-shadow:0 20px 44px -34px rgba(15,32,40,.6)}
+.yy-server-hero::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 160% at 0% 0%,color-mix(in srgb,var(--phx-primary) 13%,transparent),transparent 62%)}
+.yy-hero-host{position:relative;min-width:0}
+.yy-hero-card{display:grid;grid-template-columns:minmax(0,264px) minmax(0,1fr);align-items:stretch;min-height:170px}
+.yy-hero-card-plain{grid-template-columns:minmax(0,1fr)}
+.yy-hero-cover{display:block;width:100%;height:100%;min-height:170px;object-fit:cover;background:var(--phx-bg-secondary)}
+.yy-hero-main{display:flex;flex-direction:column;justify-content:center;gap:16px;padding:20px 24px;min-width:0}
+.yy-hero-title{display:flex;align-items:center;gap:14px;min-width:0}
+.yy-hero-avatar{width:56px;height:56px;flex:0 0 56px;border-radius:18px;object-fit:cover;image-rendering:pixelated;background:var(--phx-bg-secondary);border:1px solid var(--phx-border-light)}
+.yy-hero-title-text{min-width:0}
+.yy-hero-title-text strong{display:block;font-size:20px;line-height:1.32;letter-spacing:-.2px;overflow-wrap:anywhere}
+.yy-hero-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.yy-hero-tag{font-size:11px;line-height:1.5;padding:3px 9px;border-radius:999px;border:1px solid var(--phx-border-light);background:var(--phx-bg-secondary);color:var(--phx-text-secondary);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.yy-hero-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0;min-width:0}
+.yy-hero-fact{min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--phx-border-light);background:color-mix(in srgb,var(--phx-bg-secondary) 72%,transparent)}
+.yy-hero-fact dt{margin:0;font-size:10px;letter-spacing:.06em;color:var(--phx-text-secondary)}
+.yy-hero-fact dd{margin:4px 0 0;font-size:14px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.yy-server-hero-foot{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px 24px 16px;border-top:1px solid var(--phx-border-light)}
+.yy-server-hero-foot .yy-hint{margin:0}
+.yy-server-state{order:1;flex:1 1 260px;font-size:12px;line-height:1.6}
+.yy-server-note{order:2;flex:0 1 auto;font-size:11px;line-height:1.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yy-server-hero .yy-room-current-actions{order:3;margin-left:auto;justify-content:flex-end;flex-wrap:nowrap}
+.yy-server-hero .yy-room-refresh{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0}
+.yy-server-hero .yy-room-refresh span{white-space:nowrap;font-size:11px}
+.yy-server-hero .yy-room-refresh input[type=range]{flex:0 0 96px;width:96px}
+@media(max-width:900px){.yy-hero-card{grid-template-columns:minmax(0,1fr)}.yy-hero-cover{min-height:128px;max-height:150px}.yy-hero-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.yy-hero-main{padding:16px}.yy-hero-avatar{width:48px;height:48px;flex-basis:48px;border-radius:15px}.yy-hero-title-text strong{font-size:17px}.yy-server-hero-foot{padding:12px 16px 14px}.yy-server-hero .yy-room-current-actions{width:100%;margin-left:0;justify-content:flex-start}.yy-server-hero .yy-room-refresh{flex:1 1 100%}}
+@media(prefers-reduced-motion:reduce){.yy-server-hero{box-shadow:none}}

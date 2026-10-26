@@ -1,4 +1,4 @@
-var yyAccountPage = 1, yyAccountPageSize = 8, yyAccountFocusID = "", yyAccountRows = [], yyMonitorID = "main", yyAccountTimer = null, yyObservations = null;
+var yyAccountPage = 1, yyAccountPageSize = 15, yyCredMainOnly = false, yyAccountHiddenByMainOnly = 0, yyAccountFocusID = "", yyAccountRows = [], yyMonitorID = "main", yyAccountTimer = null, yyObservations = null;
 async function yyRootAPI(method, path, body) {
   try {
     var r = await yyRootFetch(path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : void 0 });
@@ -12,19 +12,46 @@ function yyAccountName(id) {
   return row ? row.name : "\u4E3B\u8D26\u53F7";
 }
 async function Raccounts() {
-  document.getElementById("tab-accounts").innerHTML = '<div class="content-inner">' + yyHeading("\u8D26\u53F7\u4E0E\u9879\u76EE", "\u6E38\u620F\u8D26\u53F7\u4E0E\u670D\u52A1\u5668\u9879\u76EE\uFF0C\u7EDF\u4E00\u7BA1\u7406\u3002") + `<div class="yy-actions"><button class="yy-primary" onclick="yyEditAccount()">\u6DFB\u52A0\u8D26\u53F7</button><button class="yy-secondary" onclick="yyCenterRefresh()">\u5237\u65B0\u8D26\u53F7</button><button class="yy-secondary" hidden onclick="yyEnterAccount('main')">\u8FDB\u5165\u4E3B\u8D26\u53F7</button></div><p class="yy-hint">\u7B2C 5 \u4E2A\u5DE5\u4F5C\u7A7A\u95F4 \xB7 \u5F53\u524D\u64CD\u4F5C\uFF1A<b id="yy-current-account"></b>\u3002\u9009\u62E9\u8D26\u53F7\u540E\uFF0C\u53EF\u8FDE\u63A5\u670D\u52A1\u5668\u5E76\u7BA1\u7406\u5BF9\u5E94\u7684\u673A\u5668\u4EBA\u3002</p><div id="yy-account-overview" class="yy-account-overview"></div><div class="yy-center-tabs"><button class="btn-s" onclick="yyAccountPanel('accounts')">\u6E38\u620F\u8D26\u53F7</button><button class="btn-s" id="yy-admin-pool-entry" hidden onclick="yyPoolPanel(true)">\u7BA1\u7406\u5458\u6258\u7BA1\u6C60</button><button class="btn-s" onclick="yyGameAuthPage()">\u6CE8\u518C\u4E0E\u8BA4\u8BC1\u4EFB\u52A1</button></div><div id="yy-pool-panel" hidden></div><div id="yy-game-accounts-panel"><div id="yy-projects" class="yy-projects"></div><div class="yy-account-toolbar"><input id="yy-account-search" aria-label="\u641C\u7D22\u8D26\u53F7" placeholder="\u641C\u7D22\u6635\u79F0\u3001UID\u6216\u670D\u52A1\u5668" oninput="yyAccountPage=1;yyRenderAccountCards()"><select id="yy-account-page-size" aria-label="\u6BCF\u9875\u8D26\u53F7\u6570" onchange="yyAccountPageSize=Number(this.value);yyAccountPage=1;yyRenderAccountCards()"><option value="8">\u6BCF\u9875 8 \u4E2A</option><option value="16">\u6BCF\u9875 16 \u4E2A</option><option value="32">\u6BCF\u9875 32 \u4E2A</option></select></div><div id="yy-accounts-grid" class="yy-form-grid yy-account-list"></div><div id="yy-account-pages" class="yy-pagination"></div><p id="yy-account-cloud-status" class="yy-hint" role="status">\u6B63\u5728\u540C\u6B65\u5DF2\u6388\u6743\u6E38\u620F\u51ED\u636E\u2026</p></div><section class="card yy-monitor"><div class="yy-form-head"><h3>` + yyIcon("connection") + '\u8FD0\u884C\u8BB0\u5F55</h3><select id="yy-monitor-account" aria-label="\u67E5\u770B\u8D26\u53F7" onchange="yyMonitorID=this.value;yyRefreshMonitor()"></select></div><div class="yy-metrics" id="yy-monitor-metrics"></div><p class="yy-hint" id="yy-online-source"></p><details class="yy-monitor-trends"><summary>\u5728\u7EBF\u4EBA\u6570\u8D8B\u52BF\u4E0E\u5206\u5E03</summary><h4>\u5728\u7EBF\u4EBA\u6570 \xB7 \u65F6\u95F4\u7EBF</h4><div id="yy-online-chart" class="yy-chart"></div><h4>\u6BCF\u5C0F\u65F6\u4EBA\u6570\u5206\u5E03 \xB7 \u89C2\u6D4B\u5747\u503C</h4><div id="yy-distribution-chart" class="yy-chart"></div></details><div class="yy-section-head"><h3>\u804A\u5929\u8BB0\u5F55</h3></div><div class="yy-chat-filters"><label>\u641C\u7D22\u6D88\u606F<input id="yy-chat-filter" aria-label="\u641C\u7D22\u804A\u5929\u8BB0\u5F55" placeholder="\u8F93\u5165\u6D88\u606F\u5173\u952E\u8BCD" oninput="yyChatFilterChanged()"></label><label>\u73A9\u5BB6<select id="yy-chat-player" aria-label="\u6309\u73A9\u5BB6\u7B5B\u9009\u804A\u5929" onchange="yyChatFilterChanged()"><option value="">\u6240\u6709\u73A9\u5BB6</option></select></label><label>\u5F00\u59CB\u65F6\u95F4<input id="yy-chat-start" type="datetime-local" aria-label="\u804A\u5929\u5F00\u59CB\u65F6\u95F4" onchange="yyChatFilterChanged()"></label><label>\u7ED3\u675F\u65F6\u95F4\uFF08\u542B\u6B64\u5206\u949F\uFF09<input id="yy-chat-end" type="datetime-local" aria-label="\u804A\u5929\u7ED3\u675F\u65F6\u95F4" onchange="yyChatFilterChanged()"></label><label>\u6C47\u603B\u95F4\u9694<select id="yy-chat-interval" aria-label="\u804A\u5929\u6C47\u603B\u95F4\u9694" onchange="yyChatFilterChanged()"><option value="3600000">\u6BCF\u5C0F\u65F6</option><option value="900000">\u6BCF 15 \u5206\u949F</option><option value="86400000">\u6BCF\u5929</option></select></label><button class="btn-s" onclick="yyChatResetFilters()">\u6E05\u7A7A\u7B5B\u9009</button></div><div class="yy-section-head"><h4>\u65F6\u6BB5\u6D88\u606F\u91CF \xB7 \u70B9\u51FB\u67E5\u770B</h4><button class="btn-s" id="yy-chat-all-buckets" onclick="yyChatChooseBucket(null,null)" hidden>\u5168\u90E8\u65F6\u6BB5</button></div><div id="yy-chat-bars" class="yy-chat-bars"></div><p id="yy-chat-summary" class="yy-hint" role="status"></p><div id="yy-chat-table" class="yy-chat-messages"></div><div id="yy-chat-pages" class="yy-pagination"></div><p class="yy-hint">\u804A\u5929\u6309\u6700\u65B0\u65F6\u95F4\u6392\u5E8F\uFF1B\u7B5B\u9009\u4E0E\u65F6\u6BB5\u7EDF\u8BA1\u4EC5\u9488\u5BF9\u5F53\u524D\u8D26\u53F7\u5B9E\u9645\u4FDD\u7559\u7684\u8BB0\u5F55\uFF0C\u5185\u6838\u6700\u591A\u4FDD\u5B58\u6700\u8FD1 10,000 \u6761\u3002\u65F6\u95F4\u6309\u672C\u8BBE\u5907\u65F6\u533A\u663E\u793A\u3002</p></section></div>';
+  document.getElementById("tab-accounts").innerHTML = '<div class="content-inner">' + yyHeading("\u8D26\u53F7\u4E0E\u9879\u76EE", "\u6E38\u620F\u8D26\u53F7\u4E0E\u670D\u52A1\u5668\u9879\u76EE\uFF0C\u7EDF\u4E00\u7BA1\u7406\u3002") + `<div class="yy-actions yy-account-toolbar yy-cred-toolbar"><button class="yy-primary" onclick="yyEditAccount()">\u6DFB\u52A0\u8D26\u53F7</button><button class="yy-secondary" onclick="yyCenterRefresh()">\u5237\u65B0\u8D26\u53F7</button><button class="yy-secondary" onclick="yySkinLibraryOpen()">\u76AE\u80A4\u5E93</button><button class="yy-secondary yy-acct-toolbar-wide" hidden onclick="yyEnterAccount('main')">\u8FDB\u5165\u4E3B\u8D26\u53F7</button></div><p class="yy-hint">\u5F53\u524D\u64CD\u4F5C\uFF1A<b id="yy-current-account">\u5C1A\u672A\u9009\u62E9\u8D26\u53F7</b> \xB7 \u9009\u62E9\u8D26\u53F7\u540E\uFF0C\u53EF\u8FDE\u63A5\u670D\u52A1\u5668\u5E76\u7BA1\u7406\u5BF9\u5E94\u7684\u673A\u5668\u4EBA\u3002</p><div id="yy-account-overview" class="yy-account-overview"></div><div class="yy-center-tabs"><button class="btn-s" onclick="yyAccountPanel('accounts')">\u6E38\u620F\u8D26\u53F7</button><button class="btn-s" id="yy-admin-pool-entry" hidden onclick="yyPoolPanel(true)">\u7BA1\u7406\u5458\u6258\u7BA1\u6C60</button><button class="btn-s" onclick="yyGameAuthPage()">\u6CE8\u518C\u4E0E\u8BA4\u8BC1\u4EFB\u52A1</button></div><div id="yy-pool-panel" hidden></div><div id="yy-game-accounts-panel"><div id="yy-projects" class="yy-projects"></div><div class="yy-account-toolbar"><input id="yy-account-search" aria-label="\u641C\u7D22\u8D26\u53F7" placeholder="\u641C\u7D22\u6635\u79F0\u3001UID\u6216\u670D\u52A1\u5668" oninput="yyAccountPage=1;yyAccountSearch=this.value;yyRenderAccountCards()"><select id="yy-account-page-size" aria-label="\u6BCF\u9875\u8D26\u53F7\u6570" onchange="yyAccountPageSize=Number(this.value);yyAccountPage=1;yyRenderAccountCards()"><option value="15" selected>\u6BCF\u9875 15 \u4E2A</option><option value="30">\u6BCF\u9875 30 \u4E2A</option><option value="50">\u6BCF\u9875 50 \u4E2A</option></select><label class="yy-cred-mainonly"><input type="checkbox" id="yy-cred-main-only" onchange="yyCredMainOnlySet(this.checked)"><span>\u53EA\u770B\u4E3B\u8D26\u53F7</span></label></div><div id="yy-accounts-grid" class="yy-form-grid yy-account-list"></div><div id="yy-account-pages" class="yy-pagination"></div><p id="yy-account-cloud-status" class="yy-hint" role="status">\u6B63\u5728\u540C\u6B65\u5DF2\u6388\u6743\u6E38\u620F\u51ED\u636E\u2026</p></div><section class="card yy-monitor"><div class="yy-form-head"><h3>` + yyIcon("connection") + '\u8FD0\u884C\u8BB0\u5F55</h3><select id="yy-monitor-account" aria-label="\u67E5\u770B\u8D26\u53F7" hidden onchange="yyMonitorID=this.value;yyRefreshMonitor()"></select><button type="button" class="yy-acct-picker-trigger yy-monitor-picker" onclick="yyAcctPickerOpen(\'yy-monitor-account\')"><span data-acct-picker-label="yy-monitor-account">\u9009\u62E9\u8D26\u53F7</span><i aria-hidden="true">\u25BE</i></button></div><div class="yy-metrics" id="yy-monitor-metrics"></div><p class="yy-hint" id="yy-online-source"></p><details class="yy-monitor-trends"><summary>\u5728\u7EBF\u4EBA\u6570\u8D8B\u52BF\u4E0E\u5206\u5E03</summary><h4>\u5728\u7EBF\u4EBA\u6570 \xB7 \u65F6\u95F4\u7EBF</h4><div id="yy-online-chart" class="yy-chart"></div><h4>\u6BCF\u5C0F\u65F6\u4EBA\u6570\u5206\u5E03 \xB7 \u89C2\u6D4B\u5747\u503C</h4><div id="yy-distribution-chart" class="yy-chart"></div></details><div class="yy-section-head"><h3>\u804A\u5929\u8BB0\u5F55</h3></div><div class="yy-chat-filters"><label>\u641C\u7D22\u6D88\u606F<input id="yy-chat-filter" aria-label="\u641C\u7D22\u804A\u5929\u8BB0\u5F55" placeholder="\u8F93\u5165\u6D88\u606F\u5173\u952E\u8BCD" oninput="yyChatFilterChanged()"></label><label>\u73A9\u5BB6<select id="yy-chat-player" aria-label="\u6309\u73A9\u5BB6\u7B5B\u9009\u804A\u5929" onchange="yyChatFilterChanged()"><option value="">\u6240\u6709\u73A9\u5BB6</option></select></label><label>\u5F00\u59CB\u65F6\u95F4<input id="yy-chat-start" type="datetime-local" aria-label="\u804A\u5929\u5F00\u59CB\u65F6\u95F4" onchange="yyChatFilterChanged()"></label><label>\u7ED3\u675F\u65F6\u95F4\uFF08\u542B\u6B64\u5206\u949F\uFF09<input id="yy-chat-end" type="datetime-local" aria-label="\u804A\u5929\u7ED3\u675F\u65F6\u95F4" onchange="yyChatFilterChanged()"></label><label>\u6C47\u603B\u95F4\u9694<select id="yy-chat-interval" aria-label="\u804A\u5929\u6C47\u603B\u95F4\u9694" onchange="yyChatFilterChanged()"><option value="3600000">\u6BCF\u5C0F\u65F6</option><option value="900000">\u6BCF 15 \u5206\u949F</option><option value="86400000">\u6BCF\u5929</option></select></label><button class="btn-s" onclick="yyChatResetFilters()">\u6E05\u7A7A\u7B5B\u9009</button></div><div class="yy-section-head"><h4>\u65F6\u6BB5\u6D88\u606F\u91CF \xB7 \u70B9\u51FB\u67E5\u770B</h4><button class="btn-s" id="yy-chat-all-buckets" onclick="yyChatChooseBucket(null,null)" hidden>\u5168\u90E8\u65F6\u6BB5</button></div><div id="yy-chat-bars" class="yy-chat-bars"></div><p id="yy-chat-summary" class="yy-hint" role="status"></p><div id="yy-chat-table" class="yy-chat-messages"></div><div id="yy-chat-pages" class="yy-pagination"></div><p class="yy-hint">\u804A\u5929\u6309\u6700\u65B0\u65F6\u95F4\u6392\u5E8F\uFF1B\u7B5B\u9009\u4E0E\u65F6\u6BB5\u7EDF\u8BA1\u4EC5\u9488\u5BF9\u5F53\u524D\u8D26\u53F7\u5B9E\u9645\u4FDD\u7559\u7684\u8BB0\u5F55\uFF0C\u5185\u6838\u6700\u591A\u4FDD\u5B58\u6700\u8FD1 10,000 \u6761\u3002\u65F6\u95F4\u6309\u672C\u8BBE\u5907\u65F6\u533A\u663E\u793A\u3002</p></section></div>';
+  yyAccountControlsRestore();
+  yySyncActiveAccountLabel();
   yyUpdateAdminPoolEntry();
   yyRenderAccountSnapshot();
   clearInterval(yyAccountTimer);
   yyAccountTimer = setInterval(function() {
-    if (curTab === "accounts" && !subPageOpen) yyRefreshAccounts();
+    // 不可见的标签页不刷新：这里每轮是 3 个 /api 请求，全部经过 Worker 计费。
+    if (curTab === "accounts" && !subPageOpen && !document.hidden) yyRefreshAccounts();
   }, 1e4);
   activeRenderers.push(function() {
     clearInterval(yyAccountTimer);
   });
-  await Promise.all([yyRefreshAccounts(), yyCenterCloudAccounts()]);
+  // 先渲染本地账号再拉云端：原来 Promise.all 等两个都回来才出内容，
+  // 认证服务一慢，账号页就是一片空白（用户反馈「点开很慢」）。
+  // 现在本地账号先上屏，云端账号回来后由 yyCenterCloudAccounts 自己补渲染。
+  await yyRefreshAccounts();
+  yyCenterCloudAccounts();
 }
 var yyAccountSnapshot = null, yyAccountRead = null, yyAccountRefreshEpoch = 0, yyAccountRowsScope = "", yyAccountMainConfigured = null;
+// ===== 账号页的「用户状态」必须活在模块里，不能活在会被重建的 DOM 里 =====
+// Raccounts() 每次进页面都整块 innerHTML 重建，10 秒定时器也会重画卡片列表；
+// 以前搜索词 / 展开的账号只存在 DOM 上，一重建就回到空搜索、全部收起
+// （复现：搜索 abc、每页改 50 → 切首页 → 切回，search=""、pageSize=15）。
+// 这三条状态现在跟着模块走，重建后由 yyAccountControlsRestore 写回控件。
+var yyAccountSearch = "", yyAccountOpenKeys = /* @__PURE__ */ new Set(), yyAccountFirstOpenPending = true;
+function yyAccountControlsRestore() {
+  var search = document.getElementById("yy-account-search");
+  if (search && search.value !== yyAccountSearch) search.value = yyAccountSearch;
+  var size = document.getElementById("yy-account-page-size");
+  if (size) size.value = String(yyAccountPageSize);
+  var mainOnly = document.getElementById("yy-cred-main-only");
+  if (mainOnly) mainOnly.checked = !!yyCredMainOnly;
+}
+// 搜索框是否正在输入：定时刷新遇到焦点在搜索框时直接跳过重绘，
+// 否则用户正打字的时候列表每隔 10 秒整体换一遍，滚动位置和光标都会跳。
+function yyAccountSearchFocused() {
+  var el = document.getElementById("yy-account-search");
+  return !!(el && document.activeElement === el);
+}
 function yyAccountControllerScope() {
   try {
     return JSON.stringify([typeof yyPlatformUser !== "undefined" && yyPlatformUser ? yyPlatformUser.id || yyPlatformUser.username || "" : "", typeof sessionStorage !== "undefined" ? sessionStorage.getItem("yy-cloud-key") || "" : ""]);
@@ -57,19 +84,45 @@ function yyAccountStatusLabel(account) {
   if (account.connection_known === false || account.connected == null) return "\u72B6\u6001\u5F85\u67E5\u8BE2";
   return account.connected ? "\u5DF2\u8FDE\u63A5" : account.engine_ready ? "\u5185\u6838\u5728\u7EBF \xB7 \u6E38\u620F\u672A\u8FDE\u63A5" : "\u5185\u6838\u672A\u542F\u52A8";
 }
+// 活跃账号的真实名字；还没选 / 账号已删 / 列表没加载到都返回空串。
+// 以前所有「当前账号」类文案都走 yyAccountName()，它的兜底值是「主账号」，
+// 于是没选账号时页面写着「当前操作：主账号。」，看着像已经有了一个账号。
+function yyActiveAccountName() {
+  var id = typeof yyActiveAccount === "string" ? yyActiveAccount : "";
+  if (!id) return "";
+  var rows = typeof yyAllAccountRows !== "undefined" && yyAllAccountRows ? yyAllAccountRows : [];
+  var row = rows.find(function (a) {
+    return a && a.id === id;
+  });
+  return row && row.name ? String(row.name) : "";
+}
+// 侧栏那块以前写死「主账号」，点下去只跳账号页 —— 用户以为是账号选择器，
+// 于是永远只看见一个名字。现在换成「当前账号名 + 账号与项目」的入口，
+// 没有活跃账号就明写「未选择账号」，不再伪造一个"已选中"的状态。
+function yySyncActiveAccountLabel() {
+  var el = document.getElementById("yy-active-account-label");
+  if (!el) return;
+  var name = yyActiveAccountName();
+  el.textContent = name || "\u672A\u9009\u62E9\u8D26\u53F7";
+  el.setAttribute("data-empty", name ? "0" : "1");
+  var box = el.closest ? el.closest(".yy-account-selector") : null;
+  if (box) box.setAttribute("title", name ? "\u5F53\u524D\u8D26\u53F7\uFF1A" + name + "\uFF08\u70B9\u51FB\u6253\u5F00\u8D26\u53F7\u4E0E\u9879\u76EE\uFF09" : "\u6253\u5F00\u8D26\u53F7\u4E0E\u9879\u76EE");
+}
 function yyDrawAccountRows() {
   var _a;
   if (!document.getElementById("yy-accounts-grid")) return;
   const rows = yyAllAccountRows;
   yyRenderProjects();
   const current = document.getElementById("yy-current-account");
-  if (current) current.textContent = yyAllAccountRows.some((a) => a.id === yyActiveAccount) ? yyAccountName(yyActiveAccount) : "\u672A\u6DFB\u52A0\u4E3B\u673A\u5668\u4EBA";
+  if (current) current.textContent = yyActiveAccountName() || "\u5C1A\u672A\u9009\u62E9\u8D26\u53F7";
+  yySyncActiveAccountLabel();
   yyRenderAccountCards();
   const el = document.getElementById("yy-monitor-account");
   if (el) {
     el.innerHTML = rows.map((a) => '<option value="' + yyEscape(a.id) + '">' + yyEscape(a.name) + "</option>").join("");
     if (!rows.some((a) => a.id === yyMonitorID)) yyMonitorID = ((_a = rows[0]) == null ? void 0 : _a.id) || "";
     el.value = yyMonitorID;
+    yyAcctPickerSync("yy-monitor-account");
   }
   const mainButton = document.querySelector(`[onclick="yyEnterAccount('main')"]`);
   if (mainButton) {
@@ -95,9 +148,40 @@ async function yyRefreshAccounts(force) {
     host.innerHTML = '<p class="yy-hint" role="status">' + yyEscape(r.error || "\u8D26\u53F7\u8BFB\u53D6\u5931\u8D25") + ' <button class="btn-s" onclick="yyCenterRefresh()">\u91CD\u8BD5</button></p>';
     return;
   }
+  // 静默刷新：数据没变就整块跳过重画。
+  // 这个函数被 10 秒定时器调，以前无论数据变没变都无条件重画整个列表 ——
+  // 展开的 <details> 被收起、3D 皮肤被销毁重建、滚动位置丢失，
+  // 用户看到的就是「一加载就乱跳、乱刷新」「皮肤刚出来就没了」。
+  // 只比较「会显示在卡片上的字段」，避免 updated_at 之类每次都变的字段让比较失效。
+  const sig = yyAccountRowsSignature(r);
+  if (sig && sig === yyAccountRowsSig) {
+    if (yyMonitorID) await yyRefreshMonitor();
+    return;
+  }
+  // 用户正在搜索框里打字时不动列表：这一轮数据留到下一轮（或失焦后）再画，
+  // 否则每 10 秒整块重画一次，滚动位置和刚展开的卡都会跳。
+  if (yyAccountSearchFocused()) return;
+  yyAccountRowsSig = sig;
   yySetAccountRows(r);
   yyDrawAccountRows();
   if (yyMonitorID) await yyRefreshMonitor();
+}
+// 账号列表「变了没」的指纹。空串表示不可比较（走原来的重画路径）。
+var yyAccountRowsSig = "";
+function yyAccountRowsSignature(r) {
+  try {
+    const rows = (r && r.accounts) || [];
+    return JSON.stringify([
+      rows.length,
+      rows.map(function (a) {
+        const locals = a && a.local_accounts ? a.local_accounts.length : 0;
+        return [a && a.id, a && a.name, a && a.status, a && a.connected, a && a.engine_ready, a && a.server, locals, a && a.has_token];
+      }),
+      r && r.main ? !!r.main.configured : null
+    ]);
+  } catch (e) {
+    return "";
+  }
 }
 async function yyWarmAccountList() {
   const r = await yyReadAccountList(true);
@@ -166,7 +250,7 @@ async function yyEnterAccount(id, tab) {
   _currentTask = null;
   yyActiveAccount = id;
   U(false, false);
-  document.getElementById("yy-active-account-label").textContent = yyAccountName(id);
+  yySyncActiveAccountLabel();
   if (subPageOpen) {
     subPageStack = [];
     closeSubPage();
@@ -361,11 +445,12 @@ button.onclick = function() {
 side.appendChild(button);
 var label = document.createElement("button");
 label.className = "yy-account-selector";
-label.innerHTML = yyIcon("user") + '<span id="yy-active-account-label">\u4E3B\u8D26\u53F7</span>';
+label.innerHTML = yyIcon("user") + '<span class="yy-account-selector-text"><b id="yy-active-account-label">\u672A\u9009\u62E9\u8D26\u53F7</b><small>\u8D26\u53F7\u4E0E\u9879\u76EE</small></span>';
 label.onclick = function() {
   yyNavigate("accounts");
 };
 document.querySelector(".yy-sidebar-brand").after(label);
+yySyncActiveAccountLabel();
 async function yyToggleMainAccount() {
   var status = await yyRootAPI("GET", "/api/bot/status"), r;
   if (status.connected) r = await yyRootAPI("POST", "/api/bot/disconnect", {});
@@ -426,15 +511,133 @@ function yyAccountPortrait(account) {
   }
   return "";
 }
-function yyAccountAvatarHTML(account) {
-  const url = yyAccountPortrait(account);
-  return '<span class="yy-compact-avatar yy-avatar-frame" role="img" aria-label="' + (url ? "\u7F51\u6613\u5B98\u65B9\u5934\u50CF" : "\u6682\u65E0\u5B98\u65B9\u5934\u50CF") + '"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="14" r="7"></circle><path d="M7 36c0-9 5-14 13-14s13 5 13 14"></path></svg>' + (url ? '<img src="' + yyEscape(url) + '" alt="" width="44" height="44" onerror="yyAccountAvatarError(this)">' : "") + "</span>";
+// ===== 头像：同源缓存代理 + 预加载 + 明确的加载 / 失败态 =====
+// 以前每个 <img> 直连 crafatar.com / minotar.net：境外、没有本地缓存。实测（2026-10-23）
+// crafatar 对未命中自家存储的 UUID 直接返回 500（x-storage-type: server error），单张 1.2~3.1 秒；
+// 成功后 onerror 之外也没有骨架，失败就把 img 摘掉，剩下的占位块背景和卡片背景同色，
+// 于是玩家看到的就是"加载半天，最后像根本没加载皮肤"。
+// 现在统一走本机 /api/skin/proxy：服务端只拉一次并落盘，之后同源本地命中。
+function yySkinProxy(url) {
+  if (!url) return "";
+  if (/^\/api\/skin\//.test(url) || /^data:/.test(url)) return url;
+  return "/api/skin/proxy?url=" + encodeURIComponent(url);
 }
-function yyAccountAvatarError(image) {
-  var _a;
+// 上游全挂时的默认头像：等距三面 MC 头，不是「方块堆脸」。
+// 构图借 mineatar-io/skin-render 的 RenderHead（顶/左/右三面等距），
+// 光位借 NickAcPT/nmsr-rs（亮面在右前、暗侧在左后），五官用 evenodd 挖空。
+// 内联 SVG 拼 data URI，不发额外请求，也不会和背景同色。
+var yySkinDefaultHeadCache = {};
+function yySkinDefaultHead(seed) {
+  var key = String(seed || "?").slice(0, 1).toUpperCase() || "?";
+  if (yySkinDefaultHeadCache[key]) return yySkinDefaultHeadCache[key];
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="#617584">' +
+    '<path opacity=".34" d="M13.89 21.5 13.89 11.65 3.82 8.13 3.82 17.98Z"/>' +
+    '<path opacity=".9" d="M20.18 6.02 13.89 11.65 3.82 8.13 10.11 2.5Z"/>' +
+    '<path fill-rule="evenodd" opacity=".62" d="M20.18 15.87 13.89 21.5 13.89 11.65 20.18 6.02Z M19.4 11.65 17.82 13.06 17.82 11.82 19.4 10.42Z M16.25 14.46 14.68 15.87 14.68 14.64 16.25 13.23Z M17.82 16.75 16.25 18.16 16.25 16.93 17.82 15.52Z"/>' +
+    '<path opacity=".95" d="M20.18 6.02 13.89 11.65 13.89 14.11 20.18 8.48Z"/>' +
+    '<path opacity=".95" d="M20.18 8.48 18.61 9.89 18.61 12.35 20.18 10.94Z"/>' +
+    '<path opacity=".95" d="M15.46 12.71 13.89 14.11 13.89 16.58 15.46 15.17Z"/></svg>';
+  var uri = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  yySkinDefaultHeadCache[key] = uri;
+  return uri;
+}
+// 加载中给骨架，成功后撤掉；失败换成内置默认头像，绝不留下和背景同色的空块。
+function yyAvatarLoaded(image) {
+  image.onload = null;
+  var host = image.parentElement;
+  if (host) {
+    host.classList.remove("yy-avatar-skeleton");
+    host.classList.add("yy-avatar-ready");
+  }
+}
+function yyAvatarFailed(image) {
   image.onerror = null;
-  (_a = image.parentElement) == null ? void 0 : _a.setAttribute("aria-label", "\u6682\u65E0\u5B98\u65B9\u5934\u50CF");
-  image.remove();
+  var host = image.parentElement;
+  if (host) {
+    host.classList.remove("yy-avatar-skeleton");
+    host.classList.add("yy-avatar-fallback");
+  }
+  if (image.dataset && image.dataset.fallbackTried === "1") {
+    image.remove();
+    return;
+  }
+  if (image.dataset) image.dataset.fallbackTried = "1";
+  image.src = (image.dataset && image.dataset.fallback) || yySkinDefaultHead("?");
+}
+function yyAvatarMarkup(account, url, label, errorHandler) {
+  const src = yySkinProxy(url), initial = yyEscape(yyPoolAvatarInitial(account));
+  const fallback = yyEscape(yySkinDefaultHead(yyPoolAvatarInitial(account)));
+  // 取图要 Authorization，而 <img src> 发不出这个头 → 一律交给 YYSkinMediaURL
+  // 用 fetch 取成 blob 再挂上；这里只登记地址，不直接写 src。
+  const img = src ? '<img data-skin-media="' + yyEscape(src) + '" alt="" width="44" height="44" decoding="async" data-fallback="' + fallback + '" onload="yyAvatarLoaded(this)" onerror="' + (errorHandler || "yyAvatarFailed(this)") + '">' : "";
+  return '<span class="yy-compact-avatar yy-avatar-frame ' + (src ? "yy-avatar-skeleton" : "yy-avatar-fallback") + '" role="img" aria-label="' + yyEscape(label) + '"><span class="yy-avatar-initial" aria-hidden="true">' + initial + "</span>" + img + "</span>";
+}
+function yyAccountAvatarHTML(account) {
+  // 账号组里优先用「账号资料」里上传的头像（data:），其次网易官方头像；
+  // 两者都没有时按玩家名取本机裁的头像（/api/skin/online-head），最后是等距三面头占位。
+  const url = yyAcctAvatarURL(account);
+  return yyAvatarMarkup(account, url, url ? "\u8D26\u53F7\u5934\u50CF" : "\u6682\u65E0\u5934\u50CF");
+}
+// 托管账号头像：官方（网易）头像优先，其次用玩家自己的皮肤在本机裁出头。
+// 只用游戏内真实皮肤（/api/skin/online-head），不再查 crafatar / minotar：
+// 按名字查会返回同名陌生玩家的脸（这就是账号页冒出「儒雅猎杀者」这类怪头像的原因），
+// 而且这两家境外源在国内经常 500 / 超时，加载半天最后只剩空块。
+function yyPoolAvatarURL(account) {
+  const name = yyAcctSkinName(account);
+  if (yyAcctNameRe.test(name)) return "/api/skin/online-head?player=" + encodeURIComponent(name);
+  return "";
+}
+function yyPoolAvatarInitial(account) {
+  const text = String((account == null ? void 0 : account.name) || "?").trim();
+  return (text.slice(0, 1) || "?").toUpperCase();
+}
+function yyPoolAvatarHTML(account, profile) {
+  const url = yyAccountPortrait(profile || account) || yyPoolAvatarURL(account);
+  return yyAvatarMarkup(account, url, "托管账号头像", "yyPoolAvatarError(this)");
+}
+// 头像取不到时只退首字占位，并把原因收进 title，界面上不写解释性长句。
+function yyPoolAvatarError(image) {
+  yyAvatarFailed(image);
+  const frame = image.parentElement;
+  if (frame) frame.setAttribute("title", "使用默认头像");
+}
+// ===== 预加载：进页面先把头像在后端落盘，再让浏览器预热前 20 张 =====
+var yySkinWarmSeen = {}, yySkinWarmTimer = 0;
+function yySkinWarmCollect(accounts) {
+  const uuids = [], names = [], urls = [];
+  for (const row of accounts || []) {
+    if (!row) continue;
+    const uuid = String(row.uuid || "").trim(), name = yyAcctSkinName(row);
+    const dedupe = uuid || name;
+    if (!dedupe || yySkinWarmSeen[dedupe]) continue;
+    const byUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
+    const byName = /^[A-Za-z0-9_]{3,16}$/.test(name);
+    if (!byUUID && !byName) continue;
+    yySkinWarmSeen[dedupe] = 1;
+    if (byUUID) uuids.push(uuid);
+    else names.push(name);
+    const url = yyPoolAvatarURL(row);
+    if (url && urls.length < 20) urls.push(url);
+  }
+  return { uuids, names, urls };
+}
+function yySkinWarm(accounts) {
+  const { uuids, names, urls } = yySkinWarmCollect(accounts);
+  if (!uuids.length && !names.length) return;
+  // 300ms 内多次渲染合并成一次预热，翻页/搜索不会反复打后端。
+  clearTimeout(yySkinWarmTimer);
+  yySkinWarmTimer = setTimeout(function () {
+    const query = [];
+    if (uuids.length) query.push("uuids=" + encodeURIComponent(uuids.slice(0, 64).join(",")));
+    if (names.length) query.push("names=" + encodeURIComponent(names.slice(0, 64).join(",")));
+    yyRootFetch("/api/skin/warm?" + query.join("&")).catch(function () {
+    });
+  }, 300);
+  for (const url of urls) {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = yySkinProxy(url);
+  }
 }
 function yyAccountLocalActionsHTML(a) {
   const index = yyAllAccountRows.findIndex((x) => x.id === a.id), accountIndex = yyAccountRows.findIndex((x) => x.id === a.id), actions = [yyAccountActionHTML("yyEnterRow", [index], "\u8FDB\u5165\u6B64\u8D26\u53F7\u5DE5\u4F5C\u533A", "btn")];
@@ -446,31 +649,121 @@ function yyAccountLocalActionsHTML(a) {
 function yyAccountCredentialActionsHTML(row, hasLocal) {
   const index = yyCenterCloudRows.indexOf(row), actions = [];
   if (!hasLocal) actions.push(yyAccountActionHTML("yyUnifiedCredentialAction", [index, "host"], "\u6258\u7BA1\u5E76\u914D\u7F6E\u8FDE\u63A5", "btn"));
-  for (const [action, label2] of [["token", "\u67E5\u770B / \u590D\u5236\u4EE4\u724C"], ["nickname", "\u4FEE\u6539\u6E38\u620F\u6635\u79F0"], ["skin", "\u76AE\u80A4\u9884\u89C8 / \u7EC4\u4EF6\u7801"], ["refresh", "\u5237\u65B0\u5B98\u65B9\u51ED\u636E"], ["relogin", "\u91CD\u65B0\u767B\u5F55\u6B64\u8D26\u53F7"], ["configure", row.keep_alive ? "\u5173\u95ED\u51ED\u636E\u5B9A\u65F6\u5237\u65B0" : "\u5F00\u542F\u51ED\u636E\u5B9A\u65F6\u5237\u65B0"], ["delete", "\u64A4\u9500\u4E91\u7AEF\u51ED\u636E"]]) actions.push(yyAccountActionHTML("yyUnifiedCredentialAction", [index, action], label2));
-  return '<div class="yy-actions">' + actions.join("") + '</div><p class="yy-hint">' + (hasLocal ? "\u51ED\u636E\u5DF2\u5173\u8054\u6B64\u8BBE\u5907\u8D26\u53F7\u3002" : "\u4EC5\u4E91\u7AEF\u4FDD\u5B58\uFF0C\u5C1A\u672A\u6258\u7BA1\uFF1B\u70B9\u51FB\u6258\u7BA1\u540E\u586B\u5199\u670D\u52A1\u5668\u5E76\u660E\u786E\u542F\u7528\u8FDE\u63A5\uFF0C\u4E0D\u81EA\u52A8\u8FDB\u670D\u3002") + '</p><button class="btn-s" disabled>\u9009\u62E9\u5B98\u65B9\u5934\u50CF \xB7 \u63A5\u53E3\u5F85\u63A5\u5165</button><p class="yy-hint">\u5B98\u65B9\u5934\u50CF\u5217\u8868\u4E0E\u8BBE\u7F6E\u63A5\u53E3\u6838\u5B9E\u540E\u5F00\u653E\uFF1B\u672A\u77E5\u5934\u50CF\u4E0D\u81EA\u52A8\u6307\u5B9A\u89D2\u8272\u3002</p>';
+  // 「撤销云端凭证」已移除：账号页只做身份与连接管理，
+  // 撤销凭据会直接让账号掉线，属于低频危险操作，不该和常用按钮排在一起。
+  for (const [action, label2] of [["token", "\u67E5\u770B / \u590D\u5236\u4EE4\u724C"], ["nickname", "\u4FEE\u6539\u6E38\u620F\u6635\u79F0"], ["skin", "\u76AE\u80A4\u9884\u89C8 / \u7EC4\u4EF6\u7801"], ["refresh", "\u5237\u65B0\u5B98\u65B9\u51ED\u636E"], ["relogin", "\u91CD\u65B0\u767B\u5F55\u6B64\u8D26\u53F7"], ["configure", row.keep_alive ? "\u5173\u95ED\u51ED\u636E\u5B9A\u65F6\u5237\u65B0" : "\u5F00\u542F\u51ED\u636E\u5B9A\u65F6\u5237\u65B0"]]) actions.push(yyAccountActionHTML("yyUnifiedCredentialAction", [index, action], label2));
+  return '<div class="yy-actions">' + actions.join("") + '</div><p class="yy-hint">' + (hasLocal ? "\u51ED\u636E\u5DF2\u5173\u8054\u6B64\u8BBE\u5907\u8D26\u53F7\u3002" : "\u4EC5\u4E91\u7AEF\u4FDD\u5B58\uFF0C\u5C1A\u672A\u6258\u7BA1\uFF1B\u70B9\u51FB\u6258\u7BA1\u540E\u586B\u5199\u670D\u52A1\u5668\u5E76\u660E\u786E\u542F\u7528\u8FDE\u63A5\uFF0C\u4E0D\u81EA\u52A8\u8FDB\u670D\u3002") + '</p>';
+}
+// A4：令牌列表太长，默认只渲染主账号 / 主凭证那一条，其余用开关展开。
+function yyCredIsPrimary(a) {
+  if (!a) return false;
+  if (a.id === "main") return true;
+  if (a.profile_role === "owner") return true;
+  if (a.primary === true) return true;
+  return (a.local_accounts || []).some((local) => local.id === "main");
+}
+function yyCredMainOnlySet(on) {
+  yyCredMainOnly = !!on;
+  yyAccountPage = 1;
+  yyRenderAccountCards();
+}
+// 点「查看全部」：关掉只看主账号筛选，一次看全所有账号。
+function yyShowAllAccounts() {
+  yyCredMainOnly = false;
+  yyAccountPage = 1;
+  var box = document.getElementById("yy-cred-main-only");
+  if (box) box.checked = false;
+  yyRenderAccountCards();
 }
 function yyRenderAccountCards() {
-  var _a, _b;
+  var _a;
   const host = document.getElementById("yy-accounts-grid");
   if (!host) return;
-  const open = new Set(Array.from(((_a = host.querySelectorAll) == null ? void 0 : _a.call(host, "details[open]")) || [], (row) => row.getAttribute("data-account-key") || row.getAttribute("data-account-id"))), needle = (((_b = document.getElementById("yy-account-search")) == null ? void 0 : _b.value) || "").toLowerCase();
-  const filtered = yyMergedAccountRows().filter((a) => (!yyProjectFilter || a.local_accounts.some((local) => local.server === yyProjectFilter)) && [a.name, a.game_id, ...a.local_accounts.map((local) => local.name + " " + local.server + " " + local.id), ...a.cloud_accounts.map((row) => row.name)].join(" ").toLowerCase().includes(needle));
+  // 工具栏每次进页面都会重建，把搜索词 / 只看主账号 / 每页条数按模块状态摆正。
+  // 搜索框在 host 之外，重画列表不会销毁它；但整页重建（Raccounts）会，
+  // 所以这里做双向同步：焦点还在框里就以框里的值为准，否则以模块状态为准。
+  const searchBox = document.getElementById("yy-account-search");
+  if (searchBox) {
+    if (document.activeElement === searchBox) yyAccountSearch = searchBox.value;
+    else if (searchBox.value !== yyAccountSearch) searchBox.value = yyAccountSearch;
+  }
+  const mainOnlyBox = document.getElementById("yy-cred-main-only");
+  if (mainOnlyBox) mainOnlyBox.checked = yyCredMainOnly;
+  const sizeBox = document.getElementById("yy-account-page-size");
+  if (sizeBox) sizeBox.value = String(yyAccountPageSize);
+  // 展开状态同样提到模块里：先把当前 DOM 的展开情况收割回 yyAccountOpenKeys，
+  // 再以它为唯一依据，这样整页重建 / 切页后还能恢复到用户原来展开的那几个账号。
+  (_a = host.querySelectorAll) == null ? void 0 : _a.call(host, "details.yy-account-card").forEach(function(row) {
+    const key = row.getAttribute("data-account-key") || row.getAttribute("data-account-id");
+    if (!key) return;
+    if (row.open) yyAccountOpenKeys.add(key);
+    else yyAccountOpenKeys.delete(key);
+  });
+  const open = new Set(yyAccountOpenKeys), needle = (yyAccountSearch || "").toLowerCase();
+  // 账号页每 10 秒自动刷新一次、整块列表重画；把已经调出来的「牌」按账号 id 记下来再还原，
+  // 否则用户正看着牌就被收起，体验像"点了没反应"。
+  const openCards = new Set(Array.from(host.querySelectorAll(".yy-acct-cardwrap[open]") || [], (row) => row.getAttribute("data-acct-card")).filter(Boolean));
+  let filtered = yyMergedAccountRows().filter((a) => (!yyProjectFilter || a.local_accounts.some((local) => local.server === yyProjectFilter)) && [a.name, a.game_id, ...a.local_accounts.map((local) => local.name + " " + local.server + " " + local.id), ...a.cloud_accounts.map((row) => row.name)].join(" ").toLowerCase().includes(needle));
+  // A4：只看主账号时收成一条；没有可判定的主账号就退回完整列表，避免整页空掉。
+  // 但绝不能默默吞掉账号：过滤掉了几个，必须在界面上写清楚并给「查看全部」。
+  yyAccountHiddenByMainOnly = 0;
+  if (yyCredMainOnly) {
+    const primaryRows = filtered.filter(yyCredIsPrimary);
+    if (primaryRows.length) {
+      yyAccountHiddenByMainOnly = filtered.length - primaryRows.length;
+      filtered = primaryRows;
+    }
+  }
+  // 先把这一屏账号的头像预热掉，再渲染，避免逐张等境外 CDN。
+  yySkinWarm([].concat(filtered, filtered.flatMap((a) => a.local_accounts)));
   if (yyAccountFocusID) {
     const index = filtered.findIndex((a) => a.id === yyAccountFocusID || a.local_accounts.some((local) => local.id === yyAccountFocusID));
     if (index >= 0) {
       yyAccountPage = Math.floor(index / yyAccountPageSize) + 1;
       open.add(filtered[index].key);
+      yyAccountOpenKeys.add(filtered[index].key);
     }
     yyAccountFocusID = "";
   }
   const pages = Math.max(1, Math.ceil(filtered.length / yyAccountPageSize));
   yyAccountPage = Math.min(pages, Math.max(1, yyAccountPage));
-  host.innerHTML = filtered.slice((yyAccountPage - 1) * yyAccountPageSize, yyAccountPage * yyAccountPageSize).map(function(a) {
-    const localDetails = a.local_accounts.map((local) => '<section class="yy-linked-local"><h4>' + yyEscape(local.id === "main" ? "\u4E3B\u8FDE\u63A5" : local.name || local.id) + '</h4><p class="yy-hint">' + yyEscape(yyAccountStatusLabel(local) + " \xB7 " + (local.server || "\u672A\u9009\u62E9\u670D\u52A1\u5668")) + '</p><p class="yy-hint">\u63D2\u4EF6\uFF1A' + yyEscape((local.plugins || []).map((p) => p.name || p.id).join("\u3001") || (local.telemetry_loaded === false ? "\u8FDB\u5165\u5DE5\u4F5C\u533A\u67E5\u770B\u5DF2\u5B89\u88C5\u63D2\u4EF6" : "\u8FDB\u5165\u5DE5\u4F5C\u533A\u540E\u6DFB\u52A0\u63D2\u4EF6")) + '</p><div class="yy-actions">' + yyAccountLocalActionsHTML(local) + "</div></section>").join("");
+  const shown = filtered.slice((yyAccountPage - 1) * yyAccountPageSize, yyAccountPage * yyAccountPageSize);
+  // 第一张卡默认展开：皮肤与 3D 都长在卡片详情里，全部收起时用户只看到一排
+  // 名字，以为「皮肤不见了」。只自动展开第一张（3D 只挂可见的一次），
+  // 其余保持折叠；用户自己收起之后（yyAccountFirstOpenPending 已消费）不再强开。
+  if (yyAccountFirstOpenPending) {
+    if (shown.length) {
+      const firstKey = shown[0].key || shown[0].id;
+      if (firstKey) {
+        open.add(firstKey);
+        yyAccountOpenKeys.add(firstKey);
+      }
+      yyAccountFirstOpenPending = false;
+    }
+  }
+  // 皮肤立绘比头像大得多，只预热当前页的前几个；点开详情时命中缓存，直接「打开就有」。
+  yyAcctWarmFigures(shown);
+  host.innerHTML = shown.map(function(a) {
+    const localDetails = a.local_accounts.map((local) => '<section class="yy-linked-local"><h4>' + yyEscape(local.id === "main" ? "\u4E3B\u8FDE\u63A5" : local.name || "未命名账号") + "</h4>" + yyAccountFactsGridHTML(local) + '<p class="yy-hint">\u63D2\u4EF6\uFF1A' + yyEscape((local.plugins || []).map((p) => p.name || p.id).join("\u3001") || (local.telemetry_loaded === false ? "\u8FDB\u5165\u5DE5\u4F5C\u533A\u67E5\u770B\u5DF2\u5B89\u88C5\u63D2\u4EF6" : "\u8FDB\u5165\u5DE5\u4F5C\u533A\u540E\u6DFB\u52A0\u63D2\u4EF6")) + '</p><div class="yy-actions">' + yyAccountLocalActionsHTML(local) + "</div></section>").join("");
     const cloudDetails = a.cloud_accounts.map((row) => '<section class="yy-linked-credential"><h4>\u5B98\u65B9\u8D26\u53F7\u8D44\u6599\u4E0E\u51ED\u636E</h4>' + yyAccountCredentialActionsHTML(row, a.local_accounts.length > 0) + "</section>").join("");
-    return '<details class="card yy-account-card" data-account-id="' + yyEscape(a.id) + '" data-account-key="' + yyEscape(a.key) + '"' + (open.has(a.key) || open.has(a.id) ? " open" : "") + '><summary class="yy-account-summary">' + yyAccountAvatarHTML(a) + '<span class="yy-compact-identity"><strong>' + yyEscape(a.name) + "</strong><small>" + yyEscape((a.game_id ? "UID " + a.game_id + " \xB7 " : "") + (a.local_accounts.length ? a.server || "\u5C1A\u672A\u914D\u7F6E\u670D\u52A1\u5668" : "\u4EC5\u4E91\u7AEF\u4FDD\u5B58 \xB7 \u672A\u6258\u7BA1")) + '</small></span><span class="yy-compact-status">' + yyEscape(a.local_accounts.length ? yyAccountStatusLabel(a) : "\u672A\u6258\u7BA1") + '</span><span class="yy-row-chevron" aria-hidden="true">\u203A</span></summary><div class="yy-account-detail">' + localDetails + cloudDetails + "</div></details>";
+    // 列表行只留：头像 / 名字（+身份徽章+在线点）/ 服务器或托管状态 / 箭头。
+    // UID 这类内部标识不再挂在列表上（详情字段里有「游戏 UID」），列表越短越容易扫。
+    const onlineState = yyAcctOnlineState(a, false);
+    return '<details class="card yy-account-card" data-account-id="' + yyEscape(a.id) + '" data-account-key="' + yyEscape(a.key) + '"' + (open.has(a.key) || open.has(a.id) ? " open" : "") + '><summary class="yy-account-summary">' + yyAccountAvatarHTML(a) + '<span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="' + onlineState + '" aria-hidden="true"></i><strong>' + yyEscape(a.name) + '</strong>' + yyAcctRoleChip(a, false) + "</span><small>" + yyEscape(a.local_accounts.length ? a.server || "\u5C1A\u672A\u914D\u7F6E\u670D\u52A1\u5668" : "\u4EC5\u4E91\u7AEF\u4FDD\u5B58 \xB7 \u672A\u6258\u7BA1") + '</small></span><span class="yy-compact-status">' + yyEscape(a.local_accounts.length ? yyAccountStatusLabel(a) : "\u672A\u6258\u7BA1") + '</span><span class="yy-row-chevron" aria-hidden="true">\u203A</span></summary><div class="yy-account-detail">' + yyAcctProfileHTML(a, { token: a.local_accounts.length > 0 }) + localDetails + cloudDetails + "</div></details>";
   }).join("") || '<div class="yy-empty">\u5C1A\u65E0\u5339\u914D\u7684\u6E38\u620F\u8D26\u53F7\uFF1B\u53EF\u6DFB\u52A0\u672C\u5730\u4EE4\u724C\u6216\u6CE8\u518C\u3001\u63A5\u5165\u5B98\u65B9\u8D26\u53F7\u3002</div>';
-  document.getElementById("yy-account-pages").innerHTML = '<button class="btn-s" ' + (yyAccountPage === 1 ? "disabled" : "") + ' onclick="yyAccountPage--;yyRenderAccountCards()">\u4E0A\u4E00\u9875</button><span>' + yyAccountPage + " / " + pages + " \u9875 \xB7 " + filtered.length + ' \u4E2A\u6E38\u620F\u8D26\u53F7</span><button class="btn-s" ' + (yyAccountPage === pages ? "disabled" : "") + ' onclick="yyAccountPage++;yyRenderAccountCards()">\u4E0B\u4E00\u9875</button>';
+  if (openCards.size) {
+    host.querySelectorAll(".yy-acct-cardwrap").forEach(function(wrap) {
+      if (openCards.has(wrap.getAttribute("data-acct-card"))) wrap.open = true;
+    });
+  }
+  var hiddenNote = "";
+  if (yyAccountHiddenByMainOnly > 0) {
+    hiddenNote = '<span class="yy-account-hidden-note">已开启「只看主账号」，另有 ' +
+      yyAccountHiddenByMainOnly + ' 个账号未显示 · <a href="javascript:void(0)" onclick="yyShowAllAccounts()">查看全部</a></span>';
+  }
+  document.getElementById("yy-account-pages").innerHTML = '<button class="btn-s" ' + (yyAccountPage === 1 ? "disabled" : "") + ' onclick="yyAccountPage--;yyRenderAccountCards()">\u4E0A\u4E00\u9875</button><span>\u7B2C ' + yyAccountPage + " / " + pages + " \u9875 \xB7 " + filtered.length + ' \u4E2A\u8D26\u53F7' + (yyCredMainOnly ? " \xB7 \u53EA\u770B\u4E3B\u8D26\u53F7" : "") + "</span>" + hiddenNote + '<button class="btn-s" ' + (yyAccountPage === pages ? "disabled" : "") + ' onclick="yyAccountPage++;yyRenderAccountCards()">\u4E0B\u4E00\u9875</button>';
+  // 展开的卡片立刻挂 3D 皮肤；收起的等用户点开再挂（由卡片 toggle 事件调这里）。
+  yyAcctMountViewers(host);
 }
 var yyCredentialOperations = /* @__PURE__ */ new Set();
 async function yyUnifiedCredentialAction(index, action) {
@@ -540,8 +833,9 @@ function yyEditAccountProfileRow(index) {
   yyEditingProfile = row;
   yyEditingProfileAvatar = null;
   delete subPageCache["\u8D26\u53F7\u8D44\u6599"];
-  openSubPage("\u8D26\u53F7\u8D44\u6599", yyIntro("\u8BBE\u5907\u5907\u6CE8\u4E0E\u5206\u7C7B", "\u4EC5\u4FEE\u6539\u5F53\u524D\u8BBE\u5907\u7684\u663E\u793A\u8D44\u6599\uFF1B\u4E3B\u8FDE\u63A5\u4E0E\u5B98\u65B9\u8D26\u53F7\u8D44\u6599\u5728\u5404\u81EA\u5165\u53E3\u914D\u7F6E\u3002") + '<section class="card"><label>\u8BBE\u5907\u5907\u6CE8</label><input id="yy-profile-name" value="' + yyEscape(row.name || "") + '"><label>\u5DE5\u5177\u7BB1\u5206\u7C7B</label><select id="yy-profile-role"><option value="bot">\u673A\u5668\u4EBA\u8D26\u53F7</option><option value="owner">\u4E3B\u63A7\u5206\u7C7B \xB7 \u4E0D\u5207\u6362\u4E3B\u8FDE\u63A5</option></select><p class="yy-hint">\u6B64\u5206\u7C7B\u4E0D\u4EE3\u8868\u7F51\u6613\u670D\u4E3B\uFF0C\u4E5F\u4E0D\u4F1A\u8FC1\u79FB\u6B63\u5728\u8FD0\u884C\u7684\u4EFB\u52A1\u3002</p><button class="btn" onclick="yySaveAccountProfileUI.call(this)">\u4FDD\u5B58\u8BBE\u5907\u8D44\u6599</button><p id="yy-profile-result" class="yy-hint" role="status"></p></section>');
+  openSubPage("\u8D26\u53F7\u8D44\u6599", yyIntro("\u8BBE\u5907\u5907\u6CE8\u4E0E\u5206\u7C7B", "\u4EC5\u4FEE\u6539\u5F53\u524D\u8BBE\u5907\u7684\u663E\u793A\u8D44\u6599\uFF1B\u4E3B\u8FDE\u63A5\u4E0E\u5B98\u65B9\u8D26\u53F7\u8D44\u6599\u5728\u5404\u81EA\u5165\u53E3\u914D\u7F6E\u3002") + '<section class="card"><div id="yy-profile-preview" class="yy-profile-preview" aria-live="polite"></div><input type="file" id="yy-profile-avatar" accept="image/png,image/jpeg" onchange="yyPickAccountAvatar.call(this)" hidden><button type="button" class="btn-s" onclick="yyPickAvatarDialog()">\u9009\u62E9\u5934\u50CF</button><label>\u8BBE\u5907\u5907\u6CE8</label><input id="yy-profile-name" value="' + yyEscape(row.name || "") + '"><label>\u5DE5\u5177\u7BB1\u5206\u7C7B</label><select id="yy-profile-role"><option value="bot">\u673A\u5668\u4EBA\u8D26\u53F7</option><option value="owner">\u4E3B\u63A7\u5206\u7C7B \xB7 \u4E0D\u5207\u6362\u4E3B\u8FDE\u63A5</option></select><p class="yy-hint">\u6B64\u5206\u7C7B\u4E0D\u4EE3\u8868\u7F51\u6613\u670D\u4E3B\uFF0C\u4E5F\u4E0D\u4F1A\u8FC1\u79FB\u6B63\u5728\u8FD0\u884C\u7684\u4EFB\u52A1\u3002</p><button class="btn" onclick="yySaveAccountProfileUI.call(this)">\u4FDD\u5B58\u8BBE\u5907\u8D44\u6599</button><p id="yy-profile-result" class="yy-hint" role="status"></p></section>');
   document.getElementById("yy-profile-role").value = row.profile_role || "bot";
+  yyDrawProfilePreview(row.avatar || "");
 }
 function yyDrawProfilePreview(value) {
   const host = document.getElementById("yy-profile-preview");
@@ -553,6 +847,10 @@ function yyDrawProfilePreview(value) {
     img.alt = "\u8D26\u53F7\u5934\u50CF\u9884\u89C8";
     host.append(img);
   } else host.innerHTML = yyIcon("user");
+}
+function yyPickAvatarDialog() {
+  const el = document.getElementById("yy-profile-avatar");
+  if (el) el.click();
 }
 async function yyPickAccountAvatar() {
   const file = this.files[0];
@@ -666,49 +964,523 @@ async function yyPoolCall(action, args) {
   if (!r.ok) throw Error(r.error || "\u8D26\u53F7\u6C60\u64CD\u4F5C\u5931\u8D25");
   return r.result;
 }
-var yyPoolRows = [], yyPoolQuery = "", yyPoolFilter = "all", yyPoolReadEpoch = 0, yyPoolSelectedID = "";
+var yyPoolRows = [], yyPoolQuery = "", yyPoolFilter = "all", yyPoolTime = "all", yyPoolRole = "all", yyPoolPlayer = "all", yyPoolPage = 1, yyPoolPageSize = 20, yyPoolReadEpoch = 0, yyPoolSelectedID = "", yyPoolTokenShown = "", yyPoolTokenPlain = "";
+// 分组视图：flat = 一台账号一行；player = 按玩家聚合，一个玩家一个可折叠组头。
+var yyPoolGroup = "flat", yyPoolGroupOpen = {}, yyPoolLastSync = 0;
+// 托管池缓存只存静态资料（昵称 / 服务器 / UID 依据 / 绑定 / 头像依据），键 yy_pool_cache_v1。
+// 进页面先画缓存，再后台拉一次比对；内容没变就不重绘 —— 不做 10 秒级轮询，手动刷新保留。
+var yyPoolCacheKey = "yy_pool_cache_v1", yyPoolCacheStamp = 0, yyPoolSeen = {};
+function yyPoolBoundPlayer(account) {
+  const lease = account && (account.lease || account.pool_binding);
+  return lease && lease.phase === "bound" ? String(lease.player || "") : "";
+}
+function yyPoolProfileOf(account) {
+  if (!account) return null;
+  return yyAllAccountRows.find((row) => row.id === account.id) || null;
+}
+function yyPoolIdentityKey(account) {
+  if (!account) return "bot";
+  if (account.id === "main") return "main";
+  const profile = yyPoolProfileOf(account);
+  return profile && profile.profile_role === "owner" ? "owner" : "bot";
+}
+function yyPoolUID(account) {
+  const profile = yyPoolProfileOf(account);
+  if (profile && profile.game_id) return String(profile.game_id);
+  return yyAccountUID(yyLinkedCredential(account, yyCenterCloudRows)) || yyAccountUID(account) || "";
+}
+// 最近上线：只认真实的上线证据，找不到就承认没有。
+//   1) 后端若返回上线时间字段（last_online_at / last_seen_at / last_online / last_connected_at / online_at）就用它；
+//   2) 否则用本机「查询状态时确实报告 connected=true」的观察时间（yyPoolSeen，随缓存持久化）。
+// 明确不用 created_at（那是添加时间）和 lease.updated_at（那是绑定变更时间）：
+// 拿它们冒充「最近上线」等于编数据，会把刚加的账号显示成「刚刚上线」。
+var yyPoolLastSeenFields = ["last_online_at", "last_seen_at", "last_online", "last_connected_at", "online_at"];
+function yyPoolFieldStamp(account) {
+  if (!account) return 0;
+  for (var i = 0; i < yyPoolLastSeenFields.length; i++) {
+    var raw = account[yyPoolLastSeenFields[i]];
+    if (raw == null || raw === "" || raw === 0) continue;
+    var stamp = typeof raw === "number" ? (raw < 1e12 ? raw * 1e3 : raw) : Date.parse(String(raw));
+    if (stamp && !isNaN(stamp)) return stamp;
+  }
+  return 0;
+}
+function yyPoolLastSeen(account) {
+  if (!account) return 0;
+  var fromAPI = yyPoolFieldStamp(account);
+  if (fromAPI) return fromAPI;
+  return Number(yyPoolSeen[account.id]) || 0;
+}
+// 整池有没有任何一个账号拿到过真实上线时间；没有就把时间筛选禁用并说明原因。
+function yyPoolHasTimeData() {
+  for (var i = 0; i < yyPoolRows.length; i++) if (yyPoolLastSeen(yyPoolRows[i])) return true;
+  return false;
+}
+function yyPoolWhenText(stamp) {
+  if (!stamp) return "";
+  const diff = Date.now() - stamp;
+  if (diff < 6e4) return "刚刚";
+  if (diff < 36e5) return Math.floor(diff / 6e4) + " 分钟前";
+  if (diff < 864e5) return Math.floor(diff / 36e5) + " 小时前";
+  if (diff < 2592e6) return Math.floor(diff / 864e5) + " 天前";
+  return yyAcctDateText(stamp);
+}
+function yyPoolSearchText(account) {
+  const profile = yyPoolProfileOf(account);
+  return [account.name, account.id, account.player_name, account.uuid, account.server, yyPoolUID(account), profile && profile.name, yyPoolBoundPlayer(account)].filter(Boolean).join(" ").toLowerCase();
+}
+function yyPoolCacheRow(row) {
+  const lease = row.lease || row.pool_binding || null;
+  return {
+    id: String(row.id || ""),
+    name: row.name || "",
+    owner_id: row.owner_id || "",
+    server: row.server || "",
+    created_at: row.created_at || "",
+    enabled: !!row.enabled,
+    keep_alive: !!row.keep_alive,
+    has_token: !!row.has_token,
+    token_masked: row.token_masked || "",
+    player_name: row.player_name || "",
+    uuid: row.uuid || "",
+    last_seen_at: yyPoolFieldStamp(row) || 0,
+    lease: lease ? { phase: lease.phase || "", player: lease.player || "", server: lease.server || "", updated_at: Number(lease.updated_at) || 0 } : null
+  };
+}
+function yyPoolSignature(rows) {
+  return JSON.stringify((rows || []).map(yyPoolCacheRow));
+}
+function yyPoolCacheRead() {
+  try {
+    if (typeof localStorage === "undefined" || !localStorage) return null;
+    const raw = localStorage.getItem(yyPoolCacheKey);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || data.v !== 1 || !Array.isArray(data.rows)) return null;
+    const rows = data.rows.filter((row) => row && row.id);
+    if (!rows.length) return null;
+    yyPoolSeen = data.seen && typeof data.seen === "object" ? data.seen : {};
+    yyPoolCacheStamp = Number(data.at) || 0;
+    return rows;
+  } catch (error) {
+    return null;
+  }
+}
+function yyPoolCacheWrite(rows) {
+  try {
+    if (typeof localStorage === "undefined" || !localStorage) return;
+    const keep = {};
+    for (const row of rows || []) keep[row.id] = 1;
+    for (const id of Object.keys(yyPoolSeen)) if (!keep[id]) delete yyPoolSeen[id];
+    yyPoolCacheStamp = Date.now();
+    localStorage.setItem(yyPoolCacheKey, JSON.stringify({ v: 1, at: yyPoolCacheStamp, rows: (rows || []).map(yyPoolCacheRow), seen: yyPoolSeen }));
+  } catch (error) {
+    // 缓存写不进去不影响使用，下次进页面重新拉一次。
+  }
+}
+function yyPoolMarkSeen(id) {
+  if (!id) return;
+  yyPoolSeen[String(id)] = Date.now();
+  if (yyPoolRows.length) yyPoolCacheWrite(yyPoolRows);
+}
+function yyPoolChip(facet, value, label) {
+  return '<button type="button" class="yy-pool-chip" data-facet="' + yyEscape(facet) + '" data-value="' + yyEscape(value) + '" data-on="0" aria-pressed="false" onclick="yyPoolFilterSet(' + yyEscape(JSON.stringify(facet)) + "," + yyEscape(JSON.stringify(value)) + ')">' + yyEscape(label) + "</button>";
+}
+function yyPoolFacetHTML(facet, label, options) {
+  return '<div class="yy-pool-facet"><span class="yy-pool-facet-label">' + label + '</span><span class="yy-pool-chips">' + options.map(function(option) {
+    return yyPoolChip(facet, option[0], option[1]);
+  }).join("") + "</span></div>";
+}
+function yyPoolPanelHTML() {
+  return '<section class="card yy-admin-list-panel yy-pool-panel">' +
+    '<div class="yy-pool-searchbar"><label class="yy-search"><input id="yy-pool-search" type="search" aria-label="搜索托管机器人" placeholder="搜索昵称、UID、备注或玩家" oninput="yyPoolQuery=this.value;yyPoolPage=1;yyDrawPoolRows()"></label><button class="btn-s" type="button" id="yy-pool-refresh" onclick="yyPoolRefresh(true)">刷新</button></div>' +
+    '<div class="yy-pool-facet" id="yy-pool-time-facet"><span class="yy-pool-facet-label">最近上线</span><span class="yy-pool-chips">' + [["all", "全部"], ["today", "今天"], ["7", "7 天"], ["30", "30 天"]].map(function(option) {
+      return yyPoolChip("time", option[0], option[1]);
+    }).join("") + '</span><span class="yy-pool-time-note" id="yy-pool-time-note" hidden>暂无上线时间数据</span></div>' +
+    yyPoolFacetHTML("group", "分组", [["flat", "平铺"], ["player", "按玩家"]]) +
+    yyPoolFacetHTML("state", "状态", [["all", "全部"], ["enabled", "已启用"], ["disabled", "未启用"], ["bound", "已绑定"], ["idle", "空闲"], ["credential_missing", "缺令牌"]]) +
+    yyPoolFacetHTML("role", "身份", [["all", "全部"], ["main", "主账号"], ["owner", "主控"], ["bot", "机器人"]]) +
+    '<div class="yy-pool-facet"><span class="yy-pool-facet-label">玩家</span><span class="yy-pool-chips" id="yy-pool-players"></span></div>' +
+    '<p id="yy-pool-feedback" class="yy-hint" role="status">正在读取托管池…</p>' +
+    '<div id="yy-pool-list" class="yy-compact-list"></div>' +
+    '<div id="yy-pool-pages" class="yy-pagination"></div>' +
+    "</section>";
+}
 async function yyPoolPanel() {
   if (!yyAccountAdmin()) {
-    T("\u673A\u5668\u4EBA\u6258\u7BA1\u6C60\u7531\u7BA1\u7406\u5458\u7BA1\u7406\uFF1B\u81EA\u5DF1\u7684\u8D26\u53F7\u8BF7\u5728\u6E38\u620F\u8D26\u53F7\u5217\u8868\u64CD\u4F5C", "e");
+    T("机器人托管池由管理员管理；自己的账号请在游戏账号列表操作", "e");
     return;
   }
-  delete subPageCache["\u673A\u5668\u4EBA\u6258\u7BA1\u6C60"];
-  openSubPage("\u673A\u5668\u4EBA\u6258\u7BA1\u6C60", yyIntro("\u673A\u5668\u4EBA\u6258\u7BA1\u6C60", "\u7BA1\u7406\u5458\u7EDF\u4E00\u67E5\u770B\u591A\u53F0\u673A\u5668\u4EBA\uFF1B\u53EA\u5728\u6253\u5F00\u5355\u4E2A\u8D26\u53F7\u8BE6\u60C5\u65F6\u67E5\u8BE2\u5B9E\u65F6\u72B6\u6001\u3002") + '<section class="card yy-admin-list-panel"><div class="yy-admin-toolbar"><label class="yy-search"><input id="yy-pool-search" aria-label="\u641C\u7D22\u6258\u7BA1\u673A\u5668\u4EBA" placeholder="\u641C\u7D22\u8D26\u53F7\u3001\u670D\u52A1\u5668\u6216\u7ED1\u5B9A\u73A9\u5BB6" oninput="yyPoolQuery=this.value;yyDrawPoolRows()"></label><select id="yy-pool-filter" aria-label="\u6258\u7BA1\u673A\u5668\u4EBA\u5206\u7C7B" onchange="yyPoolFilter=this.value;yyDrawPoolRows()"><option value="all">\u5168\u90E8\u8D26\u53F7</option><option value="enabled">\u5DF2\u542F\u7528\u8FDE\u63A5</option><option value="disabled">\u672A\u542F\u7528\u8FDE\u63A5</option><option value="bound">\u5DF2\u7ED1\u5B9A\u73A9\u5BB6</option><option value="idle">\u7A7A\u95F2 / \u672A\u7ED1\u5B9A</option><option value="credential_missing">\u7F3A\u5C11\u4EE4\u724C</option></select><button class="btn-s" onclick="yyPoolRefresh()">\u5237\u65B0\u5217\u8868</button></div><p id="yy-pool-feedback" class="yy-hint" role="status">\u6B63\u5728\u8BFB\u53D6\u6258\u7BA1\u6C60\u2026</p><div id="yy-pool-list" class="yy-compact-list"></div></section>');
-  document.getElementById("yy-pool-search").value = yyPoolQuery;
-  document.getElementById("yy-pool-filter").value = yyPoolFilter;
+  delete subPageCache["机器人托管池"];
+  openSubPage("机器人托管池", yyIntro("机器人托管池", "统一查看多台机器人，按时间、身份和玩家筛选。") + yyPoolPanelHTML());
+  const search = document.getElementById("yy-pool-search");
+  if (search) search.value = yyPoolQuery;
+  if (!yyPoolRows.length) {
+    const cached = yyPoolCacheRead();
+    if (cached) yyPoolRows = cached;
+  }
+  yyDrawPoolRows(yyPoolRows.length ? "已显示本机缓存，正在核对…" : "");
   await yyPoolRefresh();
 }
-function yyPoolFilteredRows(rows, query, state) {
+function yyPoolFilteredRows(rows, query, state, time, role, player) {
   const q = String(query || "").trim().toLowerCase();
-  return rows.filter((a) => {
-    var _a, _b, _c;
-    return (!q || [a.name, a.server, (_a = a.lease) == null ? void 0 : _a.player].join(" ").toLowerCase().includes(q)) && (state === "all" || state === "enabled" && a.enabled || state === "disabled" && !a.enabled || state === "bound" && ((_b = a.lease) == null ? void 0 : _b.phase) === "bound" || state === "idle" && ((_c = a.lease) == null ? void 0 : _c.phase) !== "bound" || state === "credential_missing" && !a.has_token);
+  const timeKey = time || "all", roleKey = role || "all", playerKey = player === void 0 || player === null ? "all" : player;
+  const now = Date.now();
+  return (rows || []).filter(function(account) {
+    if (!account) return false;
+    const bound = yyPoolBoundPlayer(account);
+    if (state === "enabled" && !account.enabled) return false;
+    if (state === "disabled" && account.enabled) return false;
+    if (state === "bound" && !bound) return false;
+    if (state === "idle" && bound) return false;
+    if (state === "credential_missing" && account.has_token) return false;
+    if (timeKey !== "all") {
+      // 没有真实上线时间的账号不进任何时间档，只在「全部」里出现。
+      const stamp = yyPoolLastSeen(account);
+      if (!stamp) return false;
+      if (timeKey === "today") {
+        const midnight = new Date(now);
+        midnight.setHours(0, 0, 0, 0);
+        if (stamp < midnight.getTime()) return false;
+      } else if (!(now - stamp <= Number(timeKey) * 864e5)) return false;
+    }
+    if (roleKey !== "all" && yyPoolIdentityKey(account) !== roleKey) return false;
+    if (playerKey !== "all") {
+      if (playerKey === "none") {
+        if (bound) return false;
+      } else if (bound !== playerKey) return false;
+    }
+    if (q && yyPoolSearchText(account).indexOf(q) < 0) return false;
+    return true;
   });
 }
-async function yyPoolRefresh() {
+function yyPoolSummaryText(total, matched, pages, groups) {
+  let text = "共 " + total + " 个托管账号 · 匹配 " + matched + " 个";
+  if (groups != null) text += " · " + groups + " 个玩家";
+  if (pages > 1) text += " · 第 " + yyPoolPage + " / " + pages + " 页";
+  if (yyPoolCacheStamp) text += " · 同步 " + new Date(yyPoolCacheStamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return text;
+}
+// 手动刷新按钮的忙碌态：只在这一台设备上转，不做任何自动轮询。
+function yyPoolRefreshBusy(busy) {
+  const button = document.getElementById("yy-pool-refresh");
+  if (!button) return;
+  button.disabled = !!busy;
+  button.dataset.busy = busy ? "1" : "0";
+  button.classList.toggle("is-busy", !!busy);
+  button.textContent = busy ? "刷新中…" : "刷新";
+}
+async function yyPoolRefresh(force) {
   if (!yyAccountAdmin()) return;
+  // 刷新列表时丢掉已读出的明文令牌，回到默认脱敏状态。
+  yyPoolTokenShown = "";
+  yyPoolTokenPlain = "";
   const epoch = ++yyPoolReadEpoch, scope = yyReadScope(), host = document.getElementById("yy-pool-list"), out = document.getElementById("yy-pool-feedback");
   if (!host) return;
-  if (out) out.textContent = "\u6B63\u5728\u5237\u65B0\u672C\u673A\u6258\u7BA1\u8D44\u6599\u2026";
+  if (!yyPoolRows.length) {
+    const cached = yyPoolCacheRead();
+    if (cached) {
+      yyPoolRows = cached;
+      yyDrawPoolRows("已显示本机缓存，正在核对…");
+    }
+  }
+  const before = yyPoolSignature(yyPoolRows);
+  if (out && !yyPoolRows.length) out.textContent = "正在读取托管池…";
+  yyPoolRefreshBusy(true);
   try {
     const result = await yyPoolCall("list", [{ all: true }]);
     if (epoch !== yyPoolReadEpoch || scope !== yyReadScope() || document.getElementById("yy-pool-list") !== host) return;
-    yyPoolRows = result.accounts || [];
-    yyDrawPoolRows();
+    const next = (result.accounts || []).map(yyPoolCacheRow), changed = !!force || yyPoolSignature(next) !== before;
+    yyPoolRows = next;
+    yyPoolLastSync = Date.now();
+    // 账号列表里 connected === true 是真实在线证据：把它记成上线时间，供「最近上线」筛选。
+    for (const row of next) {
+      const profile = yyPoolProfileOf(row);
+      if (profile && profile.connected === true) yyPoolSeen[row.id] = yyPoolLastSync;
+    }
+    yyPoolCacheWrite(next);
+    if (changed) {
+      yyDrawPoolRows();
+      return;
+    }
+    const matched = yyPoolFilteredRows(yyPoolRows, yyPoolQuery, yyPoolFilter, yyPoolTime, yyPoolRole, yyPoolPlayer);
+    const matchedGroups = yyPoolGroup === "player" ? yyPoolPlayerGroups(matched).length : null;
+    const units = matchedGroups == null ? matched.length : matchedGroups;
+    // 内容没变就不重绘 DOM，但时间筛选项的可用状态要跟着新观察更新。
+    yyPoolSyncTimeFacet();
+    if (out) out.textContent = yyPoolSummaryText(yyPoolRows.length, matched.length, Math.max(1, Math.ceil(units / yyPoolPageSize)), matchedGroups);
   } catch (error) {
-    if (document.getElementById("yy-pool-list") === host && out) out.textContent = error.message;
+    if (document.getElementById("yy-pool-list") !== host) return;
+    if (out) out.textContent = yyPoolRows.length ? "刷新失败，仍显示上次结果：" + (error.message || "") : (error.message || "托管池读取失败");
+  } finally {
+    yyPoolRefreshBusy(false);
   }
 }
-function yyDrawPoolRows() {
+// 按玩家聚合：绑定到同一个玩家（lease.player）的多个账号归到一组，未绑定的单独一组。
+// 不用 player_name：那是机器人自己的游戏名，一台一个，按它分组等于没分组。
+function yyPoolPlayerGroups(rows) {
+  const groups = [], index = {};
+  for (const account of rows) {
+    const player = yyPoolBoundPlayer(account) || "";
+    const key = player ? "p:" + player : "unbound";
+    if (!index[key]) {
+      index[key] = { key: key, player: player, rows: [] };
+      groups.push(index[key]);
+    }
+    index[key].rows.push(account);
+  }
+  groups.sort(function(a, b) {
+    if (!a.player !== !b.player) return a.player ? -1 : 1;
+    return a.player.localeCompare(b.player, "zh-CN");
+  });
+  return groups;
+}
+function yyPoolGroupHTML(group) {
+  const label = group.player || "未绑定玩家";
+  const open = yyPoolGroupOpen[group.key] === true;
+  return '<details class="yy-pool-group" data-pool-group="' + yyEscape(group.key) + '"' + (open ? " open" : "") + ' ontoggle="yyPoolGroupToggle(this)"><summary class="yy-pool-group-sum"><strong>' + yyEscape(label) + '</strong><span class="yy-pool-group-meta">' + group.rows.length + ' 个账号</span><span class="yy-row-chevron" aria-hidden="true">›</span></summary><div class="yy-pool-group-body">' + group.rows.map(yyPoolRowHTML).join("") + "</div></details>";
+}
+function yyPoolGroupToggle(details) {
+  if (!details || !details.getAttribute) return;
+  const key = details.getAttribute("data-pool-group");
+  if (key) yyPoolGroupOpen[key] = !!details.open;
+}
+function yyDrawPoolRows(statusText) {
   const host = document.getElementById("yy-pool-list");
   if (!host) return;
-  const rows = yyPoolFilteredRows(yyPoolRows, yyPoolQuery, yyPoolFilter), out = document.getElementById("yy-pool-feedback");
-  if (out) out.textContent = "\u5171 " + yyPoolRows.length + " \u4E2A\u6258\u7BA1\u8D26\u53F7 \xB7 \u5F53\u524D\u5339\u914D " + rows.length + " \u4E2A \xB7 \u5217\u8868\u4EC5\u663E\u793A\u5DF2\u4FDD\u5B58\u8D44\u6599\uFF0C\u8FDE\u63A5\u72B6\u6001\u9700\u5728\u8BE6\u60C5\u67E5\u8BE2";
-  host.innerHTML = rows.map(function(a) {
-    var _a;
-    const index = yyPoolRows.indexOf(a), profile = yyAllAccountRows.find((p) => p.id === a.id);
-    return '<button class="yy-compact-row" onclick="yyPoolDetail(' + index + ')">' + yyAccountAvatarHTML(profile || a) + '<span class="yy-compact-identity"><strong>' + yyEscape(a.name || a.id) + "</strong><small>" + yyEscape((a.server || "\u672A\u9009\u62E9\u670D\u52A1\u5668") + (((_a = a.lease) == null ? void 0 : _a.phase) === "bound" ? " \xB7 " + a.lease.player : "")) + '</small></span><span class="yy-compact-status">' + (a.has_token ? a.enabled ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528" : "\u7F3A\u5C11\u4EE4\u724C") + '</span><span class="yy-row-chevron" aria-hidden="true">\u203A</span></button>';
-  }).join("") || '<p class="yy-empty">\u6CA1\u6709\u7B26\u5408\u6761\u4EF6\u7684\u6258\u7BA1\u8D26\u53F7</p>';
+  // 先按当前真实数据摆正时间档位，再过滤：没有上线时间时不该用上一个残留档位过滤。
+  yyPoolSyncTimeFacet();
+  const rows = yyPoolFilteredRows(yyPoolRows, yyPoolQuery, yyPoolFilter, yyPoolTime, yyPoolRole, yyPoolPlayer);
+  const grouped = yyPoolGroup === "player", groups = grouped ? yyPoolPlayerGroups(rows) : null;
+  // 分组视图按「组」翻页，平铺视图按「账号」翻页。
+  const pages = Math.max(1, Math.ceil((grouped ? groups.length : rows.length) / yyPoolPageSize));
+  yyPoolPage = Math.min(pages, Math.max(1, yyPoolPage));
+  const start = (yyPoolPage - 1) * yyPoolPageSize;
+  const pageGroups = grouped ? groups.slice(start, start + yyPoolPageSize) : null;
+  const shown = grouped ? pageGroups.reduce(function(list, group) { return list.concat(group.rows); }, []) : rows.slice(start, start + yyPoolPageSize);
+  if (typeof yySkinWarm === "function") yySkinWarm(shown);
+  if (typeof yyAcctWarmFigures === "function") yyAcctWarmFigures(shown);
+  yyPoolRenderPlayers();
+  host.innerHTML = (grouped ? pageGroups.map(yyPoolGroupHTML).join("") : shown.map(yyPoolRowHTML).join("")) || '<div class="yy-empty">没有符合条件的托管账号</div>';
+  yyPoolRenderPages(rows.length, pages);
+  yyPoolSyncChips();
+  const out = document.getElementById("yy-pool-feedback");
+  if (out) out.textContent = statusText || yyPoolSummaryText(yyPoolRows.length, rows.length, pages, grouped ? groups.length : null);
+}
+function yyPoolRenderPlayers() {
+  const host = document.getElementById("yy-pool-players");
+  if (!host) return;
+  const names = [], seen = {};
+  for (const account of yyPoolRows) {
+    const player = yyPoolBoundPlayer(account);
+    if (!player || seen[player]) continue;
+    seen[player] = 1;
+    names.push(player);
+  }
+  names.sort(function(a, b) {
+    return a.localeCompare(b, "zh-CN");
+  });
+  if (yyPoolPlayer !== "all" && yyPoolPlayer !== "none" && names.indexOf(yyPoolPlayer) < 0) yyPoolPlayer = "all";
+  host.innerHTML = [yyPoolChip("player", "all", "全部"), yyPoolChip("player", "none", "未绑定")].concat(names.map(function(name) {
+    return yyPoolChip("player", name, name);
+  })).join("");
+}
+function yyPoolRenderPages(matched, pages) {
+  const host = document.getElementById("yy-pool-pages");
+  if (!host) return;
+  if (!matched) {
+    host.innerHTML = "";
+    return;
+  }
+  host.innerHTML = '<button class="btn-s"' + (yyPoolPage <= 1 ? " disabled" : "") + ' onclick="yyPoolGoPage(-1)">上一页</button><span>第 ' + yyPoolPage + " / " + pages + ' 页</span><button class="btn-s"' + (yyPoolPage >= pages ? " disabled" : "") + ' onclick="yyPoolGoPage(1)">下一页</button><span class="yy-pool-page-size"><span>每页</span>' + ["20", "50"].map(function(size) {
+    return yyPoolChip("size", size, size);
+  }).join("") + "</span>";
+}
+// 时间分面：整池都没有真实上线时间时，除「全部」外的档位禁用，并写明原因。
+function yyPoolSyncTimeFacet() {
+  const facet = document.getElementById("yy-pool-time-facet"), note = document.getElementById("yy-pool-time-note"), has = yyPoolHasTimeData();
+  if (!has && yyPoolTime !== "all") yyPoolTime = "all";
+  if (facet) {
+    const chips = facet.querySelectorAll(".yy-pool-chip");
+    for (const chip of chips) {
+      const isAll = chip.getAttribute("data-value") === "all";
+      const off = !has && !isAll;
+      chip.disabled = off;
+      chip.setAttribute("aria-disabled", off ? "true" : "false");
+      if (off) {
+        chip.setAttribute("data-on", "0");
+        chip.setAttribute("aria-pressed", "false");
+        chip.setAttribute("title", "暂无上线时间数据");
+      } else if (chip.getAttribute("title") === "暂无上线时间数据") {
+        chip.removeAttribute("title");
+      }
+    }
+  }
+  if (note) note.hidden = has;
+}
+function yyPoolSyncChips() {
+  const chips = document.querySelectorAll ? document.querySelectorAll(".yy-pool-chip[data-facet]") : [];
+  const current = { time: yyPoolTime, state: yyPoolFilter, role: yyPoolRole, player: yyPoolPlayer, group: yyPoolGroup, size: String(yyPoolPageSize) };
+  for (const chip of chips) {
+    const facet = chip.getAttribute("data-facet"), value = chip.getAttribute("data-value");
+    if (!Object.prototype.hasOwnProperty.call(current, facet)) continue;
+    const on = current[facet] === value;
+    chip.setAttribute("data-on", on ? "1" : "0");
+    chip.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+function yyPoolFilterSet(facet, value) {
+  if (facet === "size") {
+    yyPoolPageSizeSet(value);
+    return;
+  }
+  if (facet === "time") yyPoolTime = value;
+  else if (facet === "state") yyPoolFilter = value;
+  else if (facet === "role") yyPoolRole = value;
+  else if (facet === "player") yyPoolPlayer = value;
+  else if (facet === "group") yyPoolGroup = value === "player" ? "player" : "flat";
+  else return;
+  yyPoolPage = 1;
+  yyPoolSyncChips();
+  yyDrawPoolRows();
+}
+function yyPoolPageSizeSet(size) {
+  yyPoolPageSize = Number(size) === 50 ? 50 : 20;
+  yyPoolPage = 1;
+  yyDrawPoolRows();
+}
+function yyPoolGoPage(delta) {
+  yyPoolPage = Math.max(1, yyPoolPage + delta);
+  yyDrawPoolRows();
+}
+function yyPoolRefreshIcon() {
+  return '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.7-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13.4 2.2v3.2H10.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function yyPoolEyeIcon() {
+  return '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 8S4.1 3.9 8 3.9 14.4 8 14.4 8 11.9 12.1 8 12.1 1.6 8 1.6 8Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg>';
+}
+function yyPoolRowHTML(account) {
+  const profile = yyPoolProfileOf(account), uid = yyPoolUID(account), bound = yyPoolBoundPlayer(account);
+  // 在线点只认本机账号列表里的真实连接状态；托管池自己只报启用与否，别把"已启用"画成"在线"。
+  const onlineState = profile ? yyAcctOnlineState(profile, true) : account.enabled ? "unknown" : "off";
+  const status = account.has_token ? account.enabled ? "已启用" : "未启用" : "缺少令牌";
+  const meta = [account.server || "未选服务器", uid ? "UID " + uid : "", bound ? "玩家 " + bound : ""].filter(Boolean).join(" · ");
+  const when = yyPoolWhenText(yyPoolLastSeen(account)), idJSON = yyEscape(JSON.stringify(String(account.id)));
+  return '<div class="yy-pool-row" data-pool-row="' + yyEscape(String(account.id)) + '"><button type="button" class="yy-pool-hit" onclick="yyPoolDetailByID(' + idJSON + ')" title="查看详情与实时状态">' + yyPoolAvatarHTML(account, profile) + '<span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="' + onlineState + '" aria-hidden="true"></i><strong>' + yyEscape(account.name || "未命名账号") + "</strong>" + yyAcctRoleChip(profile || account, false) + "</span><small>" + yyEscape(meta) + '</small></span></button><span class="yy-pool-side"><span class="yy-pool-live">' + yyEscape(status) + (when ? "<em>" + yyEscape(when) + "</em>" : "") + '</span><button type="button" class="yy-pool-act" title="刷新状态" aria-label="刷新状态" onclick="yyPoolRowRefresh(' + idJSON + ', this)">' + yyPoolRefreshIcon() + '</button><button type="button" class="yy-pool-act" title="查看详情" aria-label="查看详情" onclick="yyPoolDetailByID(' + idJSON + ')">' + yyPoolEyeIcon() + "</button></span></div>";
+}
+// 行内「刷新状态」：只查这一台，不轮询；在线时把时间记进缓存，供「最近上线」筛选。
+async function yyPoolRowRefresh(id, button) {
+  if (!yyAccountAdmin()) {
+    T("需要管理员权限", "e");
+    return;
+  }
+  if (button && button.dataset.busy === "1") return;
+  const rowEl = button && button.closest ? button.closest(".yy-pool-row") : null, live = rowEl ? rowEl.querySelector(".yy-pool-live") : null;
+  if (button) {
+    button.dataset.busy = "1";
+    button.classList.add("is-busy");
+  }
+  if (live) live.textContent = "查询中…";
+  try {
+    const status = await yyPoolCall("status", [id]) || {}, connected = status.connected === true;
+    if (connected) yyPoolMarkSeen(id);
+    if (rowEl && rowEl.isConnected !== false) {
+      const dot = rowEl.querySelector(".yy-acct-dot");
+      if (dot) dot.setAttribute("data-online", connected ? "on" : "off");
+      const target = rowEl.querySelector(".yy-pool-live");
+      if (target) target.innerHTML = yyEscape(yyAccountStatusLabel(status)) + "<em>" + yyEscape((status.server || "未选服务器") + (status.online == null ? "" : " · 在线 " + status.online)) + "</em>";
+    }
+  } catch (error) {
+    const target = rowEl && rowEl.querySelector ? rowEl.querySelector(".yy-pool-live") : null;
+    if (target) target.textContent = error.message || "状态查询失败";
+    else T(error.message || "状态查询失败", "e");
+  } finally {
+    if (button) {
+      button.dataset.busy = "0";
+      button.classList.remove("is-busy");
+    }
+  }
+}
+function yyPoolDetailByID(id) {
+  const index = yyPoolRows.findIndex((account) => String(account.id) === String(id));
+  if (index >= 0) yyPoolDetail(index);
+}
+// 账号选择器：原生 <select> 在 Android WebView 里会弹系统暗色列表，没有头像也不能搜索。
+// 这里复用皮肤库那套抽屉结构（.yy-skin-drawer），选中后写回原 <select> 并派发 change，
+// 其余读 .value 的代码不用改。
+var yyAcctPickerTargetId = "", yyAcctPickerQuery = "";
+function yyAcctPickerAvatar(row) {
+  if (!row) return "";
+  return yyPoolProfileOf(row) || row.lease || row.pool_binding ? yyPoolAvatarHTML(row, yyPoolProfileOf(row)) : yyAccountAvatarHTML(row);
+}
+function yyAcctPickerCandidates() {
+  const target = document.getElementById(yyAcctPickerTargetId);
+  if (!target) return [];
+  const allowed = {};
+  for (const option of Array.from(target.options || [])) allowed[option.value] = option.textContent || option.value;
+  return Object.keys(allowed).map(function(id) {
+    const row = yyPoolRows.find((a) => String(a.id) === id) || yyAllAccountRows.find((a) => String(a.id) === id) || yyCenterCloudRows.find((a) => String(a.id) === id);
+    const uid = row ? yyPoolUID(row) : "";
+    return {
+      id,
+      selected: String(target.value || "") === id,
+      name: row && (row.nickname || row.name) || allowed[id] || id,
+      meta: [row && row.server, uid ? "UID " + uid : "", row ? yyPoolBoundPlayer(row) : ""].filter(Boolean).join(" · "),
+      avatar: yyAcctPickerAvatar(row) || '<span class="yy-compact-avatar yy-avatar-frame yy-avatar-fallback"><span class="yy-avatar-initial" aria-hidden="true">' + yyEscape(String(allowed[id] || id).slice(0, 1)) + "</span></span>"
+    };
+  });
+}
+function yyAcctPickerHTML() {
+  return '<div class="yy-skin-drawer-mask" onclick="yyAcctPickerClose()"></div><aside class="yy-skin-drawer-panel yy-acct-picker-panel" role="dialog" aria-modal="true" aria-label="选择账号"><header class="yy-skin-drawer-head"><h3>选择账号</h3><button class="btn-s" type="button" onclick="yyAcctPickerClose()">关闭</button></header><label class="yy-search"><input id="yy-acct-picker-search" type="search" aria-label="搜索账号" placeholder="搜索昵称、UID 或服务器" oninput="yyAcctPickerQuery=this.value;yyAcctPickerRender()"></label><div id="yy-acct-picker-list" class="yy-acct-picker-list"></div></aside>';
+}
+function yyAcctPickerOpen(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  yyAcctPickerTargetId = targetId;
+  yyAcctPickerQuery = "";
+  let host = document.getElementById("yy-acct-picker");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "yy-acct-picker";
+    host.className = "yy-skin-drawer yy-acct-picker";
+    document.body.append(host);
+  }
+  host.hidden = false;
+  host.innerHTML = yyAcctPickerHTML();
+  yyAcctPickerRender();
+  const search = document.getElementById("yy-acct-picker-search");
+  if (search && search.focus) search.focus();
+}
+function yyAcctPickerRender() {
+  const host = document.getElementById("yy-acct-picker-list");
+  if (!host) return;
+  const q = String(yyAcctPickerQuery || "").trim().toLowerCase();
+  const rows = yyAcctPickerCandidates().filter((row) => !q || (row.name + " " + row.meta + " " + row.id).toLowerCase().indexOf(q) >= 0);
+  host.innerHTML = rows.map(function(row) {
+    return '<button type="button" class="yy-acct-picker-row" data-selected="' + (row.selected ? "1" : "0") + '" aria-pressed="' + (row.selected ? "true" : "false") + '" onclick="yyAcctPickerChoose(' + yyEscape(JSON.stringify(row.id)) + ')"><span class="yy-acct-picker-avatar">' + row.avatar + '</span><span class="yy-compact-identity"><strong>' + yyEscape(row.name) + "</strong>" + (row.meta ? "<small>" + yyEscape(row.meta) + "</small>" : "") + '</span><span class="yy-acct-picker-check" aria-hidden="true">' + (row.selected ? "\u2713" : "") + "</span></button>";
+  }).join("") || '<p class="yy-empty">没有匹配的账号</p>';
+}
+function yyAcctPickerChoose(id) {
+  const target = document.getElementById(yyAcctPickerTargetId);
+  if (target) {
+    target.value = String(id);
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    yyAcctPickerSync(yyAcctPickerTargetId);
+  }
+  yyAcctPickerClose();
+}
+function yyAcctPickerClose() {
+  const host = document.getElementById("yy-acct-picker");
+  if (host) {
+    host.hidden = true;
+    host.innerHTML = "";
+  }
+}
+function yyAcctPickerSync(targetId) {
+  const target = document.getElementById(targetId), label = document.querySelector('[data-acct-picker-label="' + targetId + '"]');
+  if (!label) return;
+  const option = target && target.options ? target.options[target.selectedIndex] : null;
+  label.textContent = option ? String(option.textContent || option.value || "") || "选择账号" : "选择账号";
 }
 function yyPoolDetail(index) {
   var _a;
@@ -719,10 +1491,29 @@ function yyPoolDetail(index) {
   const account = yyPoolRows[index];
   if (!account) return;
   yyPoolSelectedID = account.id;
+  // 每次打开详情都回到默认脱敏状态，明文只能由「显示」按钮按需拉取。
+  yyPoolTokenShown = "";
+  yyPoolTokenPlain = "";
   delete subPageCache["\u6258\u7BA1\u673A\u5668\u4EBA\u8BE6\u60C5"];
   delete _savedFormState["\u6258\u7BA1\u673A\u5668\u4EBA\u8BE6\u60C5"];
-  const localIndex = yyAccountRows.findIndex((a) => a.id === account.id), buttons = yyAccountActionHTML("yyPoolDetailRefresh", [], "\u67E5\u8BE2\u5B9E\u65F6\u72B6\u6001") + yyAccountActionHTML("yyAccountTokenAction", [account.id, true], "\u590D\u5236\u4EE4\u724C") + (localIndex >= 0 ? yyAccountActionHTML("yyEditAccount", [localIndex], "\u7F16\u8F91\u8D26\u53F7\u914D\u7F6E") : "");
-  openSubPage("\u6258\u7BA1\u673A\u5668\u4EBA\u8BE6\u60C5", yyIntro(account.name || account.id, "\u8FDE\u63A5\u72B6\u6001\u3001\u670D\u52A1\u5668\u548C\u73A9\u5BB6\u7ED1\u5B9A\u5206\u5F00\u7BA1\u7406\u3002") + '<section class="card"><div class="yy-account-meta"><span>\u8D26\u53F7\u6807\u8BC6 <b>' + yyEscape(account.id) + "</b></span><span>\u8D26\u53F7\u51ED\u636E <b>" + (account.has_token ? "\u5DF2\u4FDD\u5B58\uFF0C\u5C1A\u672A\u9A8C\u8BC1\u672C\u6B21\u8FDB\u670D" : "\u7F3A\u5C11\u4EE4\u724C") + "</b></span><span>\u81EA\u52A8\u91CD\u8FDE <b>" + (account.keep_alive ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528") + '</b></span></div><p class="yy-hint" id="yy-pool-live" role="status">\u8FDE\u63A5\u72B6\u6001\u5F85\u67E5\u8BE2</p><div class="yy-actions">' + buttons + '</div><label>\u76EE\u6807\u670D\u52A1\u5668<input id="yy-pool-server" value="' + yyEscape(account.server || "") + '" placeholder="\u670D\u52A1\u5668\u53F7 / \u623F\u95F4\u53F7"></label><label>\u7ED1\u5B9A\u73A9\u5BB6<input id="yy-pool-player" value="' + yyEscape(((_a = account.lease) == null ? void 0 : _a.player) || "") + '" placeholder="\u73A9\u5BB6\u6E38\u620F\u540D"></label><p class="yy-hint">\u4FDD\u5B58\u7ED1\u5B9A\u4E0D\u4F1A\u81EA\u52A8\u4F20\u9001\uFF1B\u8FDE\u63A5\u8BF7\u6C42\u548C\u89C2\u5BDF\u7B56\u7565\u5206\u522B\u6267\u884C\u3002\u505C\u6B62\u4F1A\u53D6\u6D88\u6B64\u673A\u5668\u4EBA\u7684\u6258\u7BA1\u8FDE\u63A5\u4E0E\u7ED1\u5B9A\u3002</p><div class="yy-actions">' + ["bind", "start", "release", "stop"].map((action, i) => yyAccountActionHTML("yyPoolDetailAction", [action], ["\u4FDD\u5B58\u7ED1\u5B9A", "\u8FDE\u63A5\u6B64\u670D\u52A1\u5668", "\u91CA\u653E\u5E76\u7B49\u5F85 60 \u79D2", "\u505C\u6B62\u673A\u5668\u4EBA"][i], action === "start" ? "btn" : "btn-s")).join("") + '</div><p id="yy-pool-detail-result" role="status"></p></section>');
+  // 后端返回的 token_masked 也是令牌前缀，照样不落在界面上；统一用固定掩码。
+  const masked = account.has_token ? "已隐藏 · 点查看显示" : "尚未保存令牌";
+  const tokenDisabled = account.has_token ? "" : " disabled";
+  const localIndex = yyAccountRows.findIndex((a) => a.id === account.id), buttons = yyAccountActionHTML("yyPoolDetailRefresh", [], "\u67E5\u8BE2\u5B9E\u65F6\u72B6\u6001") + yyAccountActionHTML("yyPoolEnter", [account.id], "\u8FDB\u5165\u6B64\u8D26\u53F7\u5DE5\u4F5C\u533A", "btn") + (localIndex >= 0 ? yyAccountActionHTML("yyEditAccount", [localIndex], "\u7F16\u8F91\u8D26\u53F7\u914D\u7F6E") : "");
+  // 皮肤操作紧贴 3D 预览下方：换皮肤 / 打开皮肤库，都走已有实现。
+  const skinActs = '<div class="yy-pool-skin-acts">' + yyAccountActionHTML("yyPoolAccountSkin", [account.id], "\u66F4\u6362\u76AE\u80A4") + yyAccountActionHTML("yySkinLibraryOpen", [], "\u6253\u5F00\u76AE\u80A4\u5E93") + "</div>";
+  const tokenRow = '<div class="yy-pool-token"><span class="yy-pool-token-label">\u4EE4\u724C</span><code id="yy-pool-token-value" data-shown="0" data-masked="' + yyEscape(masked) + '">' + yyEscape(masked) + '</code><button class="btn-s" id="yy-pool-token-toggle" onclick="yyPoolTokenToggle()"' + tokenDisabled + '>\u663E\u793A</button><button class="btn-s" onclick="yyPoolTokenCopy()"' + tokenDisabled + '>\u590D\u5236</button></div>';
+  // 形象区放在最上面：进详情第一眼就是这个人长什么样，下面才是字段与操作。
+  // 令牌行用池自己的那一行（默认打码），所以这里关掉通用令牌行，避免两套并存。
+  const hero = yyAcctProfileHTML(account, { pooled: true, token: false });
+  openSubPage("\u6258\u7BA1\u673A\u5668\u4EBA\u8BE6\u60C5", yyIntro(account.name || "未命名账号", "\u8FDE\u63A5\u72B6\u6001\u3001\u670D\u52A1\u5668\u548C\u73A9\u5BB6\u7ED1\u5B9A\u5206\u5F00\u7BA1\u7406\u3002") + '<section class="card yy-pool-hero">' + hero + skinActs + "</section>" + '<section class="card">' + yyAccountFactsHTML(account, { pooled: true, compact: true }) + tokenRow + '<p class="yy-hint" id="yy-pool-live" role="status">\u8FDE\u63A5\u72B6\u6001\u5F85\u67E5\u8BE2</p><div class="yy-actions">' + buttons + '</div><label>\u76EE\u6807\u670D\u52A1\u5668<input id="yy-pool-server" value="' + yyEscape(account.server || "") + '" placeholder="\u670D\u52A1\u5668\u53F7 / \u623F\u95F4\u53F7"></label><label>\u7ED1\u5B9A\u73A9\u5BB6<input id="yy-pool-player" value="' + yyEscape(((_a = account.lease) == null ? void 0 : _a.player) || "") + '" placeholder="\u73A9\u5BB6\u6E38\u620F\u540D"></label><p class="yy-hint">\u4FDD\u5B58\u7ED1\u5B9A\u4E0D\u4F1A\u81EA\u52A8\u4F20\u9001\uFF1B\u8FDE\u63A5\u8BF7\u6C42\u548C\u89C2\u5BDF\u7B56\u7565\u5206\u522B\u6267\u884C\u3002\u505C\u6B62\u4F1A\u53D6\u6D88\u6B64\u673A\u5668\u4EBA\u7684\u6258\u7BA1\u8FDE\u63A5\u4E0E\u7ED1\u5B9A\u3002\u6258\u7BA1\u8D26\u53F7\u4E0D\u8BBE\u65F6\u9650\uFF0C\u91CA\u653E\u540E\u4E0D\u4F1A\u81EA\u52A8\u56DE\u6536\u3002</p><div class="yy-actions">' + ["bind", "start", "release", "stop"].map((action, i) => yyAccountActionHTML("yyPoolDetailAction", [action], ["\u4FDD\u5B58\u7ED1\u5B9A", "\u8FDE\u63A5\u6B64\u670D\u52A1\u5668", "\u91CA\u653E\uFF08\u4E0D\u8BBE\u65F6\u9650\uFF09", "\u505C\u6B62\u673A\u5668\u4EBA"][i], action === "start" ? "btn" : "btn-s")).join("") + '</div><p id="yy-pool-detail-result" role="status"></p></section>');
+  // 形象区的 3D 皮肤必须在页面插入之后挂载：容器没有宽度时算不出单位尺寸，
+  // 这就是以前那块浅色区域只剩静态占位、点「走动」也没反应的原因。
+  if (typeof yyAcctWarmFigures === "function") yyAcctWarmFigures([account]);
+  setTimeout(function() {
+    if (yyPoolSelectedID !== account.id) return;
+    if (typeof yyAcctMountViewers === "function") yyAcctMountViewers(document.getElementById("sub-page") || document);
+  }, 30);
 }
 async function yyPoolDetailRefresh() {
   if (!yyAccountAdmin()) return;
@@ -733,12 +1524,95 @@ async function yyPoolDetailRefresh() {
   try {
     const status = await yyPoolCall("status", [id]);
     if (id !== yyPoolSelectedID || scope !== yyReadScope() || document.getElementById("yy-pool-live") !== host) return;
+    if (status.connected === true) yyPoolMarkSeen(id);
     host.textContent = yyAccountStatusLabel(status) + " \xB7 " + (status.server || "\u672A\u9009\u62E9\u670D\u52A1\u5668") + " \xB7 \u5728\u7EBF\u4EBA\u6570 " + (status.online == null ? "\u672A\u77E5" : status.online);
   } catch (error) {
     if (document.getElementById("yy-pool-live") === host) host.textContent = error.message;
   } finally {
     host.dataset.busy = "false";
   }
+}
+// 明文令牌只在用户点「显示 / 复制」时按需向后端要一次，默认永远是脱敏状态。
+async function yyPoolSecret(id) {
+  if (!id) return "";
+  const r = await yyRootAPI("GET", "/api/youyuan/accounts/pool/secret?id=" + encodeURIComponent(id));
+  if (!r || r.ok !== true || !r.token) {
+    T(r && r.error || "\u8FD9\u4E2A\u6258\u7BA1\u8D26\u53F7\u5C1A\u672A\u4FDD\u5B58\u4EE4\u724C", "e");
+    return "";
+  }
+  return r.token;
+}
+async function yyPoolTokenToggle() {
+  const el = document.getElementById("yy-pool-token-value"), button2 = document.getElementById("yy-pool-token-toggle");
+  if (!el) return;
+  clearTimeout(yyAcctTokenTimers.pool);
+  if (el.dataset.shown === "1") {
+    el.textContent = el.dataset.masked || "";
+    el.dataset.shown = "0";
+    if (button2) button2.textContent = "\u663E\u793A";
+    return;
+  }
+  const id = yyPoolSelectedID;
+  let token = yyPoolTokenShown === id ? yyPoolTokenPlain : "";
+  if (!token) {
+    token = await yyPoolSecret(id);
+    if (!token) return;
+    yyPoolTokenShown = id;
+    yyPoolTokenPlain = token;
+  }
+  const live = document.getElementById("yy-pool-token-value");
+  if (!live || yyPoolSelectedID !== id) return;
+  live.textContent = token;
+  live.dataset.shown = "1";
+  const toggle = document.getElementById("yy-pool-token-toggle");
+  if (toggle) toggle.textContent = "\u9690\u85CF";
+  yyAcctTokenTimers.pool = setTimeout(function () {
+    const now = document.getElementById("yy-pool-token-value");
+    if (now && now.dataset.shown === "1") {
+      now.textContent = now.dataset.masked || "已隐藏 · 点查看显示";
+      now.dataset.shown = "0";
+      const button3 = document.getElementById("yy-pool-token-toggle");
+      if (button3) button3.textContent = "\u663E\u793A";
+    }
+  }, 60000);
+}
+async function yyPoolTokenCopy() {
+  const id = yyPoolSelectedID;
+  let token = yyPoolTokenShown === id ? yyPoolTokenPlain : "";
+  if (!token) {
+    token = await yyPoolSecret(id);
+    if (!token) return;
+    yyPoolTokenShown = id;
+    yyPoolTokenPlain = token;
+  }
+  await yyCopyAccountToken(token);
+}
+// 管理员可调用：托管账号直接进入自己的工作区，和普通凭证走同一条路径。
+async function yyPoolEnter(id) {
+  if (!yyAccountAdmin()) {
+    T("\u9700\u8981\u7BA1\u7406\u5458\u6743\u9650", "e");
+    return;
+  }
+  await yyEnterAccount(id);
+}
+// 复用普通凭证的换皮肤实现（yyGameAccountSkin）。托管账号自己不是官方凭证，
+// 所以先找到与它关联的那条官方凭证，再把凭证交给同一个函数。
+async function yyPoolAccountSkin(id) {
+  if (!yyAccountAdmin()) {
+    T("\u9700\u8981\u7BA1\u7406\u5458\u6743\u9650", "e");
+    return;
+  }
+  const row = yyPoolRows.find((a) => a.id === id) || { id };
+  let linked = yyLinkedCredential(row, yyCenterCloudRows);
+  if (!linked) {
+    await yyCenterCloudAccounts();
+    linked = yyLinkedCredential(row, yyCenterCloudRows) || yyLinkedCredential({ id }, yyCenterCloudRows);
+  }
+  if (!linked) {
+    T("\u8FD9\u4E2A\u6258\u7BA1\u8D26\u53F7\u8FD8\u6CA1\u6709\u5173\u8054\u5B98\u65B9\u6E38\u620F\u51ED\u636E\uFF0C\u65E0\u6CD5\u8BFB\u53D6\u76AE\u80A4\uFF1B\u8BF7\u5148\u5728\u6E38\u620F\u8D26\u53F7\u5217\u8868\u5B8C\u6210\u5B98\u65B9\u51ED\u636E\u5173\u8054", "e");
+    return;
+  }
+  await yyGameAccountSkin(linked);
 }
 async function yyPoolDetailAction(action) {
   if (!yyAccountAdmin()) {
@@ -747,7 +1621,8 @@ async function yyPoolDetailAction(action) {
   }
   const id = yyPoolSelectedID, scope = yyReadScope(), out = document.getElementById("yy-pool-detail-result");
   if (!out || out.dataset.busy === "true") return;
-  const args = action === "release" ? [id, { idle_seconds: 60 }] : action === "stop" ? [id] : [id, { player: document.getElementById("yy-pool-player").value.trim(), server: document.getElementById("yy-pool-server").value.trim() }];
+  // 托管账号不设时限：释放不再传 idle_seconds，后端也就不会安排自动回收。
+  const args = action === "release" || action === "stop" ? [id] : [id, { player: document.getElementById("yy-pool-player").value.trim(), server: document.getElementById("yy-pool-server").value.trim() }];
   out.dataset.busy = "true";
   out.textContent = "\u6B63\u5728\u63D0\u4EA4\u64CD\u4F5C\u2026";
   try {
@@ -767,6 +1642,7 @@ async function yyPoolDetailAction(action) {
         row.enabled = true;
         row.server = args[1].server || row.server;
       }
+      yyPoolCacheWrite(yyPoolRows);
     }
   } catch (error) {
     if (document.getElementById("yy-pool-detail-result") === out) out.textContent = error.message;
@@ -778,6 +1654,13 @@ async function yyPoolDetailAction(action) {
 (window.__subPageRestoreHooks = window.__subPageRestoreHooks || []).push({ key: "\u673A\u5668\u4EBA\u6258\u7BA1\u6C60", fn: function() {
   yyDrawPoolRows();
 } });
+// 托管池不轮询：只有「手动刷新」和「切回前台且距上次同步超过 5 分钟」这两种情况才拉接口。
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState !== "visible") return;
+  if (!document.getElementById("yy-pool-list")) return;
+  if (Date.now() - yyPoolLastSync < 3e5) return;
+  yyPoolRefresh();
+});
 function yyRenderAuthPending(rows, batches) {
   const host = document.getElementById("yy-ga-pending");
   if (!host) return;
@@ -855,7 +1738,8 @@ function yyRenderAuthPending(rows, batches) {
   }
 }
 async function yyCenterRefresh() {
-  await Promise.all([yyRefreshAccounts(true), yyCenterCloudAccounts()]);
+  await yyRefreshAccounts(true);
+  yyCenterCloudAccounts();
 }
 async function yyCopyAccountToken(token) {
   try {
@@ -961,4 +1845,1053 @@ async function yySubmitGameRelog() {
   } finally {
     b.disabled = false;
   }
+}
+
+// ===== 皮肤库抽屉：内置 6 款免费皮肤 + 拖动转身 + 一键换肤 + 自己的组件码 =====
+// 关于"组件码"：网易换肤只认纯数字组件码，而且必须是该账号**已经拥有**的组件。
+// 链路：前端 POST /api/youyuan/game-auth {action:"skin",id,item_id}
+//   → 本机 youyuan_game_auth.go 原样转发到认证服务 /api/accounts
+//   → auth-service/engine.go 的 case "skin" 调 g79client.SetUserSettingList(item_id)
+// 只做"选择"，不替账号购买；成功后重新进服生效。
+// 内置的 6 个码由玩家提供；拿不到官方组件名就统一叫「免费皮肤 <组件码>」，不编造皮肤名。
+//
+// 关于缩略图：网易没有"按组件码取图"的地址——res_url 只能由
+// pe-download-item/get-download-info 现取（outputs/github-netease-interface-research.md:92），
+// 客户端拼不出规律，本机也没有把码翻成图的接口。真实在用的取图模板只有：
+//   /api/skin/online-head?player=<名字>     当前皮肤的头像（16x16 PNG，需鉴权，走 data-skin-media）
+//   /api/skin/online-texture?player=<名字>  当前皮肤的整张纹理
+//   认证服务 action:"skin_preview"          账号**当前已选用**皮肤的纹理（data:image/png 整张）
+// 所以只有"机器人当前穿的就是这一款"时才能立刻出真图；其余先显示组件码方块，
+// 点「让机器人用这款」应用成功后再取真图（apply → 重拉账号 → skin_preview）。
+var yySkinLibraryDefaults = [
+  { id: "8428087", name: "免费皮肤 8428087" },
+  { id: "8736264", name: "免费皮肤 8736264" },
+  { id: "8632391", name: "免费皮肤 8632391" },
+  { id: "9805050", name: "免费皮肤 9805050" },
+  { id: "9182586", name: "免费皮肤 9182586" },
+  { id: "9086323", name: "免费皮肤 9086323" }
+];
+var yySkinLibraryRow = null, yySkinLibraryPickKey = "", yySkinLibraryRot = 0, yySkinLibraryDrag = null, yySkinLibraryDraft = null;
+var yySkinLibraryCustomKey = "yy-skin-library-custom";
+function yySkinToneFromCode(code) {
+  const text = String(code || "0");
+  let seed = 0;
+  for (let i = 0; i < text.length; i++) seed = (seed * 31 + text.charCodeAt(i)) % 360;
+  return ["hsl(" + seed + ",32%,24%)", "hsl(" + ((seed + 40) % 360) + ",48%,62%)", "hsl(" + ((seed + 180) % 360) + ",62%,48%)"];
+}
+function yySkinLibraryCustom() {
+  try {
+    const list = JSON.parse(localStorage.getItem(yySkinLibraryCustomKey) || "[]");
+    return Array.isArray(list) ? list.filter((item) => item && item.code) : [];
+  } catch (e) {
+    return [];
+  }
+}
+// 真实皮肤图缓存：组件码 → 认证服务返回的整张纹理（data:image/png;base64）
+var yySkinRealTexture = {};
+// 组件码 → 已裁好的 8x8 头部正面（64x64 data URL），卡片和转身正面都用它
+var yySkinHeadImage = {};
+// 当前抽屉选中的官方账号（换肤目标）
+function yySkinLibraryTargetRow() {
+  const select = document.getElementById("yy-skin-target");
+  const id = select && select.value;
+  if (!id) return null;
+  return (yyCenterCloudRows || []).find((item) => String(item.id) === String(id)) || null;
+}
+// 把整张皮肤纹理裁成 8x8 的头部正面并放大到 64x64：像素风不插值，和游戏里看到的一致。
+function yySkinCropHead(texture) {
+  return new Promise(function(resolve) {
+    if (!texture) return resolve("");
+    const img = new Image();
+    img.onload = function() {
+      try {
+        const unit = Math.max(1, Math.floor((img.naturalWidth || 64) / 64));
+        const canvas = document.createElement("canvas");
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 8 * unit, 8 * unit, 8 * unit, 8 * unit, 0, 0, 64, 64);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        resolve("");
+      }
+    };
+    img.onerror = function() {
+      resolve("");
+    };
+    img.src = texture;
+  });
+}
+// 缩略图 / 整张纹理的真实地址模板：这两个接口只按玩家名取图，是本项目里唯一在用的皮肤图地址，
+// 不要臆造域名。player 必须是"当前穿着这一款的机器人游戏名"，所以只在码对得上时才用。
+function yySkinLibraryMediaURL(player) {
+  const name = String(player || "").trim();
+  if (!name) return { thumb: "", texture: "" };
+  const query = "?player=" + encodeURIComponent(name);
+  return { thumb: "/api/skin/online-head" + query, texture: "/api/skin/online-texture" + query };
+}
+// 只有"账号当前选用的组件码 == 这一款"时，取到的图才是这一款；
+// 码不一致直接不请求——拿别的皮肤冒充这一款就是伪造皮肤图。
+async function yySkinLibraryFetchTexture(code, force) {
+  const key = String(code || "");
+  if (!key) return "";
+  if (!force && yySkinRealTexture[key]) return yySkinRealTexture[key];
+  const row = yySkinLibraryTargetRow();
+  if (!row || String(row.skin_item_id || "") !== key) return "";
+  // 1) 缩略图接口：机器人进过服时本机就有这张皮肤，直接拿裁好的头（最快）。
+  const name = typeof yyAcctSkinName === "function" ? yyAcctSkinName(row) : "";
+  const media = yySkinLibraryMediaURL(name);
+  // 应用换肤后纹理才真正可用；清掉之前（还没落盘时）记下的失败/无效标记，
+  // 否则 YYSkinMediaURL 会永久钉在失败态，应用成功后也出不来真实预览。
+  if (force && typeof window.YYSkinMediaReset === "function") {
+    if (media.thumb) window.YYSkinMediaReset(media.thumb);
+    if (media.texture) window.YYSkinMediaReset(media.texture);
+  }
+  if (media.thumb && typeof window.YYSkinMediaURL === "function") {
+    try {
+      const head = await window.YYSkinMediaURL(media.thumb);
+      if (head) {
+        yySkinHeadImage[key] = head;
+        yySkinRealTexture[key] = head;
+        return head;
+      }
+    } catch (e) {
+    }
+  }
+  // 2) 整张纹理接口：缩略图没命中时取整张，本地裁出头部正面。
+  if (media.texture && typeof window.YYSkinMediaURL === "function") {
+    try {
+      const full = await window.YYSkinMediaURL(media.texture);
+      if (full) {
+        yySkinRealTexture[key] = full;
+        const head = await yySkinCropHead(full);
+        if (head) {
+          yySkinHeadImage[key] = head;
+          return full;
+        }
+      }
+    } catch (e) {
+    }
+  }
+  // 3) 机器人还没进服：走认证服务的 skin_preview（服务端取官方 res_url 再解包成 PNG）。
+  try {
+    const r = await yyGameAuthAPI("POST", { action: "skin_preview", id: row.id });
+    if (r && r.ok && typeof r.texture === "string" && /^data:image\//.test(r.texture)) {
+      yySkinRealTexture[key] = r.texture;
+      const head = await yySkinCropHead(r.texture);
+      if (head) yySkinHeadImage[key] = head;
+      return r.texture;
+    }
+  } catch (e) {
+  }
+  return "";
+}
+// 打开抽屉时补一次真图：机器人当前穿着的每一款（内置或我自己的组件码）都直接显示真实头像。
+// 之前只认内置 6 款，导致用户自己添加的、机器人正穿着的皮肤打开皮肤库时还是组件码方块。
+function yySkinLibrarySyncReal() {
+  const row = yySkinLibraryTargetRow();
+  if (!row) return;
+  const worn = String(row.skin_item_id || "");
+  if (!worn) return;
+  for (const entry of yySkinLibraryEntries()) {
+    if (entry.code && String(entry.code) === worn) {
+      yySkinLibraryFetchTexture(entry.code).then(function(texture) {
+        if (texture) yySkinLibraryRender();
+      });
+    }
+  }
+}
+// 应用成功后对齐一次账号列表：账号页开着时走原来的刷新，否则单独拉一次，
+// 保证 skin_item_id 是最新的，后面的真图才取得到。
+async function yySkinLibraryRefreshRows() {
+  try {
+    const r = await yyGameAuthAPI("GET");
+    if (r && r.ok && Array.isArray(r.accounts)) yyCenterCloudRows = r.accounts;
+  } catch (e) {
+  }
+}
+function yySkinLibraryDefaultEntries() {
+  return yySkinLibraryDefaults.map(function(item) {
+    return { key: "free-" + item.id, name: item.name, code: item.id, builtin: true, tone: yySkinToneFromCode(item.id) };
+  });
+}
+function yySkinLibraryEntries() {
+  const custom = yySkinLibraryCustom().map((item) => ({ key: "custom-" + item.code, name: item.name || "我的皮肤", code: String(item.code), custom: true, tone: item.tone || yySkinToneFromCode(item.code) }));
+  return yySkinLibraryDefaultEntries().concat(yySkinLibraryDraft ? [yySkinLibraryDraft] : [], custom);
+}
+function yySkinLibraryCurrent() {
+  return yySkinLibraryEntries().find((entry) => entry.key === yySkinLibraryPickKey) || null;
+}
+function yySkinLibraryHTML() {
+  const options = (yyCenterCloudRows || []).map((row) => '<option value="' + yyEscape(row.id) + '">' + yyEscape(row.nickname || row.name || "未命名账号") + "</option>").join("");
+  return '<div class="yy-skin-drawer-mask" onclick="yySkinLibraryClose()"></div>' +
+    '<aside class="yy-skin-drawer-panel" role="dialog" aria-modal="true" aria-label="皮肤库">' +
+    '<header class="yy-skin-drawer-head"><h3>皮肤库</h3><button class="btn-s" onclick="yySkinLibraryClose()">关闭</button></header>' +
+    '<p class="yy-hint">下面 6 款是内置免费皮肤：点卡片选中，点「让机器人用这款」直接换到选中的账号；换好后重新进服生效。</p>' +
+    '<div class="yy-skin-turn-stage" id="yy-skin-turn-stage"><div class="yy-skin-turn" id="yy-skin-turn">' +
+    '<span class="yy-skin-turn-face front" id="yy-skin-face-front"></span>' +
+    '<span class="yy-skin-turn-face back"></span><span class="yy-skin-turn-face left"></span><span class="yy-skin-turn-face right"></span>' +
+    "</div>" +
+    '<p class="yy-skin-turn-empty" id="yy-skin-turn-empty">暂无预览<small id="yy-skin-turn-empty-code"></small></p></div>' +
+    '<div class="yy-skin-preview-meta"><strong id="yy-skin-preview-name">选一个皮肤</strong><span id="yy-skin-preview-tag" class="yy-hint"></span></div>' +
+    '<label>换到哪个官方账号<select id="yy-skin-target" hidden>' + (options || '<option value="">还没有官方游戏账号</option>') + '</select><button type="button" class="yy-acct-picker-trigger" onclick="yyAcctPickerOpen(\'yy-skin-target\')"><span data-acct-picker-label="yy-skin-target">选择账号</span><i aria-hidden="true">▾</i></button></label>' +
+    '<div class="yy-actions"><button class="btn" id="yy-skin-library-apply" onclick="yySkinLibraryApply()">使用这个</button><button class="btn-s" onclick="yySkinLibraryClose()">取消</button></div>' +
+    '<p id="yy-skin-library-status" class="yy-hint" role="status"></p>' +
+    '<div class="yy-skin-grid" id="yy-skin-grid"></div>' +
+    '<section class="yy-skin-custom"><h4>我自己的组件码</h4>' +
+    '<label>名称<input id="yy-skin-custom-name" maxlength="24" placeholder="例如 我的免费皮肤"></label>' +
+    '<label>组件码<input id="yy-skin-custom-code" inputmode="numeric" placeholder="纯数字组件码"></label>' +
+    '<div class="yy-actions"><button class="btn-s" onclick="yySkinLibraryPreviewCustom()">预览</button><button class="btn-s" onclick="yySkinLibrarySaveCustom()">保存到我的皮肤库</button></div>' +
+    '<p id="yy-skin-custom-status" class="yy-hint" role="status"></p></section>' +
+    "</aside>";
+}
+function yySkinLibraryOpen(row) {
+  if (row && row.id) yySkinLibraryRow = row;
+  let host = document.getElementById("yy-skin-drawer");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "yy-skin-drawer";
+    host.className = "yy-skin-drawer";
+    document.body.append(host);
+  }
+  host.hidden = false;
+  host.innerHTML = yySkinLibraryHTML();
+  const select = document.getElementById("yy-skin-target");
+  if (select) {
+    if (row && row.id) select.value = row.id;
+    // 换账号就是换目标：重画卡片（已生效标记、真图），并补一次真实纹理。
+    select.addEventListener("change", function() {
+      yySkinLibraryRender();
+      yySkinLibrarySyncReal();
+    });
+  }
+  yyAcctPickerSync("yy-skin-target");
+  yySkinLibraryRender();
+  yySkinTurnBind();
+  yySkinLibrarySyncReal();
+}
+function yySkinLibraryClose() {
+  const host = document.getElementById("yy-skin-drawer");
+  if (host) {
+    host.hidden = true;
+    host.innerHTML = "";
+  }
+  yySkinLibraryDrag = null;
+}
+function yySkinLibraryFaceHTML(entry) {
+  const code = String(entry.code || "");
+  const head = code ? yySkinHeadImage[code] : "";
+  if (head) return '<span class="yy-skin-card-face" style="background-image:url(' + head + ')"></span>';
+  // 拿不到真实皮肤图就只放组件码：不拿本地生成的像素图冒充皮肤。
+  return '<span class="yy-skin-card-face yy-skin-card-face-code" title="暂无预览">' + yyEscape(code.slice(0, 3) || "—") + "</span>";
+}
+function yySkinCardKey(event, key) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  yySkinLibraryPick(key);
+}
+function yySkinLibraryRender() {
+  const grid = document.getElementById("yy-skin-grid");
+  if (!grid) return;
+  const entries = yySkinLibraryEntries();
+  if (!entries.some((entry) => entry.key === yySkinLibraryPickKey)) yySkinLibraryPickKey = entries.length ? entries[0].key : "";
+  const target = yySkinLibraryTargetRow();
+  const worn = String((target && target.skin_item_id) || "");
+  grid.innerHTML = entries.map(function(entry) {
+    const selected = entry.key === yySkinLibraryPickKey ? " selected" : "";
+    const applied = entry.code && worn && String(entry.code) === worn;
+    const tag = entry.custom ? (applied ? "我的 · 已生效" : "我的") : (applied ? "内置 · 已生效" : "内置");
+    return '<div class="yy-skin-card' + selected + '" role="button" tabindex="0" data-key="' + yyEscape(entry.key) + '" onclick="yySkinLibraryPick(\'' + yyEscape(entry.key) + '\')" onkeydown="yySkinCardKey(event,\'' + yyEscape(entry.key) + '\')" title="' + yyEscape(entry.name) + '">' +
+      yySkinLibraryFaceHTML(entry) +
+      '<span class="yy-skin-card-name">' + yyEscape(entry.name) + "</span>" +
+      '<span class="yy-skin-card-tag">' + tag + "</span>" +
+      (entry.code ? '<button type="button" class="yy-skin-card-apply" onclick="event.stopPropagation();yySkinLibraryUse(\'' + yyEscape(entry.key) + '\',this)">让机器人用这款</button>' : "") +
+      (entry.custom ? '<button type="button" class="yy-skin-card-del" onclick="event.stopPropagation();yySkinLibraryRemoveCustom(\'' + yyEscape(entry.key) + '\')">移除</button>' : "") +
+      "</div>";
+  }).join("");
+  const current = yySkinLibraryCurrent();
+  const nameEl = document.getElementById("yy-skin-preview-name");
+  if (nameEl) nameEl.textContent = current ? current.name : "选一个皮肤";
+  const tagEl = document.getElementById("yy-skin-preview-tag");
+  if (tagEl) tagEl.textContent = current && current.code ? "组件码 " + current.code + (yySkinHeadImage[current.code] ? " · 真实皮肤" : " · 待应用") : "";
+  const headImage = current && current.code ? yySkinHeadImage[current.code] : "";
+  const front = document.getElementById("yy-skin-face-front");
+  if (front) front.style.backgroundImage = headImage ? "url(" + headImage + ")" : "none";
+  for (const face of document.querySelectorAll(".yy-skin-turn-face.back,.yy-skin-turn-face.left,.yy-skin-turn-face.right")) face.style.backgroundImage = headImage ? "url(" + headImage + ")" : "none";
+  // 没有真实皮肤图时整块换成「暂无预览 + 组件码」，不显示拼出来的假方块。
+  const stage = document.getElementById("yy-skin-turn-stage");
+  if (stage) stage.classList.toggle("yy-skin-stage-empty", !headImage);
+  const emptyCode = document.getElementById("yy-skin-turn-empty-code");
+  if (emptyCode) emptyCode.textContent = current && current.code ? "组件码 " + current.code : "";
+  yySkinTurnPaint();
+}
+function yySkinTurnPaint() {
+  const turn = document.getElementById("yy-skin-turn");
+  if (turn) turn.style.transform = "rotateX(-6deg) rotateY(" + yySkinLibraryRot + "deg)";
+}
+function yySkinTurnBind() {
+  const stage = document.getElementById("yy-skin-turn-stage");
+  if (!stage || stage.dataset.bound === "1") return;
+  stage.dataset.bound = "1";
+  stage.addEventListener("pointerdown", function(event) {
+    yySkinLibraryDrag = { x: event.clientX, rot: yySkinLibraryRot };
+    try {
+      stage.setPointerCapture(event.pointerId);
+    } catch (e) {
+    }
+  });
+  stage.addEventListener("pointermove", function(event) {
+    if (!yySkinLibraryDrag) return;
+    yySkinLibraryRot = yySkinLibraryDrag.rot + (event.clientX - yySkinLibraryDrag.x) * 0.7;
+    yySkinTurnPaint();
+  });
+  stage.addEventListener("pointerup", function() {
+    yySkinLibraryDrag = null;
+  });
+  stage.addEventListener("pointercancel", function() {
+    yySkinLibraryDrag = null;
+  });
+}
+function yySkinLibraryPick(key) {
+  yySkinLibraryPickKey = key;
+  yySkinLibraryRender();
+}
+function yySkinLibraryPreviewCustom() {
+  const name = document.getElementById("yy-skin-custom-name").value.trim() || "我的皮肤";
+  const code = document.getElementById("yy-skin-custom-code").value.trim();
+  const out = document.getElementById("yy-skin-custom-status");
+  if (!/^\d{1,32}$/.test(code)) {
+    out.textContent = "组件码是纯数字，请检查";
+    return;
+  }
+  yySkinLibraryDraft = { key: "draft-" + code, name: name, code: code, custom: true, tone: yySkinToneFromCode(code) };
+  yySkinLibraryPickKey = yySkinLibraryDraft.key;
+  out.textContent = "预览中；确认无误后点「保存到我的皮肤库」";
+  yySkinLibraryRender();
+}
+function yySkinLibrarySaveCustom() {
+  const name = document.getElementById("yy-skin-custom-name").value.trim() || "我的皮肤";
+  const code = document.getElementById("yy-skin-custom-code").value.trim();
+  const out = document.getElementById("yy-skin-custom-status");
+  if (!/^\d{1,32}$/.test(code)) {
+    out.textContent = "组件码是纯数字，请检查";
+    return;
+  }
+  const list = yySkinLibraryCustom().filter((item) => String(item.code) !== code);
+  list.unshift({ key: "custom-" + code, name: name, code: code, tone: yySkinToneFromCode(code) });
+  try {
+    localStorage.setItem(yySkinLibraryCustomKey, JSON.stringify(list.slice(0, 24)));
+  } catch (e) {
+    out.textContent = "本机存储不可用，未能保存";
+    return;
+  }
+  yySkinLibraryDraft = null;
+  yySkinLibraryPickKey = "custom-" + code;
+  out.textContent = "已保存到我的皮肤库";
+  yySkinLibraryRender();
+}
+function yySkinLibraryRemoveCustom(key) {
+  const code = String(key || "").replace(/^custom-/, "");
+  const list = yySkinLibraryCustom().filter((item) => String(item.code) !== code);
+  try {
+    localStorage.setItem(yySkinLibraryCustomKey, JSON.stringify(list));
+  } catch (e) {
+  }
+  if (yySkinLibraryPickKey === key) yySkinLibraryPickKey = "";
+  yySkinLibraryRender();
+}
+// 「使用这个」和卡片上的「让机器人用这款」是同一条真实链路，只差按钮文案。
+async function yySkinLibraryApplyEntry(entry, button, label) {
+  const out = document.getElementById("yy-skin-library-status");
+  if (!out) return;
+  const row = yySkinLibraryTargetRow();
+  if (!row) {
+    out.textContent = "还没有可换肤的官方游戏账号；先在「注册与认证任务」接入。";
+    return;
+  }
+  const code = String(entry.code || "");
+  if (!/^\d{1,32}$/.test(code)) {
+    out.textContent = "「" + entry.name + "」没有数字组件码，无法应用。";
+    return;
+  }
+  const restore = label || (button && button.textContent) || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "正在应用…";
+  }
+  out.textContent = "正在把「" + entry.name + "」应用到 " + (row.nickname || row.name || "未命名账号") + "…";
+  try {
+    const result = await yyGameAuthAPI("POST", { action: "skin", id: row.id, item_id: code });
+    if (!result.ok) throw Error(result.error || "换肤失败");
+    out.textContent = "已应用「" + entry.name + "」；重新连接游戏后生效。";
+    T("换肤成功", "o");
+    // 皮肤变了，清掉预热记录，让下一次渲染重新拉一遍头像。
+    yySkinWarmSeen = {};
+    // 接口会把改完的账号一起返回，先就地合并，省掉一次列表请求。
+    if (result.account && result.account.id) {
+      const rows = yyCenterCloudRows || [];
+      const index = rows.findIndex((item) => String(item.id) === String(result.account.id));
+      if (index >= 0) rows[index] = Object.assign({}, rows[index], result.account);
+    }
+    await yyCenterCloudAccounts();
+    if (String((yySkinLibraryTargetRow() || {}).skin_item_id || "") !== code) await yySkinLibraryRefreshRows();
+    // 应用成功后立刻取这一款的真图，卡片从组件码方块换成真实皮肤。
+    await yySkinLibraryFetchTexture(code, true);
+  } catch (error) {
+    out.textContent = error.message || "换肤失败";
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = restore;
+    }
+  }
+}
+async function yySkinLibraryUse(key, button) {
+  const entry = yySkinLibraryEntries().find((item) => item.key === key);
+  if (!entry) return;
+  yySkinLibraryPickKey = key;
+  await yySkinLibraryApplyEntry(entry, button, "让机器人用这款");
+  yySkinLibraryRender();
+}
+async function yySkinLibraryApply() {
+  const out = document.getElementById("yy-skin-library-status");
+  const entry = yySkinLibraryCurrent();
+  if (!entry) {
+    out.textContent = "先在上面选一个皮肤";
+    return;
+  }
+  await yySkinLibraryApplyEntry(entry, document.getElementById("yy-skin-library-apply"), "使用这个");
+  yySkinLibraryRender();
+}
+// ===== 换肤页的加载态 =====
+// youyuan_game_auth.js 的换肤页原本是一块和背景同色的空 div，请求要 1~3 秒，玩家会以为"没有皮肤"。
+// 这里在脚本全部加载后给原函数包一层：进页面立刻铺骨架，拿到 canvas 再撤掉，失败就显示默认头像 + 提示。
+function yySkinStagePrelude(row) {
+  const stage = document.getElementById("yy-ga-skin-stage");
+  if (!stage || stage.querySelector(".yy-skin-skeleton")) return;
+  stage.classList.add("yy-skin-stage");
+  stage.insertAdjacentHTML("afterbegin", '<div class="yy-skin-skeleton" role="status"><span class="yy-skin-skeleton-figure">' + yyEscape(yyPoolAvatarInitial(row || {})) + '</span><span class="yy-skin-skeleton-text">正在加载皮肤…</span></div>');
+  const started = Date.now();
+  const timer = setInterval(function() {
+    const live = document.getElementById("yy-ga-skin-stage");
+    if (!live || live !== stage) {
+      clearInterval(timer);
+      return;
+    }
+    if (live.querySelector("canvas")) {
+      const skeleton = live.querySelector(".yy-skin-skeleton");
+      if (skeleton) skeleton.remove();
+      clearInterval(timer);
+      return;
+    }
+    const status = document.getElementById("yy-ga-skin-status");
+    const text = (status && status.textContent) || "";
+    const failed = /未能|失败|错误/.test(text);
+    if (failed || Date.now() - started > 20000) {
+      const skeleton = live.querySelector(".yy-skin-skeleton");
+      if (skeleton) {
+        skeleton.classList.add("yy-skin-skeleton-failed");
+        skeleton.innerHTML = '<span class="yy-skin-skeleton-figure">' + yyEscape(yyPoolAvatarInitial(row || {})) + '</span><span class="yy-skin-skeleton-text">' + (failed ? "皮肤读取失败，可在下方手动填组件码" : "皮肤仍在读取，可稍后再试") + "</span>";
+      }
+      clearInterval(timer);
+    }
+  }, 150);
+}
+// details 的 toggle 事件不冒泡，只能在捕获阶段从 document 上收。
+// 展开账号卡片时补挂 3D 皮肤：收起状态下容器宽度是 0，YYSkinViewer 算不出单位尺寸。
+document.addEventListener("toggle", function(event) {
+  var target = event.target;
+  if (!target || !target.classList || !target.classList.contains("yy-account-card")) return;
+  // 展开状态记到模块里：10 秒刷新 / 切页重建后还要恢复成用户自己摆的样子。
+  var key = target.getAttribute("data-account-key") || target.getAttribute("data-account-id");
+  if (key) {
+    if (target.open) yyAccountOpenKeys.add(key);
+    else yyAccountOpenKeys.delete(key);
+  }
+  if (!target.open) return;
+  yyAcctMountViewers(target);
+}, true);
+document.addEventListener("DOMContentLoaded", function() {
+  if (typeof yyGameAccountSkin !== "function" || yyGameAccountSkin.yySkinPrelude) return;
+  const base = yyGameAccountSkin;
+  const wrapped = async function(row) {
+    const pending = base.apply(this, arguments);
+    yySkinStagePrelude(row);
+    return pending;
+  };
+  wrapped.yySkinPrelude = true;
+  window.yyGameAccountSkin = wrapped;
+  yyGameAccountSkin = wrapped;
+});
+// ===== 账号形象：头像 / 完整皮肤 / 身份卡（牌） =====
+// 用户的原话：「应用程序类的账号……也得升级，就像认证网站一样，都能显示他们的头像，
+// 然后打开也能看到他们皮肤等一系列，然后也能调用牌等」。
+// 改之前：列表只有一行名字 + 一个 44px 方块，点开是一张纯字段表，看不出"这是谁"。
+// 取图规则和玩家页保持一致：外链一律走同源 /api/skin/proxy（服务端只拉一次并落盘），
+// 同源相对路径（/api/…）直接请求——把相对路径塞进代理会被 400 拒绝。
+// 玩家名字符集：网易版允许中文名（服务器里就有「冷酷清纯车速」「布汲岛」），
+// 以前只认 [A-Za-z0-9_]{3,16}，中文名的账号一律被判成"查不到"，头像全空。
+// 现在名字只用来查本机内核（online-head / online-texture），
+// 对不上服务器玩家就是 404 退回占位，不会像外站那样返回陌生人的脸，所以放宽是安全的。
+var yyAcctNameRe = /^[\w\u3400-\u4dbf\u4e00-\u9fa5]{2,16}$/;
+var yyAcctUUIDRe = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+function yyAcctProxySrc(url) {
+  var u = String(url || "").trim();
+  if (!u) return "";
+  if (/^data:image\//i.test(u)) return u;
+  if (/^https?:\/\//i.test(u)) return "/api/skin/proxy?url=" + encodeURIComponent(u);
+  return u;
+}
+function yyAcctUUID(acct) {
+  var v = String((acct && acct.uuid) || "").trim();
+  return yyAcctUUIDRe.test(v) ? v : "";
+}
+// 账号在游戏里的名字：绑定玩家 > 托管池上报的游戏名。
+// 账号备注名（可能是中文）不在这里返回——它给人看，不能拿去当 minotar 的玩家名。
+function yyAcctGameName(acct) {
+  if (!acct) return "";
+  var lease = yyAcctLease(acct);
+  var bound = lease ? String(lease.player || "") : "";
+  return String(bound || acct.player_name || "").trim();
+}
+// 取「能拿去查本机皮肤的名字」。
+// 只有本机内核会回答这个名字：服务器里真有这个人就返回他自己的皮肤，
+// 没有就 404，前端退回占位——所以这里可以放心用账号名兜底，
+// 不会再出现「按备注名查到陌生人头像」的情况（那是外站时代的坑）。
+// 旧实现卡 player_name_confirmed !== false，实测所有本地账号都是 false，
+// 于是连服务器上明明有皮肤缓存的「冷酷清纯车速」都取不到头像。
+function yyAcctSkinName(row) {
+  if (!row) return "";
+  var lease = yyAcctLease(row);
+  var bound = lease ? String(lease.player || "").trim() : "";
+  if (bound && yyAcctNameRe.test(bound)) return bound;
+  var direct = String(row.player_name || "").trim();
+  if (direct && yyAcctNameRe.test(direct)) return direct;
+  var fallback = String(row.name || "").trim();
+  if (fallback && yyAcctNameRe.test(fallback)) return fallback;
+  return "";
+}
+// 一个账号组里可能挂着本地账号、云端官方凭证、托管池记录，
+// 头像/皮肤/令牌得挨个看一遍——只看最外层那个对象会漏掉真正带资料的那条。
+function yyAcctRows(acct, profile) {
+  var out = [];
+  if (profile) out.push(profile);
+  if (acct) {
+    out.push(acct);
+    if (acct.local_accounts) out = out.concat(acct.local_accounts);
+    if (acct.cloud_accounts) out = out.concat(acct.cloud_accounts);
+  }
+  return out;
+}
+// 绑定关系可能挂在账号组里的任意一条记录上，挨个找一次，别只看最外层。
+function yyAcctLease(acct) {
+  for (var row of yyAcctRows(acct)) {
+    var lease = row.lease || row.pool_binding || null;
+    if (lease && lease.phase === "bound") return lease;
+  }
+  return null;
+}
+// 头像：本机上传的（data:）> 网易官方 > 按玩家名取本机皮肤头 > 等距三面头占位。
+function yyAcctAvatarURL(acct, profile) {
+  var rows = yyAcctRows(acct, profile);
+  for (var row of rows) {
+    var raw = String(row.avatar || "");
+    if (/^data:image\//i.test(raw)) return raw;
+    var official = yyAccountPortrait(row);
+    if (official) return official;
+  }
+  for (var item of rows) {
+    var guess = yyPoolAvatarURL(item);
+    if (guess) return guess;
+  }
+  return "";
+}
+// 完整皮肤纹理候选链：只用玩家自己的皮肤（本机内核按玩家名返回原始纹理 PNG）。
+// 不再用 crafatar / minotar 的身体渲染——那条链按名字查会给陌生人立绘，
+// 按 UUID 查在国内又常年 500；后端 /api/skin/online-texture 是同一个数据源，
+// 前端拿到整张纹理后自己用 YYSkinViewer 拼立体人形，谁的脸都不会错。
+function yyAcctSkinChain(acct, profile) {
+  var chain = [], seen = {}, rows = yyAcctRows(acct, profile);
+  for (var item of rows) {
+    var n = yyAcctSkinName(item);
+    if (!n || seen[n.toLowerCase()]) continue;
+    seen[n.toLowerCase()] = 1;
+    chain.push("/api/skin/online-texture?player=" + encodeURIComponent(n));
+  }
+  return chain;
+}
+// 形象卡（后端渲染的整张 PNG）只认确认过的游戏名；没有就不显示入口，
+// 避免开出一张"未收到皮肤"的空卡，或者按备注名开出一个陌生人的卡。
+function yyAcctCardPlayer(acct) {
+  for (var row of yyAcctRows(acct)) {
+    var name = yyAcctSkinName(row);
+    if (yyAcctNameRe.test(name)) return name;
+  }
+  return "";
+}
+// 令牌只有本地托管账号才有；账号组里挑第一条有令牌的记录。
+function yyAcctTokenRow(acct) {
+  for (var row of yyAcctRows(acct)) {
+    if (row.has_token) return row;
+  }
+  // 主账号的摘要不带 has_token，只有 configured；配过就说明本机存了令牌。
+  if (acct && acct.id === "main" && acct.configured) return acct;
+  return null;
+}
+// 加载失败按候选链换下一张，链走完才隐藏——绝不能停在破图或与背景同色的空块上。
+function yyAcctImgFail(img) {
+  var chain = String(img.getAttribute("data-chain") || "").split(" ").filter(Boolean);
+  if (chain.length) {
+    img.setAttribute("data-chain", chain.slice(1).join(" "));
+    img.setAttribute("src", chain[0]);
+    return;
+  }
+  img.classList.add("yy-acct-img-dead");
+  var host = img.parentElement;
+  if (host) {
+    host.classList.remove("yy-acct-media-ready");
+    // 别留一块空白：明确告诉用户是"没拉到"，而不是"这个账号没有皮肤"。
+    var tip = host.querySelector(".yy-acct-figure-tip");
+    if (tip) tip.textContent = "皮肤加载失败";
+  }
+}
+function yyAcctImgLoaded(img) {
+  var host = img.parentElement;
+  if (host) host.classList.add("yy-acct-media-ready");
+}
+function yyAcctOnlineState(acct, pooled) {
+  if (!acct) return "unknown";
+  if (acct.connected === true) return "on";
+  if (acct.connection_known === false || acct.connected == null) return "unknown";
+  return "off";
+}
+function yyAcctOnlineText(state) {
+  if (state === "on") return "在线";
+  if (state === "off") return "离线";
+  // 账号内核没启动时后端不给 connected，这时不能猜"离线"——只能说待查询。
+  return "状态待查询";
+}
+// 身份标识：玩家 = 游戏内角色；账号 = 登录工具箱/机器人的账号。这里只说账号的身份。
+// key 只定语义（给徽标上色、选图标用）；label 是纯文本，facts 表格和复制文案要用。
+function yyAcctRoleKey(acct, pooled) {
+  if (!acct) return "bot";
+  if (acct.id === "main" || (acct.local_accounts || []).some(function(l) { return l.id === "main"; })) return "main";
+  if (pooled) return "pooled";
+  if (acct.profile_role === "owner") return "owner";
+  if (acct.local_accounts && !acct.local_accounts.length) return "cloud";
+  return "bot";
+}
+function yyAcctRoleLabel(acct, pooled) {
+  var key = yyAcctRoleKey(acct, pooled);
+  if (key === "main") return "主账号";
+  if (key === "pooled") return "托管账号";
+  if (key === "owner") return "主控账号";
+  // 「仅云端」是内部说法；用户视角这个账号只是"存在云端"，说人话。
+  if (key === "cloud") return "云端";
+  return "机器人账号";
+}
+// 徽标图标：12×12 小图标，fill 继承 currentColor，内联不额外发请求。
+function yyAcctRoleIcon(key) {
+  if (key === "main") return '<svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.6 8.1 1.6 4.3 4 6.1 6 2.5 8 6.1 10.4 4.3 10.4 8.1Z"/><rect x="1.6" y="8.8" width="8.8" height="1.5" rx=".45"/></svg>';
+  if (key === "pooled") return '<svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.4" y="2.1" width="9.2" height="2.6" rx=".55"/><rect x="1.4" y="4.5" width="9.2" height="5.5" rx=".55"/><rect x="5.15" y="3.5" width="1.7" height="2.3" rx=".45"/></svg>';
+  if (key === "owner") return '<svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="3.3" r="1.95"/><path d="M2.2 10.6a4 4 0 0 1 7.6 0z"/></svg>';
+  if (key === "cloud") return '<svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><circle cx="4" cy="5.3" r="1.85"/><circle cx="6.7" cy="4.5" r="2.2"/><circle cx="8.7" cy="5.9" r="1.55"/><rect x="2.3" y="5.5" width="7.1" height="2" rx="1"/></svg>';
+  return '<svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><rect x="5.7" y=".9" width=".6" height="1.7"/><circle cx="6" cy=".9" r=".85"/><rect x="1.3" y="4.3" width="1" height="2" rx=".45"/><rect x="9.7" y="4.3" width="1" height="2" rx=".45"/><rect x="2.2" y="2.5" width="7.6" height="5.7" rx="1.3"/><rect x="4.05" y="4.6" width="1.1" height="1.1" rx=".3"/><rect x="6.85" y="4.6" width="1.1" height="1.1" rx=".3"/></svg>';
+}
+// 账号徽标：图标 + 文字 + 语义色胶囊；data-role 交给 CSS 上色，390px 窄行也不换行。
+function yyAcctRoleChip(acct, pooled) {
+  var key = yyAcctRoleKey(acct, pooled);
+  return '<em class="yy-acct-chip" data-role="' + key + '">' + yyAcctRoleIcon(key) + "<span>" + yyEscape(yyAcctRoleLabel(acct, pooled)) + "</span></em>";
+}
+// 默认形象：一只等距三面的方块头，立在同名方块台座上——没有皮肤时就该是它。
+// 以前这里是一座「空盔甲架」：台基 + 木杆 + 躯干 + 四肢全用矩形堆，
+// 手机上一缩小就变成「几个方块套方块」，像占位图临时拼的。
+// 现在只留一个主体（头）+ 一个台座，两个形状、三档明暗，缩到 64px 也读得出是 Minecraft。
+// 构图借 mineatar-io/skin-render 的等距头，台座用同一光位（顶亮、左暗、右中）。
+// 内联 SVG 而不是 data URI，才能用 currentColor 跟着深浅主题走。
+var yyAcctFigureSVG = '<svg class="yy-acct-figure-ph" viewBox="0 0 24 34" aria-hidden="true" fill="currentColor">' +
+  '<ellipse cx="12" cy="32.6" rx="7.6" ry="1.2" opacity=".1"/>' +
+  '<path opacity=".26" d="M3.5 25 12 20.5 20.5 25 12 29.5Z"/>' +
+  '<path opacity=".14" d="M3.5 25 12 29.5 12 32 3.5 27.5Z"/>' +
+  '<path opacity=".2" d="M20.5 25 12 29.5 12 32 20.5 27.5Z"/>' +
+  '<path opacity=".34" d="M13.89 21.5 13.89 11.65 3.82 8.13 3.82 17.98Z"/>' +
+  '<path opacity=".9" d="M20.18 6.02 13.89 11.65 3.82 8.13 10.11 2.5Z"/>' +
+  '<path fill-rule="evenodd" opacity=".62" d="M20.18 15.87 13.89 21.5 13.89 11.65 20.18 6.02Z M19.4 11.65 17.82 13.06 17.82 11.82 19.4 10.42Z M16.25 14.46 14.68 15.87 14.68 14.64 16.25 13.23Z M17.82 16.75 16.25 18.16 16.25 16.93 17.82 15.52Z"/>' +
+  '<path opacity=".95" d="M20.18 6.02 13.89 11.65 13.89 14.11 20.18 8.48Z"/>' +
+  '<path opacity=".95" d="M20.18 8.48 18.61 9.89 18.61 12.35 20.18 10.94Z"/>' +
+  '<path opacity=".95" d="M15.46 12.71 13.89 14.11 13.89 16.58 15.46 15.17Z"/></svg>';
+// 头像右侧那一栏以前只有名字和徽标，右边空一大块。这里把最该一眼看到的
+// 三项（服务器 / 游戏 UID / 连接）压成等宽小格填进去，信息密度上来了也不挤。
+function yyAcctHeroFacts(acct, pooled) {
+  var state = yyAcctOnlineState(acct, pooled);
+  var lease = yyAcctLease(acct);
+  var server = acct.server || (lease && lease.server) || "未配置";
+  var uid = acct.game_id || "未绑定";
+  var rows = [["服务器", server], ["游戏 UID", uid], ["连接", yyAcctOnlineText(state)]];
+  return '<div class="yy-acct-hero-facts">' + rows.map(function (row) {
+    return '<div><span>' + yyEscape(row[0]) + '</span><b>' + yyEscape(String(row[1])) + '</b></div>';
+  }).join("") + "</div>";
+}
+// 皮肤控制条：走动 / 纤细 / 重置。
+// 以前这三件事全靠用户自己猜——模型在转但看不出是"走动"，纤细版也只能
+// 靠皮肤本身决定。这里给成显式按钮，点了立刻在 3D 上生效。
+function yyAcctSkinBarHTML(acct) {
+  var id = yyEscape(String(acct.id || ""));
+  return '<div class="yy-acct-skin-bar" data-skin-acct="' + id + '">' +
+    '<button type="button" class="yy-acct-skin-btn" data-skin-act="walk" data-on="1" onclick="yyAcctSkinMode(this)">走动</button>' +
+    '<button type="button" class="yy-acct-skin-btn" data-skin-act="slim" data-on="0" onclick="yyAcctSkinMode(this)">纤细</button>' +
+    '<button type="button" class="yy-acct-skin-btn" data-skin-act="reset" onclick="yyAcctSkinMode(this)">正视角</button>' +
+    '<span class="yy-acct-skin-hint">拖动旋转 · 双击复位</span>' +
+    "</div>";
+}
+function yyAcctSkinMode(button) {
+  if (!button) return;
+  var bar = button.closest(".yy-acct-skin-bar");
+  var card = button.closest(".yy-account-card") || document;
+  var host = card.querySelector(".yy-acct-figure-stage");
+  var viewer = host && host.__yyViewer;
+  var act = button.getAttribute("data-skin-act");
+  if (!viewer) {
+    T("皮肤还没加载好，稍等一下再点", "w");
+    return;
+  }
+  if (act === "reset") {
+    viewer.reset();
+    return;
+  }
+  var next = button.getAttribute("data-on") !== "1";
+  button.setAttribute("data-on", next ? "1" : "0");
+  button.classList.toggle("is-on", next);
+  if (act === "walk") {
+    button.textContent = next ? "走动中" : "走动";
+    if (viewer.walk) viewer.walk(next);
+  }
+  if (act === "slim") {
+    button.textContent = next ? "纤细版" : "纤细";
+    if (viewer.model) viewer.model(next);
+  }
+}
+
+// 形象区：左边完整皮肤，右边头像 + 名字 + 身份 + 操作；下面可以调出身份卡。
+function yyAcctProfileHTML(acct, opts) {
+  opts = opts || {};
+  var pooled = !!opts.pooled;
+  var state = yyAcctOnlineState(acct, pooled);
+  var chain = yyAcctSkinChain(acct);
+  var avatarURL = yyAcctAvatarURL(acct);
+  // 立体皮肤：拿到整张纹理后由 YYSkinViewer 拼 3D 人形，展开详情就能直接转。
+  // 以前这里是一张 crafatar/minotar 的静态立绘——境外源、离开缓存就空，
+  // 按名字查还会给出陌生人的身体。纹理改由本机内核按玩家名提供，同一个人不会错。
+  // 挂载由 yyAcctMountViewers 统一做：收起状态的 details 里 clientWidth 为 0，
+  // 提前建 3D 会算不出单位尺寸，所以只在「已展开且可见」时才初始化。
+  var figure = chain.length
+    ? '<div class="yy-acct-figure-stage" data-skin-src="' + yyEscape(chain[0]) + '" role="img" aria-label="' + yyEscape((acct.name || "账号") + " 的立体皮肤") + '"></div>'
+    : "";
+  var tokenRowData = yyAcctTokenRow(acct);
+  var tokenId = opts.tokenId || (tokenRowData && tokenRowData.id) || acct.id;
+  var canToken = opts.token !== false && !!tokenRowData;
+  var canEnter = !pooled && acct.id !== "main" && !!acct.local_accounts;
+  var lease = yyAcctLease(acct);
+  var bound = lease ? String(lease.player || "") : "";
+  var actions = [];
+  if (canEnter) actions.push('<button class="btn" onclick="yyEnterAccount(' + yyEscape(JSON.stringify(acct.id)) + ')">切换到此账号</button>');
+  if (pooled) actions.push('<button class="btn" onclick="yyPoolEnter(' + yyEscape(JSON.stringify(acct.id)) + ')">切换到此账号</button>');
+  if (bound) actions.push('<button class="btn-s" onclick="yyAcctUnbind(' + yyEscape(JSON.stringify(acct.id)) + ',' + (pooled ? "true" : "false") + ')">解绑玩家</button>');
+  if (canToken) actions.push('<button class="btn-s" onclick="yyAcctTokenToggle(' + yyEscape(JSON.stringify(tokenId)) + ')">查看令牌</button>');
+  var tokenRow = canToken ? '<div class="yy-acct-token" data-acct-token-row="' + yyEscape(String(tokenId)) + '"><span class="yy-acct-token-label">令牌</span><code data-acct-token="' + yyEscape(String(tokenId)) + '" data-masked="' + yyEscape("已隐藏 · 点查看显示") + '" data-shown="0">已隐藏 · 点查看显示</code><button class="btn-s" onclick="yyAcctTokenCopy(' + yyEscape(JSON.stringify(tokenId)) + ')">复制</button></div>' : "";
+  // 立绘和它的三个控制按钮必须在同一列：以前控制条挂在整块形象区之后，
+  // 360px 下右栏被操作按钮撑高，控制条就被推到模型下面一百多像素、甚至出屏。
+  // 现在「模型 + 控制条」是一个 flex 竖列，按钮永远紧贴模型底部并水平居中。
+  return '<div class="yy-acct-hero">' +
+      '<div class="yy-acct-figure-col">' +
+        '<div class="yy-acct-figure" role="img" aria-label="' + yyEscape((acct.name || "账号") + " 的皮肤形象") + '">' +
+          yyAcctFigureSVG + figure +
+          '<span class="yy-acct-figure-tip">' + (chain.length ? "皮肤加载中…" : "还没有可用的游戏身份") + "</span>" +
+        '</div>' +
+        (chain.length ? yyAcctSkinBarHTML(acct) : '') +
+      '</div>' +
+      '<div class="yy-acct-hero-main">' +
+        '<div class="yy-acct-hero-line">' + yyAvatarMarkup(acct, avatarURL, "账号头像") +
+          '<div class="yy-acct-hero-text"><strong>' + yyEscape(acct.name || "未命名账号") + '</strong>' +
+          '<span class="yy-acct-hero-tags">' + yyAcctRoleChip(acct, pooled) +
+          '<em class="yy-acct-live" data-online="' + state + '">' + yyEscape(yyAcctOnlineText(state)) + '</em></span>' +
+          yyAcctHeroFacts(acct, pooled) + '</div>' +
+        '</div>' +
+        (actions.length ? '<div class="yy-acct-hero-acts">' + actions.join("") + "</div>" : "") +
+        tokenRow +
+      '</div>' +
+    '</div>';
+}
+function yyAcctCardFacts(acct, pooled) {
+  var lease = yyAcctLease(acct);
+  var bound = lease ? String(lease.player || "") : "";
+  var rows = [
+    ["身份", yyAcctRoleLabel(acct, pooled)],
+    ["游戏 UID", acct.game_id || "未绑定"],
+    ["服务器", acct.server || "未配置"],
+    ["绑定玩家", bound || "未绑定"],
+    ["连接状态", yyAcctOnlineText(yyAcctOnlineState(acct, pooled))],
+    ["令牌", yyAcctTokenRow(acct) ? "已保存" : "缺失"]
+  ];
+  // 后端目前不返回创建时间；有就显示，没有就不在卡上留一个"未记录"的空位。
+  if (acct.created_at) rows.push(["创建时间", yyAcctDateText(acct.created_at)]);
+  return rows;
+}
+function yyAcctDateText(value) {
+  var d = typeof value === "number" ? new Date(value < 1e12 ? value * 1e3 : value) : new Date(String(value));
+  if (isNaN(d.getTime())) return "";
+  var two = function(n) { return (n < 10 ? "0" : "") + n; };
+  return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate());
+}
+// 身份卡（牌）：视觉上独立的一块，可以截图直接发人。
+function yyAcctIdentityCardHTML(acct, pooled) {
+  var state = yyAcctOnlineState(acct, pooled);
+  var facts = yyAcctCardFacts(acct, pooled).map(function(row) {
+    return '<div><dt>' + yyEscape(row[0]) + '</dt><dd>' + yyEscape(String(row[1])) + "</dd></div>";
+  }).join("");
+  return '<div class="yy-acct-card">' +
+      '<div class="yy-acct-card-head">' + yyAvatarMarkup(acct, yyAcctAvatarURL(acct), "身份卡头像") +
+        '<div class="yy-acct-card-id"><strong>' + yyEscape(acct.name || "未命名账号") + "</strong>" +
+        '<span>' + yyAcctRoleChip(acct, pooled) + '<em class="yy-acct-live" data-online="' + state + '">' + yyEscape(yyAcctOnlineText(state)) + "</em></span></div>" +
+      "</div>" +
+      '<dl class="yy-acct-card-facts">' + facts + "</dl>" +
+      '<div class="yy-acct-card-foot"><span>MCORT · 账号身份卡</span><code class="yy-acct-secret-text">已隐藏</code></div>' +
+    "</div>";
+}
+// 牌默认收起来：用户说"能调用牌"，那就留一个明确的入口，点一下才铺开。
+function yyAcctCardWrapHTML(acct, opts) {
+  var pooled = !!(opts && opts.pooled);
+  var player = yyAcctCardPlayer(acct);
+  var copyText = [acct.name || "未命名账号", yyAcctRoleLabel(acct, pooled), acct.game_id ? "UID " + acct.game_id : "", acct.server || ""].filter(Boolean).join(" · ");
+  return '<details class="yy-acct-cardwrap" data-acct-card="' + yyEscape(String(acct.id || "")) + '" ontoggle="yyAcctCardToggle(this)">' +
+      '<summary><span>调用身份卡</span><small>名字 · 身份 · 绑定 · 在线状态</small></summary>' +
+      '<div class="yy-acct-cardwrap-body">' +
+        yyAcctIdentityCardHTML(acct, pooled) +
+        '<div class="yy-acct-card-acts">' +
+          '<button class="btn-s" onclick="yyAcctCardCopy(' + yyEscape(JSON.stringify(copyText)) + ')">复制身份卡文字</button>' +
+          (player ? '<button class="btn-s" data-acct-cardimg="' + yyEscape(player) + '" onclick="yyAcctCardImage(this)">生成形象卡图片</button>' : "") +
+        "</div>" +
+        '<div class="yy-acct-card-image" data-acct-cardimage="' + yyEscape(player) + '"></div>' +
+      "</div>" +
+    "</details>";
+}
+// 展开牌时才去请求后端渲染的形象卡，收起状态不浪费一次 200KB 的 PNG。
+function yyAcctCardToggle(details) {
+  if (!details || !details.open) return;
+  var host = details.querySelector(".yy-acct-card-image");
+  if (!host || host.dataset.loaded === "1") return;
+  var player = host.getAttribute("data-acct-cardimage");
+  if (!player) return;
+  host.dataset.loaded = "1";
+  host.innerHTML = '<img src="/api/qq/player-card?player=' + encodeURIComponent(player) + '" alt="' + yyEscape(player + " 的形象卡") + '" loading="lazy" onerror="this.parentElement.textContent=\'形象卡暂时生成不了，可稍后重试\'">';
+}
+function yyAcctCardImage(button) {
+  var player = button.getAttribute("data-acct-cardimg");
+  var wrap = button.closest(".yy-acct-cardwrap");
+  var host = wrap && wrap.querySelector(".yy-acct-card-image");
+  if (!host || !player) return;
+  if (host.dataset.loaded !== "1") {
+    host.dataset.loaded = "1";
+    host.innerHTML = '<img src="/api/qq/player-card?player=' + encodeURIComponent(player) + '" alt="' + yyEscape(player + " 的形象卡") + '" loading="lazy" onerror="this.parentElement.textContent=\'形象卡暂时生成不了，可稍后重试\'">';
+  }
+  host.classList.add("is-open");
+  if (host.scrollIntoView) host.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+async function yyAcctCardCopy(text) {
+  try {
+    await navigator.clipboard.writeText(String(text || ""));
+    T("身份卡信息已复制", "o");
+  } catch (e) {
+    T("复制失败，可长按文字手动复制", "e");
+  }
+}
+// 令牌默认打码，点「查看令牌 / 复制」时才向后端要一次明文；只缓存在当前页面会话里。
+var yyAcctTokenCache = {}, yyAcctTokenTimers = {};
+async function yyAcctTokenGet(id) {
+  if (yyAcctTokenCache[id]) return yyAcctTokenCache[id];
+  var r = await yyRootAPI("POST", "/api/youyuan/accounts", { action: "token", id: id });
+  if (!r || r.ok !== true || !r.token) {
+    T((r && r.error) || "这个账号尚未保存令牌", "e");
+    return "";
+  }
+  yyAcctTokenCache[id] = r.token;
+  return r.token;
+}
+async function yyAcctTokenToggle(id) {
+  var code = document.querySelector('[data-acct-token="' + String(id).replace(/"/g, '\\"') + '"]');
+  if (!code) return;
+  clearTimeout(yyAcctTokenTimers[id]);
+  if (code.dataset.shown === "1") {
+    code.textContent = code.dataset.masked || "已隐藏 · 点查看显示";
+    code.dataset.shown = "0";
+    return;
+  }
+  var token = await yyAcctTokenGet(id);
+  if (!token || !code.isConnected) return;
+  code.textContent = token;
+  code.dataset.shown = "1";
+  if (code.scrollIntoView) code.scrollIntoView({ block: "nearest" });
+  // 明文最多停留 60 秒：看完自动回落成掩码，避免切走页面后一直亮在屏幕上。
+  yyAcctTokenTimers[id] = setTimeout(function () {
+    if (code.isConnected && code.dataset.shown === "1") {
+      code.textContent = code.dataset.masked || "已隐藏 · 点查看显示";
+      code.dataset.shown = "0";
+    }
+  }, 60000);
+}
+async function yyAcctTokenCopy(id) {
+  var token = await yyAcctTokenGet(id);
+  if (token) await yyCopyAccountToken(token);
+}
+// 解绑：账号池里的绑定只有管理员能改，所以这里直接走池接口，成功后刷新列表。
+async function yyAcctUnbind(id, pooled) {
+  if (typeof yyAccountAdmin === "function" && !yyAccountAdmin()) {
+    T("解绑需要管理员权限", "e");
+    return;
+  }
+  if (!confirm("解绑这个账号与玩家的绑定？机器人本身不会被删除。")) return;
+  try {
+    await yyPoolCall("release", [id]);
+    T("已解绑", "o");
+    if (pooled) {
+      await yyPoolRefresh();
+      yyPoolDetail(yyPoolRows.findIndex(function(a) { return a.id === id; }));
+    } else {
+      await yyRefreshAccounts(true);
+    }
+  } catch (error) {
+    T(error.message || "解绑失败", "e");
+  }
+}
+// 预热：列表一渲染就把前几个账号的皮肤图拉进浏览器缓存，
+// 点开详情时直接命中，不会先看到一块空白（用户原话：「要像别人那样点开就有」）。
+// 只预热前 6 个，避免一次几十张把手机流量和并发打满。
+var yyAcctWarmSeen = {};
+function yyAcctWarmFigures(list) {
+  var budget = 6;
+  for (var acct of list || []) {
+    if (budget <= 0) break;
+    var chain = yyAcctSkinChain(acct);
+    if (!chain.length) continue;
+    var key = chain[0];
+    if (yyAcctWarmSeen[key]) continue;
+    yyAcctWarmSeen[key] = 1;
+    budget--;
+    var image = new Image();
+    image.decoding = "async";
+    image.src = yyAcctProxySrc(key);
+  }
+}
+// 立体皮肤挂载：只给「已展开、有宽度、还没挂过」的容器建 viewer。
+// 展开详情就有人形（不是静态立绘），收起时不建，避免一屏几十个 3D 抢 GPU。
+// 纹理在 yyAcctWarmFigures 里已经预热过，这里基本是缓存命中，点开即出。
+function yyAcctMountViewers(root) {
+  if (typeof window.YYSkinViewer !== "function") return;
+  var scope = root || document;
+  var nodes = scope.querySelectorAll(".yy-acct-figure-stage[data-skin-src]");
+  for (var i = 0; i < nodes.length; i++) yyAcctMountOne(nodes[i]);
+}
+// 单个舞台单独一个函数：取纹理是异步的，写在 for 循环里会被 var 的
+// 函数级作用域串台——回调跑起来时 i 已经走到最后一个，结果只挂最后一张。
+function yyAcctMountOne(host) {
+  if (!host || host.getAttribute("data-skin-mounted") === "1" || !host.clientWidth) return;
+  host.setAttribute("data-skin-mounted", "1");
+  var box = host.closest ? host.closest(".yy-acct-figure") : null;
+  var src = host.getAttribute("data-skin-src");
+  var tip = box ? box.querySelector(".yy-acct-figure-tip") : null;
+  // 纹理接口要 Authorization，<img>/new Image() 发不出这个头，
+  // 统一先取 blob 再交给 CSS 3D 拼面。
+  var pending = window.YYSkinMediaURL ? window.YYSkinMediaURL(src) : Promise.resolve(src);
+  pending.then(function (objectURL) {
+    if (!host.isConnected) { host.setAttribute("data-skin-mounted", "0"); return; }
+    var viewer = window.YYSkinViewer(host, objectURL, false);
+    host.__yyViewer = viewer;
+    if (viewer && viewer.walk) viewer.walk(true);
+    if (box) { box.classList.add("yy-acct-media-ready"); box.classList.remove("yy-acct-figure-fail"); }
+  }).catch(function (error) {
+    host.setAttribute("data-skin-mounted", "0");
+    if (box) box.classList.add("yy-acct-figure-fail");
+    if (tip) tip.textContent = (error && error.message) ? error.message : "皮肤加载失败";
+    // 刚添加的机器人，R7 把皮肤落盘到磁盘缓存有 1~3 秒延迟；第一次取不到就永久
+    // 钉在「失败」上会误伤。最多补两次（间隔 2.5s），落盘完成后即可出图。
+    var tries = Number(host.getAttribute("data-skin-retries") || "0");
+    if (host.isConnected && tries < 2) {
+      host.setAttribute("data-skin-retries", String(tries + 1));
+      setTimeout(function () {
+        if (host.isConnected && host.getAttribute("data-skin-mounted") !== "1") {
+          if (typeof window.YYSkinMediaReset === "function") window.YYSkinMediaReset(src);
+          yyAcctMountOne(host);
+        }
+      }, 2500);
+    }
+  });
+}
+
+// ===== 账号详情字段：和「我的账号」卡片同一套字段与排版 =====
+// 游戏账号卡片和托管账号详情共用这个函数，不再各写一套；字段顺序、标签、字号全部一致。
+function yyAccountFactsStatus(account, pooled) {
+  if (pooled && account.connected == null) return account.enabled ? "已启用" : "未启用";
+  return yyAccountStatusLabel(account);
+}
+// 账号标识就是可直接调用的登录凭据：默认只渲染掩码，明文只留在 JS 内存里，
+// 点「查看」才写进 DOM，60 秒后自动回落；刷新页面即清空，不落 storage。
+var yyAcctIdentValues = {}, yyAcctIdentSeq = 0, yyAcctIdentTimers = {};
+var YY_ACCT_IDENT_MASK = "已隐藏 · 点查看显示";
+function yyAcctIdentHTML(value) {
+  if (!value) return '<b class="yy-acct-secret">未记录</b>';
+  // 句柄表以前只增不减：账号页每 10 秒重绘一次就新增一批句柄，永远不会清，
+  // 页面开一晚上能攒上万个键。超过 200 就整体重置（此时旧句柄对应的 DOM 早已被替换）。
+  if (yyAcctIdentSeq > 200) { yyAcctIdentValues = {}; yyAcctIdentSeq = 0; }
+  var handle = "acct-ident-" + (++yyAcctIdentSeq);
+  yyAcctIdentValues[handle] = String(value);
+  return '<b class="yy-acct-secret" data-ident-handle="' + handle + '" data-ident-shown="0">' + YY_ACCT_IDENT_MASK + '</b><button type="button" class="btn-s yy-acct-ident-btn" onclick="yyAcctIdentToggle(this)">查看</button>';
+}
+function yyAcctIdentMask(code, button) {
+  if (!code) return;
+  code.textContent = YY_ACCT_IDENT_MASK;
+  code.setAttribute("data-ident-shown", "0");
+  if (button) button.textContent = "查看";
+}
+function yyAcctIdentToggle(button) {
+  var box = button && button.parentElement, code = box && box.querySelector(".yy-acct-secret");
+  if (!code) return;
+  if (code.getAttribute("data-ident-shown") === "1") { yyAcctIdentMask(code, button); return; }
+  var handle = code.getAttribute("data-ident-handle"), value = yyAcctIdentValues[handle] || "";
+  if (!value) return;
+  code.textContent = value;
+  code.setAttribute("data-ident-shown", "1");
+  button.textContent = "隐藏";
+  clearTimeout(yyAcctIdentTimers[handle]);
+  yyAcctIdentTimers[handle] = setTimeout(function () {
+    if (code.isConnected) yyAcctIdentMask(code, button);
+  }, 60000);
+}
+// 字段网格：游戏账号卡片的详情和托管账号详情都调它，字段顺序与排版只有这一份。
+function yyAccountFactsGridHTML(account, options) {
+  var _a, _b;
+  const pooled = !!(options && options.pooled);
+  const facts = [
+    ["游戏 UID", account.game_id || "未绑定"],
+    ["服务器", account.server || "尚未配置服务器"],
+    ["连接状态", yyAccountFactsStatus(account, pooled)],
+    ["账号凭据", account.has_token ? "已保存令牌" : "缺少令牌"],
+    ["自动重连", account.keep_alive ? "已启用" : "未启用"],
+    ["账号标识", account.id]
+  ];
+  if (pooled) {
+    // 令牌不在这里重复一遍：托管账号详情下面有单独的令牌行（显示 / 复制）。
+    facts.push(["绑定玩家", (((_a = account.lease) == null ? void 0 : _a.phase) === "bound" && ((_b = account.lease) == null ? void 0 : _b.player)) || "未绑定"]);
+  }
+  return '<div class="yy-account-meta">' + facts.map(([label, value]) => label === "账号标识"
+    ? "<span>" + yyEscape(label) + " " + yyAcctIdentHTML(value) + "</span>"
+    : "<span>" + yyEscape(label) + " <b>" + yyEscape(String(value)) + "</b></span>").join("") + "</div>";
+}
+function yyAccountFactsHTML(account, options) {
+  const pooled = !!(options && options.pooled);
+  const status = yyAccountFactsStatus(account, pooled);
+  // compact：详情页顶部已经有形象区（大头像 + 名字 + 身份），这里不再重复一遍身份行。
+  const head = options && options.compact ? "" : '<div class="yy-detail-identity">' + yyAvatarMarkup(account, yyAccountPortrait(account) || yyPoolAvatarURL(account), pooled ? "托管账号头像" : "游戏账号头像") + '<div><strong>' + yyEscape(account.name || "未命名账号") + '</strong><p class="yy-hint">' + yyEscape((account.game_id ? "UID " + account.game_id + " · " : "") + (account.server || "尚未配置服务器")) + '</p></div><span class="yy-badge">' + yyEscape(status) + "</span></div>";
+  return head +
+    '<div class="yy-account-detail yy-pool-facts">' + yyAccountFactsGridHTML(account, options) + "</div>";
 }

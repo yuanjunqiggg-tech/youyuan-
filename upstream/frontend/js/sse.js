@@ -1,4 +1,77 @@
 var _currentTask = null;
+// 云端额度护栏：事件流以前是「每 3 秒一条 /api/youyuan/events」，一个标签页一天 2.88 万次，
+// 而每条 /api/* 在 Workers + DO 上是双扣。现在改成自带节奏的增量通道：
+//   · 页面不可见 → 完全不拉
+//   · 不在需要实时日志的页面（工作台/插件管理/终端日志）→ 完全不拉，回到这些页立刻补拉
+//   · 在需要日志的页面：有任务在跑 3 秒一次，空闲 15 秒一次
+// 游标（after=）保证补拉时不丢事件；断线按指数退避，最长 60 秒。
+function yyEventsChannel() {
+  var self = this;
+  self.listeners = {};
+  self.closed = false;
+  self.cursor = 0;
+  self.account = typeof yyActiveAccount === "string" ? yyActiveAccount : "main";
+  var opened = false, failures = 0, timer = null, busy = false;
+  self.addEventListener = function (name, cb) { (self.listeners[name] || (self.listeners[name] = [])).push(cb); };
+  function onRoute() { return typeof yyPollActive === "function" ? yyPollActive("sse") : true; }
+  function tempo() {
+    if (document.hidden) return 0;
+    if (!onRoute()) return _currentTask ? 30000 : 0;
+    return _currentTask ? 3000 : 15000;
+  }
+  function stop() { if (timer) { clearTimeout(timer); timer = null; } }
+  function schedule(ms) { stop(); if (self.closed || !ms) return; timer = setTimeout(poll, ms); }
+  async function poll() {
+    timer = null;
+    if (self.closed) return;
+    var ms = tempo();
+    if (!ms) return;                       // 暂停，等可见性/路由变化唤醒
+    if (busy) { schedule(ms); return; }
+    if (self.account !== yyActiveAccount) { self.account = yyActiveAccount; self.cursor = 0; opened = false; }
+    var account = self.account;
+    busy = true;
+    try {
+      var r = await fetch("/api/youyuan/events?after=" + self.cursor);
+      var data = await r.json();
+      if (self.closed) return;
+      if (account !== yyActiveAccount) { busy = false; schedule(100); return; }
+      if (!r.ok || !data.ok) throw Error(data.error || "内核尚未上线");
+      failures = 0;
+      if (!opened) { opened = true; self.cursor = data.cursor || 0; if (self.onopen) self.onopen({}); }
+      else (data.events || []).forEach(function (event) {
+        if (self.closed || event.seq <= self.cursor) return;
+        self.cursor = event.seq;
+        var message = { data: typeof event.data === "string" ? event.data : JSON.stringify(event.data) };
+        (self.listeners[event.type] || []).forEach(function (cb) { cb(message); });
+      });
+    } catch (error) {
+      if (self.closed) return;
+      failures++;
+      if (self.onerror) self.onerror(error);
+    }
+    busy = false;
+    if (self.closed) return;
+    var next = tempo();
+    if (!next) return;
+    schedule(failures ? Math.min(60000, next * Math.pow(2, Math.min(failures, 6))) : next);
+  }
+  self.close = function () { self.closed = true; stop(); };
+  // 唤醒：可见性/路由/任务状态变化时立刻补一次（80ms 后），避免等满一个周期。
+  self.wake = function () {
+    if (self.closed) return;
+    var ms = tempo();
+    if (!ms) { stop(); return; }
+    schedule(80);
+  };
+  self.retempo = self.wake;
+  if (typeof yyPollWatch === "function") yyPollWatch("sse", ["home", "tasks", "terminal"], function () { self.wake(); });
+  if (document.addEventListener) {
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) stop(); else self.wake();
+    });
+  }
+  schedule(100);
+}
 (function() {
   try {
     let rfshHomeThrottled2 = function() {
@@ -20,7 +93,7 @@ var _currentTask = null;
       }
     }, c2 = function() {
       if (e) e.close();
-      e = new EventSource("/stream");
+      e = new yyEventsChannel();
       e.onopen = function() {
         A("GET", "/api/bot/status").then(function(s) {
           U(s.ok && s.connected, s.ok && s.is_op);
@@ -36,6 +109,15 @@ var _currentTask = null;
         t = setTimeout(c2, 3e3);
       };
       e.addEventListener("progress", function(v) {
+        try {
+          var d = JSON.parse(v.data);
+          addL(d.msg);
+        } catch (e2) {
+        }
+      });
+      // 多机器人连接进度（后端 fleet.go 已在发 fleet_progress），此前没有任何监听，
+      // 事件发出来就被丢掉；接进同一条日志流，连子机器人时终端才有过程可见。
+      e.addEventListener("fleet_progress", function(v) {
         try {
           var d = JSON.parse(v.data);
           addL(d.msg);
@@ -87,6 +169,8 @@ var _currentTask = null;
       });
       e.addEventListener("task_progress", function(v) {
         var d = JSON.parse(v.data);
+        var importStatus = document.getElementById("imp-start-status");
+        if (importStatus && d.phase && _currentTask && String(_currentTask.type).indexOf("导入") !== -1) importStatus.textContent = d.phase;
         if (typeof yyTransferProgress === "function") yyTransferProgress(d, _currentTask);
         rfshTasksThrottled2();
         if (d.progress != null) {
@@ -157,7 +241,10 @@ var _currentTask = null;
       e.addEventListener("bot_log", function(v) {
         var d = JSON.parse(v.data);
         var cl = document.getElementById("conn-log");
-        if (cl) {
+        if (cl && typeof yyConnAppendLog === "function") {
+          // 弹窗内日志：默认遮挡敏感 token、折叠、独立滚动，由 settings.js 统一渲染
+          yyConnAppendLog(d.msg);
+        } else if (cl) {
           var de = document.createElement("div");
           de.innerHTML = renderLogLine(d.msg);
           cl.appendChild(de);
@@ -165,33 +252,27 @@ var _currentTask = null;
         } else {
           addL(d.msg);
         }
+        if (typeof yyConnEvent === "function") {
+          yyConnEvent(d.msg);
+          return;
+        }
         var s = document.getElementById("conn-stage");
         if (s) {
           var m = d.msg;
           if (m.indexOf("\u5DF2\u8FDE\u63A5\u5230\u670D\u52A1\u5668") >= 0) s.textContent = "\u5DF2\u8FDE\u63A5\uFF0C\u521D\u59CB\u5316\u4E2D...";
-          else if (m.indexOf("\u5FC3\u8DF3\u5DF2\u542F\u52A8") >= 0) s.textContent = "\u5FC3\u8DF3\u5C31\u7EEA\uFF0C\u7B49\u5F85\u6743\u9650...";
-          else if (m.indexOf("\u547D\u4EE4\u9A8C\u8BC1\u5931\u8D25") >= 0) {
-            s.textContent = "\u65E0\u6743\u9650\uFF0C\u7B49\u5F85\u7BA1\u7406\u5458\u6388\u6743...";
-          } else if (m.indexOf("\u9A8C\u8BC1\u8D85\u65F6") >= 0) {
-            s.textContent = "\u9A8C\u8BC1\u8D85\u65F6\uFF0C\u91CD\u8BD5\u4E2D...";
-          } else if (m.indexOf("\u8BF7\u6C42\u7BA1\u7406\u5458\u6388\u6743") >= 0) s.textContent = "\u7B49\u5F85\u7BA1\u7406\u5458\u6388\u6743...";
-          else if (m.indexOf("\u7591\u4F3C OP \u5305") >= 0) s.textContent = "\u68C0\u6D4B\u5230\u6743\u9650\u4FE1\u53F7\uFF0C\u9A8C\u8BC1\u4E2D...";
-          else if (m.indexOf("\u5C1D\u8BD5\u8FDE\u63A5") >= 0) s.textContent = "\u6B63\u5728\u8FDE\u63A5\u670D\u52A1\u5668(\u91CD\u8BD5)...";
-          else if (m.indexOf("\u521D\u59CB\u5316\u5FC3\u8DF3") >= 0) s.textContent = "\u521D\u59CB\u5316\u5FC3\u8DF3...";
-          else if (m.indexOf("\u76D1\u542C\u5668\u5DF2\u542F\u52A8") >= 0) s.textContent = "\u5305\u76D1\u542C\u5C31\u7EEA\uFF0C\u7B49\u5F85\u6743\u9650...";
-          else if (m.indexOf("\u6392\u7A7A") >= 0) s.textContent = "\u5904\u7406\u767B\u5F55\u7F13\u5B58...";
-          else if (m.indexOf("\u5DF2\u91CD\u8BD5") >= 0 && (m.indexOf("\u767B\u5F55\u5931\u8D25") >= 0 || m.indexOf("\u8FDE\u63A5\u5931\u8D25") >= 0)) {
-            var el = document.getElementById("conn-modal");
-            if (el) el.remove();
-            T("\u8FDE\u63A5\u5931\u8D25: " + m, "e");
-          }
         }
       });
       e.addEventListener("conn_ready", function(v) {
-        var el = document.getElementById("conn-modal");
-        if (el) {
-          el.remove();
+        // 弹窗打开时由 yyConnOnReady 接管：显示「已连接」，不强行关窗
+        var handled = typeof yyConnOnReady === "function" && yyConnOnReady();
+        if (handled) {
           T("\u5DF2\u8FDE\u63A5", "o");
+        } else {
+          var el = document.getElementById("conn-modal");
+          if (el) {
+            el.remove();
+            T("\u5DF2\u8FDE\u63A5", "o");
+          }
         }
         A("GET", "/api/bot/status").then(function(st) {
           U(true, st.is_op);
@@ -321,7 +402,27 @@ var _currentTask = null;
   } catch (e2) {
   }
   c();
+  // 事件帧并不总是带 msg：不同来源的后端帧字段不一致，插件也可能只发进度数字。
+  // 以前直接 addL(d.msg) 会把 undefined 存进 allLogs，终端里就成了「事件」标签 + 空白内容。
+  // 这里统一取文本字段；取不到文本就丢弃这一帧，不再让空白行留在列表里。
+  function yySSELogText(value) {
+    if (value == null) return "";
+    if (typeof value === "object") {
+      var keys = ["msg", "message", "text", "line", "error", "detail"];
+      for (var i = 0; i < keys.length; i++) {
+        if (value[keys[i]] != null) {
+          value = value[keys[i]];
+          break;
+        }
+      }
+    }
+    if (value == null || typeof value === "object") return "";
+    return String(value).trim();
+  }
   function addL(m, cl) {
+    var text = yySSELogText(m);
+    if (!text) return;
+    m = text;
     var console = document.getElementById("console-log");
     if (console && console.offsetParent !== null) {
       addConsoleLine(m, cl);

@@ -9,6 +9,8 @@ function yyTransferClock(ms){
 }
 function yyTransferCount(n){return n==null?'—':Number(n).toLocaleString('zh-CN');}
 function yyTransferProgress(d,task){
+	if(yyTransferMeter.task!==task){yyTransferMeter.task=task;yyTransferMeter.snapshot={};yyTransferMeter.key='';}
+	d=Object.assign({},yyTransferMeter.snapshot||{},d);yyTransferMeter.snapshot=d;
   var isExport=task&&task.type==='export',el=document.getElementById(isExport?'exp-stat':'imp-stat');
   if(!el)return;
   var done=Number(d.blocks!=null?d.blocks:(d.completed!=null?d.completed:0));

@@ -58,6 +58,10 @@ func yyRuntimeRoutes(mux *http.ServeMux, dataDir string) {
 	mux.HandleFunc("/api/youyuan/library/delete", yyLibraryProxy)
 	mux.HandleFunc("/api/youyuan/runtime/list", yyRuntimeListHandler)
 	mux.HandleFunc("/api/youyuan/runtime/start", func(w http.ResponseWriter, r *http.Request) {
+		if err := yyCapturePluginPermission(dataDir); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
 		var p struct {
 			ID      string `json:"id"`
 			Account string `json:"account"`

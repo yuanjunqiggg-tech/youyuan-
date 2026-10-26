@@ -43,21 +43,21 @@ function T(m,t){
 
 function L(b,l,t){b.disabled=l;b.innerHTML=l?'<span class="spin"></span>'+t:t}
 
-function U(conn,isOP,server){
+function U(conn,isOP,server,target){
   var d=document.getElementById('gdot');
   if(!d)return;
   if(conn===false||conn===0)d.className='cb-dot';
   else if(conn) d.className='cb-dot'+(isOP?' on':' wait')
-  updateConnStatus(conn,isOP,server);
+  updateConnStatus(conn,isOP,server,target);
 }
 
-function updateConnStatus(conn,isOP,server){
+function updateConnStatus(conn,isOP,server,target){
   var st=document.getElementById('conn-st');
   if(!st)return;
   var sv=document.getElementById('conn-srv');
   if(!conn){
     st.style.color='var(--phx-text-disabled)';st.innerHTML=ICONS.dotEmpty+' 未连接';
-    if(sv)sv.textContent='';
+    if(sv)sv.textContent=target?target+' · 未连接':'';
   } else if(isOP){
     st.style.color='var(--phx-success)';st.innerHTML=ICONS.dot+' 已连接(OP)';
     if(sv)sv.textContent=server||'';
@@ -300,26 +300,52 @@ function showConfirm(opts){
 }
 
 
-// showAlertModal 弹出信息弹窗
-function showAlertModal(title, msg, closeable, onClose, extraButtons, zIndex) {
-  var ov = document.createElement("div"); ov.className = "modal-overlay";
+// showAlertModal 弹出信息弹窗（全局唯一实现）。
+// 历史上这里和 announcements.js 各有一份同名函数，签名不同：
+//   utils.js       (title, msg, closeable, onClose, extraButtons, zIndex)
+//   announcements  (title, body, canClose, onAction, actionLabel, zIdx, keepOpen)
+// announcements.js 后加载，实际生效的永远是后者，于是 mapart.js 的两参调用
+// 既没有关闭按钮、也没有底部按钮区，弹窗看起来「卡死」。
+// 现在统一成后者语义（4=动作回调，5=动作按钮文案，6=zIndex，7=动作后保持打开），
+// 并让 canClose 省略时按 true 处理，两参调用也有「关闭」按钮。
+// 没有动作按钮时即使 canClose=false 也给「关闭」，否则弹窗将无路可退
+// （showIntegrityAlert 就是这种调用，历史上靠点遮罩才能关掉）。
+function yyShowAlertModal(title, body, canClose, onAction, actionLabel, zIndex, keepOpen) {
+  if (canClose === void 0 || canClose === null) canClose = true;
+  var hasAction = typeof onAction === "function";
+  var showClose = canClose || !hasAction;
+  var ov = document.createElement("div");
+  ov.className = "modal-overlay";
   if (zIndex) ov.style.zIndex = zIndex;
-  var closeBtn = closeable ? '<button class="btn-s" style="width:auto;padding:4px 8px;margin:0;font-size:11px" id="alert-close-btn">\u2716</button>' : "";
-  ov.innerHTML = '<div class="modal-box" style="max-width:360px">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-    '<div style="font-size:15px;font-weight:800">' + title + '</div>' + closeBtn + '</div>' +
-    '<div style="font-size:12px;color:var(--phx-text-secondary);margin-bottom:12px;line-height:1.5">' + msg + '</div>' +
-    (extraButtons || "") +
-    '<button class="btn" style="width:100%;margin:0" id="alert-dismiss-btn">\u5173\u95ed</button>' +
-    '</div>';
-  document.body.appendChild(ov);
-  if(closeable){
-    var cb=document.getElementById('alert-close-btn');
-    if(cb)cb.onclick=function(){closeOverlay(ov);if(onClose)onClose()}
+  var foot = "";
+  if (showClose || hasAction) {
+    foot = '<div style="margin-top:10px;display:flex;gap:8px;justify-content:' + (showClose ? "flex-end" : "center") +
+      ';flex-shrink:0;padding-top:8px;border-top:1px solid var(--phx-border-light)">' +
+      (showClose ? '<button class="btn-s" style="width:auto;margin:0" data-alert-close>\u5173\u95ed</button>' : "") +
+      (hasAction ? '<button class="btn act-btn" style="width:auto;margin:0">' + (actionLabel || "\u786e\u5b9a") + "</button>" : "") +
+      "</div>";
   }
-  var db=document.getElementById('alert-dismiss-btn');
-  if(db)db.onclick=function(){closeOverlay(ov);if(onClose)onClose()};
-  ov.onclick=function(e){if(e.target===ov)closeOverlay(ov)}
+  ov.innerHTML = '<div class="modal-box" style="max-height:85vh;display:flex;flex-direction:column">' +
+    (title ? '<div style="font-size:16px;font-weight:800;margin-bottom:8px;flex-shrink:0">' + title + "</div>" : "") +
+    '<div style="font-size:13px;line-height:1.6;overflow-y:auto;flex:1;min-height:0">' + (body || "") + "</div>" +
+    foot + "</div>";
+  document.body.appendChild(ov);
+  var cb = ov.querySelector("[data-alert-close]");
+  if (cb) cb.onclick = function() {
+    closeOverlay(ov);
+  };
+  var ab = ov.querySelector(".act-btn");
+  if (ab) ab.addEventListener("click", function() {
+    if (typeof onAction === "function") onAction();
+    if (!keepOpen) closeOverlay(ov);
+  });
+  if (canClose) ov.onclick = function(e) {
+    if (e.target === ov) closeOverlay(ov);
+  };
+}
+// 兼容旧名：所有调用方继续用 showAlertModal(...)。
+function showAlertModal() {
+  return yyShowAlertModal.apply(null, arguments);
 }
 
 // ── 全局自定义下拉选择（替代浏览器原生 <select>） ──

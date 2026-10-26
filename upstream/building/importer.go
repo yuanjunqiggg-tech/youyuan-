@@ -38,8 +38,15 @@ type ImportTask struct {
 	FillRegion         FillFunc
 	Teleport           TPFunc
 	OnNBT              func(x, y, z int32, nbt map[string]any, blockName, blockStates string)
+	OnNBTChecked       func(x, y, z int32, nbt map[string]any, blockName, blockStates string) error
 	OnProgress         func(cx, cz, chunk, total, blocks int)
 	OnSubProgress      func(cx, cz, placed, totalSolid int)
+	OnSubmitted        func(blocks, chunks int) // Live local submission counts; not world readback.
+	liveSubmitted      int
+	liveChunks         int
+	liveColumns        map[[2]int]int
+	liveAt             time.Time
+	livePlacing        bool
 	OnRegionProgress   func(ri, totalRegions, rx, rz int)
 	ChunkLoaded        func(cx, cz int) bool // 区块加载检测，返回 true=已加载
 	StopCh             <-chan struct{}
@@ -49,8 +56,10 @@ type ImportTask struct {
 	ExcludeWaterlogged bool
 	ExcludeLava        bool
 
-	// RegionMode: 1=16×16(单区块), 2=32×32(2×2), 3=64×64(4×4)
-	RegionMode int
+	// RegionMode: 1=16×16(单区块), 2=32×32(2×2), 3=64×64(4×4), 4=80×80(5×5)
+	RegionMode        int
+	RegionSizeChunks  int // 0 preserves legacy RegionMode; otherwise explicit side length.
+	PreloadSizeChunks int // 0 follows the batch; a larger window can serve several batches.
 
 	// Deny layer: placed at baseY+DenyYOffset before each region
 	DenyEnable  bool
@@ -128,9 +137,9 @@ type ImportTask struct {
 	// 一律按普通方块放置，跳过 OnNBT 写入。仅单机器人生效（多机器人按单元分工处理 NBT）。
 	ExcludeNBT bool
 
-	// ── 常加载区预加载（用户指定方案） ──
+	// ── 每批次自有常加载区 ──
 	// 批次（小区）TP 之前对目标区块发 tickingarea add 提前加载；本批次放置期间
-	// 即预载下一批次区块，TP 落地后 remove 上一批次区域，结束时 TickingCleanup
+	// 完成后移除旧区再添加下一区，结束时 TickingCleanup
 	// 清理所有残留。回调由宿主注入（发命令+确认成功），nil 时行为不变。
 	TickingPreload func(name string, x1, z1, x2, z2 int) error
 	TickingRelease func(name string) error
@@ -210,6 +219,17 @@ func (t *ImportTask) rateLimit(d time.Duration) {
 		time.Sleep(t.sleepAccum)
 		t.sleepAccum = 0
 	}
+}
+
+func (t *ImportTask) applyNBT(x, y, z int32, data map[string]any, name, states string) error {
+	if t.OnNBTChecked != nil {
+		if err := t.OnNBTChecked(x, y, z, data, name, states); err != nil {
+			return fmt.Errorf("NBT放置失败 (%d,%d,%d %s): %w", x, y, z, name, err)
+		}
+	} else if t.OnNBT != nil {
+		t.OnNBT(x, y, z, data, name, states)
+	}
+	return nil
 }
 
 // checkOpError 在 StopOnError 模式下记录第一个错误，阻止后续放置
@@ -294,8 +314,15 @@ type ImportCheckpointData struct {
 
 // ImportResumeStart rewinds in the actual serpentine region order, never in
 // row-major chunk order. Region imports replay whole regions conservatively.
-func ImportResumeStart(cx, cz, sizeX, sizeZ, regionMode, rewind int) (int, int, error) {
-	rc := (&ImportTask{RegionMode: regionMode}).regionChunks()
+func ImportResumeStart(cx, cz, sizeX, sizeZ, regionMode, rewind int, customSize ...int) (int, int, error) {
+	t := &ImportTask{RegionMode: regionMode}
+	if len(customSize) > 0 {
+		t.RegionSizeChunks = customSize[0]
+	}
+	if t.RegionSizeChunks < 0 || t.RegionSizeChunks > MaxImportRegionChunks {
+		return 0, 0, fmt.Errorf("无效导入区域大小")
+	}
+	rc := t.regionChunks()
 	nx, nz := (sizeX+15)/16, (sizeZ+15)/16
 	if cx < 0 || cz < 0 || cx >= nx || cz >= nz {
 		return 0, 0, fmt.Errorf("导入断点区块超出当前建筑范围")
@@ -317,11 +344,16 @@ func ImportResumeStart(cx, cz, sizeX, sizeZ, regionMode, rewind int) (int, int, 
 }
 
 func (t *ImportTask) regionChunks() int {
+	if t.RegionSizeChunks > 0 {
+		return t.RegionSizeChunks
+	}
 	switch t.RegionMode {
 	case 2:
 		return 2
 	case 3:
 		return 4
+	case 4:
+		return 5
 	default:
 		return 1
 	}
@@ -331,7 +363,13 @@ func (t *ImportTask) Run() error {
 	if t.Data == nil {
 		return fmt.Errorf("未加载结构数据")
 	}
-	// 常加载区预加载：无论正常结束、取消还是出错，都清理所有 yy_preload_ 残留
+	if err := ValidateImportRegion(t.RegionSizeChunks, t.BaseX, t.BaseZ, t.TickingPreload != nil); err != nil {
+		return err
+	}
+	if err := ValidateImportPreload(t.PreloadSizeChunks, t.regionChunks(), t.BaseX, t.BaseZ, t.TickingPreload != nil); err != nil {
+		return err
+	}
+	// Only this task owns its ticking areas; cancellation and failure also release them.
 	if t.TickingCleanup != nil {
 		defer t.TickingCleanup()
 	}
@@ -369,10 +407,10 @@ func (t *ImportTask) Run() error {
 	t.regionSolid = make(map[[2]int]int)
 	t.TotalSolidBlocks = 0
 	rc2 := t.regionChunks()
-	for pos, idx := range t.Data.Blocks {
+	countBlock := func(x, y, z int, idx uint32) {
 		block := t.Data.Palette[idx]
 		if block.IsAir {
-			continue
+			return
 		}
 		skip := false
 		if t.ExcludeWater && block.IsWater {
@@ -382,16 +420,40 @@ func (t *ImportTask) Run() error {
 			skip = true
 		}
 		if skip {
-			continue
+			return
 		}
-		x, _, z := unpackPos(pos)
-		cx := int(x) / ChunkSize
-		cz := int(z) / ChunkSize
+		if !t.placeable(x, y, z) || !t.shouldRepairBlock(int32(t.BaseX+x), int32(t.BaseY+y), int32(t.BaseZ+z)) {
+			return
+		}
+		cx := x / ChunkSize
+		cz := z / ChunkSize
 		t.chunkSolid[[2]int{cx, cz}]++
 		t.TotalSolidBlocks++
 		t.regionSolid[[2]int{cx / rc2, cz / rc2}]++
 	}
+	// A dense source must not be rescanned in full for every small worker unit.
+	if t.PlaceOnly != nil && (t.Data.BlocksFlat != nil || len(t.PlaceOnly) <= len(t.Data.Blocks)/ChunkSize/ChunkSize/max(1, t.Data.SizeY)) {
+		for c := range t.PlaceOnly {
+			if err := t.interrupted(); err != nil {
+				return err
+			}
+			for x := max(0, c[0]*ChunkSize); x < min((c[0]+1)*ChunkSize, t.Data.SizeX); x++ {
+				for z := max(0, c[1]*ChunkSize); z < min((c[1]+1)*ChunkSize, t.Data.SizeZ); z++ {
+					for y := 0; y < t.Data.SizeY; y++ {
+						countBlock(x, y, z, t.Data.GetIndex(x, y, z))
+					}
+				}
+			}
+		}
+	} else {
+		for pos, idx := range t.Data.Blocks {
+			x, y, z := unpackPos(pos)
+			countBlock(int(x), int(y), int(z), idx)
+		}
+	}
 
+	restoreSubmission := t.trackSubmissions()
+	defer restoreSubmission()
 	blocksPlaced := 0
 	processedChunks := 0
 	skippedRegions := 0
@@ -409,7 +471,14 @@ func (t *ImportTask) Run() error {
 		for rz := rzStart; rz != rzEnd; rz += rzStep {
 			if rx < startRegionX || (rx == startRegionX && (rx%2 == 0 && rz < startRegionZ || rx%2 != 0 && rz > startRegionZ)) {
 				skippedRegions++
-				processedChunks += min(rc, totalChunksX-rx*rc) * min(rc, totalChunksZ-rz*rc)
+				skippedChunks := min(rc, totalChunksX-rx*rc) * min(rc, totalChunksZ-rz*rc)
+				processedChunks += skippedChunks
+				for cx := rx * rc; cx < min((rx+1)*rc, totalChunksX); cx++ {
+					for cz := rz * rc; cz < min((rz+1)*rc, totalChunksZ); cz++ {
+						blocksPlaced += t.chunkSolid[[2]int{cx, cz}]
+					}
+				}
+				t.liveSubmitted, t.liveChunks = blocksPlaced, processedChunks
 				continue
 			}
 			select {
@@ -436,7 +505,9 @@ func (t *ImportTask) Run() error {
 			regionCX := chunkStartX*ChunkSize + (chunkEndX-chunkStartX)*ChunkSize/2
 			regionCZ := chunkStartZ*ChunkSize + (chunkEndZ-chunkStartZ)*ChunkSize/2
 			// 常加载区预加载：TP 前确保本批次区块已由 tickingarea 提前加载
-			t.tickEnsureRegion(rx, rz, chunkStartX, chunkEndX, chunkStartZ, chunkEndZ)
+			if err := t.tickEnsureRegion(rx, rz, chunkStartX, chunkEndX, chunkStartZ, chunkEndZ); err != nil {
+				return err
+			}
 			if t.Teleport != nil {
 				if err := t.Teleport(t.BaseX+min(regionCX, t.Data.SizeX-1), t.BaseY, t.BaseZ+min(regionCZ, t.Data.SizeZ-1)); err != nil && t.StopOnError && t.importErr == nil {
 					t.importErr = err
@@ -444,8 +515,6 @@ func (t *ImportTask) Run() error {
 				}
 				time.Sleep(30 * time.Millisecond)
 			}
-			// 已抵达新批次，卸掉上一批次的常加载区
-			t.tickReleaseStale()
 
 			// 计算小区在建筑内的结构坐标范围（chunk 索引 → 方块坐标）
 			// 供后面 deny 铺底和 border 边缘共用，避免重复计算
@@ -454,16 +523,7 @@ func (t *ImportTask) Run() error {
 			blockEndX := min(chunkEndX*ChunkSize, t.Data.SizeX) - 1 // 小区结束 X（含）
 			blockEndZ := min(chunkEndZ*ChunkSize, t.Data.SizeZ) - 1 // 小区结束 Z（含）
 
-			// 放置前强制等待区块加载（多机器人模式 ChunkLoaded 已注入）：
-			// 区块未加载时 setblock/fill 会静默失败（SendAICommand 只返回发包是否成功，
-			// 检测不到服务器是否执行），导致整片区域缺失——大地图画区块多、机器人快速遍历，
-			// 加载跟不上尤为明显。用 testforblock 探测，确认当前列已加载再放置（§10 注意 5）。
-			// 单机 ChunkLoaded 为 nil 时 waitChunksLoaded 直接返回，不影响单机行为。
-			// 注：ChunkLoaded 内部以"区块列×16+8"当世界坐标探测，故必须传世界坐标（含 BaseX/BaseZ）。
-			if err := t.waitChunksLoaded(int32(t.BaseX+blockStartX), int32(t.BaseZ+blockStartZ),
-				int32(t.BaseX+blockEndX), int32(t.BaseZ+blockEndZ)); err != nil {
-				return err
-			}
+			// The confirmed tickingarea command precedes placement; do not gate on client chunk probes.
 
 			// 修补模式不铺 deny、不铺 border
 			if !t.RepairMode {
@@ -505,6 +565,7 @@ func (t *ImportTask) Run() error {
 				}
 
 			}
+			t.livePlacing = true
 			// 放置方块：区域模式（跨区块合并）或逐区块模式
 			if rc > 1 {
 				p := t.placeRegion(rx, rz, rc, sleeptime)
@@ -555,6 +616,8 @@ func (t *ImportTask) Run() error {
 				}
 			}
 
+			t.livePlacing = false
+			t.emitSubmitted(true)
 			regionIdx := rx*totalRegionsZ + rz + 1
 			if rx%2 != 0 {
 				regionIdx = rx*totalRegionsZ + totalRegionsZ - rz
@@ -562,8 +625,7 @@ func (t *ImportTask) Run() error {
 			if t.OnRegionProgress != nil {
 				t.OnRegionProgress(regionIdx-skippedRegions, t.totalRegions-skippedRegions, rx, rz)
 			}
-			// 本批次放置期间，提前为下一个蛇形批次建立常加载区（真预加载）
-			t.tickPreloadNext(rx, rz, totalRegionsX, totalRegionsZ, startRegionX, startRegionZ, rc)
+
 		}
 	}
 	return t.interrupted()
@@ -597,83 +659,41 @@ func (t *ImportTask) tickPrefix() string {
 	return TickingPreloadPrefix
 }
 
-// tickAddRegion 为批次区域 (rx,rz) 建立常加载区（覆盖该批次全部区块），
-// 成功时记录名称与所属区域；失败不阻塞导入，仅失去预载加速。
-func (t *ImportTask) tickAddRegion(rx, rz, csx, cex, csz, cez int) {
+// Move one owned ticking area with the current batch. Never hold the previous batch while adding the next.
+func (t *ImportTask) tickEnsureRegion(rx, rz, csx, cex, csz, cez int) error {
+	if t.TickingPreload == nil {
+		return nil
+	}
+	if pc := t.PreloadSizeChunks; pc > t.regionChunks() {
+		rx, rz = csx/pc, csz/pc
+		csx, csz = rx*pc, rz*pc
+		cex, cez = csx+pc, csz+pc
+	}
+	if t.tickingActive != "" {
+		if t.tickingActiveFor == [2]int{rx, rz} {
+			return nil
+		}
+		if t.TickingRelease == nil {
+			return fmt.Errorf("常加载区缺少清理回调")
+		}
+		if err := t.TickingRelease(t.tickingActive); err != nil {
+			return fmt.Errorf("移除导入常加载区: %w", err)
+		}
+		t.tickingActive = ""
+	}
 	name := fmt.Sprintf("%s%d", t.tickPrefix(), t.tickingSeq+1)
-	x1 := t.BaseX + csx*ChunkSize
-	z1 := t.BaseZ + csz*ChunkSize
-	x2 := t.BaseX + cex*ChunkSize - 1
-	z2 := t.BaseZ + cez*ChunkSize - 1
+	x1, z1 := t.BaseX+csx*ChunkSize, t.BaseZ+csz*ChunkSize
+	x2, z2 := t.BaseX+min(cex*ChunkSize, t.Data.SizeX)-1, t.BaseZ+min(cez*ChunkSize, t.Data.SizeZ)-1
+	if err := ValidateTickingArea(x1, z1, x2, z2); err != nil {
+		return err
+	}
 	if err := t.TickingPreload(name, x1, z1, x2, z2); err != nil {
-		return
+		return fmt.Errorf("添加导入常加载区: %w", err)
 	}
 	t.tickingSeq++
 	t.tickingActive = name
 	t.tickingActiveFor = [2]int{rx, rz}
-}
-
-// tickEnsureRegion TP 前调用：确保当前批次的常加载区已就绪。
-// 上一批次放置期间已预载（且区域匹配）则直接复用，否则现在补建。
-func (t *ImportTask) tickEnsureRegion(rx, rz, csx, cex, csz, cez int) {
-	if t.TickingPreload == nil {
-		return
-	}
-	if t.tickingActive != "" {
-		if t.tickingActiveFor == [2]int{rx, rz} {
-			return
-		}
-		// 预载错配（如单元模式跳过的区块列）：转待卸载，为本批次重建
-		t.tickingStale = append(t.tickingStale, t.tickingActive)
-		t.tickingActive = ""
-	}
-	t.tickAddRegion(rx, rz, csx, cex, csz, cez)
-}
-
-// tickReleaseStale TP 落地后调用：卸掉不再需要的常加载区（上一批次/错配预载）。
-func (t *ImportTask) tickReleaseStale() {
-	if t.TickingRelease == nil || len(t.tickingStale) == 0 {
-		return
-	}
-	for _, name := range t.tickingStale {
-		t.TickingRelease(name)
-	}
-	t.tickingStale = t.tickingStale[:0]
-}
-
-// tickPreloadNext 批次放置完成后，沿蛇形顺序找到下一个会被实际导入的区域并
-// 提前建立其常加载区；同时把当前批次的区域转入待卸载（TP 落地后释放）。
-// 跳过断点恢复起点之前与单元模式不放置的区块列。
-func (t *ImportTask) tickPreloadNext(rx, rz, totalRegionsX, totalRegionsZ, startRX, startRZ, rc int) {
-	if t.TickingPreload == nil {
-		return
-	}
-	nx, nz := rx, rz
-	for {
-		var ok bool
-		nx, nz, ok = serpentineNext(nx, nz, totalRegionsX, totalRegionsZ)
-		if !ok {
-			return
-		}
-		if nx < startRX || (nx == startRX && (nx%2 == 0 && nz < startRZ || nx%2 != 0 && nz > startRZ)) {
-			continue
-		}
-		if t.PlaceOnly != nil && !t.PlaceOnly[[2]int{nx * rc, nz * rc}] {
-			continue
-		}
-		break
-	}
-	totalChunksX := (t.Data.SizeX + ChunkSize - 1) / ChunkSize
-	totalChunksZ := (t.Data.SizeZ + ChunkSize - 1) / ChunkSize
-	csx := nx * rc
-	cex := min(csx+rc, totalChunksX)
-	csz := nz * rc
-	cez := min(csz+rc, totalChunksZ)
-	if t.tickingActive != "" {
-		t.tickingStale = append(t.tickingStale, t.tickingActive)
-		t.tickingActive = ""
-	}
-	t.tickAddRegion(nx, nz, csx, cex, csz, cez)
+	return nil
 }
 
 // placeRegion 对整片区域应用与 placeChunk 相同的立体优化（跨区块）。
@@ -721,6 +741,10 @@ func (t *ImportTask) placeRegion(rx, rz, rc int, sleeptime time.Duration) int {
 					continue
 				}
 				block := t.Data.Palette[paletteIdx]
+				if block.IsAir {
+					visited[y][x][z] = true
+					continue
+				}
 				if block.IsDependent || block.IsGravity {
 					visited[y][x][z] = true
 					continue
@@ -762,8 +786,11 @@ func (t *ImportTask) placeRegion(rx, rz, rc int, sleeptime time.Duration) int {
 					if err := t.SetBlock(bx+int32(wx), by+int32(y), bz+int32(wz), block.Name, block.States); err != nil {
 						t.checkOpError(err)
 					}
-					if t.OnNBT != nil && !skipNBT {
-						t.OnNBT(bx+int32(wx), by+int32(y), bz+int32(wz), blockNBT, block.Name, block.States)
+					if (t.OnNBT != nil || t.OnNBTChecked != nil) && !skipNBT {
+						if err := t.applyNBT(bx+int32(wx), by+int32(y), bz+int32(wz), blockNBT, block.Name, block.States); err != nil {
+							t.importErr = err
+							return placed
+						}
 					}
 					placed++
 					if t.OnSubProgress != nil && regionSolid > 0 {
@@ -908,8 +935,11 @@ func (t *ImportTask) placeRegion(rx, rz, rc int, sleeptime time.Duration) int {
 					if err := t.SetBlock(bx+int32(wx), by+int32(y), bz+int32(wz), block.Name, block.States); err != nil {
 						t.checkOpError(err)
 					}
-					if t.OnNBT != nil && !skipNBT {
-						t.OnNBT(bx+int32(wx), by+int32(y), bz+int32(wz), blockNBT, block.Name, block.States)
+					if (t.OnNBT != nil || t.OnNBTChecked != nil) && !skipNBT {
+						if err := t.applyNBT(bx+int32(wx), by+int32(y), bz+int32(wz), blockNBT, block.Name, block.States); err != nil {
+							t.importErr = err
+							return placed
+						}
 					}
 					placed++
 					t.rateLimit(sleeptime)
@@ -991,6 +1021,11 @@ func (t *ImportTask) placeRegion(rx, rz, rc int, sleeptime time.Duration) int {
 			x := 0
 			for x < regionXSize {
 				wx := regionStartX*ChunkSize + x
+				idx := t.Data.GetIndex(wx, y, wz)
+				if idx == 0 || !t.Data.Palette[idx].IsDependent {
+					x++
+					continue
+				}
 				block := t.Data.Get(wx, y, wz)
 				if block == nil || block.IsAir || !block.IsDependent {
 					x++
@@ -1037,8 +1072,11 @@ func (t *ImportTask) placeRegion(rx, rz, rc int, sleeptime time.Duration) int {
 							t.checkOpError(err)
 						}
 						// 单元模式（IgnoreNBTInUnit）：不逐块 TP 补发 NBT（磁石/空容器等按普通方块放）
-						if t.OnNBT != nil && block.NBT != nil && len(block.NBT) > 0 && !skipNBT && !t.nbtSkip() {
-							t.OnNBT(bx+int32(wx+i), by+int32(y), bz+int32(wz), block.NBT, block.Name, block.States)
+						if (t.OnNBT != nil || t.OnNBTChecked != nil) && block.NBT != nil && len(block.NBT) > 0 && !skipNBT && !t.nbtSkip() {
+							if err := t.applyNBT(bx+int32(wx+i), by+int32(y), bz+int32(wz), block.NBT, block.Name, block.States); err != nil {
+								t.importErr = err
+								return placed
+							}
 						}
 					}
 				}
@@ -1063,18 +1101,18 @@ func (t *ImportTask) placeChunk(cx, cz, chunkXSize, chunkZSize int, sleeptime ti
 	if t.FillRegion != nil {
 		placed += t.placeChunkRectPass(cx, cz, chunkXSize, chunkZSize, sleeptime, placeNormal)
 	} else {
-		placed += t.placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize, sleeptime, placed, chunkTotal, placeNormal)
+		placed = t.placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize, sleeptime, placed, chunkTotal, placeNormal)
 	}
 
 	// Pass 2: gravity blocks (rect optimization, after support blocks exist)
 	if t.FillRegion != nil {
 		placed += t.placeChunkRectPass(cx, cz, chunkXSize, chunkZSize, sleeptime, placeGravity)
 	} else {
-		placed += t.placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize, sleeptime, placed, chunkTotal, placeGravity)
+		placed = t.placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize, sleeptime, placed, chunkTotal, placeGravity)
 	}
 
 	// Pass 3: dependent blocks (line-by-line, last)
-	placed += t.placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize, sleeptime, placed, chunkTotal, placeDependent)
+	placed = t.placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize, sleeptime, placed, chunkTotal, placeDependent)
 
 	return placed
 }
@@ -1126,6 +1164,10 @@ func (t *ImportTask) placeChunkRectPass(cx, cz, chunkXSize, chunkZSize int, slee
 					continue
 				}
 				block := data.Palette[paletteIdx] // value copy, same flags as Get() but no NBT fetch
+				if block.IsAir {
+					visited[y][x][z] = true
+					continue
+				}
 				var skip bool
 				switch mode {
 				case placeNormal:
@@ -1178,8 +1220,11 @@ func (t *ImportTask) placeChunkRectPass(cx, cz, chunkXSize, chunkZSize int, slee
 					if err := t.SetBlock(bx+int32(wx), by+int32(y), bz+int32(wz), block.Name, block.States); err != nil {
 						t.checkOpError(err)
 					}
-					if t.OnNBT != nil && !skipNBT {
-						t.OnNBT(bx+int32(wx), by+int32(y), bz+int32(wz), blockNBT, block.Name, block.States)
+					if (t.OnNBT != nil || t.OnNBTChecked != nil) && !skipNBT {
+						if err := t.applyNBT(bx+int32(wx), by+int32(y), bz+int32(wz), blockNBT, block.Name, block.States); err != nil {
+							t.importErr = err
+							return placed
+						}
 					}
 					placed++
 					if t.OnSubProgress != nil && chunkTotal > 0 {
@@ -1397,8 +1442,19 @@ func (t *ImportTask) placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize int, sl
 					return placed
 				}
 				wx := cx*ChunkSize + x
+				if mode == placeGravity || mode == placeDependent {
+					idx := data.GetIndex(wx, y, wz)
+					if idx == 0 || mode == placeGravity && !data.Palette[idx].IsGravity || mode == placeDependent && !data.Palette[idx].IsDependent {
+						x++
+						continue
+					}
+				}
 				block := data.Get(wx, y, wz)
 				if block == nil || block.IsAir {
+					x++
+					continue
+				}
+				if t.ExcludeWater && block.IsWater || t.ExcludeLava && block.IsLava {
 					x++
 					continue
 				}
@@ -1464,8 +1520,11 @@ func (t *ImportTask) placeChunkLineByLine(cx, cz, chunkXSize, chunkZSize int, sl
 						err := t.SetBlock(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz), block.Name, block.States)
 						t.checkOpError(err)
 						// 单元模式（IgnoreNBTInUnit）：不逐块 TP 补发 NBT（磁石/空容器等按普通方块放）
-						if t.OnNBT != nil && block.NBT != nil && len(block.NBT) > 0 && !skipNBT && !t.nbtSkip() {
-							t.OnNBT(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz), block.NBT, block.Name, block.States)
+						if (t.OnNBT != nil || t.OnNBTChecked != nil) && block.NBT != nil && len(block.NBT) > 0 && !skipNBT && !t.nbtSkip() {
+							if err := t.applyNBT(bx+int32(cx*ChunkSize+x+i), by+int32(y), bz+int32(wz), block.NBT, block.Name, block.States); err != nil {
+								t.importErr = err
+								return placed
+							}
 						}
 					}
 				}
@@ -1840,11 +1899,6 @@ func (t *ImportTask) waitChunksLoaded(x1, z1, x2, z2 int32) error {
 // fillSegments 对指定 XZ 矩形覆盖的 Y 范围分段 fill air
 // areaPerLayer 从 x1/x2/z1/z2 推导，无需外部传入。
 func (t *ImportTask) fillSegments(x1, z1, x2, z2, yMin, yMax int32, totalBlocks, alreadyCleared int32) int32 {
-	// 清空前强制校验区块加载，避免 fill 过快导致区域未清掉
-	if err := t.waitChunksLoaded(x1, z1, x2, z2); err != nil {
-		t.importErr = err
-		return 0
-	}
 
 	areaPerLayer := (x2 - x1 + 1) * (z2 - z1 + 1)
 	maxLayers := maxFillVolume / int(areaPerLayer)

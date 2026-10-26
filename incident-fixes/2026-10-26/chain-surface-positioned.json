@@ -1,0 +1,9 @@
+{
+  "source_sha256": "e8c137496be8f57b58d5baeee570ab8ba36533e4bb5be42d0d64e068f7875987",
+  "candidate_sha256": "43236b0a7a3024b82396e9784be5bc287853fdb48c3fd4ba6ee5d511d2d481c6",
+  "floor_checks": 111,
+  "max_physical_teleports_per_actor_per_round": 1,
+  "original_hz_preserved": 20,
+  "deployed": false,
+  "source_normalized_sha256": "348a2970e923d9a9952dba4282296164786cfa7df936e71854785e175d085c16"
+}

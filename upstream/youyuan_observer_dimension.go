@@ -9,7 +9,7 @@ import (
 
 func init() {
 	for k, v := range map[string]string{
-		"observerBridge.assignDimension": "options={dimension:0|1|2}；仅控制本机器人，持久关闭auto_creative，不改变当前游戏模式。身体不在分工维度时请求正常TP回该维度；正在导入导出则暂停，ready仅按真实身体维度判断，submitted不是收到动作包。需本账号OP。",
+		"observerBridge.assignDimension": "options={dimension:0|1|2,player?,landing?:{x,y,z},game_mode?:keep|survival|creative|adventure|spectator,invisible?:bool,auto_respawn?:bool}；仅控制本机器人，关闭auto_creative维护；未指定模式保持当前。跨维度优先靠近该维度目标玩家；无玩家时仅使用明确配置的落点，否则保留当前位置。导入导出期间暂停；ready按真实身体维度判断。需本账号OP。",
 		"observerBridge.dimensionStatus": "读取本机器人实际维度、游戏模式、连接和OP；不能将摄像机位置当身体维度。",
 	} {
 		yyPatrolDocs[k] = v
@@ -17,13 +17,50 @@ func init() {
 	}
 }
 
+type yyObserverDimensionOptions struct {
+	Dimension   *int32            `json:"dimension"`
+	Player      string            `json:"player"`
+	Landing     *yyCaptureLanding `json:"landing,omitempty"`
+	GameMode    string            `json:"game_mode,omitempty"`
+	Invisible   *bool             `json:"invisible,omitempty"`
+	AutoRespawn *bool             `json:"auto_respawn,omitempty"`
+}
+
+func yyObserverDimensionTransfer(name string, o yyObserverDimensionOptions) string {
+	quoted, _ := json.Marshal(name)
+	if o.Player != "" {
+		target, _ := json.Marshal(o.Player)
+		return fmt.Sprintf("execute in %s at @a[name=%s] run tp %s ~ ~6 ~", yyWatchDimension(*o.Dimension), target, quoted)
+	}
+	if o.Landing != nil {
+		return fmt.Sprintf("execute in %s run tp %s %.3f %.3f %.3f", yyWatchDimension(*o.Dimension), quoted, o.Landing.X, o.Landing.Y, o.Landing.Z)
+	}
+	return ""
+}
+
 func yyObserverDimensionStatus(bm *BotManager) map[string]any {
 	if bm == nil {
 		return map[string]any{"connected": false, "ready": false}
 	}
 	bm.mu.Lock()
-	defer bm.mu.Unlock()
-	return map[string]any{"connected": bm.connected, "dimension": bm.dimension, "game_mode": bm.gameMode, "name": bm.display, "server": bm.serverCode, "is_op": bm.isOP || bm.opPacketConfirmed}
+	status := map[string]any{"connected": bm.connected, "dimension": bm.dimension, "game_mode": bm.gameMode, "name": bm.display, "server": bm.serverCode, "is_op": bm.isOP || bm.opPacketConfirmed}
+	bm.mu.Unlock()
+	busy := false
+	if pluginController != nil {
+		pluginController.mu.Lock()
+		for _, active := range pluginController.running {
+			busy = busy || active
+		}
+		for _, active := range pluginController.loading {
+			busy = busy || active
+		}
+		pluginController.mu.Unlock()
+	}
+	yyRuntimeMu.Lock()
+	busy = busy || len(yyRuntimeInstances) > 0
+	yyRuntimeMu.Unlock()
+	status["business_plugins_running"] = busy
+	return status
 }
 func yyObserverDimensionCall(bm *BotManager, method string, args []any) (any, error) {
 	if method == "observerBridge.dimensionStatus" {
@@ -42,11 +79,20 @@ func yyObserverDimensionCall(bm *BotManager, method string, args []any) (any, er
 	if e != nil {
 		return nil, e
 	}
-	var o struct {
-		Dimension *int32 `json:"dimension"`
-	}
-	if e = json.Unmarshal(raw, &o); e != nil || o.Dimension == nil || *o.Dimension < 0 || *o.Dimension > 2 {
+	var o yyObserverDimensionOptions
+	if e = json.Unmarshal(raw, &o); e != nil || o.Dimension == nil || !yyDimensionIDValid(*o.Dimension) {
 		return nil, fmt.Errorf("dimension需要0/1/2")
+	}
+	if o.Player != "" && !yyWatchName(o.Player) {
+		return nil, fmt.Errorf("目标玩家名无效")
+	}
+	if !yyCaptureGameModeValid(o.GameMode) {
+		return nil, fmt.Errorf("不支持的机器人游戏模式")
+	}
+	if o.Landing != nil {
+		if err := yyCaptureLandingsValidate(map[string]yyCaptureLanding{fmt.Sprint(*o.Dimension): *o.Landing}); err != nil {
+			return nil, err
+		}
 	}
 	status := yyObserverDimensionStatus(bm)
 	status["assigned_dimension"] = *o.Dimension
@@ -63,13 +109,23 @@ func yyObserverDimensionCall(bm *BotManager, method string, args []any) (any, er
 		return status, nil
 	}
 	cfg := config.LoadConfig()
-	if cfg != nil && cfg.AutoCreative {
+	if cfg != nil && (cfg.AutoCreative || o.AutoRespawn != nil && (cfg.AutoRespawn == nil || *cfg.AutoRespawn != *o.AutoRespawn)) {
 		cfg.AutoCreative = false
+		if o.AutoRespawn != nil {
+			cfg.AutoRespawn = o.AutoRespawn
+		}
 		if e = config.SaveConfig(cfg); e != nil {
 			return nil, e
 		}
 	}
-	name, _ := json.Marshal(status["name"])
+	if o.AutoRespawn != nil {
+		bm.mu.Lock()
+		resources := bm.resources
+		bm.mu.Unlock()
+		if resources != nil {
+			resources.SetAutoRespawn(*o.AutoRespawn)
+		}
+	}
 	controls := []any{}
 	confirm := func(command string) error {
 		p, timedOut, err := bm.SendWSCommandWithTimeout(command, 3*time.Second)
@@ -86,8 +142,18 @@ func yyObserverDimensionCall(bm *BotManager, method string, args []any) (any, er
 		}
 		return nil
 	}
+	if err := yyCaptureApplyBehavior(bm, o, confirm); err != nil {
+		return nil, err
+	}
 	if status["dimension"] != *o.Dimension {
-		if e = confirm(fmt.Sprintf("execute in %s run tp %s 20 120 20", yyWatchDimension(*o.Dimension), name)); e != nil {
+		name, _ := status["name"].(string)
+		command := yyObserverDimensionTransfer(name, o)
+		if command == "" {
+			status["ready"], status["submitted"], status["controls"] = false, false, controls
+			status["reason"] = "目标维度暂无可用玩家，保留当前位置等待"
+			return status, nil
+		}
+		if e = confirm(command); e != nil {
 			return nil, e
 		}
 	}

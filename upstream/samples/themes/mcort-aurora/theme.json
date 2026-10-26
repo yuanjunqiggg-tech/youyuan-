@@ -1,0 +1,20 @@
+{
+  "id": "mcort-aurora",
+  "name": "MCORT Aurora",
+  "version": "1.0.0",
+  "author": "疣螈",
+  "mcort_theme_api": 1,
+  "requires": ["theme-core", "brand-guard", "announcements"],
+  "variables": {
+    "--mcort-theme-bg": "#0b1220",
+    "--mcort-theme-surface": "#121c2e",
+    "--mcort-theme-ink": "#e8eefc",
+    "--mcort-theme-accent": "#5eead4",
+    "--mcort-theme-line": "#22314a",
+    "--mcort-theme-radius": "14px"
+  },
+  "slots": {
+    "sidebar_footer": "主题 Aurora · 由 疣螈 维护",
+    "floating": "MCORT Aurora"
+  }
+}

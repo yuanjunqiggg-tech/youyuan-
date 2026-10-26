@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -44,13 +45,29 @@ func (g *yyChainFastGate) bind(conn *minecraft.Conn) error {
 	return nil
 }
 
-func (bm *BotManager) sendChainFastModule(ctx context.Context, nodes []yyChainNode, cfg yyChainConfig) ([]map[string]any, error) {
+func (g *yyChainFastGate) writeOutcome(unknown bool, err error) {
+	// Local cancellation leaves an ordered prefix queued; it is not a failed transport write.
+	if unknown && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		g.poisoned = err
+	}
+}
+
+type yyChainFastResult struct {
+	Submitted  int
+	UnknownEnd int
+}
+type yyChainFastSender struct {
+	Send            func(context.Context, []yyChainNode, yyChainConfig) (yyChainFastResult, error)
+	RecordSubmitted func(submitted, skipped int)
+}
+
+func (bm *BotManager) sendChainFastModule(ctx context.Context, nodes []yyChainNode, cfg yyChainConfig, prepared ...*yyChainFastModules) (yyChainFastResult, error) {
 	if bm == nil {
-		return nil, fmt.Errorf("命令连接未就绪")
+		return yyChainFastResult{}, fmt.Errorf("命令连接未就绪")
 	}
 	release, err := bm.chainFast.acquire(ctx)
 	if err != nil {
-		return nil, err
+		return yyChainFastResult{}, err
 	}
 	defer release()
 	// Read after acquiring the slot: a waiting worker must not rebind a stale connection and clear its poison.
@@ -58,26 +75,45 @@ func (bm *BotManager) sendChainFastModule(ctx context.Context, nodes []yyChainNo
 	conn, connected, dim, name := bm.conn, bm.connected, bm.commandDimension, bm.display
 	bm.mu.Unlock()
 	if !connected || conn == nil {
-		return nil, fmt.Errorf("命令连接未就绪")
+		return yyChainFastResult{}, fmt.Errorf("命令连接未就绪")
 	}
 	if err := bm.chainFast.bind(conn); err != nil {
-		return nil, err
+		return yyChainFastResult{}, err
 	}
-	rows, unknown, err := yyChainFastChunks(ctx, nodes, cfg, dim, name,
-		func(packets []packet.Packet) (bool, error) {
-			if err := bm.waitControlCommandRateContext(ctx, len(packets), 1024, cfg.RateCPS); err != nil {
-				return false, err
-			}
-			if err := ctx.Err(); err != nil {
-				return false, err
-			}
-			// shortcut: the transport write has no context deadline; add transport support if writes can stall.
-			return true, conn.WritePacketBatch(packets)
-		})
-	if unknown {
-		bm.chainFast.poisoned = err
+	send := func(packets []packet.Packet) (bool, error) {
+		if err := bm.waitControlCommandRateContext(ctx, len(packets), 1024, cfg.RateCPS); err != nil {
+			return false, err
+		}
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		// shortcut: the transport write has no context deadline; add transport support if writes can stall.
+		return conn.WritePacketsBounded(ctx, packets)
 	}
-	return rows, err
+	var result yyChainFastResult
+	if len(prepared) > 0 && prepared[0] != nil {
+		program := prepared[0].module(conn, nodes, cfg)
+		result, err = program.submit(ctx, nodes, cfg, dim, name, send)
+	} else {
+		result, err = yyChainFastSubmit(ctx, nodes, cfg, dim, name, send)
+	}
+	bm.chainFast.writeOutcome(result.UnknownEnd > result.Submitted, err)
+	return result, err
+}
+
+// Restore the shared transport's tick coalescing while retaining its 256-packet/256KiB ceiling.
+func yyChainFastCoalesced(ctx context.Context, packets []packet.Packet, write func(packet.Packet) error) (bool, error) {
+	attempted := false
+	for _, p := range packets {
+		if err := ctx.Err(); err != nil {
+			return attempted, err
+		}
+		attempted = true
+		if err := write(p); err != nil {
+			return true, err
+		}
+	}
+	return attempted, nil
 }
 
 func yyChainFastPacket(node yyChainNode, cfg yyChainConfig, dim, name string) (packet.Packet, int, error) {
@@ -104,52 +140,140 @@ func yyChainFastPacket(node yyChainNode, cfg yyChainConfig, dim, name string) (p
 }
 
 // Serial/bounded local submission does not prove server execution or provide server load feedback.
-func yyChainFastChunks(ctx context.Context, nodes []yyChainNode, cfg yyChainConfig, dim, name string,
+func yyChainFastSubmit(ctx context.Context, nodes []yyChainNode, cfg yyChainConfig, dim, name string,
 	send func([]packet.Packet) (bool, error),
-) ([]map[string]any, bool, error) {
-	rows := make([]map[string]any, len(nodes))
+) (result yyChainFastResult, err error) {
+	var program yyChainFastPrepared
+	return program.submit(ctx, nodes, cfg, dim, name, send)
+}
+
+// A prepared span contains immutable SettingsCommand data, never receipts or encrypted bytes.
+type yyChainFastPrepared struct {
+	nodes              []yyChainNode
+	channel, dim, name string
+	packets            []packet.Packet
+	ends               []int
+	reusable           bool
+}
+
+func (p *yyChainFastPrepared) prepare(nodes []yyChainNode, cfg yyChainConfig, dim, name string) error {
+	// Parsed plans are immutable snapshots; file reload replaces their backing slices.
+	if p.reusable && len(nodes) == len(p.nodes) && len(nodes) > 0 && &nodes[0] == &p.nodes[0] &&
+		cfg.Channel == p.channel && dim == p.dim && name == p.name {
+		return nil
+	}
+	*p = yyChainFastPrepared{}
 	packets := make([]packet.Packet, len(nodes))
-	sizes := make([]int, len(nodes))
+	ends := make([]int, 0, (len(nodes)+1023)/1024)
+	from, textBytes := 0, 0
+	reusable := len(nodes) > 0
 	for i, node := range nodes {
-		rows[i] = map[string]any{"index": i, "submitted": false, "confirmed": false, "channel": yyChainNodeChannel(node, cfg)}
 		pk, size, err := yyChainFastPacket(node, cfg, dim, name)
 		if err != nil {
-			return rows, false, err
+			return err
 		}
 		if size > 512*1024 {
-			return rows, false, fmt.Errorf("快速模块单条命令超过512KiB，未提交")
+			return fmt.Errorf("快速模块单条命令超过512KiB，未提交")
 		}
-		packets[i], sizes[i] = pk, size
+		if i > from && (i-from == 1024 || textBytes+size > 512*1024) {
+			ends = append(ends, i)
+			from, textBytes = i, 0
+		}
+		textBytes += size
+		packets[i] = pk
+		if _, ok := pk.(*packet.SettingsCommand); !ok {
+			reusable = false // CommandRequest needs a fresh UUID on every invocation.
+		}
 	}
-	limit := 1024
-	if cfg.RateCPS > 0 {
-		limit = 1
+	if len(nodes) > 0 {
+		ends = append(ends, len(nodes))
 	}
-	for from := 0; from < len(nodes); {
+	p.nodes, p.channel, p.dim, p.name = nodes, cfg.Channel, dim, name
+	p.packets, p.ends, p.reusable = packets, ends, reusable
+	return nil
+}
+
+func (p *yyChainFastPrepared) submit(ctx context.Context, nodes []yyChainNode, cfg yyChainConfig, dim, name string,
+	send func([]packet.Packet) (bool, error),
+) (result yyChainFastResult, err error) {
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if err := p.prepare(nodes, cfg, dim, name); err != nil {
+		return result, err
+	}
+	for from, chunk := 0, 0; from < len(nodes); chunk++ {
 		if err := ctx.Err(); err != nil {
-			return rows, false, err
+			return result, err
 		}
-		to, size := from, 0
-		for to < len(nodes) && to-from < limit && size+sizes[to] <= 512*1024 {
-			size += sizes[to]
-			to++
+		to := from + 1
+		if cfg.RateCPS == 0 {
+			to = p.ends[chunk]
 		}
-		attempted, err := send(packets[from:to])
+		attempted, err := send(p.packets[from:to])
 		if err != nil {
 			if attempted {
-				for _, row := range rows[from:to] {
-					row["attempted"], row["unknown"] = true, true
-				}
+				result.UnknownEnd = to
 			}
-			return rows, attempted, fmt.Errorf("快速模块发送失败，没有自动重发：%w", err)
+			return result, fmt.Errorf("快速模块发送失败，没有自动重发：%w", err)
 		}
-		for _, row := range rows[from:to] {
-			row["submitted"] = true
-		}
+		result.Submitted = to
 		if err := ctx.Err(); err != nil {
-			return rows, false, err
+			return result, err
 		}
 		from = to
 	}
-	return rows, false, nil
+	return result, nil
+}
+
+// Owned by one sequential worker. Entries are spans of current parsed files,
+// not per-command status; file reload, root reload and reconnect evict old data.
+type yyChainFastSpan struct {
+	file  string
+	first *yyChainNode
+	count int
+}
+type yyChainFastModules struct {
+	root    *yyChainNode
+	conn    *minecraft.Conn
+	sources map[string]*yyChainNode
+	spans   map[yyChainFastSpan]*yyChainFastPrepared
+}
+
+func yyChainPlanSource(plan yyChainPlan) *yyChainNode {
+	for _, chain := range plan.Chains {
+		if len(chain.Nodes) > 0 {
+			return &chain.Nodes[0]
+		}
+	}
+	return nil
+}
+func (p *yyChainFastModules) bindRoot(plan yyChainPlan) {
+	source := yyChainPlanSource(plan)
+	if p.root != source {
+		*p = yyChainFastModules{root: source}
+	}
+}
+func (p *yyChainFastModules) module(conn *minecraft.Conn, nodes []yyChainNode, cfg yyChainConfig) *yyChainFastPrepared {
+	if p.conn != conn || p.spans == nil {
+		*p = yyChainFastModules{root: p.root, conn: conn, sources: make(map[string]*yyChainNode), spans: make(map[yyChainFastSpan]*yyChainFastPrepared)}
+	}
+	if source, exists := p.sources[cfg.Name]; !exists || source != cfg.preparedSource {
+		for key := range p.spans {
+			if key.file == cfg.Name {
+				delete(p.spans, key)
+			}
+		}
+		p.sources[cfg.Name] = cfg.preparedSource
+	}
+	key := yyChainFastSpan{file: cfg.Name, count: len(nodes)}
+	if len(nodes) > 0 {
+		key.first = &nodes[0]
+	}
+	program := p.spans[key]
+	if program == nil {
+		program = &yyChainFastPrepared{}
+		p.spans[key] = program
+	}
+	return program
 }

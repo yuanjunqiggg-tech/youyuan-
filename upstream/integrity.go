@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -155,30 +157,101 @@ func VerifyApkIntegrity() {
 	tamperReason = ""
 }
 
+// frontendResourceDigest 计算内嵌前端资源树的稳定摘要。
+//
+// 算法（build.ps1 的 Get-FrontendDigest 必须逐字节一致）：
+//  1. 递归遍历 fsys 的 frontend/ 下所有文件，按路径做**字节序**排序；
+//  2. 每个文件写一行 "路径\n<sha256 hex 小写>\n"；
+//  3. 对整段文本求 sha256，输出 hex 小写。
+//
+// 为什么不用「只算 index.html」：真正会被改的是 js/ 下的逻辑代码，
+// 只钉 index.html 等于没钉。整棵树一起算才能覆盖「改一个 JS 重签」这条路径。
+func frontendResourceDigest(fsys fs.FS) (string, error) {
+	var paths []string
+	err := fs.WalkDir(fsys, "frontend", func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		paths = append(paths, p)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(paths) == 0 {
+		return "", fmt.Errorf("内嵌前端资源为空")
+	}
+	sort.Strings(paths)
+
+	var sb strings.Builder
+	for _, p := range paths {
+		data, readErr := fs.ReadFile(fsys, p)
+		if readErr != nil {
+			return "", fmt.Errorf("读取 %s 失败: %w", p, readErr)
+		}
+		sum := sha256.Sum256(data)
+		sb.WriteString(p)
+		sb.WriteByte('\n')
+		sb.WriteString(hex.EncodeToString(sum[:]))
+		sb.WriteByte('\n')
+	}
+	sum := sha256.Sum256([]byte(sb.String()))
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// trimSHA256Prefix 去掉 "sha256:" 前缀，并统一小写。
+func trimSHA256Prefix(v string) string {
+	t := strings.ToLower(strings.TrimSpace(v))
+	if strings.HasPrefix(t, "sha256:") {
+		t = t[len("sha256:"):]
+	}
+	return t
+}
+
+// shortHash 只截前 16 位用于日志/提示，避免把完整摘要写进事件流。
+func shortHash(h string) string {
+	if len(h) <= 16 {
+		return h
+	}
+	return h[:16]
+}
+
 // RunIntegrityChecks verifies embedded resources haven't been tampered with.
 // Returns a map of check name → result.
+//
+// 关于「没注入就静默通过」这个口子：构建脚本（build.ps1）每次都会同时注入
+// buildStamp 和 frontendHash。所以「有 buildStamp 却没有 frontendHash」
+// 只可能是构建流水线漏了参数 —— 这种情况直接判失败，绝不能当开发构建放过去。
+// 反过来，普通 `go build` / `go test` 两者都为空，属于开发场景，跳过检查。
 func RunIntegrityChecks() map[string]IntegrityResult {
 	results := make(map[string]IntegrityResult)
 
-	// Check frontend/index.html
-	if frontendHash != "" {
-		data, err := frontendFS.ReadFile("frontend/index.html")
-		if err != nil {
-			results["frontend"] = IntegrityResult{Passed: false, Message: "无法读取前端资源: " + err.Error()}
-		} else {
-			h := sha256.Sum256(data)
-			actual := hex.EncodeToString(h[:])
-			expected := frontendHash
-			if len(expected) > 7 && expected[:7] == "sha256:" {
-				expected = expected[7:]
-			}
-			if actual == expected {
-				results["frontend"] = IntegrityResult{Passed: true, Message: "OK"}
-			} else {
-				results["frontend"] = IntegrityResult{Passed: false, Message: fmt.Sprintf("前端资源被篡改 (期望:%s 实际:%s)", expected[:16], actual[:16])}
+	expected := trimSHA256Prefix(frontendHash)
+	if expected == "" {
+		if strings.TrimSpace(buildStamp) != "" {
+			results["frontend"] = IntegrityResult{
+				Passed:  false,
+				Message: "构建时未注入前端资源摘要（frontendHash 为空），拒绝以未校验状态运行",
 			}
 		}
+		return results
 	}
 
+	actual, err := frontendResourceDigest(frontendFS)
+	if err != nil {
+		results["frontend"] = IntegrityResult{Passed: false, Message: "无法读取前端资源: " + err.Error()}
+		return results
+	}
+	if actual == expected {
+		results["frontend"] = IntegrityResult{Passed: true, Message: "OK"}
+		return results
+	}
+	results["frontend"] = IntegrityResult{
+		Passed:  false,
+		Message: fmt.Sprintf("前端资源被篡改 (期望:%s 实际:%s)", shortHash(expected), shortHash(actual)),
+	}
 	return results
 }

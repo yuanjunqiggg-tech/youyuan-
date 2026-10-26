@@ -31,26 +31,23 @@ func TestStructureHudMatchesHouseLayout(t *testing.T) {
 	}
 	text := yyStructureHudRender(hud)
 	for _, want := range []string{
-		"§8╭━━━━§b ✦ 游园·YUAN §8━━━━╮",
-		"§8┃§b ▌§fSTRUCTURE I/O  §a● 导入中",
-		"§8┣━━━━━━━━━━━━━━━━━━┫",
-		"§8┃ §f进度 §a70%  §7(§f56§8/§f80§7 区块)",
-		"§8┃ §b▰▰▰▰▰▰▰§8▱▱▱  §7[§a70%§7]",
+		"§8╭━━§b ✦ 游园 §8━━━━╮",
+		"§8┃ §a● §f导入中",
+		"§8┃ §7区块 §f56§8/§f80",
+		"§8┃ §b▰▰▰▰▰▰▰§8▱▱▱  §a70%",
 		"§8┃ §7方块 §f1290240§8/§f1843200",
-		"§8┃ §7速率 §b8600§7块/s  余量 §f552960",
+		"§8┃ §7速率 §b8600§7块/s",
+		"§8┃ §7剩余方块 §f552960",
 		"§8┃ §7TPS §a19.6  §7RTT §a46ms",
-		"§8┃ §7已用 §f02:30  §7剩余 §e01:04",
-		"§8┃ §b⟳ §f正在写入 §7X1024 Z-288",
-		"§8╰━━§b YUAN §8/ §7ARCHIVE v1.0 ━╯",
+		"§8┃ §7已用 §f02:30\n§8┃ §7预计剩余 §e01:04",
+		"§8┃ §7位置 §fX1024 Z-288",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in:\n%s", want, text)
 		}
 	}
-	// The native marker must survive: it is how a player tells our panel apart
-	// from any other actionbar writer on the same server.
-	if strings.Count(text, "YUAN") < 2 {
-		t.Fatal("native YUAN marker lost", text)
+	if strings.Contains(text, "STRUCTURE I/O") || strings.Contains(text, "ARCHIVE v") {
+		t.Fatal("internal filler made the player panel wider", text)
 	}
 }
 
@@ -86,8 +83,30 @@ func TestStructureHudMarksDerivedChunkProgress(t *testing.T) {
 		t.Fatal("a block-ratio derivation is not an exact chunk count")
 	}
 	text := yyStructureHudRender(hud)
-	if !strings.Contains(text, "§7(~§f17§8/§f25§7 区块)") {
+	if !strings.Contains(text, "§7区块 ~§f17§8/§f25") {
 		t.Fatalf("derived chunk progress must carry the ~ marker:\n%s", text)
+	}
+}
+
+func TestImportPartitionModesNeverBecomeExportInGame(t *testing.T) {
+	for mode := 0; mode <= 4; mode++ {
+		var text string
+		buildV5Actionbar(func(s string) { text = s }, "房子", 80, 20, 80,
+			mode, 100, 9500, 10, 1, 1, 1, 1, 4, 0, 25, 1, 2, time.Now(), "游园")
+		if !strings.Contains(text, "导入中") || strings.Contains(text, "导出中") {
+			t.Fatalf("partition mode %d mislabeled import: %s", mode, text)
+		}
+	}
+}
+
+func TestStructureHudPreparationAndLongNameStayCompact(t *testing.T) {
+	name := strings.Repeat("海牛的家", 20) + "@[178788 206 -183864]"
+	text := yyStructureHudRender(yyStructureHud{Phase: "导入准备", Structure: name})
+	if strings.Contains(text, name) || strings.Contains(text, "0§8/§f0") || !strings.Contains(text, "海牛的家海牛的家海牛的…") {
+		t.Fatal("preparation must clip long names and keep unknown totals unknown", text)
+	}
+	if len(strings.Split(text, "\n")) < 14 {
+		t.Fatal("panel collapsed back to a wide short strip", text)
 	}
 }
 

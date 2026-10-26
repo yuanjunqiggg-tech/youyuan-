@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/go-gl/mathgl/mgl32"
@@ -43,6 +45,52 @@ func TestWatchRejectsInvalidModesAndIntervals(t *testing.T) {
 	}
 	if c, err := yyWatchParse(map[string]any{"player": "p", "mode": "hybrid", "interval_seconds": .001}); err != nil || c.Interval != .001 {
 		t.Fatal(c, err)
+	}
+}
+
+func TestWatchMicrosecondConfigAndReportedDispatchLimit(t *testing.T) {
+	for _, ms := range []float64{0.1, 0.001} {
+		original := yyGlobalCaptureConfig{Interval: ms / 1000, Mode: "camera", AutoPlayers: true}
+		raw, err := json.Marshal(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var saved yyGlobalCaptureConfig
+		if err := json.Unmarshal(raw, &saved); err != nil {
+			t.Fatal(err)
+		}
+		config, err := yyWatchParse(yyGlobalWatchOptions(saved))
+		if err != nil {
+			t.Fatal(err)
+		}
+		duration, err := yyPatrolDuration(config.Interval)
+		if err != nil || duration != time.Duration(ms*float64(time.Millisecond)) {
+			t.Fatalf("%gms became %v: %v", ms, duration, err)
+		}
+		w := &yyWatch{Bot: senseBot(t), Config: config, SubmissionGap: 53 * time.Millisecond}
+		status := w.snapshot()
+		if status["requested_interval_ms"] != ms || status["command_limit_per_second"] != 20 || status["minimum_command_interval_ms"] != float64(50) || status["last_host_submission_interval_ms"] != float64(53) {
+			t.Fatal(status)
+		}
+	}
+}
+
+func TestMicrosecondIdleCameraCanCancelWithoutSending(t *testing.T) {
+	bm := senseBot(t)
+	bm.connected = true
+	w := &yyWatch{Bot: bm, Config: yyWatchConfig{Interval: .000001}}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { w.runSelectorCamera(ctx); close(done) }()
+	time.Sleep(15 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("idle wait did not honor cancellation")
+	}
+	if w.Submitted != 0 || bm.controlCommands.Load() != 0 {
+		t.Fatal("idle observer sent commands")
 	}
 }
 func TestWatchFreshRegionEvidence(t *testing.T) {

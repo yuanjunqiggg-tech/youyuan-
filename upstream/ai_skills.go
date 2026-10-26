@@ -51,6 +51,7 @@ var aiSkills = []*AISkill{
 	{ID: "physical-actions", Name: "机器人物理动作", Description: "挖掘、点击放置、近战攻击、移动与服务器确认", Sources: []string{"skills/physical-actions/index.md"}},
 	{ID: "block-media", Name: "方块视频与转换", Description: "选定平面、逐帧差分、TXT执行与格式转换", Sources: []string{"skills/block-media/index.md"}},
 	{ID: "command-execution", Name: "插件命令执行", Description: "通道、实例默认参数、逐条确认与流水线批量执行", Sources: []string{"skills/command-execution/index.md"}},
+	{ID: "world-seed", Name: "种子查询器", Description: "世界种子只读快照、Java 结构试算边界与本机计算渲染；供插件与 MCP 调用", Sources: []string{"skills/world-seed/index.md"}},
 	{ID: "toolbox-live-development", Name: "游园实际开发与验收", Description: "当前能力、常驻实例、示例、公网 MCP 与实际验证范围", Sources: []string{"skills/toolbox-live-development/index.md", "skills/toolbox-live-development/examples.md", "skills/toolbox-live-development/verification.md", "skills/toolbox-live-development/workspace-files.md", "skills/toolbox-live-development/python_seed.py", "skills/toolbox-live-development/cpp_seed.cpp", "skills/toolbox-live-development/python_observer.py", "skills/toolbox-live-development/cpp_observer.cpp"}},
 	{ID: "python-runtime", Name: "Python 常驻开发", Description: "Python SDK 完整手册", Sources: []string{"skills/python-runtime/index.md"}},
 	{ID: "cpp-runtime", Name: "C++ 常驻开发", Description: "C++ SDK 完整手册与 ABI 要求", Sources: []string{"skills/cpp-runtime/index.md"}},

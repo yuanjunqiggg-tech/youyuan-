@@ -1,9 +1,19 @@
 function yyExportPath(path, account) {
   return account && account !== "main" ? yyAccountPath(path, account) : path;
 }
+// 能力型下载链接：URL 自带 token（导出自带 SHA256 前 16 位），任何设备、任何登录态直接打开即可下载
+function yyExportShareURL(item, account) {
+  var dl = yyExportPath(item.download_url, account) || "";
+  if (!dl) return dl;
+  if (!/[?&]token=/.test(dl)) {
+    var token = String((item.sha256 || item.id || "") + "youyuanshare").slice(0, 16);
+    dl += (dl.indexOf("?") >= 0 ? "&" : "?") + "token=" + encodeURIComponent(token);
+  }
+  return dl;
+}
 async function yyDownloadExport(item, account) {
   var _a, _b, _c, _d;
-  const response = await yyRootFetch(yyExportPath(item.download_url, account), { method: ((_a = window.android) == null ? void 0 : _a.exportDownload) ? "HEAD" : "GET" });
+  const response = await yyRootFetch(yyExportShareURL(item, account), { method: ((_a = window.android) == null ? void 0 : _a.exportDownload) ? "HEAD" : "GET" });
   const attachment = (response.headers.get("Content-Disposition") || "").toLowerCase().startsWith("attachment");
   const verifiedZip = /\.zip$/i.test(item.name || "") && /^[a-f0-9]{64}$/i.test(item.sha256 || "") && /application\/(zip|octet-stream)/i.test(response.headers.get("Content-Type") || "");
   if (!response.ok || !attachment && !verifiedZip) {
@@ -183,6 +193,20 @@ async function yyOpenExportCenter(account) {
             download.disabled = false;
           }
         };
+        const copyLink = document.createElement("button");
+        copyLink.className = "btn-s";
+        copyLink.textContent = "复制下载链接";
+        copyLink.onclick = async () => {
+          copyLink.disabled = true;
+          try {
+            await navigator.clipboard.writeText(location.origin + yyExportShareURL(item, account));
+            T("已复制完整下载地址，任意设备打开即可下载", "o");
+          } catch (e) {
+            T("复制失败，请手动复制地址栏链接", "e");
+          } finally {
+            copyLink.disabled = false;
+          }
+        };
         const remove = document.createElement("button");
         remove.className = "btn-s";
         remove.textContent = "\u5220\u9664\u6B64\u5907\u4EFD";
@@ -196,7 +220,7 @@ async function yyOpenExportCenter(account) {
             remove.disabled = false;
           }
         };
-        buttons.append(download, remove);
+        buttons.append(download, copyLink, remove);
         row.append(name, details, hash, buttons);
         list.append(row);
       }

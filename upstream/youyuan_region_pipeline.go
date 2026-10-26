@@ -124,14 +124,12 @@ func yyRegionWorkers(main *BotManager, wanted int) []*BotManager {
 	}
 	return bots
 }
+
 // yyReadRegionTiles 逐分区读取建筑。preload 为 true 时（用户指定方案）：每个分区
 // 读取前先用 tickingarea 覆盖该分区的区块提前加载，机器人 TP 过去即已就绪，
-// 读取完成后卸掉；开始与结束时清理所有导出残留常加载区。
+// 读取完成后卸掉；每个工作线程只清理本作业自己创建的名称。
 func yyReadRegionTiles(main *BotManager, p, s [3]int32, wanted int, stop <-chan struct{}, progress func(int, int), preload bool) ([]map[string]any, int, error) {
 	tiles := yyRegionTiles(p, s)
-	// 清理上次异常中断留下的导出残留（只清导出前缀，不碰其他用途的常加载区）
-	main.TickingAreaCleanupPrefix(building.TickingPreloadPrefix + "exp")
-	defer main.TickingAreaCleanupPrefix(building.TickingPreloadPrefix + "exp")
 	bots := yyRegionWorkers(main, max(1, wanted))
 	if len(bots) > len(tiles) {
 		bots = bots[:len(tiles)]
@@ -158,6 +156,10 @@ func yyReadRegionTiles(main *BotManager, p, s [3]int32, wanted int, stop <-chan 
 		go func(bot *BotManager, release func()) {
 			defer release()
 			defer wg.Done()
+			addArea, removeArea, cleanupAreas := yyTickingCallbacks(bot, building.TickingPreloadPrefix+"exp_", preload)
+			if cleanupAreas != nil {
+				defer cleanupAreas()
+			}
 			defer func() {
 				if p := recover(); p != nil {
 					fail(fmt.Errorf("分区工作线程异常: %v", p))
@@ -176,12 +178,17 @@ func yyReadRegionTiles(main *BotManager, p, s [3]int32, wanted int, stop <-chan 
 					lock := yyBlockOperationLock(bot)
 					lock.Lock()
 					defer lock.Unlock()
-					// 常加载区预加载：TP 前覆盖本分区区块，读取完成后卸掉（失败仅失去加速）
-					areaName := fmt.Sprintf("%sexp%d", building.TickingPreloadPrefix, tile.Index)
-					if preload {
-						_ = bot.TickingAreaAdd(areaName, int(tile.Position[0]), int(tile.Position[2]),
-							int(tile.Position[0]+tile.Size[0]-1), int(tile.Position[2]+tile.Size[2]-1))
-						defer bot.TickingAreaRemove(areaName)
+					areaName := fmt.Sprintf("tile%d", tile.Index)
+					if addArea != nil {
+						if err = addArea(areaName, int(tile.Position[0]), int(tile.Position[2]),
+							int(tile.Position[0]+tile.Size[0]-1), int(tile.Position[2]+tile.Size[2]-1)); err != nil {
+							return nil, err
+						}
+						defer func() {
+							if cleanupErr := removeArea(areaName); err == nil && cleanupErr != nil {
+								err = cleanupErr
+							}
+						}()
 					}
 					for attempt := 0; attempt < 2; attempt++ {
 						if !bot.IsConnected() {

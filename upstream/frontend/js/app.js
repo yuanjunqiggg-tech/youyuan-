@@ -10,6 +10,46 @@ var cfgBotTokens = [];
 var subPageOpen = false;
 var subPageCache = {};
 var subPageStack = [];
+// 子页初始化函数表：页面 HTML 只是骨架，真正的内容靠这些函数填充。
+// 缓存命中、以及"返回上一页"复用的都是骨架 HTML，所以必须再跑一次初始化，
+// 否则用户看到的是一张只有标题的空壳（历史上的"点进去没内容"就是这个）。
+var subPageInits = {};
+function subPageInit(title, fn) {
+  if (title && typeof fn === "function") subPageInits[title] = fn;
+}
+// 把当前子页的实时 DOM 写回缓存：缓存里存的应该是"渲染后"的页面，不是骨架。
+// .viewer 是 three.js 容器，克隆出来没有 WebGL 上下文，必须剔除；
+// canvas 要保留——cloneNode 本来就不复制像素，而各页面的初始化函数
+// （flyInitCanvases / drawRestore 等）恢复后会照着元素重新绘制。
+// 按 class 清理而不是按 id：各场景的容器 id 已经分开
+// （viewer-app / viewer-building / viewer-mapart），只删第一个会留下旧画布。
+function yySnapshotSubPage(key) {
+  if (!key) return;
+  var sp = document.getElementById("sub-page");
+  if (!sp) return;
+  var header = sp.querySelector(".sp-header");
+  var body = sp.querySelector(".sp-body");
+  if (!header || !body) return;
+  var clone = body.cloneNode(true);
+  clone.querySelectorAll(".viewer").forEach(function(el) {
+    el.remove();
+  });
+  subPageCache[key] = header.outerHTML + clone.outerHTML;
+}
+// 只在这一页仍然显示在栈顶时补跑初始化，避免迟到的定时器写到别的页面里。
+function yyRunSubPageInit(key) {
+  var fn = subPageInits[key];
+  if (!fn) return;
+  setTimeout(function() {
+    if (!subPageOpen) return;
+    if (subPageStack[subPageStack.length - 1] !== key) return;
+    try {
+      fn(key);
+    } catch (e) {
+      console.warn("\u6E38\u56ED\uFF1A\u5B50\u9875\u521D\u59CB\u5316\u5931\u8D25", key, e);
+    }
+  }, 30);
+}
 var yySubPageEpoch = 0;
 function yyRestoreSubPageLater(key, epoch) {
   function live() {
@@ -82,8 +122,13 @@ function openSubPage(title, htmlContent) {
   document.body.classList.add("sp-open");
   document.getElementById("bottom-nav").classList.add("gone");
   document.getElementById("conn-bar").classList.add("gone");
+  // 切走之前，先把当前这一页的"渲染结果"存回缓存。
+  // 以前只在新开页时把骨架写进缓存，导致 A → B → 返回 A 时 A 是空壳。
+  var leaving = subPageOpen && subPageStack.length ? subPageStack[subPageStack.length - 1] : "";
+  if (leaving && leaving !== cacheKey) yySnapshotSubPage(leaving);
   if (subPageCache[cacheKey]) {
     sp.innerHTML = subPageCache[cacheKey];
+    yyRunSubPageInit(cacheKey);
     yyRestoreSubPageLater(cacheKey, epoch);
   } else {
     var headerHtml = '<div class="sp-header"><button class="sp-back" onclick="closeSubPage()">' + ICONS.arrowLeft + '</button><span class="sp-title">' + title + "</span></div>";
@@ -110,18 +155,10 @@ function closeSubPage() {
     var titleEl = document.querySelector(".sp-title");
     if (titleEl) {
       var key = titleEl.textContent;
-      var sp = document.getElementById("sub-page");
-      var header = sp.querySelector(".sp-header");
       var body = document.querySelector("#sub-page .sp-body");
       if (body) {
         _savedFormState[key] = serializeForm(body);
-        var clone = body.cloneNode(true);
-        var vw = clone.querySelector("#viewer");
-        if (vw) vw.remove();
-        clone.querySelectorAll("canvas").forEach(function(c) {
-          c.remove();
-        });
-        if (header) subPageCache[key] = header.outerHTML + clone.outerHTML;
+        yySnapshotSubPage(key);
       }
     }
   } catch (error) {
@@ -134,6 +171,7 @@ function closeSubPage() {
     if (subPageCache[prevKey]) {
       sp2.innerHTML = subPageCache[prevKey];
       sp2.className = "sub-page show";
+      yyRunSubPageInit(prevKey);
       yyRestoreSubPageLater(prevKey, epoch);
       return;
     }
@@ -201,13 +239,15 @@ function restoreSubPageState(key) {
   }
   var vd = _voxelData[key];
   if (vd && typeof show3D === "function") {
-    var vw = document.getElementById("viewer");
+    // 只在当前子页的预览区里找容器；id 各不相同，所以按容器范围查询，
+    // 不能用 getElementById("viewer") —— 那会命中别的场景残留的旧画布。
+    var vw = document.querySelector("#imp-info .viewer, #ma-info .viewer, #skin-preview-area .viewer");
     if (!vw) {
       var info = document.getElementById("imp-info") || document.getElementById("ma-info") || document.getElementById("skin-preview-area");
       if (info) {
         vw = document.createElement("div");
         vw.className = "viewer";
-        vw.id = "viewer";
+        vw.id = "viewer-app";
         info.appendChild(vw);
       }
     }

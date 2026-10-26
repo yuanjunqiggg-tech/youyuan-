@@ -1,0 +1,146 @@
+/* 群服互通助手面板扩展：提示词工具 chips / 指令格式自定义 / 主动搭话。
+   与 youyuan_qq_member_ui.css 同范式：只用 --yyq-* 令牌 + 局部作用域类名，
+   360px 窄屏无横向溢出，点击区不小于 44px。 */
+
+.yy-a-tools,
+.yy-a-alias,
+.yy-a-proactive {
+  margin: var(--yyq-gap-s, 8px) 0 var(--yyq-gap-xs, 4px);
+  border: 1px solid var(--yyq-line-2, #e7ecee);
+  border-radius: var(--yyq-radius, 12px);
+  background: var(--yyq-surface, #fff);
+  overflow: hidden;
+}
+.yy-a-tools > summary,
+.yy-a-alias > summary,
+.yy-a-proactive > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--yyq-gap-s, 8px);
+  min-height: 44px;
+  padding: 8px var(--yyq-gap, 12px);
+  font-size: var(--yyq-font-m, 14px);
+  font-weight: 600;
+  color: var(--yyq-ink, #233338);
+  cursor: pointer;
+  list-style: none;
+}
+.yy-a-tools > summary::-webkit-details-marker,
+.yy-a-alias > summary::-webkit-details-marker,
+.yy-a-proactive > summary::-webkit-details-marker { display: none; }
+.yy-a-tools > summary:hover,
+.yy-a-alias > summary:hover,
+.yy-a-proactive > summary:hover { background: var(--yyq-surface-2, #f5f7f8); }
+.yy-a-tools[open] > summary,
+.yy-a-alias[open] > summary,
+.yy-a-proactive[open] > summary { border-bottom: 1px solid var(--yyq-line-2, #e7ecee); }
+.yy-a-tools-body,
+.yy-a-alias-body,
+.yy-a-proactive-body { padding: 0 var(--yyq-gap, 12px) var(--yyq-gap, 12px); }
+
+/* ---------- 插入工具 chips ---------- */
+.yy-a-chips-lab {
+  margin: var(--yyq-gap-s, 8px) 0 6px;
+  font-size: var(--yyq-font-xs, 11px);
+  line-height: 1.5;
+  color: var(--yyq-ink-2, #5f6f73);
+}
+.yy-a-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.yy-a-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px var(--yyq-gap, 12px);
+  border: 1px solid var(--yyq-line, #dae3e5);
+  border-radius: var(--yyq-radius-pill, 999px);
+  background: var(--yyq-surface, #fff);
+  color: var(--yyq-ink, #233338);
+  font-size: var(--yyq-font-s, 12px);
+  cursor: pointer;
+}
+.yy-a-chip b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--yyq-font-xs, 11px);
+  font-weight: 600;
+  color: var(--yyq-accent, #087f79);
+  word-break: break-all;
+}
+.yy-a-chip i {
+  font-style: normal;
+  white-space: nowrap;
+  color: var(--yyq-ink-2, #5f6f73);
+}
+.yy-a-chip:hover { border-color: var(--yyq-accent, #087f79); }
+.yy-a-chip:active { background: var(--yyq-accent-weak, rgba(8, 127, 121, .1)); }
+.yy-a-chip.is-off { opacity: .55; }
+.yy-a-chip.is-off b { color: var(--yyq-ink-2, #5f6f73); }
+
+/* ---------- 指令格式自定义 ---------- */
+.yy-a-alias-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: var(--yyq-gap-s, 8px) 0;
+}
+.yy-a-alias-row {
+  display: flex;
+  align-items: center;
+  gap: var(--yyq-gap-s, 8px);
+  min-height: 40px;
+}
+.yy-a-alias-name {
+  flex: 0 0 60px;
+  overflow: hidden;
+  font-size: var(--yyq-font-xs, 11px);
+  color: var(--yyq-ink-2, #5f6f73);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yy-a-alias-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--yyq-line, #dae3e5);
+  border-radius: var(--yyq-radius-sm, 8px);
+  /* 以前写死 #fff：深色主题下是白底白字 */
+  background: var(--yyq-surface, #fff);
+  color: var(--yyq-ink, #233338);
+  font-size: var(--yyq-font-s, 12px);
+}
+.yy-a-alias-input:focus {
+  outline: none;
+  border-color: var(--yyq-accent, #087f79);
+  box-shadow: 0 0 0 3px var(--yyq-accent-weak, rgba(8, 127, 121, .12));
+}
+.yy-a-alias-reset {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 4px 10px;
+  font-size: var(--yyq-font-xs, 11px);
+}
+.yy-a-alias-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--yyq-gap-s, 8px);
+  margin-top: var(--yyq-gap-s, 8px);
+}
+.yy-a-alias-status {
+  min-height: 18px;
+  font-size: var(--yyq-font-xs, 11px);
+  line-height: 1.5;
+  color: var(--yyq-ink-2, #5f6f73);
+}
+#yy-a-alias-more { min-height: 34px; margin: 2px 0; font-size: var(--yyq-font-xs, 11px); }
+
+@media (max-width: 480px) {
+  .yy-a-alias-name { flex: 0 0 52px; }
+  .yy-a-alias-reset { padding: 4px 8px; }
+}

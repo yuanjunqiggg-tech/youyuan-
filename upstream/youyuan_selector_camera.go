@@ -34,6 +34,7 @@ func yySelectorCameraCommand(self, target string, c yyWatchConfig) string {
 	}
 	return command
 }
+
 // Throttled: the server-side distance test is cheap, but one extra command per
 // camera switch is not free at 15ms intervals.
 func (w *yyWatch) proximityCommand(self, target string) string {
@@ -50,7 +51,8 @@ func (w *yyWatch) proximityCommand(self, target string) string {
 	return yyWatchBodyCommand(self, target, w.Config.BodyRadius)
 }
 
-func (w *yyWatch) targets() []string {	w.Bot.mu.Lock()
+func (w *yyWatch) targets() []string {
+	w.Bot.mu.Lock()
 	self := w.Bot.display
 	w.Bot.mu.Unlock()
 	names := append([]string(nil), w.Config.Players...)
@@ -88,6 +90,10 @@ func (w *yyWatch) targets() []string {	w.Bot.mu.Lock()
 }
 func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 	interval, _ := yyPatrolDuration(w.Config.Interval)
+	idleInterval := interval
+	if idleInterval < 100*time.Millisecond {
+		idleInterval = 100 * time.Millisecond
+	}
 	next := time.Now().Add(time.Duration(w.Config.PhaseSeconds * float64(time.Second)))
 	index := w.Config.TargetOffset
 	deadline := time.Time{}
@@ -119,6 +125,7 @@ func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 			next = now.Add(interval)
 		}
 		if busy, _ := yySpatialJobState(w.Bot); busy && (w.Config.PauseDuringJobs == nil || *w.Config.PauseDuringJobs) {
+			next = time.Now().Add(idleInterval)
 			continue
 		}
 		w.Bot.mu.Lock()
@@ -132,10 +139,13 @@ func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 			w.LastSkip = "身体尚未进入分工维度"
 			w.Error = w.LastSkip
 			w.Unlock()
+			next = time.Now().Add(idleInterval)
 			continue
 		}
 		targets := w.targets()
 		if len(targets) == 0 {
+			// Microsecond settings must not busy-poll when nothing can be sent.
+			next = time.Now().Add(idleInterval)
 			continue
 		}
 		target := targets[index%len(targets)]
@@ -174,7 +184,11 @@ func (w *yyWatch) runSelectorCamera(ctx context.Context) {
 		w.Error = ""
 		w.CurrentPlayer = target
 		w.Submitted++
-		w.SubmittedAt = time.Now()
+		at := time.Now()
+		if !w.SubmittedAt.IsZero() {
+			w.SubmissionGap = at.Sub(w.SubmittedAt)
+		}
+		w.SubmittedAt = at
 		w.Unlock()
 	}
 }

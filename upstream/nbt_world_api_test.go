@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 )
 
 // 构造一块 mock 的 RequestStructure 返回结构数据。
 // 结构与 extractCommandBlocks 解析的一致：
-//   size / structure.palette.default.block_palette + block_position_data / structure.block_indices
+//
+//	size / structure.palette.default.block_palette + block_position_data / structure.block_indices
+//
 // block_indices 用 z-fastest 线性索引，block_position_data 用线性索引作键。
 func mockStructureData(size []any, palette []map[string]any, nbtByIndex map[int]map[string]any, indices []any) map[string]any {
 	// block_palette 在解码后是 []any（每项 map），这里用 []any 包住以匹配解析逻辑
@@ -159,5 +165,50 @@ func TestNormalizeStateValue(t *testing.T) {
 		if got != c.want {
 			t.Errorf("normalizeStateValue(%v)=%v, want %v", c.in, got, c.want)
 		}
+	}
+}
+
+func TestYYLockContextCancelsWaiting(t *testing.T) {
+	var lock sync.Mutex
+	lock.Lock()
+	defer lock.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	if err := yyLockContext(ctx, &lock); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("yyLockContext error = %v, want deadline exceeded", err)
+	}
+}
+
+func TestYYRegionNeedsTeleportUsesChunk(t *testing.T) {
+	bm := &BotManager{}
+	if yyRegionNeedsTeleport(bm, [3]int32{1, 70, 15}, [3]int32{1, 1, 1}) {
+		t.Fatal("region in current chunk should not teleport")
+	}
+	if !yyRegionNeedsTeleport(bm, [3]int32{32, 70, 0}, [3]int32{1, 1, 1}) {
+		t.Fatal("distant region should teleport to load its chunk")
+	}
+	bm.pos[0], bm.pos[2] = -0.5, -0.5
+	if yyRegionNeedsTeleport(bm, [3]int32{-1, 70, -1}, [3]int32{1, 1, 1}) {
+		t.Fatal("negative fractional position belongs to chunk -1")
+	}
+	if !yyRegionNeedsTeleport(bm, [3]int32{0, 70, 0}, [3]int32{1, 1, 1}) {
+		t.Fatal("origin is a different chunk from negative fractional position")
+	}
+}
+
+func TestRequestStructureContextCanceledBeforeIO(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := (*BotManager)(nil).requestStructureContext(ctx, [3]int32{0, 0, 0}, [3]int32{1, 1, 1}, time.Second)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("requestStructureContext error = %v, want canceled", err)
+	}
+	_, err = (*BotManager)(nil).yyReadRegionSubChunksContext(ctx, [3]int32{0, 0, 0}, [3]int32{1, 1, 1})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("yyReadRegionSubChunksContext error = %v, want canceled", err)
+	}
+	_, err = (*BotManager)(nil).getRegionBlockDataContext(context.Background(), [3]int32{1<<31 - 1, 0, 0}, [3]int32{2, 1, 1})
+	if err == nil {
+		t.Fatal("overflowing region must fail validation before connection access")
 	}
 }

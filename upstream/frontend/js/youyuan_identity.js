@@ -1,6 +1,168 @@
 var yyPlatformUser = null, yyIdentityMode = "login", yyMailRetryUntil = 0, yyMailTimer = null;
 var yyIsCloud = location.hostname !== "127.0.0.1" && location.hostname !== "localhost";
 var YY_IDENTITY_TIMEOUT_MS = 8e4;
+// ---- 人机验证（Turnstile）----
+// 注册与登录都必须先过真人确认；站点密钥是公开信息，从云端配置接口读取，
+// 读不到时按“未启用”处理，真正的拦截仍在服务端。
+var yyTurnstileCfg = null, yyTurnstileWidget = null, yyTurnstileTokenCache = "", yyTurnstileScript = null;
+function yyTurnstileConfig() {
+  if (yyTurnstileCfg) return Promise.resolve(yyTurnstileCfg);
+  var base = yyIsCloud ? "" : "https://toolbox.youyuanqi.dpdns.org";
+  return fetch(base + "/api/identity/turnstile-config", { cache: "force-cache" }).then(function(r) {
+    return r.json();
+  }).then(function(d) {
+    yyTurnstileCfg = { enabled: !!(d && d.enabled && d.site_key), site_key: (d && d.site_key) || "" };
+    return yyTurnstileCfg;
+  }).catch(function() {
+    yyTurnstileCfg = { enabled: false, site_key: "" };
+    return yyTurnstileCfg;
+  });
+}
+function yyTurnstileLoad() {
+  if (window.turnstile) return Promise.resolve();
+  if (yyTurnstileScript) return yyTurnstileScript;
+  yyTurnstileScript = new Promise(function(resolve, reject) {
+    var tag = document.createElement("script");
+    tag.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    tag.async = true;
+    tag.defer = true;
+    tag.onload = function() { resolve(); };
+    tag.onerror = function() { yyTurnstileScript = null; reject(Error("load")); };
+    document.head.append(tag);
+  });
+  return yyTurnstileScript;
+}
+var yyPowProofCache = null, yyPowBusy = false;
+function yyTurnstileHint(text, withRetry) {
+  var slot = document.getElementById("yy-turnstile-slot");
+  if (!slot) return;
+  var hint = document.getElementById("yy-turnstile-hint");
+  if (!hint) {
+    hint = document.createElement("p");
+    hint.id = "yy-turnstile-hint";
+    hint.className = "yy-turnstile-hint";
+    hint.setAttribute("role", "status");
+    slot.insertAdjacentElement("afterend", hint);
+  }
+  hint.replaceChildren();
+  if (!text) { hint.hidden = true; return; }
+  hint.hidden = false;
+  hint.append(document.createTextNode(text));
+  if (withRetry) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "yy-turnstile-retry";
+    btn.textContent = "重新验证";
+    btn.onclick = function () { yyTurnstileDispose(); yyTurnstileMount(); };
+    hint.append(btn);
+  }
+}
+// 本地真人校验（PoW）兜底。
+// Turnstile 依赖 challenges.cloudflare.com，国内蜂窝网络下经常几秒都拉不下来，
+// 一旦拉不下来登录就彻底卡死。这里在 8 秒超时后自动切成不依赖第三方的本地计算，
+// 用户不需要做任何额外操作。
+function yyPowSolve() {
+  var base = yyIsCloud ? "" : "https://toolbox.youyuanqi.dpdns.org";
+  return fetch(base + "/api/identity/pow-challenge", { cache: "no-store" }).then(function (r) {
+    return r.json();
+  }).then(function (c) {
+    if (!c || !c.ok || !c.salt) throw Error("challenge");
+    var prefix = "";
+    for (var d = 0; d < c.difficulty; d++) prefix += "0";
+    var enc = new TextEncoder(), rounds = 0;
+    function step(start) {
+      var batch = [];
+      for (var k = 0; k < 64; k++) batch.push(String(start + k));
+      return Promise.all(batch.map(function (n) {
+        return crypto.subtle.digest("SHA-256", enc.encode(c.salt + "." + n));
+      })).then(function (list) {
+        for (var j = 0; j < list.length; j++) {
+          var bytes = new Uint8Array(list[j]), hex = "";
+          for (var b = 0; b < bytes.length; b++) hex += (bytes[b] < 16 ? "0" : "") + bytes[b].toString(16);
+          if (hex.indexOf(prefix) === 0) {
+            return { salt: c.salt, difficulty: c.difficulty, expires: c.expires, sig: c.sig, nonce: batch[j] };
+          }
+        }
+        rounds++;
+        if (rounds > 3000) throw Error("timeout");
+        return new Promise(function (r) { setTimeout(r, 0); }).then(function () { return step(start + 64); });
+      });
+    }
+    return step(0);
+  });
+}
+function yyPowPrepare(quiet) {
+  if (yyPowProofCache) return Promise.resolve(yyPowProofCache);
+  if (yyPowBusy) return new Promise(function (r) { setTimeout(function () { r(yyPowProofCache); }, 600); });
+  yyPowBusy = true;
+  if (!quiet) yyTurnstileHint("网络较慢，正在本地完成真人校验…");
+  return yyPowSolve().then(function (proof) {
+    yyPowProofCache = proof;
+    yyPowBusy = false;
+    yyTurnstileHint("已通过本地真人校验");
+    return proof;
+  }).catch(function () {
+    yyPowBusy = false;
+    yyTurnstileHint("真人校验失败，请检查网络后点「重新验证」", true);
+    return null;
+  });
+}
+function yyTurnstileMount(force) {
+  var slot = document.getElementById("yy-turnstile-slot");
+  if (!slot) return;
+  if (force) yyTurnstileDispose();
+  if (yyTurnstileWidget !== null || yyPowProofCache) return;
+  yyTurnstileConfig().then(function (cfg) {
+    if (!cfg.enabled) { slot.hidden = true; slot.replaceChildren(); yyTurnstileHint(""); return; }
+    slot.hidden = false;
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      slot.hidden = true;
+      yyPowPrepare();
+    }, 8000);
+    yyTurnstileLoad().then(function () {
+      if (settled) { clearTimeout(timer); return; }
+      var live = document.getElementById("yy-turnstile-slot");
+      if (!live || live !== slot) { clearTimeout(timer); return; }
+      slot.replaceChildren();
+      try {
+        yyTurnstileWidget = window.turnstile.render(slot, {
+          sitekey: cfg.site_key,
+          theme: document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light",
+          retry: "auto",
+          "refresh-expired": "auto",
+          callback: function (token) { yyTurnstileTokenCache = token || ""; yyTurnstileHint(""); },
+          "expired-callback": function () { yyTurnstileTokenCache = ""; yyTurnstileHint("验证已过期，正在自动刷新…"); },
+          "error-callback": function () { yyTurnstileTokenCache = ""; yyPowPrepare(); }
+        });
+      } catch (e) {
+        yyPowPrepare();
+      }
+      settled = true;
+      clearTimeout(timer);
+    }).catch(function () {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      slot.hidden = true;
+      yyPowPrepare();
+    });
+  });
+}
+function yyTurnstileToken() { return yyTurnstileTokenCache; }
+function yyTurnstileReset() {
+  yyTurnstileTokenCache = "";
+  yyPowProofCache = null;
+  if (yyTurnstileWidget !== null) { try { window.turnstile.reset(yyTurnstileWidget); } catch (e) {} }
+}
+function yyTurnstileDispose() {
+  yyTurnstileTokenCache = "";
+  yyPowProofCache = null;
+  if (yyTurnstileWidget !== null) { try { window.turnstile.remove(yyTurnstileWidget); } catch (e) {} }
+  yyTurnstileWidget = null;
+}
 async function yyIdentityRequest(action, body) {
   var path = yyIsCloud ? "/api/identity/" + action : "/api/youyuan/identity";
   var controller = new AbortController(), timer = setTimeout(function() {
@@ -26,9 +188,23 @@ function yyShowIdentity() {
   if (old) old.remove();
   var panel = document.createElement("div");
   panel.id = "yy-identity-gate";
-  panel.innerHTML = `<form class="yy-identity-card" onsubmit="yyIdentitySubmit(event)"><div class="yy-identity-brand">\u6E38\u56ED \xB7 \u81EA\u5DF1\u7684\u521B\u4F5C\u7A7A\u95F4</div><h1>\u767B\u5F55\u6E38\u56ED</h1><p>\u5E73\u53F0\u8D26\u53F7\u7BA1\u7406\u4F60\u7684\u8BBE\u5907\u548C\u4E91\u7AEF\u8D44\u6599\uFF1B\u6E38\u620F\u4EE4\u724C\u5728\u767B\u5F55\u540E\u5355\u72EC\u6DFB\u52A0\u3002</p><div class="yy-actions"><button type="button" class="btn-s" onclick="yyIdentityChange('login')">\u767B\u5F55</button><button type="button" class="btn-s" onclick="yyIdentityChange('register')">\u6CE8\u518C\u8D26\u53F7</button></div><label for="yy-login-name">\u8D26\u53F7\u540D\u79F0</label><input id="yy-login-name" autocomplete="username" required minlength="3" maxlength="32"><div id="yy-login-email-row" hidden><label for="yy-login-email">QQ \u90AE\u7BB1</label><input id="yy-login-email" type="email" placeholder="123456@qq.com" autocomplete="email" maxlength="71"><label for="yy-login-email-code">\u90AE\u7BB1\u9A8C\u8BC1\u7801</label><div class="yy-mail-code"><input id="yy-login-email-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6 \u4F4D\u9A8C\u8BC1\u7801"><button id="yy-send-email-code" type="button" class="btn-s" onclick="yyIdentitySendCode()">\u53D1\u9001\u9A8C\u8BC1\u7801</button></div><small>\u9A8C\u8BC1\u7801 10 \u5206\u949F\u5185\u6709\u6548\u3002\u586B\u5199\u81EA\u5DF1\u7684 QQ \u90AE\u7BB1\u6536\u53D6\u90AE\u4EF6\u3002</small></div><label for="yy-login-password">\u5BC6\u7801</label><input id="yy-login-password" type="password" autocomplete="current-password" required minlength="10" maxlength="128"><button id="yy-login-submit" class="btn" type="submit">\u767B\u5F55</button><p id="yy-login-result" role="status"></p>` + (yyIsCloud ? '<details><summary>\u5DF2\u6709\u8BBE\u5907\u7684\u63A7\u5236\u5BC6\u94A5</summary><label>\u63A7\u5236\u5BC6\u94A5</label><input id="yy-login-existing-key" type="password" autocomplete="off"><button type="button" class="btn-s" onclick="yyIdentityExisting()">\u8FDE\u63A5\u5DF2\u6709\u8BBE\u5907</button></details>' : "") + "</form>";
+  panel.innerHTML = `<form class="yy-identity-card" onsubmit="yyIdentitySubmit(event)"><div class="yy-identity-brand">\u6E38\u56ED \xB7 \u81EA\u5DF1\u7684\u521B\u4F5C\u7A7A\u95F4</div><h1>\u767B\u5F55\u6E38\u56ED</h1><p>\u5E73\u53F0\u8D26\u53F7\u7BA1\u7406\u4F60\u7684\u8BBE\u5907\u548C\u4E91\u7AEF\u8D44\u6599\uFF1B\u6E38\u620F\u4EE4\u724C\u5728\u767B\u5F55\u540E\u5355\u72EC\u6DFB\u52A0\u3002</p><div class="yy-actions"><button type="button" class="btn-s" onclick="yyIdentityChange('login')">\u767B\u5F55</button><button type="button" class="btn-s" onclick="yyIdentityChange('register')">\u6CE8\u518C\u8D26\u53F7</button></div><label for="yy-login-name">\u8D26\u53F7\u540D\u79F0</label><input id="yy-login-name" autocomplete="username" required minlength="3" maxlength="32"><div id="yy-login-email-row" hidden><label for="yy-login-email">QQ \u90AE\u7BB1</label><input id="yy-login-email" type="email" placeholder="123456@qq.com" autocomplete="email" maxlength="71"><label for="yy-login-email-code">\u90AE\u7BB1\u9A8C\u8BC1\u7801</label><div class="yy-mail-code"><input id="yy-login-email-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6 \u4F4D\u9A8C\u8BC1\u7801"><button id="yy-send-email-code" type="button" class="btn-s" onclick="yyIdentitySendCode()">\u53D1\u9001\u9A8C\u8BC1\u7801</button></div><small>\u9A8C\u8BC1\u7801 10 \u5206\u949F\u5185\u6709\u6548\u3002\u586B\u5199\u81EA\u5DF1\u7684 QQ \u90AE\u7BB1\u6536\u53D6\u90AE\u4EF6\u3002</small></div><label for="yy-login-password">\u5BC6\u7801</label><input id="yy-login-password" type="password" autocomplete="current-password" required minlength="10" maxlength="128"><div id="yy-turnstile-slot" class="yy-turnstile-slot" hidden></div><button id="yy-login-submit" class="btn" type="submit">\u767B\u5F55</button><p id="yy-login-result" role="status"></p>` + (yyIsCloud ? '<details><summary>\u5DF2\u6709\u8BBE\u5907\u7684\u63A7\u5236\u5BC6\u94A5</summary><label>\u63A7\u5236\u5BC6\u94A5</label><input id="yy-login-existing-key" type="password" autocomplete="off"><button type="button" class="btn-s" onclick="yyIdentityExisting()">\u8FDE\u63A5\u5DF2\u6709\u8BBE\u5907</button></details>' : "") + "</form>";
+  // 本机/Linux 模式下这个全屏浮层不是硬墙（云端才是登录墙），
+  // 万一它被误触发，用户会被一个 inset:0、z-index 21 亿的浮层困住，
+  // 点什么都没反应。给本机模式加一个关闭按钮兜底。
+  if (!yyIsCloud) {
+    var closer = document.createElement("button");
+    closer.type = "button";
+    closer.textContent = "×";
+    closer.setAttribute("aria-label", "关闭登录浮层");
+    closer.style.cssText = "position:fixed;top:14px;right:16px;z-index:2147480001;width:44px;height:44px;border:0;border-radius:50%;background:#ffffffcc;color:#203a33;font-size:22px;line-height:1;cursor:pointer";
+    closer.onclick = function () { panel.remove(); };
+    panel.append(closer);
+  }
   document.body.append(panel);
+  yyTurnstileDispose();
   yyIdentityChange("login");
+  yyTurnstileMount();
 }
 function yyIdentityChange(mode) {
   yyIdentityMode = mode;
@@ -40,6 +216,7 @@ function yyIdentityChange(mode) {
   document.getElementById("yy-login-submit").textContent = register ? "\u9A8C\u8BC1\u5E76\u6CE8\u518C" : "\u767B\u5F55";
   document.getElementById("yy-login-password").autocomplete = register ? "new-password" : "current-password";
   document.getElementById("yy-login-result").textContent = "";
+  yyTurnstileReset();
 }
 async function yyIdentitySendCode() {
   var button = document.getElementById("yy-send-email-code"), out = document.getElementById("yy-login-result"), name = document.getElementById("yy-login-name"), email = document.getElementById("yy-login-email");
@@ -101,11 +278,19 @@ function yyIdentityReady(user) {
 }
 async function yyIdentitySubmit(event) {
   event.preventDefault();
+  var yyTqCfg = await yyTurnstileConfig();
+  if (yyTqCfg.enabled && !yyTurnstileToken()) {
+    var yyProof = yyPowProofCache || (await yyPowPrepare());
+    if (!yyProof) {
+      document.getElementById("yy-login-result").textContent = "真人校验还没完成，请点上方「重新验证」后再试";
+      return;
+    }
+  }
   var button = document.getElementById("yy-login-submit"), out = document.getElementById("yy-login-result");
   button.disabled = true;
   out.textContent = "\u6B63\u5728\u8FDE\u63A5\u6E38\u56ED\u4E91\u7AEF\u2026";
   try {
-    var r = await yyIdentityRequest(yyIdentityMode, { username: document.getElementById("yy-login-name").value, email: document.getElementById("yy-login-email").value, email_code: document.getElementById("yy-login-email-code").value, password: document.getElementById("yy-login-password").value });
+    var r = await yyIdentityRequest(yyIdentityMode, { username: document.getElementById("yy-login-name").value, email: document.getElementById("yy-login-email").value, email_code: document.getElementById("yy-login-email-code").value, password: document.getElementById("yy-login-password").value, turnstile_token: yyTurnstileToken(), pow_proof: yyPowProofCache || undefined });
     if (!r.ok) throw Error(r.error || "\u767B\u5F55\u5931\u8D25");
     if (yyIsCloud) {
       sessionStorage.setItem("yy-cloud-key", r.session_token);
@@ -117,6 +302,7 @@ async function yyIdentitySubmit(event) {
   } catch (e) {
     out.textContent = e.message;
     button.disabled = false;
+    yyTurnstileReset();
   }
 }
 async function yyIdentityExisting() {

@@ -51,8 +51,20 @@ type AppConfig struct {
 	AutoConnect         bool     `json:"auto_connect"`
 	AutoReconnect       bool     `json:"auto_reconnect"`
 	ReconnectSeconds    int      `json:"reconnect_seconds"`
-	AutoCreative        bool     `json:"auto_creative"`         // Default on; can disable for survival/death tests.
-	PacketQueueCapacity int      `json:"packet_queue_capacity"` // Receive backlog capacity, not commands/sec. Zero uses 4096; changes apply on reconnect.
+	AutoCreative        bool     `json:"auto_creative"`          // Default on; can disable for survival/death tests.
+	AutoRespawn         *bool    `json:"auto_respawn,omitempty"` // Absent preserves automatic respawn for existing accounts.
+	PacketQueueCapacity int      `json:"packet_queue_capacity"`  // Receive backlog capacity, not commands/sec. Zero uses 4096; changes apply on reconnect.
+	// PluginAutoStart 控制"服务器连上并取得 OP 后是否自动加载插件"。
+	// nil 视为开启（保持历史行为）；玩家显式关掉才不自动加载。
+	PluginAutoStart *bool `json:"plugin_auto_start,omitempty"`
+}
+
+// PluginAutoStartEnabled 返回是否在连上服务器后自动加载插件；未设置时按开启处理。
+func PluginAutoStartEnabled(cfg *AppConfig) bool {
+	if cfg == nil || cfg.PluginAutoStart == nil {
+		return true
+	}
+	return *cfg.PluginAutoStart
 }
 
 func PacketQueueSize(cfg *AppConfig) int {
@@ -81,6 +93,10 @@ func configDefaults() *AppConfig {
 func cloneConfig(cfg *AppConfig) *AppConfig {
 	c := *cfg
 	c.BotTokens = append([]string(nil), cfg.BotTokens...)
+	if cfg.AutoRespawn != nil {
+		value := *cfg.AutoRespawn
+		c.AutoRespawn = &value
+	}
 	if cfg.TLSSkipVerify != nil {
 		v := *cfg.TLSSkipVerify
 		c.TLSSkipVerify = &v

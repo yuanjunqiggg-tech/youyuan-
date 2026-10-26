@@ -13,7 +13,8 @@ import (
 	"time"
 )
 
-const yyPlatformOrigin = "https://toolbox.youyuanqi.dpdns.org"
+// 云端控制面地址。明文已收敛到 protect_secrets.go，这里只在启动时还原一次。
+var yyPlatformOrigin = yySecPlatformOrigin()
 
 type yyPlatformIdentity struct {
 	User    map[string]any `json:"user"`
@@ -133,7 +134,14 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 					}
 				}
 			}
-			writeJSON(w, map[string]any{"ok": true, "authenticated": authenticated, "user": yyIdentity.Data.User, "control_token": yyIdentity.Data.Control, "domain": yyPlatformOrigin, "detail": detail})
+			// control_token 是永久、不可轮换的登录等价凭据（红队认定为 H-3）。
+			// 以前不管有没有登录都直接吐给访客，等于匿名就能拿到 owner 令牌。
+			// 只有身份会话真的通过认证时才回这个字段。
+			payload := map[string]any{"ok": true, "authenticated": authenticated, "user": yyIdentity.Data.User, "domain": yyPlatformOrigin, "detail": detail}
+			if authenticated {
+				payload["control_token"] = yyIdentity.Data.Control
+			}
+			writeJSON(w, payload)
 			return
 		}
 		var input struct {
@@ -144,6 +152,8 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 			Password        string `json:"password"`
 			CurrentPassword string `json:"current_password"`
 			NewPassword     string `json:"new_password"`
+			TurnstileToken  string `json:"turnstile_token"`
+			PowProof        any    `json:"pow_proof"`
 		}
 		if e := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&input); e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "输入无效"})
@@ -192,7 +202,7 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 				return
 			}
 		}
-		result, e := yyIdentityCall(input.Action, map[string]any{"username": input.Username, "email": input.Email, "email_code": input.EmailCode, "password": input.Password}, "")
+		result, e := yyIdentityCall(input.Action, map[string]any{"username": input.Username, "email": input.Email, "email_code": input.EmailCode, "password": input.Password, "turnstile_token": input.TurnstileToken, "pow_proof": input.PowProof}, "")
 		if e != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 			return
@@ -227,9 +237,9 @@ func yyIdentityRoutes(mux *http.ServeMux, dataDir string) {
 		// A platform login must not move a Linux node onto the APK slug.
 		if yyRemote.URL == "" {
 			if getPlatformName() == "linux" {
-				yyRemote.URL = "wss://toolbox.youyuanqi.dpdns.org/device/connect?device=linux-server"
+				yyRemote.URL = yySecDeviceSocketURL() + "?device=linux-server"
 			} else {
-				yyRemote.URL = "wss://toolbox.youyuanqi.dpdns.org/device/connect"
+				yyRemote.URL = yySecDeviceSocketURL()
 			}
 		}
 		yyRemote.DeviceToken = device

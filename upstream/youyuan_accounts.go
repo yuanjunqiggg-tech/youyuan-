@@ -29,6 +29,9 @@ type yyManagedAccount struct {
 	Slot          int    `json:"slot"`
 	SharedCapture bool   `json:"shared_capture"`
 	CaptureOnly   bool   `json:"capture_only"`
+	// CreatedAt 只在第一次保存时写入，之后任何编辑都保留原值，
+	// 账号页用它显示"添加时间"，不参与任何业务判断。
+	CreatedAt string `json:"created_at,omitempty"`
 }
 
 var yyAccounts = struct {
@@ -156,9 +159,19 @@ func yyWriteChildConfig(a yyManagedAccount, auto bool) error {
 	}
 	if a.CaptureOnly {
 		cfg.AutoCreative = false
+		yyGlobalCapture.Lock()
+		if auto := yyGlobalCapture.Config.AutoRespawn; auto != nil {
+			value := *auto
+			cfg.AutoRespawn = &value
+		}
+		yyGlobalCapture.Unlock()
+		// Capture retries belong to the fleet scheduler, not independent workers.
+		cfg.AutoReconnect = false
 	}
 	if a.CaptureOnly {
-		_ = os.WriteFile(filepath.Join(dir, "capture-only"), []byte("1"), 0600)
+		if err := os.WriteFile(filepath.Join(dir, "capture-only"), []byte("1"), 0600); err != nil {
+			return fmt.Errorf("不能设置采集专用内核标记: %w", err)
+		}
 	} else {
 		_ = os.Remove(filepath.Join(dir, "capture-only"))
 	}
@@ -171,6 +184,11 @@ func yyWriteChildConfig(a yyManagedAccount, auto bool) error {
 func yyStartManaged(a yyManagedAccount, auto bool) error {
 	if e := yyWriteChildConfig(a, auto); e != nil {
 		return e
+	}
+	if auto {
+		if e := yyCaptureArmLanding(a); e != nil {
+			return e
+		}
 	}
 	if result, e := yyChildJSON(a, "GET", "/health", nil); e == nil && result["ready"] == true {
 		if result["account_id"] != a.ID {
@@ -200,6 +218,30 @@ func yyAccountIdentitySummary(a yyManagedAccount) map[string]any {
 	for key, value := range yyAccountProfileView(a.ID, a.Name) {
 		item[key] = value
 	}
+	if a.CreatedAt != "" {
+		item["created_at"] = a.CreatedAt
+	}
+	// 账号页要拿游戏名算皮肤、调玩家卡。
+	// 关键区分：confirmed 只表示"这个名字来自内核上报或用户填过的机器人名"，
+	// 不表示它一定对。备注名兜底的那一类绝不能拿去查皮肤站，
+	// 否则 minotar 会把任意英文名渲染成一个陌生正版玩家的头像。
+	gameName, gameUUID := yyPoolRememberedGameIdentity(a.ID)
+	confirmed := gameName != ""
+	if gameName == "" {
+		if name, ok := yyPoolLocalGameIdentity(a); ok {
+			gameName, confirmed = name, true
+		}
+	}
+	if gameName == "" {
+		gameName = yyPoolLocalGameName(a) // 仅用于展示，confirmed 保持 false
+	}
+	if gameName != "" {
+		item["player_name"] = gameName
+	}
+	item["player_name_confirmed"] = confirmed
+	if gameUUID != "" {
+		item["uuid"] = gameUUID
+	}
 	item["connected"], item["engine_ready"] = nil, nil
 	item["telemetry_loaded"], item["connection_known"] = false, false
 	item["phase"] = "status_unknown"
@@ -222,6 +264,17 @@ func yyAccountSummary(a yyManagedAccount) map[string]any {
 		item["fleet_ready"] = true
 		item["credential_state"] = "verified_for_current_server"
 		item["server_join_verified_for"] = a.Server
+		// 内核在线时用实时身份覆盖记住的值：改名或换皮后，卡片能立刻对上。
+		// 内核亲口报上来的名字算确认，可以放心拿去查皮肤站。
+		if name, uuid := yyPoolAvatarIdentity(a); name != "" || uuid != "" {
+			if name != "" {
+				item["player_name"] = name
+				item["player_name_confirmed"] = true
+			}
+			if uuid != "" {
+				item["uuid"] = uuid
+			}
+		}
 	}
 	item["connection"] = status
 	if data, e := yyChildJSON(a, "GET", "/api/youyuan/observations", nil); e == nil {
@@ -357,8 +410,18 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				}(i, a)
 			}
 			wg.Wait()
+			if r.URL.Query().Get("view") == "summary" {
+				// 列表一加载就在后台把缺的皮肤纹理落盘，用户点开详情时是本地命中。
+				// 批量预热自带冷却与单批闸门，账号页每 10 秒刷新也不会打爆认证服务。
+				for i, a := range items {
+					summaries[i]["skin_cached"] = yyAccountSkinCached(a)
+				}
+				go yyAccountPrimeSkins(items)
+			}
 			mainConfig := config.ReloadConfig()
 			mainName := mainConfig.MainAccountName
+			// 兜底名只用于显示，不能当游戏名去调玩家卡，所以单独留一份原始值。
+			mainRealName := strings.TrimSpace(mainName)
 			if mainName == "" {
 				mainName = "主账号"
 			}
@@ -368,6 +431,12 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				mainProfile = nil
 			}
 			if mainProfile != nil {
+				if yyPoolMinecraftName(mainRealName) {
+					// 主凭据是用户亲手保存的第一个游戏账号，备注名就是他本人的游戏名，
+					// 和托管账号那种随手起的标签不是一回事，所以这里算确认。
+					mainProfile["player_name"] = mainRealName
+					mainProfile["player_name_confirmed"] = true
+				}
 				for key, value := range yyMainGameIdentityView() {
 					mainProfile[key] = value
 				}
@@ -455,6 +524,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				a.OwnerID = old.OwnerID
 				a.Slot = old.Slot
 				a.Enabled = old.Enabled
+				a.CreatedAt = old.CreatedAt // 编辑不重置添加时间
 				if !actor.Admin {
 					a.SharedCapture = old.SharedCapture
 				}
@@ -469,7 +539,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				a.SharedCapture = false
 			}
 			if a.AuthURL == "" {
-				a.AuthURL = "https://auth.youyuanqi.dpdns.org"
+				a.AuthURL = yySecAuthOriginFallback()
 			}
 			parsed, e := url.Parse(a.AuthURL)
 			if e != nil || parsed.Scheme != "https" || parsed.Host == "" {
@@ -488,6 +558,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 					return
 				}
 				writeJSON(w, map[string]any{"ok": true, "id": "main", "primary": true, "connection_requested": false})
+				go yyAccountPrimeSkin(a)
 				return
 			}
 			if a.ID == "main" {
@@ -513,6 +584,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				a.Name = a.ID
 			}
 			if index < 0 {
+				a.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 				yyAccounts.Items = append(yyAccounts.Items, a)
 			} else {
 				yyAccounts.Items[index] = a
@@ -529,6 +601,9 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 				writeJSON(w, map[string]any{"ok": false, "error": e.Error()})
 				return
 			}
+			// 保存成功就预热皮肤：机器人还没进服时账号页也能立刻拿到本人纹理。
+			// 认证服务调用在后台进行，不拖慢保存请求。
+			go yyAccountPrimeSkin(a)
 			writeJSON(w, map[string]any{"ok": true, "id": a.ID})
 			return
 		}
@@ -539,6 +614,7 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 		}
 		a = yyAccounts.Items[index]
 		if p.Action == "disable" || p.Action == "delete" {
+			yyCaptureCancelLanding(a.ID)
 			a.Enabled = false
 			yyAccounts.Items[index] = a
 			yyAccounts.Items[index].Slot = 0
@@ -606,6 +682,8 @@ func yyAccountsRoutes(mux *http.ServeMux, dataDir string) {
 		if auto {
 			_, _ = yyChildJSON(a, "POST", "/api/bot/connect", map[string]any{"token": a.Token, "server": a.Server, "password": a.Password, "auth": a.AuthURL})
 		}
+		// 老账号没有在保存时预热过，这里补一次；已缓存则直接跳过。
+		go yyAccountPrimeSkin(a)
 		writeJSON(w, map[string]any{"ok": true, "id": a.ID, "connection_requested": auto})
 	})
 	if !yyAccounts.Worker {

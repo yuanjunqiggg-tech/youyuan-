@@ -1,4 +1,6 @@
-/* A quiet branded backdrop; no remote artwork, trackers or animation. */
+/* A quiet branded backdrop; no remote artwork, trackers or animation.
+   注意：本文件内容已内联进 index.html 的 style 块（消除首屏阻塞请求），
+   改这里之后必须同步 index.html，否则不会生效。 */
 body{background-color:#eff5f4;background-image:radial-gradient(ellipse at 15% 5%,#c8e4de9c,transparent 50%),radial-gradient(ellipse at 95% 75%,#dce6f9a8,transparent 48%),radial-gradient(#557a711c .7px,transparent .7px);background-size:auto,auto,22px 22px;background-attachment:fixed}
 main>header{border-bottom-color:#c8d8d5a3;padding:12px 0 20px}
 main>header b{display:flex;align-items:center;gap:10px}
@@ -14,5 +16,12 @@ main>p{font-size:14px;line-height:1.85;max-width:440px}
 #login button{min-height:46px;border-radius:11px}
 #login #identity-submit{box-shadow:0 6px 16px #08796c21}
 #identity-send-code{margin-top:10px}
-main>small{display:block;margin-top:30px;font-size:12px;text-align:center;color:#6b827b}
+main>small{display:block;margin-top:30px;font-size:12px;text-align:center;color:#55676e}
 @media(max-width:600px){main>h1{font-size:27px;margin-top:30px}main>header{gap:10px}main>header b{font-size:15px}#login{padding:24px 22px;border-radius:20px}main>p{padding:0 10px}}
+
+/* 平台账号登录/注册前置人机验证：容器只占位，组件由 Turnstile 注入 */
+.turnstile-identity{margin:14px 0 4px;min-height:65px;display:flex;justify-content:flex-start}
+.turnstile-identity:empty{min-height:0;margin:0}
+/* 站点启用了 Turnstile 时由 JS 打上 .yy-tq-on：
+   即使组件还没注入也先占住 65px，避免提交按钮被顶下去（CLS）。 */
+.turnstile-identity.yy-tq-on:empty{min-height:65px;margin:14px 0 4px}

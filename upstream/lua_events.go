@@ -177,7 +177,7 @@ func fireChatEvent(bm *BotManager, player, msg string) {
 		yyRecordChat(bm, player, msg)
 	}
 	yyRuntimeEmit(bm, map[string]any{"type": "chat", "player": player, "message": msg})
-	runEventHandlers(bm, evChat, player, msg)
+	runEventHandlersTo(bm, evChat, true, player, msg)
 }
 func fireJoinEvent(bm *BotManager, name string) {
 	yyQQAssistantEvent(bm, map[string]any{"type": "join", "player": name})
@@ -277,6 +277,9 @@ func filterEvents(list []*luaEventH, plugin string, owners ...*BotManager) []*lu
 // handler 在同一 goroutine 内按注册顺序串行执行；若同步执行，onChat 里调用
 // game.waitMsg/promptChoice 会死锁（玩家回复需由收包循环投递，循环被自身阻塞）。
 func runEventHandlers(bm *BotManager, list []*luaEventH, args ...any) {
+	runEventHandlersTo(bm, list, false, args...)
+}
+func runEventHandlersTo(bm *BotManager, list []*luaEventH, interactive bool, args ...any) {
 	evMu.Lock()
 	handlers := make([]*luaEventH, len(list))
 	copy(handlers, list)
@@ -288,16 +291,17 @@ func runEventHandlers(bm *BotManager, list []*luaEventH, args ...any) {
 		if h.owner != nil && h.owner != bm {
 			continue
 		}
-		yyQueueResidentEvent(bm, h.plugin, h.handler, args)
+		yyQueueResidentEvent(bm, h.plugin, h.handler, args, interactive)
 	}
 }
 
-func yyQueueResidentEvent(bm *BotManager, id, handler string, args []any) {
+func yyQueueResidentEvent(bm *BotManager, id, handler string, args []any, interactive ...bool) {
+	isInteractive := len(interactive) > 0 && interactive[0]
 	key := yyLuaKey{bm, id}
 	yyLuaMu.Lock()
 	if pending := yyLazyEvents[key]; pending != nil {
 		select {
-		case pending <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args}:
+		case pending <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args, Interactive: isInteractive}:
 		default:
 		}
 		yyLuaMu.Unlock()
@@ -306,7 +310,7 @@ func yyQueueResidentEvent(bm *BotManager, id, handler string, args []any) {
 	r := yyLuaStates[key]
 	if r != nil {
 		yyLuaMu.Unlock()
-		yyQueueSenseLua(r, bm, id, handler, args)
+		yyQueueSenseLua(r, bm, id, handler, args, isInteractive)
 		return
 	}
 	// Retain legacy secondary-bot lazy initialization, but create at most one
@@ -322,8 +326,8 @@ func yyQueueResidentEvent(bm *BotManager, id, handler string, args []any) {
 		yyLuaMu.Unlock()
 		return
 	}
-	queue := make(chan yySenseDelivery, 128)
-	queue <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args}
+	queue := make(chan yySenseDelivery, yyObservationSettings().EventQueue)
+	queue <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args, Interactive: isInteractive}
 	yyLazyEvents[key] = queue
 	yyLuaMu.Unlock()
 	go func() {
@@ -334,7 +338,7 @@ func yyQueueResidentEvent(bm *BotManager, id, handler string, args []any) {
 			case d := <-queue:
 				yyLuaMu.Unlock()
 				if e == nil {
-					yyQueueSenseLua(r, d.Bot, d.Plugin, d.Handler, d.Args)
+					yyQueueSenseLua(r, d.Bot, d.Plugin, d.Handler, d.Args, d.Interactive)
 				}
 			default:
 				delete(yyLazyEvents, key)

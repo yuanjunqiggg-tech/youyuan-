@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -49,14 +48,9 @@ type yyCaptureState struct {
 
 // yyCaptureQueueSize is the burst buffer between the packet-consumer goroutine
 // and the single serialization worker. 4096 covers a 3k-packet spike without
-// dropping; yyCaptureEnqueueRetries then covers anything larger.
+// dropping; saturation is counted without blocking the game receive path.
 const yyCaptureQueueSize = 4096
 
-// yyCaptureEnqueueRetries bounds how long a burst may yield before a packet is
-// counted as dropped. The worker consumes O(1) per item under the lock, so a
-// few hundred yields normally make room; the cap keeps the receive path from
-// spinning forever if the worker stalls.
-const yyCaptureEnqueueRetries = 512
 
 func yyPacketName(pk packet.Packet) string {
 	t := reflect.TypeOf(pk)
@@ -293,17 +287,6 @@ func yyCapturePacket(bm *BotManager, pk packet.Packet) {
 	case ch <- pk:
 		return
 	default:
-	}
-	// A bounded queue keeps memory flat, but a burst must not turn straight into
-	// loss. Each store is O(1) under the lock now, so yielding a few times lets
-	// the worker drain and usually makes room. Only after that do we count a drop.
-	for i := 0; i < yyCaptureEnqueueRetries; i++ {
-		runtime.Gosched()
-		select {
-		case ch <- pk:
-			return
-		default:
-		}
 	}
 	s.Lock()
 	if s.Capture.pending == ch {

@@ -1,0 +1,177 @@
+/* 建筑导入 — 结构部署（任务书第 5、6 部分）
+   1) 上传区从「巨型虚线框」改成一行：图标 + 名称 + 格式提示 + 箭头
+   2) 参数按分组标题排：方块处理 / 放置策略 / 执行性能 / 安全与清理
+   3) 维度提到默认区（任务书 6.1），坐标三列在手机端等宽对齐
+   只覆盖视觉，不动任何业务流程与 id。 */
+
+/* ── 上传行 ─────────────────────────────────────────────── */
+.pick.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  background: var(--phx-bg-card);
+  text-align: left;
+  cursor: pointer;
+}
+.pick.pick-row:active { background: var(--phx-bg-secondary); }
+.pick.pick-row .pi {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(20, 126, 130, .09);
+  color: var(--phx-primary);
+  font-size: 18px !important;
+  font-style: normal;
+}
+@supports (background: color-mix(in srgb, red 10%, transparent)) {
+  .pick.pick-row .pi { background: color-mix(in srgb, var(--phx-primary) 9%, transparent); }
+}
+.pick.pick-row .pi svg { width: 19px; height: 19px; }
+.pick.pick-row .pick-body { flex: 1 1 auto; min-width: 0; }
+.pick.pick-row #imp-pick-txt {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--phx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pick.pick-row .pick-sub {
+  margin-top: 1px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--phx-text-secondary, #8a949c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pick.pick-row .pick-go {
+  flex: 0 0 auto;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--phx-text-secondary, #8a949c);
+  opacity: .55;
+}
+
+/* ── 参数分组标题 ───────────────────────────────────────── */
+.imp-grp {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  color: var(--phx-text-secondary, #8a949c);
+}
+.imp-grp:first-child { margin-top: 10px; }
+
+/* ── 参数区排版：标签、坐标、下拉 ────────────────────────── */
+#imp-params > label,
+#imp-repair-params > label,
+#imp-mcworld-params > label {
+  display: block;
+  margin: 12px 0 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--phx-text-secondary, #8a949c);
+}
+#imp-params > label:first-child { margin-top: 4px; }
+
+/* XYZ 三列等宽：手机端不挤压、不换行、不溢出 */
+#imp-params .row,
+#imp-repair-params .row,
+#imp-mcworld-params .row {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+#imp-params .row > input,
+#imp-repair-params .row > input,
+#imp-mcworld-params .row > input {
+  width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* 修复模式的圆心只有 X/Z 两个字段，别被三列网格拉成三格 */
+#rep-circle-params .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* 下拉按钮：整行宽度、44px 高、左标签右箭头 */
+#imp-params .picker-btn,
+#imp-repair-params .picker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+/* 分组标题自带分隔，所以开关组不再套卡片：只留行距 + 细分隔线（任务书 1.4 低噪声） */
+
+/* 开关行：整行可点，靠细分隔线分组，不额外加背景块 */
+#imp-params .qopt,
+#imp-repair-params .qopt {
+  margin-top: 0;
+  padding: 10px 2px;
+  border: 0;
+  border-top: 1px solid var(--phx-border);
+  border-radius: 0;
+  background: transparent;
+}
+#imp-params .qopt .lbl-cb,
+#imp-repair-params .qopt .lbl-cb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  font-size: 13.5px;
+}
+#imp-params .qopt .dim,
+#imp-repair-params .qopt .dim {
+  font-size: 11px !important;
+  line-height: 1.55;
+  color: var(--phx-text-secondary, #8a949c);
+}
+/* 子选项：缩进一层，视觉上从属于上面的开关 */
+#imp-params .qopt-sub,
+#imp-repair-params .qopt-sub {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border-left: 2px solid var(--phx-primary);
+  border-radius: 0 8px 8px 0;
+  background: var(--phx-bg);
+}
+
+/* 速度输入：不占满整行，数字框够点就行 */
+#imp-spd, #rep-spd { width: 120px !important; min-height: 42px; box-sizing: border-box; }
+
+/* 主操作行：开始导入占满主要宽度，停止是次要按钮 */
+#imp-go, #imp-stop { min-height: 46px; }
+
+/* 高密度提示文字不撑破卡片 */
+#imp-stat, #imp-params .dim, #imp-info { overflow-wrap: anywhere; }
+
+/* ── 小屏 ──────────────────────────────────────────────── */
+@media (max-width: 359px) {
+  .pick.pick-row { gap: 10px; padding: 10px 11px; }
+  .pick.pick-row .pi { flex-basis: 30px; width: 30px; height: 30px; font-size: 16px !important; }
+  .pick.pick-row .pick-sub { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #imp-params .row, #imp-repair-params .row, #imp-mcworld-params .row { gap: 6px; }
+  #imp-spd, #rep-spd { width: 100% !important; }
+}
+
+/* ── 深色主题：分组标题与开关底色的对比度补偿 ────────────── */
+[data-theme="dark"] #imp-params .qopt,
+[data-theme="dark"] #imp-repair-params .qopt { background: var(--phx-bg-card); }

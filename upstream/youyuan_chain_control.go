@@ -23,13 +23,16 @@ type yyChainControl struct {
 	Edge       *bool  `json:"edge,omitempty"`
 	Then       string `json:"then,omitempty"`
 	Else       string `json:"else,omitempty"`
+	PluginID   string `json:"plugin_id,omitempty"`
+	Function   string `json:"function,omitempty"`
+	Args       []any  `json:"args,omitempty"`
 }
 
 func yyParseChainControl(line string) (*yyChainControl, error) {
 	kind, text, _ := strings.Cut(line, " ")
 	c := &yyChainControl{}
-	if kind != "@call" && kind != "@wait" && kind != "@pause" && kind != "@branch" && kind != "@frame" {
-		return nil, fmt.Errorf("控制语法为 @call/@wait/@pause/@branch/@frame")
+	if kind != "@call" && kind != "@wait" && kind != "@pause" && kind != "@branch" && kind != "@frame" && kind != "@gate" && kind != "@plugin" {
+		return nil, fmt.Errorf("控制语法为 @call/@wait/@pause/@branch/@frame/@gate/@plugin")
 	}
 	if kind == "@pause" && strings.TrimSpace(text) == "" {
 		c.Kind = "pause"
@@ -45,6 +48,15 @@ func yyParseChainControl(line string) (*yyChainControl, error) {
 		return nil, fmt.Errorf("控制行只能有一个 JSON 对象")
 	}
 	c.Kind = strings.TrimPrefix(kind, "@")
+	if c.Kind == "plugin" {
+		if strings.TrimSpace(c.PluginID) == "" || strings.TrimSpace(c.Function) == "" || len(c.PluginID) > 128 || len(c.Function) > 128 || len(c.Args) > 64 {
+			return nil, fmt.Errorf("@plugin 需要plugin_id、function及最多64项args")
+		}
+		if raw, _ := json.Marshal(c.Args); len(raw) > 65536 {
+			return nil, fmt.Errorf("@plugin 参数超过64KiB")
+		}
+		return c, nil
+	}
 	if c.Kind == "frame" {
 		if c.DurationMS < 1 || c.DurationMS > 60000 {
 			return nil, fmt.Errorf("帧间隔duration_ms需1..60000")
@@ -67,14 +79,14 @@ func yyParseChainControl(line string) (*yyChainControl, error) {
 		if c.Count != nil && *c.Count == 0 && !c.KeepOpen && c.DurationMS == 0 {
 			return nil, fmt.Errorf("count=0 必须指定 duration_ms 或 keep_open=true")
 		}
-	} else if c.Kind == "wait" || c.Kind == "branch" {
+	} else if c.Kind == "wait" || c.Kind == "branch" || c.Kind == "gate" {
 		c.Command = strings.TrimSpace(strings.TrimPrefix(c.Command, "/"))
 		if c.Command == "" || len(c.Command) > 32768 || strings.ContainsAny(c.Command, "\r\n") {
 			return nil, fmt.Errorf("%s 需要一条条件检测命令", kind)
 		}
-		if c.Kind == "branch" {
+		if c.Kind == "branch" || c.Kind == "gate" {
 			if c.Then == "" && c.Else == "" {
-				return nil, fmt.Errorf("@branch 至少指定 then 或 else 链名")
+				return nil, fmt.Errorf("%s 至少指定 then 或 else 链名", kind)
 			}
 			for _, name := range []string{c.Then, c.Else} {
 				if name != "" {
@@ -83,7 +95,9 @@ func yyParseChainControl(line string) (*yyChainControl, error) {
 					}
 				}
 			}
-			return c, nil
+			if c.Kind == "branch" {
+				return c, nil
+			}
 		}
 		if c.PollMS == 0 {
 			c.PollMS = 500
@@ -132,6 +146,7 @@ func yyChainLookup(name, account string) (yyChainPlan, yyChainConfig, error) {
 	if owner != account {
 		return yyChainPlan{}, cfg, fmt.Errorf("不能调用其他账号的命令链")
 	}
+	cfg.preparedSource = yyChainPlanSource(plan)
 	return plan, cfg, nil
 }
 func yyChainSlice(plan yyChainPlan, from, to int) (yyChainPlan, error) {
@@ -160,7 +175,10 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 	lookup func(string, string) (yyChainPlan, yyChainConfig, error),
 	single func(context.Context, yyChainNode, yyChainConfig) (bool, error),
 	batch func(context.Context, []yyChainNode, yyChainConfig) ([]map[string]any, error),
-	trigger func() bool, state func(string), record func(bool, bool, error)) error {
+	trigger func() bool, state func(string), record func(bool, bool, error), fast ...yyChainFastSender) error {
+	if cfg.preparedSource == nil {
+		cfg.preparedSource = yyChainPlanSource(plan)
+	}
 	var fatal error
 	ctx, cancelGraph := context.WithCancel(ctx)
 	defer cancelGraph()
@@ -191,6 +209,10 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 			c = &yyChainControl{Kind: "call", Name: name}
 		}
 		switch c.Kind {
+		case "gate":
+			return false, yyChainRunGate(ctx, c, cfg, path, lookup, single, state, record, func(in *yyChainInstance, childCtx context.Context) { in.run(childCtx) })
+		case "plugin":
+			return single(ctx, n, cfg)
 		case "frame":
 			// Drawing commands were submitted through the same Fast buffer.
 			// Wait once per frame, including time spent sending it. No server
@@ -271,7 +293,13 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 			state("调用 " + c.Name)
 			for i := 0; count == 0 || i < count; i++ {
 				roundStarted := time.Now()
-				err = yyChainExecuteGraph(childCtx, child, childCfg, nextPath, lookup, single, batch, trigger, state, record)
+				activation, hasActivation := ctx.Value(yyChainActivationKey{}).(yyChainActivation)
+				callCtx := childCtx
+				if hasActivation {
+					activation.First, activation.Trigger = i == 0, false
+					callCtx = context.WithValue(childCtx, yyChainActivationKey{}, activation)
+				}
+				err = yyChainExecuteGraph(callCtx, child, childCfg, nextPath, lookup, single, batch, trigger, state, record, fast...)
 				if err != nil || childCtx.Err() != nil {
 					if ctx.Err() != nil {
 						return false, ctx.Err()
@@ -317,7 +345,7 @@ func yyChainExecuteGraph(ctx context.Context, plan yyChainPlan, cfg yyChainConfi
 			}
 			return batch(ctx, nodes, cfg)
 		},
-		func(ok, skip bool, e error) { record(ok, skip, e) })
+		func(ok, skip bool, e error) { record(ok, skip, e) }, fast...)
 	if fatal != nil {
 		return fatal
 	}

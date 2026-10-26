@@ -18,7 +18,7 @@ func main() {
 	if port == "" {
 		port = "19429"
 	}
-	fmt.Println("游园工具箱：http://127.0.0.1:" + port)
+	fmt.Print(yyBrandBanner(appVersion, "http://127.0.0.1:"+port))
 	if err := StartServer(port, dir); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

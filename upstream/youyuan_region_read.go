@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -13,15 +14,28 @@ import (
 // Read the server's real terrain stream when structure-template export is not
 // available. Missing/undecodable subchunks are errors, never invented air.
 func (bm *BotManager) yyReadRegionSubChunks(pos, size [3]int32) (map[string]any, error) {
+	return bm.yyReadRegionSubChunksContext(context.Background(), pos, size)
+}
+
+func (bm *BotManager) yyReadRegionSubChunksContext(ctx context.Context, pos, size [3]int32) (map[string]any, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	bm.mu.Lock()
 	dim := bm.dimension
 	bm.mu.Unlock()
-	t := &SubChunkExportTask{bm: bm, minX: pos[0], minY: pos[1], minZ: pos[2], maxX: pos[0] + size[0] - 1, maxY: pos[1] + size[1] - 1, maxZ: pos[2] + size[2] - 1, dimension: dim}
+	t := &SubChunkExportTask{ctx: ctx, bm: bm, minX: pos[0], minY: pos[1], minZ: pos[2], maxX: pos[0] + size[0] - 1, maxY: pos[1] + size[1] - 1, maxZ: pos[2] + size[2] - 1, dimension: dim}
 	columns := map[[2]int32][]*chunk.SubChunk{}
 	var entities []map[string]any
 	for x := t.minX >> 4; x <= t.maxX>>4; x++ {
 		for z := t.minZ >> 4; z <= t.maxZ>>4; z++ {
-			subs, nbtData, e := t.fetchSubChunks(x, z, define.Dimension(dim).Range())
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			subs, nbtData, e := t.fetchSubChunksContext(ctx, x, z, define.Dimension(dim).Range())
 			if e != nil {
 				return nil, e
 			}

@@ -2,6 +2,7 @@ package building
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -52,19 +53,11 @@ type StructureData struct {
 // 切岛/拆分阶段（单线程）调用一次，把所有可能用到的 (name, states) 都预先登记，
 // 之后放置引擎的 getOrCreatePaletteIndex 只会命中已有条目，不再追加。
 func (s *StructureData) FreezePalette() {
-	if s.BlocksFlat != nil {
-		for _, idx := range s.BlocksFlat {
-			if idx == 0 {
-				continue
-			}
-			s.getOrCreatePaletteIndex(s.Palette[idx].Name, s.Palette[idx].States)
-		}
-	} else {
-		for _, idx := range s.Blocks {
-			if idx == 0 {
-				continue
-			}
-			s.getOrCreatePaletteIndex(s.Palette[idx].Name, s.Palette[idx].States)
+	// Freeze distinct identities, not every voxel; execution may strip waterlogging.
+	for _, entry := range s.Palette {
+		s.getOrCreatePaletteIndex(entry.Name, entry.States)
+		if strings.Contains(entry.States, "waterlogged") {
+			s.getOrCreatePaletteIndex(entry.Name, stripWaterlogged(entry.States))
 		}
 	}
 }

@@ -1466,7 +1466,9 @@ func compileStringConcatOpExpr(context *funcContext, reg int, expr *ast.StringCo
 	}
 	a := savereg(ec, reg)
 	basereg := reg
-	reg += compileExpr(context, reg, expr.Lhs, ecnone(0))
+	// A concat operand always occupies one slot, including calls into reserved for-loop registers.
+	compileExpr(context, reg, expr.Lhs, ecnone(0))
+	reg++
 	reg += compileExpr(context, reg, expr.Rhs, ecnone(0))
 	for pc := code.LastPC(); pc != 0 && opGetOpCode(code.At(pc)) == OP_CONCAT; pc-- {
 		code.Pop()

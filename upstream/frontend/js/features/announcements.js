@@ -43,10 +43,21 @@ function downloadUpdate(u){
   document.getElementById('yy-update-close').onclick=function(){dialog.remove()};
   document.getElementById('yy-update-retry').onclick=function(){downloadUpdate(u)};
   try{android.installUpdate(u,release.update_sha256,release.update_size,release.latest_version_code)}catch(e){yyUpdateNativeEvent({state:'error',message:e.message})}
- }else{
+}else{
+  // 安装包下载到当前设备本地；若在云服务器上打开本页，弹窗提供地址复制，供本人设备下载
+  var oldD=document.getElementById('yy-update-link-dialog');if(oldD)oldD.remove();
+  var dlg=document.createElement('div');dlg.className='modal-overlay';dlg.id='yy-update-link-dialog';
+  dlg.innerHTML='<div class="modal-box" style="max-width:520px;text-align:left"><h3 style="margin-bottom:8px">下载游园更新</h3><p style="font-size:12px;color:var(--phx-text-secondary);line-height:1.7">安装包将下载到<b>当前设备</b>。如果你是在云服务器上打开的本页，安装包会先落到服务器上——请复制下面的更新地址，用你本人设备的浏览器打开下载。</p><input id="yy-update-url" readonly style="width:100%;margin:10px 0;font-size:12px"><div class="row"><button class="btn-s" id="yy-update-copy">复制更新地址</button><button class="btn-s" id="yy-update-close">关闭</button></div></div>';
+  document.body.appendChild(dlg);
+  var urlInp=document.getElementById('yy-update-url');urlInp.value=u;urlInp.onclick=function(){urlInp.select()};
+  document.getElementById('yy-update-copy').onclick=function(){
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){T('已复制，去本人设备浏览器粘贴打开','o')},function(){urlInp.select();T('请按 Ctrl/Cmd+C 手动复制','w')});}
+    else{urlInp.select();T('请按 Ctrl/Cmd+C 手动复制','w')}
+  };
+  document.getElementById('yy-update-close').onclick=function(){dlg.remove()};
   var link=document.createElement('a');link.href=u;link.download='youyuan-v'+release.latest_version+'.apk';document.body.appendChild(link);link.click();link.remove();
-  T('下载完成后打开 APK 覆盖安装即可保留数据','o');
- }
+  T('已开始下载，覆盖安装可保留账号、插件与工作区数据','o');
+}
 }
 function yyUpdateNativeEvent(event){
  var status=document.getElementById('yy-update-status'),progress=document.getElementById('yy-update-progress'),retry=document.getElementById('yy-update-retry');
@@ -65,26 +76,11 @@ function checkUpdateLock(){
   return false
 }
 
-function showAlertModal(title,body,canClose,onAction,actionLabel,zIdx,keepOpen){
-  var ov=document.createElement('div');ov.className='modal-overlay';
-  if(zIdx)ov.style.zIndex=zIdx;
-  ov.innerHTML='<div class="modal-box" style="max-height:85vh;display:flex;flex-direction:column">'+
-    '<div style="font-size:16px;font-weight:800;margin-bottom:8px;flex-shrink:0">'+title+'</div>'+
-    '<div style="font-size:13px;line-height:1.6;overflow-y:auto;flex:1;min-height:0">'+body+'</div>'+
-    '<div style="margin-top:10px;display:flex;gap:8px;justify-content:'+(canClose?'flex-end':'center')+';flex-shrink:0;padding-top:8px;border-top:1px solid var(--phx-border-light)">'+
-    (canClose?'<button class="btn-s" style="width:auto;margin:0" id="alert-close-ann">关闭</button>':'')+
-    (onAction?'<button class="btn act-btn" style="width:auto;margin:0">'+(actionLabel||'确认')+'</button>':'')+
-    '</div></div>';
-  document.body.appendChild(ov);
-  if(canClose){
-    var cb=document.getElementById('alert-close-ann');
-    if(cb)cb.onclick=function(){closeOverlay(ov)}
-  }
-  if(onAction){
-    var btn=ov.querySelector('.act-btn');
-    btn.addEventListener('click',function(){onAction();if(!keepOpen)closeOverlay(ov)})
-  }
-  ov.onclick=function(e){if(!e.target.closest('.modal-box'))closeOverlay(ov)}
+// showAlertModal 的唯一实现放在 utils.js（yyShowAlertModal）。
+// 这里只保留同名转发：历史上本文件后加载、用另一套签名整份覆盖了 utils.js 的版本，
+// 导致 2 参调用拿不到关闭按钮。转发后签名永远一致，不必再关心加载顺序。
+function showAlertModal(title, body, canClose, onAction, actionLabel, zIdx, keepOpen){
+  return yyShowAlertModal(title, body, canClose, onAction, actionLabel, zIdx, keepOpen)
 }
 
 function showAnnouncements(list){

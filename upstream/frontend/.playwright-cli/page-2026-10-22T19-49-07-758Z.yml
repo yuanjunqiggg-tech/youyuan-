@@ -1,0 +1,186 @@
+- generic [active] [ref=f10e1]:
+  - generic [ref=f10e2]:
+    - generic [ref=f10e3]:
+      - heading "游园" [level=1] [ref=f10e9]
+      - generic [ref=f10e10]: 未连接
+      - button "状态悬浮窗" [ref=f10e14] [cursor=pointer]:
+        - img "悬浮窗" [ref=f10e15]
+    - generic [ref=f10e17]:
+      - generic [ref=f10e18]:
+        - generic [ref=f10e19]:
+          - heading "工作台" [level=2] [ref=f10e20]
+          - paragraph [ref=f10e21]: 从创作到管理，把所有工具放在顺手的位置。
+        - generic [ref=f10e22]: 10月23日周五
+      - generic [ref=f10e23]:
+        - generic [ref=f10e24]:
+          - generic [ref=f10e25]: YOUR CREATIVE SPACE
+          - heading "让创作，更有条理。" [level=3] [ref=f10e29]
+          - paragraph [ref=f10e30]: 建筑、插件与服务器，在这里有序管理。
+          - button "连接游戏" [ref=f10e31] [cursor=pointer]
+        - img "游园封面" [ref=f10e34]
+        - generic [ref=f10e35]:
+          - button "上一张封面" [ref=f10e36] [cursor=pointer]: ‹
+          - button "自定义封面" [ref=f10e37] [cursor=pointer]
+          - button "下一张封面" [ref=f10e38] [cursor=pointer]: ›
+      - region "运行概览" [ref=f10e39]:
+        - button "游戏连接 设备离线 连接服务器后开始作业" [ref=f10e40] [cursor=pointer]:
+          - generic [ref=f10e41]:
+            - generic [ref=f10e42]: 游戏连接
+            - strong [ref=f10e43]: 设备离线
+            - generic [ref=f10e44]: 连接服务器后开始作业
+        - button "公网远控 设备离线 独立的设备连接状态" [ref=f10e51] [cursor=pointer]:
+          - generic [ref=f10e52]:
+            - generic [ref=f10e53]: 公网远控
+            - strong [ref=f10e54]: 设备离线
+            - generic [ref=f10e55]: 独立的设备连接状态
+        - button "运行中的插件 — Python / C++ / Lua" [ref=f10e59] [cursor=pointer]:
+          - generic [ref=f10e60]:
+            - generic [ref=f10e61]: 运行中的插件
+            - strong [ref=f10e62]: —
+            - generic [ref=f10e63]: Python / C++ / Lua
+        - button "进行中的任务 — 建筑与创作任务" [ref=f10e67] [cursor=pointer]:
+          - generic [ref=f10e68]:
+            - generic [ref=f10e69]: 进行中的任务
+            - strong [ref=f10e70]: —
+            - generic [ref=f10e71]: 建筑与创作任务
+      - generic [ref=f10e75]:
+        - generic [ref=f10e76]:
+          - generic [ref=f10e77]:
+            - heading "常用工具" [level=3] [ref=f10e78]
+            - button "点击星标调整" [ref=f10e81] [cursor=pointer]
+          - generic [ref=f10e84]:
+            - button [ref=f10e85] [cursor=pointer]
+            - button [ref=f10e89] [cursor=pointer]
+            - button [ref=f10e95] [cursor=pointer]
+            - button [ref=f10e101] [cursor=pointer]
+          - generic [ref=f10e105]:
+            - heading "全部工具 12" [level=3] [ref=f10e106]:
+              - text: 全部工具
+              - generic [ref=f10e107]: "12"
+            - button "调整顺序" [ref=f10e108] [cursor=pointer]
+          - generic [ref=f10e113]:
+            - textbox "搜索工具" [ref=f10e118]:
+              - /placeholder: 搜索工具名称或功能…
+            - combobox "工具排序" [ref=f10e119]:
+              - option "按分类排序" [selected]
+              - option "按名称排序"
+              - option "按最近使用"
+              - option "自定义顺序"
+          - generic [ref=f10e120]:
+            - button "全部" [pressed] [ref=f10e121] [cursor=pointer]
+            - button "建筑工具" [ref=f10e122] [cursor=pointer]
+            - button "创意工坊" [ref=f10e123] [cursor=pointer]
+            - button "插件与自动化" [ref=f10e124] [cursor=pointer]
+            - button "实用工具" [ref=f10e125] [cursor=pointer]
+          - generic [ref=f10e126]:
+            - generic [ref=f10e127]: 建筑工具 · 4
+            - generic [ref=f10e128]:
+              - article [ref=f10e129]:
+                - button "取消置顶建筑导入" [pressed] [ref=f10e130] [cursor=pointer]
+                - button "建筑导入 导入结构与建筑文件" [ref=f10e133] [cursor=pointer]:
+                  - strong [ref=f10e137]: 建筑导入
+                  - generic [ref=f10e138]: 导入结构与建筑文件
+              - article [ref=f10e139]:
+                - button "置顶建筑导出" [ref=f10e140] [cursor=pointer]
+                - button "建筑导出 保存选区中的建筑" [ref=f10e143] [cursor=pointer]:
+                  - strong [ref=f10e147]: 建筑导出
+                  - generic [ref=f10e148]: 保存选区中的建筑
+              - article [ref=f10e149]:
+                - button "置顶建筑文件" [ref=f10e150] [cursor=pointer]
+                - button "建筑文件 文件管理与批量预览" [ref=f10e153] [cursor=pointer]:
+                  - strong [ref=f10e157]: 建筑文件
+                  - generic [ref=f10e158]: 文件管理与批量预览
+              - article [ref=f10e159]:
+                - button "置顶结构与指令转换" [ref=f10e160] [cursor=pointer]
+                - button "结构与指令转换 格式转换、结构分析与命令生成" [ref=f10e163] [cursor=pointer]:
+                  - strong [ref=f10e167]: 结构与指令转换
+                  - generic [ref=f10e168]: 格式转换、结构分析与命令生成
+            - generic [ref=f10e169]: 创意工坊 · 4
+            - generic [ref=f10e170]:
+              - article [ref=f10e171]:
+                - button "取消置顶地图画" [pressed] [ref=f10e172] [cursor=pointer]
+                - button "地图画 把图片变成方块画" [ref=f10e175] [cursor=pointer]:
+                  - strong [ref=f10e181]: 地图画
+                  - generic [ref=f10e182]: 把图片变成方块画
+              - article [ref=f10e183]:
+                - button "置顶视频方块化" [ref=f10e184] [cursor=pointer]
+                - button "视频方块化 图片与视频 → 世界方块动画" [ref=f10e187] [cursor=pointer]:
+                  - strong [ref=f10e192]: 视频方块化
+                  - generic [ref=f10e193]: 图片与视频 → 世界方块动画
+              - article [ref=f10e194]:
+                - button "取消置顶音乐工坊" [pressed] [ref=f10e195] [cursor=pointer]
+                - button "音乐工坊 MIDI 播放与钢琴" [ref=f10e198] [cursor=pointer]:
+                  - strong [ref=f10e204]: 音乐工坊
+                  - generic [ref=f10e205]: MIDI 播放与钢琴
+              - article [ref=f10e206]:
+                - button "置顶皮肤雕像" [ref=f10e207] [cursor=pointer]
+                - button "皮肤雕像 从皮肤生成立体雕像" [ref=f10e210] [cursor=pointer]:
+                  - strong [ref=f10e215]: 皮肤雕像
+                  - generic [ref=f10e216]: 从皮肤生成立体雕像
+            - generic [ref=f10e217]: 插件与自动化 · 1
+            - article [ref=f10e219]:
+              - button "取消置顶命令链条" [pressed] [ref=f10e220] [cursor=pointer]
+              - button "命令链条 TXT 实例与条件链调度" [ref=f10e223] [cursor=pointer]:
+                - strong [ref=f10e227]: 命令链条
+                - generic [ref=f10e228]: TXT 实例与条件链调度
+            - generic [ref=f10e229]: 实用工具 · 3
+            - generic [ref=f10e230]:
+              - article [ref=f10e231]:
+                - button "置顶云端资料库" [ref=f10e232] [cursor=pointer]
+                - button "云端资料库 插件、建筑与音乐文件" [ref=f10e235] [cursor=pointer]:
+                  - strong [ref=f10e239]: 云端资料库
+                  - generic [ref=f10e240]: 插件、建筑与音乐文件
+              - article [ref=f10e241]:
+                - button "置顶更多工具" [ref=f10e242] [cursor=pointer]
+                - button "更多工具 位置、背包与其他操作" [ref=f10e245] [cursor=pointer]:
+                  - strong [ref=f10e250]: 更多工具
+                  - generic [ref=f10e251]: 位置、背包与其他操作
+              - article [ref=f10e252]:
+                - button "置顶服务器搜索" [ref=f10e253] [cursor=pointer]
+                - button "服务器搜索 查找服务器与管理投放队列" [ref=f10e256] [cursor=pointer]:
+                  - strong [ref=f10e261]: 服务器搜索
+                  - generic [ref=f10e262]: 查找服务器与管理投放队列
+        - complementary [ref=f10e263]:
+          - generic [ref=f10e264]:
+            - heading "连接状态" [level=3] [ref=f10e265]
+            - generic [ref=f10e266]:
+              - generic [ref=f10e268]:
+                - strong [ref=f10e269]: 游戏服务器
+                - generic [ref=f10e270]: 等待连接
+              - generic [ref=f10e273]:
+                - strong [ref=f10e274]: 公网设备
+                - generic [ref=f10e275]: 设备离线
+              - generic [ref=f10e278]:
+                - strong [ref=f10e279]: 群服互通
+                - generic [ref=f10e280]: 等待配置
+            - button "管理账号与连接" [ref=f10e282] [cursor=pointer]
+          - generic [ref=f10e285]:
+            - heading "最近使用" [level=3] [ref=f10e286]
+            - generic [ref=f10e287]: 使用过的工具会显示在这里。
+      - generic [ref=f10e289]:
+        - heading "最近任务" [level=3] [ref=f10e290]
+        - generic [ref=f10e291]: 还没有任务记录
+        - button "查看全部任务" [ref=f10e292] [cursor=pointer]
+    - generic [ref=f10e293]:
+      - button "工具总览" [ref=f10e294] [cursor=pointer]: 总览
+      - button "插件中心" [ref=f10e299] [cursor=pointer]: 插件
+      - button "终端" [ref=f10e305] [cursor=pointer]
+      - button "连接与设置" [ref=f10e309] [cursor=pointer]: 连接
+      - button "游戏账号" [ref=f10e314] [cursor=pointer]:
+        - generic [ref=f10e315]: ♙
+        - text: 账号
+  - generic [ref=f10e316]:
+    - generic [ref=f10e317]:
+      - generic [ref=f10e318]: 游园 · 自己的创作空间
+      - heading "登录游园" [level=1] [ref=f10e319]
+      - paragraph [ref=f10e320]: 平台账号管理你的设备和云端资料；游戏令牌在登录后单独添加。
+      - generic [ref=f10e321]:
+        - button "登录" [ref=f10e322] [cursor=pointer]
+        - button "注册账号" [ref=f10e323] [cursor=pointer]
+      - generic [ref=f10e324]: 账号名称
+      - textbox "账号名称" [ref=f10e325]
+      - generic [ref=f10e326]: 密码
+      - textbox "密码" [ref=f10e327]
+      - button "登录" [ref=f10e329] [cursor=pointer]
+      - status
+    - button "关闭登录浮层" [ref=f10e330] [cursor=pointer]: ×

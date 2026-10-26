@@ -13,7 +13,8 @@ import (
 
 const yyAppVersion = "0.10.78"
 const yyAppVersionCode = 1078
-const yyUpdateManifest = "https://updates.youyuanqi.dpdns.org/updates/android/latest.json"
+// 更新清单地址。明文已收敛到 protect_secrets.go，这里只在启动时还原一次。
+var yyUpdateManifest = yySecUpdateManifestURL()
 
 type yyReleaseManifest struct {
 	Version     string `json:"version"`
@@ -44,7 +45,7 @@ func yyCheckRelease(ctx context.Context) (yyReleaseManifest, error) {
 		return release, err
 	}
 	u, err := url.Parse(release.APKURL)
-	if err != nil || u.Scheme != "https" || u.Host != "updates.youyuanqi.dpdns.org" || u.User != nil || u.Path != "/updates/android/latest.apk" || release.Package != "org.youyuan.toolbox" || release.VersionCode <= 0 || release.Size <= 0 || release.Size > 256*1024*1024 || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(release.SHA256) {
+	if err != nil || u.Scheme != "https" || u.Host != yySecUpdateHostOnly() || u.User != nil || u.Path != yySecUpdateAPKPath() || release.Package != "org.youyuan.toolbox" || release.VersionCode <= 0 || release.Size <= 0 || release.Size > 256*1024*1024 || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(release.SHA256) {
 		return release, fmt.Errorf("更新清单校验失败")
 	}
 	return release, nil

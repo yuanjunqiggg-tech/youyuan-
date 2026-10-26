@@ -62,16 +62,19 @@ func (c *CommandRequestCallback) DeleteCommandRequestCallback(requestID uuid.UUI
 // onCommandOutput ..
 func (c *CommandRequestCallback) onCommandOutput(p *packet.CommandOutput) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	select {
 	case <-c.ctx.Done():
+		c.mu.Unlock()
 		return
 	default:
-		cb, ok := c.callback[p.CommandOrigin.UUID]
-		if ok {
-			go cb(p, nil)
-		}
+	}
+	cb := c.callback[p.CommandOrigin.UUID]
+	// Retire the one-shot receipt before waking its waiter, so duplicates and closure cannot replay it.
+	delete(c.callback, p.CommandOrigin.UUID)
+	c.mu.Unlock()
+	if cb != nil {
+		go cb(p, nil)
 	}
 }
 

@@ -2,6 +2,7 @@
   let observer = null, scheduled = false;
   const definitions = [
     ["connect", "\u8FDE\u63A5\u4E0E\u8D26\u53F7", "\u670D\u52A1\u5668\u3001\u51ED\u636E\u3001\u4FDD\u6D3B\u4E0E\u591A\u673A\u5668\u4EBA"],
+    ["models", "模型与接口", "语言、画图、语音模型统一选择"],
     ["remote", "\u7FA4\u804A\u4E0E\u8FDC\u7A0B\u63A7\u5236", "\u7FA4\u670D\u4E92\u901A\u3001MCP\u4E0E\u516C\u7F51\u8FDE\u63A5"],
     ["jobs", "\u5EFA\u7B51\u4E0E\u521B\u4F5C", "\u5BFC\u5165\u5BFC\u51FA\u3001\u5730\u56FE\u753B\u548C\u4F5C\u4E1A\u9ED8\u8BA4\u503C"],
     ["appearance", "\u754C\u9762\u4E0E\u6587\u4EF6", "\u4E3B\u9898\u3001\u80CC\u666F\u4E0E\u6587\u4EF6\u9009\u62E9"],
@@ -9,6 +10,10 @@
   ];
   function category(title) {
     if (/群服|QQ群|MCP|公网|隧道|远控/.test(title)) return "remote";
+    // 模型配置统一到一张卡（语言/画图/语音）后单列一组，避免又散回「维护与资料」里。
+    if (/模型|生图|画图|语音/.test(title)) return "models";
+    // 掉线智联属于「保活」，跟服务器连接放一组，不塞进模型组。
+    if (/掉线|智联|自愈/.test(title)) return "connect";
     if (/服务器连接|验证服务器|账号|机器人|全局抓包|模式维护|保活/.test(title)) return "connect";
     if (/速度|导入|导出|作业|地图画/.test(title)) return "jobs";
     if (/界面|主题|外观|文件选择|背景/.test(title)) return "appearance";
@@ -44,7 +49,7 @@
         const d = document.createElement("details");
         d.className = "yy-settings-group";
         d.dataset.group = id;
-        d.open = saved(id, id === "connect" || id === "system");
+        d.open = saved(id, id === "connect" || id === "system" || id === "remote" || id === "models");
         const summary = document.createElement("summary"), name = document.createElement("strong"), description = document.createElement("span");
         name.textContent = title;
         description.textContent = desc;
@@ -64,7 +69,7 @@
       summary.textContent = title || "\u5176\u4ED6\u8BBE\u7F6E";
       module.append(summary);
       const key = card.id || title;
-      module.open = saved("module:" + key, card.id === "cfg-conn-card");
+      module.open = saved("module:" + key, card.id === "cfg-conn-card" || card.id === "cfg-capture-card" || card.id === "cfg-mcp-card" || card.id === "cfg-multi-card" || card.id === "cfg-models-card" || card.id === "cfg-watchdog-card");
       remember(module, "module:" + key);
       module.append(card);
       container.querySelector('[data-group="' + category(title) + '"]').append(module);

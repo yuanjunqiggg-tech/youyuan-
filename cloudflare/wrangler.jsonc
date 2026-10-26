@@ -27,7 +27,7 @@
     "directory": "public",
     "binding": "ASSETS",
     "run_worker_first": [
-      "/",
+      "/index.html",
       "/.well-known/*",
       "/oauth/*",
       "/api/*",

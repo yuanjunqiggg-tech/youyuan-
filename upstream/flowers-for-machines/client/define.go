@@ -6,6 +6,7 @@ import (
 	"github.com/OmineDev/flowers-for-machines/core/minecraft"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/raknet"
+	"net"
 )
 
 // ------------------------- Config -------------------------
@@ -25,8 +26,9 @@ type Config struct {
 	AuthServerToken      string
 	RentalServerCode     string
 	RentalServerPasscode string
-	OnLoginPacket        func(packet.Packet) // 登录阶段每收到包时回调
-	OnLoginProgress      func(string)        // 登录过程日志回调
+	OnLoginPacket        func(packet.Packet)                             // 登录阶段每收到包时回调
+	PacketFunc           func(packet.Header, []byte, net.Addr, net.Addr) // Optional caller-owned raw diagnostic hook.
+	OnLoginProgress      func(string)                                    // 登录过程日志回调
 }
 
 // ------------------------- Client -------------------------

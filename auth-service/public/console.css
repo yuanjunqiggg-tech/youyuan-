@@ -1,13 +1,423 @@
-body{background:#f5f7fa}main{width:min(100%,1280px);padding:24px 28px 60px}#workspace{margin-top:28px}.auth-shell{display:grid;grid-template-columns:190px minmax(0,1fr);gap:28px;align-items:start}.auth-nav{position:sticky;top:20px;display:grid;gap:6px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:18px}.auth-nav button{margin:0;text-align:left;background:transparent;color:var(--muted);padding:14px 16px}.auth-nav button[aria-selected=true]{background:#e3f2ee;color:#086b60}.auth-main{min-width:0}.auth-page>section{margin-top:0}.auth-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}.auth-top h2{margin:0}.auth-top button{margin:0}.auth-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}.auth-metrics article{background:white;border:1px solid var(--line);padding:16px;border-radius:14px}.auth-metrics strong{display:block;font-size:26px}.auth-metrics span{font-size:12px;color:var(--muted)}.auth-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.auth-toolbar input{flex:1;min-width:150px}.auth-toolbar select{width:auto;max-width:180px}.auth-toolbar button{margin:0}.auth-selection{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#eaf3f1;border-radius:12px;padding:10px 14px;margin-bottom:16px}.auth-selection button{margin:0;padding:8px 12px}.auth-selection input{width:18px;min-height:18px;margin:0}.auth-selection label{display:flex;align-items:center;gap:8px;margin:0}.auth-account-card{border:1px solid var(--line);border-radius:16px;background:white;padding:20px;min-width:0}.auth-account-card header{padding:0;border:0;display:flex;flex-wrap:nowrap;gap:12px}.auth-account-card input[type=checkbox]{width:18px;min-height:18px}.auth-account-card h3{margin:0;font-size:17px;overflow-wrap:anywhere}.auth-account-card .identity{flex:1;min-width:0}.auth-account-card p{margin:4px 0;font-size:12px}.auth-account-card .account-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}.account-actions button{margin:0;min-width:0;padding:10px 8px}.auth-avatar{grid-row:auto;flex-shrink:0;display:grid;place-items:center;width:48px;height:48px;background:#e3f1ed;color:#08796c;overflow:hidden}.auth-avatar img{width:100%;height:100%;object-fit:cover}.auth-status{display:inline-flex;padding:3px 8px;background:#edf4f1;border-radius:6px;font-size:11px;color:#18785a}.auth-status.error{background:#fff1ec;color:#a4482b}.auth-services{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}.auth-services a{display:block;text-decoration:none;background:white;border:1px solid var(--line);border-radius:16px;padding:22px;color:var(--ink)}.auth-services h3{margin:0 0 8px}.auth-services p{margin:0;font-size:13px}.auth-notice{padding:12px 16px;background:#fff;border:1px solid var(--line);border-radius:12px;margin:0 0 16px;font-size:13px}.auth-dialog{width:min(640px,94vw);max-height:90dvh;border:1px solid var(--line);border-radius:22px;padding:24px;color:var(--ink);overflow:auto;background:white}.auth-dialog::backdrop{background:#10252266;backdrop-filter:blur(3px)}.auth-dialog>header{margin-bottom:18px;position:sticky;top:-24px;background:white;z-index:2}.auth-dialog>header button{margin:0}.auth-dialog input[type=file]{padding:8px}.auth-dialog .dialog-actions{display:flex;gap:8px;flex-wrap:wrap}.auth-dialog .dialog-actions button{flex:1;margin-right:0}.skin-stage{height:340px;border:1px solid var(--line);border-radius:16px;background:radial-gradient(ellipse at 50% 40%,#edf6f4,#dce8e7);overflow:hidden}.skin-stage canvas{width:100%;height:100%;display:block}.auth-dialog pre{background:#f3f6f6;border-radius:10px;padding:10px}.auth-avatar-choices{display:flex;gap:8px;flex-wrap:wrap}.auth-avatar-choices button{margin:0;width:44px;padding:6px;font-size:24px}.auth-main #accounts{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}#auth-page-tokens input{font-family:ui-monospace,monospace}.auth-section{background:white;border:1px solid var(--line);border-radius:16px;padding:20px;margin:0 0 16px}.auth-section>summary{font-size:16px;color:var(--ink)}.auth-main .grid{display:block}.auth-main .grid>section{margin:0 0 18px}#result{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);max-width:min(90vw,720px);max-height:160px;overflow:auto;background:#173632;color:white;border-radius:12px;padding:12px 18px;margin:0;z-index:50;box-shadow:0 10px 32px #0002}#result:empty{display:none}#result a{color:#9de9d7}
-@media(max-width:760px){main{padding:18px 14px 40px}.auth-shell{display:block}.auth-nav{position:static;display:flex;gap:4px;overflow-x:auto;margin-bottom:20px;padding:5px}.auth-nav button{flex:1 0 auto;padding:11px 12px;text-align:center}.auth-metrics{gap:8px}.auth-metrics article{padding:12px}.auth-metrics strong{font-size:23px}.auth-dialog{padding:20px}.auth-dialog>header{top:-20px}.auth-account-card{padding:16px}.auth-avatar{width:44px;height:44px}.auth-toolbar select{flex:1;max-width:none}.auth-main #accounts{grid-template-columns:1fr}}
+/* 游园 · 账号控制台（琉璃质感层）
+   结构类名保持不变：auth-shell / auth-nav / auth-account-card / auth-account-details /
+   auth-section / auth-avatar / auth-status / auth-metrics / auth-dialog。
+   注意：本文件内容已内联进 index.html 的 style 块（消除首屏阻塞请求），
+   改这里之后必须同步 index.html，否则不会生效。 */
 
-.skin-stage{height:390px;background:radial-gradient(ellipse at 50% 38%,#f9fcfd,#e4edf0);border-radius:18px}.auth-skin-controls{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px}.auth-skin-controls [role=group]{display:flex;background:#edf2f4;padding:4px;border-radius:10px;gap:3px}.auth-skin-controls button{margin:0;padding:9px 14px;border-radius:8px;background:transparent;color:#46606a}.auth-skin-controls button[aria-pressed=true]{background:white;color:#126b79;box-shadow:0 1px 4px #173b491c}.auth-skin-controls+p{text-align:center;font-size:12px;color:#76868c}
+:root{
+  --glass:rgba(255,255,255,.62);
+  --glass-strong:rgba(255,255,255,.84);
+  --glass-line:rgba(255,255,255,.78);
+  --shadow:0 20px 50px -24px rgba(14,58,52,.38),0 2px 8px -4px rgba(14,58,52,.1);
+  --shadow-lift:0 28px 64px -26px rgba(14,58,52,.46);
+  --accent:#08796c;
+  --accent-2:#12a58f;
+}
 
-/* Compact identity rows expand in place; only explicit 3D preview opens a dialog. */
-.auth-main #accounts{display:flex;flex-direction:column;gap:10px}.auth-account-card{display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:14px}.auth-account-card>input{flex:0 0 18px}.auth-avatar{border:0;border-radius:12px;width:52px;height:52px;min-height:52px;padding:0;margin:0;line-height:1}.auth-avatar img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}.auth-identity-button{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;background:transparent;color:var(--ink);padding:4px;margin:0}.auth-identity-button strong{font-size:16px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.auth-identity-button span{font-size:12px;color:var(--muted)}.auth-detail-button{margin:0;padding:9px 12px}.auth-status{white-space:nowrap}.auth-account-card .auth-status{font-size:12px}@media(max-width:480px){.auth-account-card{gap:9px;padding:10px}.auth-detail-button{display:none}.auth-avatar{width:46px;height:46px;min-height:46px}.auth-identity-button strong{font-size:15px}}
+body{
+  background:
+    radial-gradient(900px 620px at 6% -12%,#d7f2e9 0%,transparent 58%),
+    radial-gradient(820px 520px at 102% -6%,#e2eefb 0%,transparent 55%),
+    radial-gradient(760px 700px at 48% 112%,#efe8fb 0%,transparent 62%),
+    #f3f8f7;
+  background-attachment:fixed;
+}
+main{width:min(100%,1280px);padding:24px 28px 60px}
+#workspace{margin-top:24px}
 
-/* Keep account details under their own row without leaving the directory. */
-.auth-account-card{display:block}.auth-account-head{display:flex;align-items:center;gap:14px;min-width:0}.auth-account-head>input[type=checkbox]{flex:0 0 18px;margin:0}.auth-account-head .auth-status{border:0;cursor:pointer;margin:0;min-height:32px;font-weight:500}.auth-account-details{border-top:1px solid var(--line);margin-top:12px;padding-top:16px;min-width:0}.auth-account-details[hidden]{display:none}.auth-account-details>.auth-section{padding:14px;margin-bottom:10px;background:#f8fbfa}.auth-account-details>p{margin:0 0 14px;overflow-wrap:anywhere}.auth-account-details .auth-section button{margin:10px 8px 0 0}.auth-account-details label{font-size:13px}.auth-account-details input{margin-top:6px}.auth-account-head [aria-expanded=true].auth-identity-button{color:var(--green)}@media(max-width:480px){.auth-account-head{gap:9px}.auth-account-details>.auth-section{padding:12px}.auth-account-details .auth-section button{width:100%;margin-right:0}}
+/* 侧栏：悬浮琉璃面板 */
+.auth-shell{display:grid;grid-template-columns:196px minmax(0,1fr);gap:26px;align-items:start}
+.auth-nav{
+  position:sticky;top:20px;display:grid;gap:4px;padding:8px;
+  background:var(--glass);border:1px solid var(--glass-line);border-radius:20px;
+  box-shadow:var(--shadow);backdrop-filter:blur(20px) saturate(1.5);
+}
+.auth-nav button{
+  margin:0;text-align:left;background:transparent;color:#5c7570;padding:13px 15px;border-radius:13px;
+  transition:background .25s ease,color .25s ease,transform .2s ease,box-shadow .25s ease;
+}
+.auth-nav button:hover{background:rgba(255,255,255,.6);color:#20443f;transform:translateX(2px)}
+.auth-nav button[aria-selected=true]{
+  background:linear-gradient(135deg,rgba(18,165,143,.18),rgba(8,121,108,.08));
+  color:#05655a;box-shadow:inset 0 0 0 1px rgba(18,165,143,.22),0 6px 18px -12px rgba(8,121,108,.6);
+}
+.auth-main{min-width:0}
+.auth-page>section{margin-top:0}
+.auth-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.auth-top h2{margin:0;letter-spacing:-.02em}
+.auth-top button{margin:0}
 
-.auth-avatar-empty{display:grid;place-items:center;position:relative;width:100%;height:100%;overflow:hidden;background:var(--surface,#edf1f1);border-radius:inherit;color:var(--muted,#708084)}
-.auth-avatar-empty>svg{width:100%;height:100%;fill:currentColor;opacity:.38}.auth-avatar-empty>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* 指标卡：三块玻璃 */
+.auth-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.auth-metrics article{
+  position:relative;overflow:hidden;padding:16px 18px;border-radius:18px;
+  background:linear-gradient(150deg,rgba(255,255,255,.9),rgba(255,255,255,.55));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);backdrop-filter:blur(16px);
+}
+.auth-metrics article::after{
+  content:'';position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,var(--accent-2),transparent 70%);opacity:.55;
+}
+.auth-metrics strong{display:block;font-size:27px;line-height:1.15;letter-spacing:-.03em}
+.auth-metrics span{font-size:12px;color:#6b827e}
+
+/* 工具栏与批量选择条 */
+.auth-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.auth-toolbar input{flex:1;min-width:150px}
+.auth-toolbar select{width:auto;max-width:180px}
+.auth-toolbar button{margin:0}
+.auth-selection{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  background:rgba(255,255,255,.55);border:1px solid var(--glass-line);border-radius:16px;
+  padding:9px 14px;margin-bottom:14px;backdrop-filter:blur(14px);box-shadow:0 10px 28px -22px rgba(14,58,52,.4);
+}
+.auth-selection button{margin:0;padding:8px 12px}
+.auth-selection input{width:18px;min-height:18px;margin:0}
+.auth-selection label{display:flex;align-items:center;gap:8px;margin:0;font-size:13px}
+
+/* 账号卡片：琉璃 + 悬停扫光 + 展开滑入 */
+.auth-main #accounts{display:flex;flex-direction:column;gap:12px;grid-template-columns:none}
+.auth-account-card{
+  position:relative;overflow:hidden;display:block;min-width:0;
+  padding:14px 18px;border-radius:20px;
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.58));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);backdrop-filter:blur(18px) saturate(1.45);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s,border-color .28s;
+}
+.auth-account-card::before{
+  content:'';position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.7),transparent);
+  transform:translateX(-140%);opacity:0;
+}
+.auth-account-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:#fff}
+.auth-account-card:hover::before{opacity:.75;animation:yy-sheen 1.05s ease}
+.auth-account-card.expanded{border-color:rgba(18,165,143,.35);box-shadow:var(--shadow-lift),0 0 0 1px rgba(18,165,143,.18)}
+@keyframes yy-sheen{to{transform:translateX(240%)}}
+.auth-account-head{display:flex;align-items:center;gap:14px;min-width:0}
+.auth-account-head>input[type=checkbox]{flex:0 0 18px;margin:0;accent-color:var(--accent)}
+.auth-account-card header{padding:0;border:0}
+.auth-account-card input[type=checkbox]{width:18px;min-height:18px}
+
+/* 头像：圆角方块 + 内描边 */
+.auth-avatar{
+  flex-shrink:0;display:grid;place-items:center;width:54px;height:54px;min-height:54px;padding:0;margin:0;line-height:1;
+  border:0;border-radius:17px;background:linear-gradient(140deg,#e9f7f3,#d3e9e4);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),0 8px 20px -12px rgba(14,58,52,.55);
+  transition:transform .25s ease;
+}
+.auth-account-card:hover .auth-avatar{transform:scale(1.04)}
+.auth-avatar img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated;border-radius:inherit}
+.auth-avatar-empty{display:grid;place-items:center;position:relative;width:100%;height:100%;overflow:hidden;background:transparent;border-radius:inherit;color:#7d9590}
+.auth-avatar-empty>svg{width:100%;height:100%;fill:currentColor;opacity:1;shape-rendering:geometricPrecision}
+.auth-avatar-empty>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* 身份文本 */
+.auth-identity-button{
+  display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:3px;
+  text-align:left;background:transparent;color:var(--ink);padding:4px 2px;margin:0;border-radius:10px;
+}
+.auth-identity-button strong{font-size:16.5px;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auth-identity-button span{font-size:11.5px;color:#718a85;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+
+/* 状态胶囊 */
+.auth-status{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:5px 11px;border-radius:999px;
+  background:rgba(18,165,143,.1);color:#07745f;font-size:11.5px;font-weight:600;
+  border:1px solid rgba(18,165,143,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.6);min-height:32px;cursor:pointer;
+}
+.auth-status::before{content:'';width:6px;height:6px;border-radius:50%;background:#12b48d;box-shadow:0 0 0 3px rgba(18,180,141,.16)}
+.auth-status.error{background:rgba(216,124,62,.11);color:#a1542a;border-color:rgba(216,124,62,.22)}
+.auth-status.error::before{background:#e08a4e;box-shadow:0 0 0 3px rgba(224,138,78,.16)}
+.auth-account-card .auth-status{font-size:12px}
+
+/* 展开按钮：文字 + 旋转箭头 */
+.auth-detail-button{
+  margin:0;padding:9px 13px;border-radius:12px;background:rgba(255,255,255,.6);
+  border:1px solid rgba(18,165,143,.18);color:#0a6b60;font-size:12.5px;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;transition:background .22s,border-color .22s;
+}
+.auth-detail-button::after{
+  content:'';width:7px;height:7px;border-right:1.8px solid currentColor;border-bottom:1.8px solid currentColor;
+  transform:rotate(45deg) translateY(-2px);transition:transform .3s cubic-bezier(.2,.8,.2,1);
+}
+.auth-detail-button[aria-expanded=true]{background:linear-gradient(135deg,rgba(18,165,143,.16),rgba(8,121,108,.08))}
+.auth-detail-button[aria-expanded=true]::after{transform:rotate(-135deg) translateY(-1px)}
+
+/* 详情面板：滑入 */
+.auth-account-details{
+  border-top:1px solid rgba(18,120,108,.12);margin-top:12px;padding-top:14px;min-width:0;
+  animation:yy-panel-in .36s cubic-bezier(.2,.8,.2,1);
+}
+.auth-account-details[hidden]{display:none}
+@keyframes yy-panel-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* 详情头部：皮肤台 + 资料胶囊 */
+.auth-detail-hero{display:grid;grid-template-columns:minmax(128px,152px) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.auth-hero-stage{
+  position:relative;min-height:156px;border-radius:16px;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 34%,#f7fdfb,#dcebe7);
+  border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 #fff,0 10px 26px -20px rgba(14,58,52,.6);
+}
+.auth-detail-skin{position:absolute;inset:0}
+.auth-pose-bar{
+  position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:3px;padding:3px;
+  border-radius:10px;background:rgba(255,255,255,.72);backdrop-filter:blur(8px);box-shadow:0 4px 14px -8px #123;
+}
+.auth-pose-bar button{margin:0;padding:4px 9px;min-height:0;font-size:11px;border-radius:7px;background:transparent;color:#44615c}
+.auth-pose-bar button[aria-pressed=true]{background:#fff;color:var(--accent);box-shadow:0 1px 4px #173b4920}
+.auth-hero-meta{display:grid;gap:8px;align-content:center;min-width:0}
+.auth-chip{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:12px;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.8);font-size:12px;min-width:0;
+}
+.auth-chip i{font-style:normal;color:#6f8681;flex:0 0 auto}
+.auth-chip b{font-weight:600;font-size:12.5px;text-align:right;overflow-wrap:anywhere;min-width:0}
+
+/* 折叠区：0fr→1fr 真实滑动 */
+.auth-section{
+  background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.72);border-radius:16px;
+  margin:0 0 10px;overflow:hidden;backdrop-filter:blur(10px);
+  transition:background .28s,border-color .28s,box-shadow .28s;
+}
+.auth-section.open{background:rgba(255,255,255,.8);border-color:rgba(18,165,143,.2);box-shadow:0 12px 30px -22px rgba(14,58,52,.55)}
+.auth-section-head{
+  display:flex;align-items:center;gap:10px;width:100%;padding:13px 15px;margin:0;border:0;background:transparent;
+  color:var(--ink);font-size:14px;font-weight:600;text-align:left;cursor:pointer;min-height:0;border-radius:0;
+}
+.auth-section-head:hover{background:rgba(255,255,255,.5)}
+.auth-section-icon{
+  display:grid;place-items:center;flex:0 0 auto;width:26px;height:26px;border-radius:9px;
+  background:linear-gradient(135deg,#e8f8f3,#d4ece6);color:var(--accent);font-size:12px;
+}
+.auth-section-title{flex:1;min-width:0}
+.auth-chevron{width:8px;height:8px;border-right:1.8px solid #6f8b86;border-bottom:1.8px solid #6f8b86;transform:rotate(45deg);transition:transform .3s cubic-bezier(.2,.8,.2,1);opacity:.7}
+.auth-section-head[aria-expanded=true] .auth-chevron{transform:rotate(-135deg)}
+.auth-section-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s cubic-bezier(.2,.8,.2,1)}
+.auth-section.open .auth-section-body{grid-template-rows:1fr}
+.auth-section-inner{overflow:hidden;padding:0 15px;transition:padding .3s ease}
+.auth-section.open .auth-section-inner{padding:0 15px 15px}
+.auth-section p{margin:0 0 10px;font-size:13px;color:#5f7873}
+.auth-hint{font-size:12.5px!important;color:#718a85!important;margin-bottom:12px!important}
+.auth-field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+.auth-field-grid label{margin-top:0;font-size:12.5px}
+.auth-field-grid input{margin-top:6px}
+.auth-action-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.auth-action-row button{margin:0;min-height:40px;padding:9px 13px;border-radius:11px;font-size:13px}
+.auth-notice{padding:10px 13px;background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.8);border-radius:12px;margin:12px 0 0!important;font-size:12px!important;color:#6f8681!important}
+
+/* 服务卡片与弹窗 */
+.auth-services{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.auth-services a,.auth-services>button{
+  display:block;text-decoration:none;padding:20px;border-radius:18px;color:var(--ink);
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.58));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);transition:transform .25s,box-shadow .25s;
+}
+.auth-services a:hover,.auth-services>button:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.auth-services h3{margin:0 0 6px;font-size:16px}
+.auth-services p{margin:0;font-size:13px;color:#6b827e}
+.auth-dialog{
+  width:min(640px,94vw);max-height:90dvh;border:1px solid var(--glass-line);border-radius:24px;padding:22px;color:var(--ink);
+  overflow:auto;background:rgba(255,255,255,.9);backdrop-filter:blur(22px) saturate(1.5);box-shadow:0 40px 90px -30px rgba(10,40,36,.5);
+}
+.auth-dialog::backdrop{background:rgba(12,32,28,.35);backdrop-filter:blur(4px)}
+.auth-dialog>header{margin-bottom:16px;position:sticky;top:-22px;background:transparent;z-index:2}
+.auth-dialog>header button{margin:0}
+.auth-dialog .dialog-actions{display:flex;gap:8px;flex-wrap:wrap}
+.auth-dialog .dialog-actions button{flex:1;margin-right:0}
+.skin-stage{height:340px;border:1px solid var(--glass-line);border-radius:18px;background:radial-gradient(ellipse at 50% 40%,#f2faf8,#dfecea);overflow:hidden}
+.auth-skin-controls{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.auth-skin-controls [role=group]{display:flex;background:rgba(240,246,245,.9);padding:4px;border-radius:11px;gap:3px}
+.auth-skin-controls button{margin:0;padding:8px 13px;border-radius:8px;background:transparent;color:#46606a}
+.auth-skin-controls button[aria-pressed=true]{background:#fff;color:#0d6a63;box-shadow:0 1px 5px #173b4920}
+.auth-skin-controls+p{text-align:center;font-size:12px;color:#76868c}
+/* 360/390 窄屏：三组控件保持一行，不再让「复位视角」整组换行掉到下面（2026-10-26 第 31 条）。 */
+@media (max-width:420px){
+ .auth-skin-controls{flex-wrap:nowrap;gap:6px}
+ .auth-skin-controls [role=group]{flex:1 1 0;min-width:0;justify-content:center}
+ .auth-skin-controls button{padding:8px 5px;font-size:12px;white-space:nowrap;min-height:40px}
+ .auth-pose-bar button{min-height:38px;min-width:44px;padding:7px 8px}
+}
+.auth-avatar-choices{display:flex;gap:8px;flex-wrap:wrap}
+.auth-avatar-choices button{margin:0;width:44px;padding:6px;font-size:24px}
+
+/* 资料区大头像：与列表头像同一套三级链 */
+.auth-profile-avatar{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.auth-avatar-large{
+  flex-shrink:0;display:grid;place-items:center;width:72px;height:72px;border-radius:18px;overflow:hidden;
+  background:linear-gradient(140deg,#e9f7f3,#d3e9e4);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),0 8px 20px -12px rgba(14,58,52,.55);
+}
+.auth-avatar-large img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.auth-profile-avatar p{margin:0;font-size:12.5px}
+
+/* 组件码预加载区：真实纹理小预览 + 待应用列表 */
+.auth-component-preload{margin-top:14px}
+.auth-component-preload textarea{min-height:74px;resize:vertical}
+.auth-component-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;margin-top:10px}
+.auth-component-tile{
+  display:grid;justify-items:center;gap:6px;padding:10px 8px;border-radius:14px;text-align:center;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.8);
+}
+.auth-component-tile img,.auth-component-tile .auth-avatar-empty{width:48px;height:48px;border-radius:10px;image-rendering:pixelated}
+.auth-component-tile img{object-fit:cover;display:block}
+.auth-component-tile b{font-size:12px;font-weight:600;max-width:100%;overflow-wrap:anywhere}
+.auth-component-tile span{color:var(--muted);font-size:11px}
+.auth-component-tile button{margin:0;min-height:34px;padding:6px 12px;font-size:12px}
+
+#auth-page-tokens input{font-family:ui-monospace,monospace}
+.auth-main .grid{display:block}
+.auth-main .grid>section{margin:0 0 18px}
+
+/* 全局提示条：深色琉璃 */
+#result{
+  position:fixed;left:50%;bottom:16px;transform:translateX(-50%);max-width:min(90vw,720px);max-height:160px;overflow:auto;
+  background:rgba(18,45,41,.9);color:#f2fbf8;border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:12px 18px;margin:0;
+  z-index:50;box-shadow:0 18px 44px -18px rgba(6,30,26,.8);backdrop-filter:blur(12px);
+}
+#result:empty{display:none}
+#result a{color:#9de9d7}
+
+/* 项目管理 · 托管账号池 */
+#auth-page-pool .pool-head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+#auth-page-pool .pool-picker{display:flex;flex-direction:column;gap:6px;min-width:min(100%,260px);flex:1}
+#auth-page-pool .pool-picker label{margin:0;font-size:12px;color:#6b827e}
+#auth-page-pool #admin-accounts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:14px}
+#admin-accounts article{
+  position:relative;overflow:hidden;padding:18px;border-radius:18px;
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.6));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);transition:transform .25s,box-shadow .25s;
+}
+#admin-accounts article:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+#admin-accounts .pool-id{font-family:ui-monospace,monospace;font-size:11.5px;color:#718a85}
+#admin-accounts h3{margin:0 0 4px;font-size:16px}
+#admin-accounts .pool-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+#admin-accounts .pool-actions button{margin:0;flex:1 1 auto;min-width:0;padding:9px 10px;font-size:12.5px;border-radius:11px}
+
+/* 移动端 */
+@media(max-width:760px){
+  main{padding:18px 14px 40px}
+  .auth-shell{display:block}
+  .auth-nav{position:static;display:flex;gap:4px;overflow-x:auto;margin-bottom:18px;padding:5px;border-radius:16px}
+  .auth-nav button{flex:1 0 auto;padding:11px 12px;text-align:center;white-space:nowrap}
+  .auth-metrics{gap:8px}
+  .auth-metrics article{padding:12px 14px;border-radius:14px}
+  .auth-metrics strong{font-size:23px}
+  .auth-dialog{padding:18px}
+  .auth-dialog>header{top:-18px}
+  .auth-account-card{padding:12px 14px;border-radius:16px}
+  .auth-avatar{width:46px;height:46px;min-height:46px;border-radius:14px}
+  .auth-identity-button strong{font-size:15px}
+  .auth-detail-button{display:none}
+  .auth-toolbar select{flex:1;max-width:none}
+  .auth-main #accounts{grid-template-columns:1fr}
+  .auth-detail-hero{grid-template-columns:1fr}
+  .auth-hero-stage{min-height:180px}
+  .auth-hero-meta{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+  .auth-section-inner,.auth-section.open .auth-section-inner{padding-left:12px;padding-right:12px}
+  .auth-action-row button{width:100%;margin-right:0}
+  #admin-accounts{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+
+/* 取用令牌后就地显示：不再把用户送去另一个页签复制 */
+.auth-token-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #dae3e5);
+  border-radius: 10px;
+  background: var(--bg-soft, #f5f7f8);
+  font-size: 12px;
+}
+.auth-token-inline > span { color: var(--muted, #5f6f73); }
+.auth-token-inline > code {
+  flex: 1 1 180px;
+  min-width: 0;
+  font: 11px/1.5 ui-monospace, Consolas, monospace;
+  overflow-wrap: anywhere;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #fff;
+}
+.auth-token-inline > small { flex: 1 1 100%; color: var(--muted, #5f6f73); font-size: 11px; }
+.auth-token-inline > button { min-height: 34px; }
+
+/* ══════════════════════════════════════════════════════════════
+   可读性与触控修正层
+   为什么放在文件末尾：上面是既有视觉层，这里只做"叠加修正"，
+   避免逐条改动原有规则带来的回归风险。同权重时后者胜出。
+   ══════════════════════════════════════════════════════════════ */
+
+/* 次要文字加深：原 #65777e / #718a85 / #6b827e 在 #eff5f4 背景上
+   实测对比度 3.7–4.3:1，低于 WCAG AA 的 4.5:1（12–15px 正文）。
+   统一收到 #55676e（约 5.4:1）与 #43585f（约 6.8:1，用于 11px 等宽字）。 */
+:root{--muted:#55676e;--muted-strong:#43585f}
+
+.auth-nav button{color:#4d6560}
+.auth-metrics span{color:var(--muted)}
+.auth-identity-button span{color:var(--muted-strong)}
+.auth-section p{color:var(--muted)}
+.auth-hint{color:var(--muted)!important}
+.auth-notice{color:var(--muted)!important}
+.auth-chip i{color:var(--muted)}
+.auth-services p{color:var(--muted)}
+#auth-page-pool .pool-picker label{color:var(--muted)}
+#admin-accounts .pool-id{color:var(--muted-strong)}
+.auth-skin-controls+p{color:var(--muted)}
+.auth-token-inline>span,.auth-token-inline>small{color:var(--muted)}
+
+/* 触控目标：细指针设备保持紧凑观感，粗指针（手机/触屏）统一放大到 44px。
+   为什么不用一刀切 44px：桌面端状态胶囊被撑到 44px 会破坏卡片节奏。 */
+.auth-detail-button{min-height:44px}
+.auth-action-row button{min-height:44px}
+.auth-selection button{min-height:44px}
+#admin-accounts .pool-actions button{min-height:44px}
+.auth-section-head{min-height:48px}
+@media(pointer:coarse){
+  .auth-status{min-height:44px;padding:9px 13px}
+  .auth-pose-bar button{min-height:36px;padding:7px 11px}
+  .auth-skin-controls button{min-height:44px}
+  .auth-avatar-choices button{min-height:44px}
+}
+/* 窄屏基本等于触屏：不依赖 pointer 探测，直接放大状态胶囊的点击区 */
+@media(max-width:760px){.auth-status{min-height:44px;padding:9px 13px}}
+
+/* 360–400px 窄屏：卡片头部三件套（勾选/头像/状态）在 360px 下会挤到
+   文字只剩 ~100px，缩小间距换回可读宽度。 */
+@media(max-width:400px){
+  .auth-account-head{gap:9px}
+  .auth-account-card{padding:12px}
+  .auth-metrics{gap:6px}
+  .auth-metrics article{padding:11px 12px}
+  .auth-metrics span{font-size:11px;letter-spacing:-.01em}
+  .auth-toolbar{gap:8px}
+  .auth-dialog{width:96vw;padding:14px;border-radius:18px}
+  .auth-dialog>header{top:-14px}
+  #result{left:10px;right:10px;transform:none;max-width:none;bottom:10px;padding:10px 13px}
+  .auth-token-inline>code{flex-basis:100%}
+}
+
+/* 首屏骨架：会话已存在时，账号列表要等 /api/accounts 回来才有内容。
+   先给同尺寸占位，避免"登录框消失 → 一大片空白 → 卡片突然刷出"。 */
+.yy-skel{
+  display:block;border-radius:12px;
+  background:linear-gradient(90deg,#e9f1ef 25%,#f6fbfa 37%,#e9f1ef 63%);
+  background-size:400% 100%;animation:yy-skel 1.5s ease-in-out infinite;
+}
+@keyframes yy-skel{from{background-position:100% 0}to{background-position:-100% 0}}
+.yy-skel-row{height:74px;border-radius:18px;margin-bottom:12px}
+.yy-skel-line{height:14px;margin-bottom:10px}
+.yy-skel-block{height:120px}
+/* 登录卡片形状的占位：会话已存在时先占住登录卡的位置，
+   避免控制台脚本到位后整页重排（CLS）。 */
+.yy-boot-card{
+  width:min(100%,460px);margin:0 auto 36px;padding:30px;
+  background:#fff;border:1px solid var(--line,#e0e7e9);border-radius:24px;
+  box-shadow:0 24px 70px #264a4312,0 2px 6px #264a4306;
+}
+@media(prefers-reduced-motion:reduce){.yy-skel{animation:none;background:#eef4f3}}

@@ -210,6 +210,15 @@ func yyEntityCall(bm *BotManager, method string, args []any) (any, error) {
 	}
 	s := yySenseFor(bm)
 	connected := bm != nil && bm.IsConnected()
+	var network map[string]any
+	if method == "diagnostics.stats" && bm != nil {
+		bm.mu.Lock()
+		conn := bm.conn
+		bm.mu.Unlock()
+		if conn != nil {
+			network = conn.NetworkStats()
+		}
+	}
 	var self uint64
 	if bm != nil {
 		bm.mu.Lock()
@@ -228,7 +237,7 @@ func yyEntityCall(bm *BotManager, method string, args []any) (any, error) {
 	if method == "diagnostics.stats" {
 		var mem runtime.MemStats
 		runtime.ReadMemStats(&mem)
-		return yyObservationCopy(map[string]any{"display_logs": yyDisplayLogStats(), "connected": connected, "decoded_packets": s.PacketCount, "packet_counts": s.PacketCounts, "last_packet_at": s.LastPacketAt, "actors": len(s.Actors), "events": len(s.Events), "settings": yyObservationSettings(), "connection_history": s.ConnectionHistory, "host_heap_bytes": mem.HeapAlloc, "host_gc_count": mem.NumGC, "host_gc_pause_total_ns": mem.PauseTotalNs, "scope": "this account observations; memory for entire host"}), nil
+		return yyObservationCopy(map[string]any{"display_logs": yyDisplayLogStats(), "connected": connected, "decoded_packets": s.PacketCount, "packet_counts": s.PacketCounts, "last_packet_at": s.LastPacketAt, "actors": len(s.Actors), "events": len(s.Events), "settings": yyObservationSettings(), "connection_history": s.ConnectionHistory, "network": network, "host_heap_bytes": mem.HeapAlloc, "host_gc_count": mem.NumGC, "host_gc_pause_total_ns": mem.PauseTotalNs, "scope": "this account observations; memory for entire host"}), nil
 	}
 	if method == "diagnostics.trace" {
 		rows := []map[string]any{}

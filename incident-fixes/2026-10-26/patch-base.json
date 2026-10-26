@@ -1,0 +1,31 @@
+{
+  "files": {
+    "ds_ai_agent_r21b_test.lua": {
+      "sha256": "86f9c19c214d235d2d9d6ce70a739342d9cdf01a25a871992c50bce904eab7e0",
+      "patched_sha256": "a205548ea5655aedc9f26aec9b3bf71322315d913025a1e95964d9d05da3114c"
+    },
+    "modules/core.lua": {
+      "sha256": "14c3c566888d467a9646cbbeaeb8603a188438613b83320910e368e41c47f392",
+      "patched_sha256": "6a08adfaf0120ea8eeaf8773d47875ee29af2185e6d2c83859253112e142744c"
+    },
+    "modules/yy_ai_recovery.lua": {
+      "sha256": "df285ca6eac1c083a47b9e98ae508861a43af503b46ec21df0a3c7ba129cda76"
+    },
+    "modules/yy_gun_recover_init.lua": {
+      "sha256": "a4f930cb323b2ec316614e30adeb7fa57737462010761174ba5e3dc2a73c3e57",
+      "patched_sha256": "59ae5257d6c75d6392acb005ed13c30f2c8ebc1a46868c422428decd6fa6d0e9"
+    },
+    "modules/yy_gun_runtime.lua": {
+      "sha256": "62c351c027af11861ccc2f9986a850201de40e0ef2cd4178da1e94dd8e890f77"
+    },
+    "modules/tool_fix.lua": {
+      "sha256": "467e9cdb23fe04752bdc484b2a4741aaeebc0bfea47ea2c47bea77363a1d8a72",
+      "patched_sha256": "d9a7819a83fe7e01df6343d46d8419cb53b664c3b31b696f2802561570e47f6a"
+    }
+  },
+  "bot": {
+    "connected": true,
+    "is_op": true,
+    "server": "98014267"
+  }
+}

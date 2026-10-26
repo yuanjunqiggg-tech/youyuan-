@@ -67,8 +67,11 @@ func placeOneNBTBlock(bot *BotManager, x, y, z int32, blockName, blockStates str
 		}
 
 		if canFast {
-			// 理论不出现（此处只处理工作区 NBT 方块）；普通方块由 setblock 路径处理。
-			return nil
+			gi, err := bot.getGameInterface()
+			if err != nil {
+				return err
+			}
+			return gi.SetBlock().SetBlock(protocol.BlockPos{x, y, z}, blockName, blockStates)
 		}
 
 		// 直接用缓存结构 uniqueID 加载，不再重新 save / 提前 delete：
@@ -76,13 +79,14 @@ func placeOneNBTBlock(bot *BotManager, x, y, z int32, blockName, blockStates str
 		bot.TP(int(x), int(y+1), int(z))
 		time.Sleep(100 * time.Millisecond)
 
-		loadCmd := fmt.Sprintf("structure load \"%v\" %d %d %d", utils.MakeUUIDSafeString(uniqueID), x, y, z)
-		if err := bot.SendAICommand(loadCmd); err != nil {
-			lastErr = err
-			time.Sleep(500 * time.Millisecond)
-			continue
+		gi, err := bot.getGameInterface()
+		if err != nil {
+			return err
 		}
-		time.Sleep(100 * time.Millisecond)
+		if err := gi.StructureBackup().RevertStructure(uniqueID, protocol.BlockPos{x, y, z}); err != nil {
+			// Unknown receipts must not trigger another round of destructive workstation rebuilds.
+			return fmt.Errorf("NBT已制作，但目标结构加载未确认 (%d,%d,%d): %w", x, y, z, err)
+		}
 		return nil
 	}
 	return fmt.Errorf("NBT 方块放置失败（已重试 5 次）: %v", lastErr)
@@ -204,7 +208,9 @@ func buildNormalUnitTask(bot *BotManager, data *building.StructureData, params m
 		IsAir:        botIsAir(bot),
 		ChunkLoaded: func(cx, cz int) bool {
 			if bot == nil || bot.conn == nil {
-				return true
+				// 无连接时探测不到：返回 false 让调用方走完整等待/超时逻辑，
+				// 而不是返回 true 制造"假继续"（区块未加载却直接放置导致丢块）。
+				return false
 			}
 			posX := cx*16 + 8
 			posZ := cz*16 + 8
@@ -328,6 +334,8 @@ type MultiBotManager struct {
 	pool   *building.WorkPool
 	data   *building.StructureData
 	params map[string]any
+	// normalBudget shares the configured positive block rate across workers.
+	normalBudget *yyMultiBotImportBudget
 
 	consoleCenters []protocol.BlockPos
 	nbtStructSeqs  []int
@@ -386,6 +394,7 @@ func NewMultiBotManager(bots []*BotManager, data *building.StructureData, params
 		bots:           bots,
 		data:           data,
 		params:         params,
+		normalBudget:   yyNewMultiBotImportBudget(getInt(params, "speed", 9500)),
 		consoleCenters: make([]protocol.BlockPos, n),
 		nbtStructSeqs:  make([]int, n),
 	}
@@ -926,6 +935,7 @@ func (m *MultiBotManager) execLightNBTUnit(idx int, bot *BotManager, u *building
 func (m *MultiBotManager) execNormalUnit(idx int, bot *BotManager, u *building.Unit) error {
 	it := buildNormalUnitTask(bot, m.data, m.params)
 	it.StopCh = m.stopCh
+	m.normalBudget.wrap(it, m.stopCh)
 	// 每单元开始前重置差分基准，保证 OnProgress 增量从 0 起算
 	m.mu.Lock()
 	if idx < len(m.lastProg) {
@@ -944,6 +954,7 @@ func (m *MultiBotManager) execNormalUnit(idx int, bot *BotManager, u *building.U
 		}
 		m.mu.Unlock()
 	}
+	it.OnSubmitted = func(blocks, chunks int) { it.OnProgress(0, 0, chunks, 0, blocks) }
 	// 普通单元不需要工作台，不调用 setupWorkspace（那是 NBT 机器人才需要的，
 	// 每领一个普通单元都 fill air 工作台区域是浪费，且会打断其他机器人的 NBT 工作台）
 	return it.RunUnit(u)

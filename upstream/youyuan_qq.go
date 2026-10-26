@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bot-apk/config"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
@@ -46,6 +47,13 @@ type yyQQConfig struct {
 		Prefixes []string `json:"only_prefixes"`
 	} `json:"game_to_group"`
 	Assistant yyQQAssistantConfig `json:"assistant"`
+	// 掉线自愈参数：随 qq-bridge.json 落盘，面板可调。
+	// MaxPerHour 是旧字段，等价于 MaxRestarts，仅为读旧配置保留。
+	Watchdog struct {
+		IntervalSeconds int `json:"interval_seconds,omitempty"`
+		MaxRestarts     int `json:"max_restarts,omitempty"`
+		MaxPerHour      int `json:"max_per_hour,omitempty"`
+	} `json:"watchdog,omitempty"`
 }
 
 var yyQQMu sync.Mutex
@@ -60,7 +68,6 @@ var yyQQPending = map[string]chan map[string]any{}
 type yyQQOutgoingJob struct{ Text, Group, Player string }
 
 var yyQQOutgoing = make(chan yyQQOutgoingJob, 256)
-var yyQQRecent = map[string]time.Time{}
 var yyQQHTTP = &http.Client{Timeout: 15 * time.Second}
 
 func yyQQLog(text string) {
@@ -72,6 +79,8 @@ func yyQQLog(text string) {
 func yyQQSnapshot() yyQQConfig { yyQQMu.Lock(); defer yyQQMu.Unlock(); return yyQQ }
 func yyRegisterQQ(mux *http.ServeMux, dataDir string) {
 	yyQQPath = filepath.Join(dataDir, "qq-bridge.json")
+	// 已处理消息 id 落盘：重连/重启后适配器重推同一条消息时不能再来一遍副作用。
+	yyQQClaimsInit(dataDir)
 	yyQQOfficialRoutes(mux)
 	data, _ := os.ReadFile(yyQQPath)
 	_ = json.Unmarshal(data, &yyQQ)
@@ -82,6 +91,52 @@ func yyRegisterQQ(mux *http.ServeMux, dataDir string) {
 	}
 	yyQQAssistantRoutes(mux, dataDir)
 	yyQQGroupRoutes(mux)
+	yyQQActionRoutes(mux)
+	yyQQCapRoutes(mux)
+	yyQQLoginRoutes(mux)
+	// 掉线自愈：端口长时间不监听就重启协议端（保留登录态走快速登录，不逼用户扫码）。
+	yyQQWatchdogRoutes(mux)
+	// AI 能力自检：让面板能直接看到「AI 现在能用哪些工具、模型支不支持看图」。
+	yyQQAISelfRoutes(mux)
+	// AI 工具清单：全量工具 + 分组 + 逐项开关（保存后立即影响实际下发的工具）。
+	yyQQToolRoutes(mux)
+	yyQQTriggerRoutes(mux)
+	yyQQImageRoutes(mux, dataDir)
+	mux.HandleFunc("/api/qq/sandbox", yyQQSandboxHandler)
+	// 互通开放接口：插件/MCP 通过 /api/bridge/* 调能力、订阅事件、配规则。
+	yyBridgeRoutes(mux, dataDir)
+	// 种子查询器：本机种子→群系/结构/坐标，机器人也能注册使用。
+	yySeedRoutes(mux)
+	// 种子查询器 v2：真 climate 噪声生物群系 + 结构放置逐位复刻 + PNG 瓦片渲染。
+	// 前端页面、插件 SDK(seed.*)、MCP(api_seed_v2_*) 全部走这一套，同一份实现。
+	yySeedV2Routes(mux)
+	// 互通端信息：玩家列表/皮肤头像/进出记录/日志/以机器人身份说话。
+	yySrvInfoRoutes(mux)
+	// 头像/皮肤本地缓存代理：境外源太慢（实测 1.2~3.1s），缓存后 0.6ms。
+	yySkinRoutes(mux, dataDir)
+	// 情感系统：按人好感度 + 情绪，面板可查可校正。
+	yyAffRoutes(mux, dataDir)
+	// 群规：违禁词硬拦截 + 超管自然语言禁令（AI 侧走人格卡，永久生效）。
+	yyQQModerationInit(dataDir)
+	yyQQModerationRoutes(mux)
+	yyQQModerationAIRoutes(mux)
+	// 人格卡接线：反AI腔/禁忌/群风格提示词的载体，自然语言禁令写进这里，
+	// 重启不丢（此前整套 persona 已实现但没有任何调用方）。
+	yyQQPersonaInit(dataDir)
+	// 人格与群风格的读写接口（/api/qq/persona）。
+	//
+	// 这里必须显式注册：yyQQPersonaRoutes 此前**只出现在测试文件里**，
+	// 生产代码只调了 Init 没调 Routes，于是该接口线上一直 404——
+	// 用户在互通页保存提示词，请求打到 /api/qq/persona 得到 not_found，
+	// 返回再看提示词就没了（用户反馈「我保存了之后，后面我返回看了一下，提示词没了」）。
+	yyQQPersonaRoutes(mux)
+	yyGameSkillInit(dataDir)
+	yyQQSkillRoutes(mux)
+	// 主动搭话：先加载 qq-proactive.json（yyProactiveRoutes 内部调 yyProactiveInit），
+	// 注册面板接口（默认关闭，用户自己开），再起 tick 轮询。
+	yyProactiveRoutes(mux, dataDir)
+	yyProactiveStart()
+	yyQQSyncBotBinding()
 	yyQQNormalizeConfig(&yyQQ, yyQQConfig{})
 	if yyQQ.Adapter == "" {
 		yyQQ.Adapter = "onebot"
@@ -113,6 +168,9 @@ func yyRegisterQQ(mux *http.ServeMux, dataDir string) {
 				return
 			}
 			yyQQNormalizeConfig(&next, yyQQ)
+			// 语音模式只允许 off/auto/always，面板传了别的值就归一化成空（=不发语音），
+			// 避免脏配置让 always 分支误判。
+			next.Assistant.VoiceMode = yyQQVoiceModeNormalize(next.Assistant.VoiceMode)
 			if err := yyQQValidateAdminIDs(next); err != nil {
 				yyQQMu.Unlock()
 				writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
@@ -130,15 +188,29 @@ func yyRegisterQQ(mux *http.ServeMux, dataDir string) {
 			}
 			raw, _ = json.MarshalIndent(next, "", "  ")
 			err = os.WriteFile(yyQQPath, raw, 0600)
+			// 只有「连接参数」变了才断开重连。
+			// 以前是保存任何人设/提示词都无条件 yyQQCancel()，结果用户改一句话术，
+			// QQ 桥接就被踢一次，表现出来就是「动不动就刷新/掉线」。
+			reconnect := next.Enabled != yyQQ.Enabled ||
+				next.Adapter != yyQQ.Adapter ||
+				next.OneBot.URL != yyQQ.OneBot.URL ||
+				next.OneBot.Token != yyQQ.OneBot.Token ||
+				next.Official.AppID != yyQQ.Official.AppID ||
+				next.Official.Secret != yyQQ.Official.Secret ||
+				next.Official.Transport != yyQQ.Official.Transport ||
+				mustJSON(yyQQGroups(next)) != mustJSON(yyQQGroups(yyQQ))
 			if err == nil {
 				yyQQ = next
-				yyQQState = "connecting"
-				yyQQDetail = "配置已保存，正在重新接入"
+				if reconnect {
+					yyQQState = "connecting"
+					yyQQDetail = "连接参数已变更，正在重新接入"
+				}
 			}
-			if yyQQCancel != nil {
+			if yyQQCancel != nil && reconnect {
 				yyQQCancel()
 			}
 			yyQQMu.Unlock()
+			yyQQSyncBotBinding()
 			if err != nil {
 				writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 				return
@@ -161,28 +233,108 @@ func yyRegisterQQ(mux *http.ServeMux, dataDir string) {
 		writeJSON(w, map[string]any{"ok": true, "config": view})
 	})
 	mux.HandleFunc("/api/qq/status", func(w http.ResponseWriter, r *http.Request) {
+		// 2026-10-26 第 30 条：状态带也要能看出「假在线」。
+		// 只看 state 的话，socket 还开着就永远是「已连接」，
+		// 用户盯着绿点等 5 分钟也等不到扫码提示。
+		live, lastOK, offline, liveErr, everOK, _ := yyQQLiveness()
+		needScan := everOK && !live && offline >= int(yyQQOfflineEscalate.Seconds())
 		yyQQMu.Lock()
 		defer yyQQMu.Unlock()
-		writeJSON(w, map[string]any{"ok": true, "enabled": yyQQ.Enabled, "adapter": yyQQ.Adapter, "group": yyQQ.GroupID, "state": yyQQState, "detail": yyQQDetail, "warnings": []string{}})
+		out := map[string]any{
+			"ok": true, "enabled": yyQQ.Enabled, "adapter": yyQQ.Adapter, "group": yyQQ.GroupID,
+			"state": yyQQState, "detail": yyQQDetail, "warnings": []string{},
+			"live": live, "live_ever_checked": everOK,
+			"last_ok_seconds": lastOK, "offline_seconds": offline,
+			"need_scan": needScan,
+		}
+		if liveErr != "" {
+			out["live_error"] = liveErr
+		}
+		writeJSON(w, out)
 	})
 	mux.HandleFunc("/api/qq/send", func(w http.ResponseWriter, r *http.Request) {
+		// 面板「以机器人身份说话」的终端用这里。
+		// group 为空 = 发到当前默认群；给了 group 就发到指定群（要求该群已启用）。
 		var p struct {
-			Text string `json:"text"`
+			Text  string `json:"text"`
+			Group string `json:"group"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&p); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
-		err := yyQQSend(p.Text, "")
+		p.Text = strings.TrimSpace(p.Text)
+		if p.Text == "" {
+			writeJSON(w, map[string]any{"ok": false, "error": "消息不能为空"})
+			return
+		}
+		if len([]rune(p.Text)) > 8000 {
+			// 8000 是 OneBot/官方接口单条消息的实际传输上限，属于技术限制，
+			// 不是「内容限制」。空消息仍然拒绝——空串根本发不出去。
+			writeJSON(w, map[string]any{"ok": false, "error": "单条消息超过 8000 字，这是 QQ 接口的传输上限（不是内容限制），请拆成几条发"})
+			return
+		}
+		cf := yyQQSnapshot()
+		var err error
+		if g := strings.TrimSpace(p.Group); g != "" {
+			if !cf.Enabled {
+				writeJSON(w, map[string]any{"ok": false, "error": "群服互通未启用"})
+				return
+			}
+			if !yyQQGroupEnabled(cf, g) {
+				writeJSON(w, map[string]any{"ok": false, "error": "目标群未启用：" + g})
+				return
+			}
+			cf.GroupID = g
+			err = yyQQSendToGroup(cf, p.Text, "")
+		} else {
+			err = yyQQSend(p.Text, "")
+		}
 		if err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
+		}
+		yyQQLog("面板以机器人身份发消息：" + p.Text)
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	// 手动重连：面板上「掉线横幅 → 重连」按钮调这里。
+	// 只做一件事：掐掉当前 WS 连接，让 yyQQConnectLoop 自己走退避重连，
+	// 不重建 goroutine，避免重复连接把 NapCat 打死。
+	mux.HandleFunc("/api/qq/reconnect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "POST required", 405)
+			return
+		}
+		yyQQMu.Lock()
+		conn := yyQQConn
+		cancel := yyQQCancel
+		yyQQState = "reconnecting"
+		yyQQDetail = "面板手动触发重连"
+		yyQQMu.Unlock()
+		if conn != nil {
+			_ = conn.CloseNow()
+		}
+		if cancel != nil {
+			cancel()
 		}
 		writeJSON(w, map[string]any{"ok": true})
 	})
 	mux.HandleFunc("/api/qq/webhook", yyQQWebhook)
 	go yyQQConnectLoop()
 	go yyQQMemoryMaintenance()
+	// 服主插话清场依赖 assistant.companion_owner：为空时该分支永不触发，
+	// 群里任何人插话都清不掉别人的陪聊会话。这里只提示，不改行为。
+	if yyQQ.Assistant.CompanionOwner == "" {
+		yyQQLog("未配置服主（assistant.companion_owner），服主插话清场不生效")
+	}
+	// 每 30 秒用 /list 校准在线名单：PlayerList 的 REMOVE 包漏收会让
+	// 已离线的人一直算在在线里（用户实测 1 人显示 4 人）。
+	yyOnlineSyncStart()
+	// 好感度 6 小时向 0 衰减一次，避免永久记仇。
+	yyAffStartDecayLoop()
+	// 掉线自愈守护：QQ 掉登录时 NapCat 不监听端口，光靠桥接重连永远连不上，
+	// 必须把协议端拉起来让它自己快速登录。没有这个守护，用户只能一遍遍扫码。
+	yyQQWatchdogStart()
 	go func() {
 		for job := range yyQQOutgoing {
 			var err error
@@ -226,6 +378,29 @@ func yyMergePatch(current, patch map[string]any) {
 	}
 }
 func yyQQConnectLoop() {
+	// 重连退避：以前这里硬编码 3 秒，用户在设置里把「重连间隔」改成 10 秒也没用，
+	// 因为这个循环根本不读配置——这就是「改完下次看还是 3 秒」的根因。
+	// 现在读 cf.ReconnectSeconds（默认 10），失败次数越多退避越久，并加抖动，
+	// 避免多实例同时重连把 NapCat 打挂（掉线频繁的诱因之一）。
+	fails := 0
+	backoff := func() time.Duration {
+		base := config.LoadConfig().ReconnectSeconds
+		if base <= 0 {
+			base = 10
+		}
+		d := time.Duration(base) * time.Second
+		for i := 0; i < fails && i < 4; i++ {
+			d *= 2
+		}
+		if d > 90*time.Second {
+			d = 90 * time.Second
+		}
+		// ±20% 抖动
+		jitter := time.Duration(float64(d) * 0.2 * (float64(time.Now().UnixNano()%1000)/500 - 1))
+		return d + jitter
+	}
+	reset := func() { fails = 0 }
+	bump := func() { fails++ }
 	for {
 		cf := yyQQSnapshot()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -251,7 +426,8 @@ func yyQQConnectLoop() {
 					yyQQDetail = err.Error()
 					yyQQMu.Unlock()
 				}
-				time.Sleep(10 * time.Second)
+				bump()
+				time.Sleep(backoff())
 				continue
 			}
 			yyQQMu.Lock()
@@ -261,7 +437,7 @@ func yyQQConnectLoop() {
 			}
 			yyQQMu.Unlock()
 			cancel()
-			time.Sleep(3 * time.Second)
+			time.Sleep(backoff())
 			continue
 		}
 		if cf.OneBot.URL == "" {
@@ -275,14 +451,41 @@ func yyQQConnectLoop() {
 		yyQQMu.Lock()
 		yyQQState = "connecting"
 		yyQQMu.Unlock()
-		conn, _, err := websocket.Dial(ctx, cf.OneBot.URL, &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": []string{"Bearer " + cf.OneBot.Token}}})
+		// 拨号超时：以前用 background ctx 拨号，NapCat 卡住时会一直挂着。
+		dialCtx, dialCancel := context.WithTimeout(ctx, 15*time.Second)
+		conn, _, err := websocket.Dial(dialCtx, cf.OneBot.URL, &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": []string{"Bearer " + cf.OneBot.Token}}})
+		dialCancel()
 		if err == nil {
 			yyQQMu.Lock()
 			yyQQConn = conn
 			yyQQState = "open"
 			yyQQDetail = "OneBot WebSocket 已连接"
 			yyQQMu.Unlock()
+			reset()
 			conn.SetReadLimit(2 * 1024 * 1024)
+			// 心跳：OneBot 这条链路以前既不发 ping 也没有读超时，
+			// 链路被 NAT/负载均衡静默回收后 Read 会永久阻塞，状态还停在 "open"，
+			// 于是「看着在线其实早断了」。每 30 秒 ping 一次，10 秒内没 pong 就主动断开重连。
+			pingCtx, pingStop := context.WithCancel(ctx)
+			go func(c *websocket.Conn) {
+				t := time.NewTicker(30 * time.Second)
+				defer t.Stop()
+				for {
+					select {
+					case <-pingCtx.Done():
+						return
+					case <-t.C:
+						pctx, pcancel := context.WithTimeout(pingCtx, 10*time.Second)
+						e := c.Ping(pctx)
+						pcancel()
+						if e != nil {
+							yyQQLog("OneBot 心跳失败，主动断开重连：" + e.Error())
+							_ = c.CloseNow()
+							return
+						}
+					}
+				}
+			}(conn)
 			for {
 				_, raw, e := conn.Read(ctx)
 				if e != nil {
@@ -307,13 +510,10 @@ func yyQQConnectLoop() {
 					}
 					continue
 				}
-				if event["post_type"] != "message" || event["message_type"] != "group" || !yyQQGroupEnabled(yyQQSnapshot(), yyQQGroupString(event["group_id"])) {
+				in, ok := yyQQParseInbound(event)
+				if !ok {
 					continue
 				}
-				sender, _ := event["sender"].(map[string]any)
-				name := yyQQSenderName(sender)
-				role, _ := sender["role"].(string)
-				text, _ := event["raw_message"].(string)
 				current := yyQQSnapshot()
 				if self := yyQQStableID(event["self_id"]); self != "" {
 					current.OneBot.BotID = self
@@ -322,13 +522,27 @@ func yyQQConnectLoop() {
 						yyQQ.OneBot.BotID = self
 					}
 					yyQQMu.Unlock()
+					yyQQSyncBotBinding()
 				}
-				current.GroupID = yyQQGroupString(event["group_id"])
-				id := yyQQStableID(event["message_id"])
-				yyQQRememberReply(yyQQGroupString(current.GroupID), id)
-				user := yyQQStableID(event["user_id"])
-				go yyQQToGameMentionMeta(current, name, user, role, text, id, false, yyQQEventReplyID(event), user != "" && user == current.OneBot.BotID)
+				if in.IsPrivate {
+					// 私聊：本期只做结构化记录与触发词，不进游戏转发/助手链路（现状没有，不新造）。
+					yyQQInboundPrivate(current, in)
+					continue
+				}
+				if !yyQQGroupEnabled(current, in.Group) {
+					continue
+				}
+				current.GroupID = in.Group
+				yyQQRememberReply(in.Group, in.ID)
+				// 入站上下文先于分派落库：生图引用（reference:"quoted"）等后续功能按 message_id 取用。
+				yyQQInboundStore(in)
+				yyQQInboundResolveReply(current, &in)
+				// 情感系统：每条群消息都过一遍好感判定（夸/谢/骂/刷屏）。
+				// 做成 goroutine 里的同步调用会拖慢读循环，这里只做纯内存运算，很快。
+				yyAffOnMessage(in.User, in.Name, in.Text)
+				go yyQQToGameMentionMeta(current, in.Name, in.User, in.Role, in.Text, in.ID, in.Mentioned, in.ReplyID, in.User != "" && in.User == current.OneBot.BotID)
 			}
+			pingStop()
 			conn.CloseNow()
 		}
 		cancel()
@@ -339,7 +553,8 @@ func yyQQConnectLoop() {
 			yyQQDetail = err.Error()
 		}
 		yyQQMu.Unlock()
-		time.Sleep(3 * time.Second)
+		bump()
+		time.Sleep(backoff())
 	}
 }
 
@@ -421,18 +636,11 @@ func yyQQToGameMentionMeta(cf yyQQConfig, name, userID, role, text, id string, m
 	text = strings.TrimSpace(text)
 	command := strings.HasPrefix(text, "/")
 	if id != "" {
-		yyQQMu.Lock()
-		now := time.Now()
-		for key, at := range yyQQRecent {
-			if now.Sub(at) > 10*time.Minute {
-				delete(yyQQRecent, key)
-			}
-		}
-		dedupKey := yyQQMessageKey(cf) + "\x00" + id
-		_, seen := yyQQRecent[dedupKey]
-		yyQQRecent[dedupKey] = now
-		yyQQMu.Unlock()
-		if seen {
+		// 幂等：同一条 message_id 只能驱动一次副作用。
+		// 这里以前是进程内的 yyQQRecent（10 分钟），重启/重连后表是空的，
+		// 适配器再推一次同样的消息，触发词动作就会整条重跑（点赞两次、指令打两次）。
+		// 现在改成落盘的认领表：先记账再执行，跨重启也认得这条消息。
+		if !yyQQClaimMessage(cf, id) {
 			return
 		}
 	}
@@ -446,7 +654,44 @@ func yyQQToGameMentionMeta(cf yyQQConfig, name, userID, role, text, id string, m
 		yyQQHelper.Dirty = true
 	}
 	yyQQHelper.Unlock()
+	// 超管自然语言禁令：「以后不准 玩家XXX」→ 群规硬拦截 + AI 长期记住。
+	// 放在群规检查之前，禁令指令本身永远不会被自己的规则误伤。
+	if yyQQNaturalBan(cf, userID, name, text, id) {
+		return
+	}
+	// 群规硬通道：命中即拦——不进 RAG、不转发游戏、不触发 AI。
+	// warn 级规则不在这里拦（消息照常流动），它们只进 AI 提示词软劝阻。
+	if rule, hit := yyQQModerationBlockHit(cf, text, userID); hit {
+		yyQQModerationEnforce(cf, rule, userID, name, text, id)
+		return
+	}
+	// 主动搭话的活跃度输入：每条真实群消息更新该群的窗口内消息数、最后发言时间与
+	// 话题词。位置刻意放在幂等门（yyQQClaimMessage）之后——适配器重推同一条消息
+	// 不重复计数；也放在群规硬拦之后——违禁词不进 AI 的话题提示。这里只写内存，
+	// 不改动下面的触发词、@ 回复与转发流程。
+	yyProactiveOnMessage(&yyQQInbound{Group: sourceGroup, User: userID, Text: text})
 	yyQQRememberGroupMessageMeta(cf, userID, name, text, id, replyID, false)
+	if cf.Assistant.Enabled && yyQQTriggerRun(cf, name, userID, role, text, id, mentioned) {
+		return
+	}
+	// 被 @ 且不是指令 = 用户在直接跟它说话，必须由 AI 回答。
+	//
+	// 以前这里直接落到下面的 `if cf.Assistant.Enabled { ... return }`，
+	// 也就是「@机器人 说一句话 → 什么都不发生」。用户只有发 `.AI 问题`
+	// 才拿得到回复，所以他判断「AI 跟他没存在一样」。
+	// 现在：@ 就回；companion 开着的话顺手续上会话，后面的消息还能接着聊。
+	if cf.Assistant.Enabled && mentioned && !command &&
+		!strings.HasPrefix(text, ".") && !strings.HasPrefix(text, "/") &&
+		strings.TrimSpace(text) != "" && cf.Assistant.Model != "" {
+		if cf.Assistant.Companion {
+			// 只续期，不重复回复——回复由下面这条快速路径负责，
+			// 免得 companion 的 5 秒延迟让 @ 显得像没反应。
+			yyQQCompanionBegin(cf, userID, text, true, time.Now())
+		}
+		if yyQQMentionReply(cf, name, userID, text, id) {
+			return
+		}
+	}
 	if cf.Assistant.Enabled && yyQQCompanionHandle(cf, userID, text, id, mentioned) {
 		return
 	}
@@ -454,6 +699,18 @@ func yyQQToGameMentionMeta(cf yyQQConfig, name, userID, role, text, id string, m
 		return
 	}
 	if cf.Assistant.Enabled {
+		// 群聊互通开关：助手模式下，非指令的普通群聊也转发进游戏（[群] 昵称：内容），
+		// 游戏侧仍用 .通 回复，避免双向无限循环。
+		if cf.Assistant.RelayChat && !command && !strings.HasPrefix(text, ".") && text != "帮助" && text != "list" {
+			botMgrMu.Lock()
+			bm := botMgr
+			botMgrMu.Unlock()
+			if bm != nil && bm.IsConnected() {
+				if _, e := bm.SendConsole("[群] " + name + "：" + text); e != nil {
+					yyQQLog("群聊转发失败：" + e.Error())
+				}
+			}
+		}
 		return
 	}
 	if command {
@@ -509,13 +766,15 @@ func yyQQGameChat(player, text string) {
 		if yyQQGameSelection(cf, player, text) {
 			return
 		}
-		if yyQQConfirmBinding(player, text) {
+		if yyQQConfirmBinding(cf, player, text) {
 			return
 		}
-		if !yyQQHasPrefix(text, ".通") {
+		// 游戏→群的转发指令也走别名表（relay，默认 .通）。
+		relay := yyQQCommandText(cf, "relay")
+		if !yyQQHasPrefix(text, relay) {
 			return
 		}
-		text = strings.TrimSpace(strings.TrimPrefix(text, ".通"))
+		text = strings.TrimSpace(strings.TrimPrefix(text, relay))
 		if text == "" {
 			return
 		}
@@ -583,6 +842,24 @@ func yyQQSendToGroup(cf yyQQConfig, text, msgID string) error {
 	return yyQQSendOneBot(cf, text, true)
 }
 func yyQQSendOneBot(cf yyQQConfig, message any, autoEscape bool) error {
+	group, e := strconv.ParseInt(yyQQGroupString(cf.GroupID), 10, 64)
+	if e != nil {
+		return fmt.Errorf("OneBot 群号无效")
+	}
+	_, e = yyQQOneBotCall("send_group_msg", map[string]any{"group_id": group, "message": message, "auto_escape": autoEscape})
+	return e
+}
+
+// yyQQOneBotCall 通过群服桥接的 WebSocket 调用任意 OneBot action 并等待回执。
+// 返回 ack 的 data 字段（可能是对象或数组）；失败时 error 已含 OneBot 的说明。
+func yyQQOneBotCall(action string, params map[string]any) (any, error) {
+	return yyQQOneBotCallTimeout(action, params, 15*time.Second)
+}
+
+// yyQQOneBotCallTimeout 同上，但可指定超时。
+// 存活探测必须用短超时（2~3 秒）：掉线时 OneBot 可能既不回执也不关连接，
+// 用默认 15 秒会把探测线程和面板接口一起拖住。
+func yyQQOneBotCallTimeout(action string, params map[string]any, timeout time.Duration) (any, error) {
 	yyQQMu.Lock()
 	conn := yyQQConn
 	echo := yyNewKey()
@@ -591,26 +868,22 @@ func yyQQSendOneBot(cf yyQQConfig, message any, autoEscape bool) error {
 	yyQQMu.Unlock()
 	defer func() { yyQQMu.Lock(); delete(yyQQPending, echo); yyQQMu.Unlock() }()
 	if conn == nil {
-		return fmt.Errorf("OneBot 尚未连接")
+		return nil, fmt.Errorf("OneBot 尚未连接")
 	}
-	group, e := strconv.ParseInt(yyQQGroupString(cf.GroupID), 10, 64)
-	if e != nil {
-		return fmt.Errorf("OneBot 群号无效")
-	}
-	data, _ := json.Marshal(map[string]any{"action": "send_group_msg", "params": map[string]any{"group_id": group, "message": message, "auto_escape": autoEscape}, "echo": echo})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	data, _ := json.Marshal(map[string]any{"action": action, "params": params, "echo": echo})
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-		return err
+		return nil, err
 	}
 	select {
 	case ack := <-waiter:
 		if yyQQStableID(ack["retcode"]) != "0" {
-			return fmt.Errorf("OneBot 返回失败：%s", mustJSON(ack))
+			return nil, fmt.Errorf("OneBot 返回失败：%s", mustJSON(ack))
 		}
-		return nil
+		return ack["data"], nil
 	case <-ctx.Done():
-		return fmt.Errorf("OneBot 回执超时，发送结果未知")
+		return nil, fmt.Errorf("OneBot 回执超时，结果未知")
 	}
 }
 func yyQQPrivateKey(secret string) ed25519.PrivateKey {

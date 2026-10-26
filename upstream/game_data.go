@@ -344,52 +344,7 @@ func (bm *BotManager) GetTickingAreaList() (map[string]*TickingAreaInfo, error) 
 	if err != nil {
 		return nil, fmt.Errorf("GetTickingAreaList: %v", err)
 	}
-	result := make(map[string]*TickingAreaInfo)
-	if len(resp.OutputMessages) == 0 {
-		return result, nil
-	}
-	if !resp.OutputMessages[0].Success {
-		return result, nil
-	}
-	// 解析多行输出
-	for _, msg := range resp.OutputMessages {
-		text := msg.Message
-		if strings.Contains(text, "%dimension.dimensionName") {
-			parts := strings.Split(text, ": \n")
-			if len(parts) < 2 {
-				continue
-			}
-			dimName := strings.TrimPrefix(parts[0], "%dimension.dimensionName")
-			entries := strings.Split(parts[1], "\n")
-			for _, entry := range entries {
-				entry = strings.TrimSpace(entry)
-				if entry == "" {
-					continue
-				}
-				// 格式: "- 名称: (startX, startZ) to (endX, endZ)"
-				if !strings.HasPrefix(entry, "- ") {
-					continue
-				}
-				entry = strings.TrimPrefix(entry, "- ")
-				nameEnd := strings.Index(entry, ": ")
-				if nameEnd < 0 {
-					continue
-				}
-				name := entry[:nameEnd]
-				coordPart := entry[nameEnd+2:]
-				var sx, sz, ex, ez float64
-				n, _ := fmt.Sscanf(coordPart, "(%f, %f) to (%f, %f)", &sx, &sz, &ex, &ez)
-				if n == 4 {
-					result[name] = &TickingAreaInfo{
-						Dimension: dimName,
-						StartX:    sx, StartZ: sz,
-						EndX: ex, EndZ: ez,
-					}
-				}
-			}
-		}
-	}
-	return result, nil
+	return yyParseTickingAreas(resp)
 }
 
 // ========== 背包查询 API ==========

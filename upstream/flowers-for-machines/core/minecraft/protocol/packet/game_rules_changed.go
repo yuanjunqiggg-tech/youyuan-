@@ -21,5 +21,13 @@ func (*GameRulesChanged) ID() uint32 {
 }
 
 func (pk *GameRulesChanged) Marshal(io protocol.IO) {
+	// 读取方向：网易 1.21.120 自适应解析（值类型 1/2/3 + 网易定制 100 候选，
+	// 以 payload 精确耗尽为判据）。失败退回原解析，行为不比现状差。
+	if r, ok := io.(*protocol.Reader); ok {
+		if rules, ok := protocol.ReadGameRulesAdaptive(r); ok {
+			pk.GameRules = rules
+			return
+		}
+	}
 	protocol.FuncSlice(io, &pk.GameRules, io.GameRule)
 }

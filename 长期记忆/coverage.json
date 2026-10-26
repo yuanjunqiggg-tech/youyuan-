@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-26T16:11:27+08:00",
+  "since_beijing": "2026-10-24T00:00:00+08:00",
+  "scope": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-09-28\\apk",
+  "matched_session_files": [
+    {
+      "file": "C:\\Users\\Lenovo\\.codex\\sessions\\2026\\10\\20\\rollout-2026-10-20T16-47-36-01a128b3-3eb7-7160-bbc8-10229230eb9d_01a1587e-a390-7612-b2f5-0f3826a01d7a.jsonl",
+      "thread": "01a128b3-3eb7-7160-bbc8-10229230eb9d",
+      "bytes_read": 184065751,
+      "offset": 184088933,
+      "last_line": 14170
+    },
+    {
+      "file": "C:\\Users\\Lenovo\\.codex\\sessions\\2026\\10\\24\\rollout-2026-10-24T03-11-12-01a128b3-3eb7-7160-bbc8-10229230eb9d_01a16a2c-a3f0-72d1-90cf-3151040428eb.jsonl",
+      "thread": "01a128b3-3eb7-7160-bbc8-10229230eb9d",
+      "bytes_read": 201613283,
+      "offset": 201636464,
+      "last_line": 13713
+    }
+  ],
+  "imported_user": 78,
+  "imported_assistant": 256,
+  "malformed_records": 0,
+  "totals": {
+    "assistant": 256,
+    "user": 78
+  },
+  "assets": 7,
+  "limits": [
+    "只保证上述实际取得的项目原始记录；不补造删除/缺失历史",
+    "不导入模型分析、工具输出或其他AI会话",
+    "附件路径只记录存在性，不冒充已读图像或已分析文件",
+    "明文展示脱敏；完整原文及凭据仅在Windows DPAPI私有SQL中"
+  ]
+}

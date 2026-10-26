@@ -4,6 +4,7 @@ import (
 	"fmt"
 	lua "github.com/yuin/gopher-lua"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -18,7 +19,7 @@ func yyLuaStats(bm *BotManager, id string) (any, error) {
 	if r == nil {
 		return nil, fmt.Errorf("实例未运行")
 	}
-	return map[string]any{"io_waiting": r.ioWaiting.Load(), "io_calls": r.ioCalls.Load(), "io_total_wait_ms": float64(r.ioTotalNS.Load()) / 1e6, "io_max_wait_ms": float64(r.ioMaxNS.Load()) / 1e6, "callbacks": r.callbackCalls.Load(), "failures": r.callbackFailures.Load(), "last_ms": float64(r.callbackLastNS.Load()) / 1e6, "max_ms": float64(r.callbackMaxNS.Load()) / 1e6, "total_ms": float64(r.callbackTotalNS.Load()) / 1e6, "queue_depth": len(r.senseQueue), "queue_capacity": cap(r.senseQueue), "priority_queue_depth": len(r.priorityQueue), "priority_queue_capacity": cap(r.priorityQueue), "last_queue_wait_ms": float64(r.queueLastWaitNS.Load()) / 1e6, "max_queue_wait_ms": float64(r.queueMaxWaitNS.Load()) / 1e6, "last_vm_wait_ms": float64(r.vmLastWaitNS.Load()) / 1e6, "max_vm_wait_ms": float64(r.vmMaxWaitNS.Load()) / 1e6, "last_callback_error": r.lastCallbackError.Load(), "dropped": r.senseDropped.Load(), "cpu_ms": nil, "memory_bytes": nil, "gc_ms": nil}, nil
+	return map[string]any{"io_waiting": r.ioWaiting.Load(), "io_calls": r.ioCalls.Load(), "io_total_wait_ms": float64(r.ioTotalNS.Load()) / 1e6, "io_max_wait_ms": float64(r.ioMaxNS.Load()) / 1e6, "callbacks": r.callbackCalls.Load(), "failures": r.callbackFailures.Load(), "last_ms": float64(r.callbackLastNS.Load()) / 1e6, "max_ms": float64(r.callbackMaxNS.Load()) / 1e6, "total_ms": float64(r.callbackTotalNS.Load()) / 1e6, "interaction_queue_depth": len(r.interactionQueue), "interaction_queue_capacity": cap(r.interactionQueue), "queue_depth": len(r.senseQueue), "queue_capacity": cap(r.senseQueue), "priority_queue_depth": len(r.priorityQueue), "priority_queue_capacity": cap(r.priorityQueue), "last_queue_wait_ms": float64(r.queueLastWaitNS.Load()) / 1e6, "max_queue_wait_ms": float64(r.queueMaxWaitNS.Load()) / 1e6, "last_vm_wait_ms": float64(r.vmLastWaitNS.Load()) / 1e6, "max_vm_wait_ms": float64(r.vmMaxWaitNS.Load()) / 1e6, "last_callback_error": r.lastCallbackError.Load(), "dropped": r.senseDropped.Load(), "cpu_ms": nil, "memory_bytes": nil, "gc_ms": nil}, nil
 }
 func registerProfilerAPI(L *lua.LState) {
 	p := L.GetGlobal("plugin").(*lua.LTable)
@@ -48,6 +49,14 @@ func yyProfilerRoute(mux *http.ServeMux) {
 		resident := yyLuaStates[yyLuaKey{bm, id}]
 		yyLuaMu.Unlock()
 		if resident != nil {
+			handlers := []map[string]any{}
+			resident.callbackHandlers.Range(func(k, v any) bool {
+				s := v.(*yyHandlerStats)
+				handlers = append(handlers, map[string]any{"handler": k, "calls": s.Calls.Load(), "total_ms": float64(s.TotalNS.Load()) / 1e6})
+				return true
+			})
+			sort.Slice(handlers, func(i, j int) bool { return handlers[i]["calls"].(uint64) > handlers[j]["calls"].(uint64) })
+			value.(map[string]any)["handlers"] = handlers
 			value.(map[string]any)["last_slow_callback"] = resident.lastSlowCallback.Load()
 			since := resident.activeSince.Load()
 			if since != 0 {

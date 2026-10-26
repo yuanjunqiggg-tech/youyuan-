@@ -24,3 +24,56 @@
 .yps-danger-zone{border-color:color-mix(in srgb,var(--phx-error,#bc4242) 34%,var(--yps-line));background:color-mix(in srgb,var(--phx-error,#bc4242) 4%,var(--yps-surface))}
 .yps-danger-zone h4{color:var(--phx-error,#bc4242)}
 @media(max-width:700px){.yps-state-line{gap:6px}.yps-state-line span{flex-basis:100%}}
+
+/* ── 第 10 部分：插件运行与管理中心 ──
+   列表行只留名称 / 类型 / 状态 / 版本 / 异常 / 主操作；
+   运行指标、文件、维护与危险操作全部下沉到详情区。 */
+.yps-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block;background:var(--yps-muted)}
+.yps-dot[data-tone=on]{background:#3fae74;box-shadow:0 0 0 3px color-mix(in srgb,#3fae74 20%,transparent)}
+.yps-dot[data-tone=off]{background:color-mix(in srgb,var(--yps-muted) 55%,transparent)}
+.yps-dot[data-tone=draft]{background:#8b64bc}
+.yps-kv{margin:0;display:grid;gap:7px}
+.yps-kv>div{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:baseline}
+.yps-kv dt{margin:0;font-size:11px;color:var(--yps-muted)}
+.yps-kv dd{margin:0;font-size:12px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.yps-side-extra{min-width:0}
+
+@media(max-width:700px){
+  .yps-header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-bottom:12px}
+  .yps-title-wrap{flex:1 1 100%;gap:10px}
+  .yps-title-icon{width:38px;height:38px;border-radius:11px}
+  .yps-title-icon svg{width:20px;height:20px}
+  .yps-header h2{font-size:22px;margin:0 0 3px}
+  .yps-header p{font-size:11px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .yps-header-actions{margin:0;flex:1 1 100%;gap:8px}
+  .yps-header-actions .yps-button{flex:1;min-height:40px;font-size:12px}
+  .yps-overview{display:flex;align-items:center;gap:16px;height:46px;padding:0 12px;margin-bottom:12px;border:1px solid var(--yps-line);border-radius:10px;background:var(--yps-surface)}
+  .yps-metric{padding:0;gap:6px;border:0;background:transparent;border-radius:0;align-items:center;min-height:0}
+  .yps-metric>.yps-icon{display:none}
+  .yps-metric strong{font-size:15px;font-weight:700}
+  .yps-metric span{font-size:11px;white-space:nowrap}
+  .yps-overview-note{margin-left:auto;grid-column:auto;padding:0}
+  .yps-overview-note .yps-button{min-height:30px;font-size:11px;padding:4px 9px}
+  .yps-side{margin-bottom:10px}
+  .yps-side nav{display:flex;flex-direction:row;gap:6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:2px}
+  .yps-side nav::-webkit-scrollbar{display:none}
+  .yps-side nav button{flex:0 0 auto;flex-direction:row;min-height:34px;padding:6px 10px;gap:6px;border:1px solid var(--yps-line);border-radius:999px;font-size:12px;background:var(--yps-surface);white-space:nowrap}
+  .yps-side nav button[aria-pressed=true]{border-color:color-mix(in srgb,var(--yps-accent) 45%,var(--yps-line))}
+  .yps-toolbar{padding:10px;gap:8px;border-radius:10px}
+  .yps-toolbar label>span:first-child{display:none}
+  .yps-toolbar input{height:42px}
+  .yps-search-field>.yps-icon{top:13px}
+  .yps-toolbar select{height:38px;font-size:12px}
+  .yps-inventory-meta{margin:10px 0 8px}
+  .yps-row>summary{grid-template-columns:8px 32px minmax(0,1fr) 62px;gap:8px;padding:10px;min-height:72px}
+  .yps-language{width:32px;height:36px;font-size:12px}
+  .yps-identity small{margin-top:3px}
+  .yps-row-meta{gap:6px}
+  .yps-primary-action .yps-button{width:62px;min-height:38px;font-size:12px}
+  .yps-group{margin-bottom:14px}
+  .yps-side-extra{margin-top:16px;padding-top:12px;border-top:1px solid var(--yps-line)}
+  .yps-detail{padding:12px}
+  .yps-kv>div{grid-template-columns:56px minmax(0,1fr);gap:8px}
+}
+
+.yps-overview-note .yps-autostart{margin:0;font-size:10px;white-space:nowrap;color:var(--yps-muted);min-height:32px;cursor:pointer}.yps-overview-note .yps-autostart input{width:16px;height:16px}.yps-overview-note .yps-autostart:hover{color:var(--phx-text,#2b2b2b)}.yps-overview-note .yps-autostart input:focus-visible{outline:2px solid var(--yps-accent);outline-offset:2px}

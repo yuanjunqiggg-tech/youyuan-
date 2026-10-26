@@ -96,7 +96,8 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "sendTargeted", L.NewFunction(func(L *lua.LState) int {
 		player := L.CheckString(1)
 		text := L.CheckString(2)
-		if err := abot(L).sendTargeted(player, text); err != nil {
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) { return true, bm.sendTargeted(player, text) }); err != nil {
 			L.RaiseError("sendTargeted: %v", err)
 		}
 		return 0
@@ -603,7 +604,10 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "getBlockData", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
 		bm := abot(L)
-		bd, err := yyLuaWaitValue(L, func(_ context.Context) (*BlockData, error) { return bm.GetBlockData(x, y, z) })
+		pluginID, caller := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), yyLuaCaller(L)
+		bd, err := yyLuaWaitValue(L, func(ctx context.Context) (*BlockData, error) {
+			return bm.getBlockDataContext(yyWithRegionReadSource(ctx, pluginID, caller), x, y, z)
+		})
 		if err != nil {
 			L.RaiseError("getBlockData: %v", err)
 		}
@@ -622,7 +626,10 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "getBlockNBT", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
 		bm := abot(L)
-		nbt, err := yyLuaWaitValue(L, func(_ context.Context) (map[string]any, error) { return bm.GetBlockNBT(x, y, z) })
+		pluginID, caller := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), yyLuaCaller(L)
+		nbt, err := yyLuaWaitValue(L, func(ctx context.Context) (map[string]any, error) {
+			return bm.getBlockNBTContext(yyWithRegionReadSource(ctx, pluginID, caller), x, y, z)
+		})
 		if err != nil {
 			L.RaiseError("getBlockNBT: %v", err)
 		}
@@ -637,7 +644,10 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	L.SetField(g, "getBlockState", L.NewFunction(func(L *lua.LState) int {
 		x, y, z := L.CheckInt(1), L.CheckInt(2), L.CheckInt(3)
 		bm := abot(L)
-		bd, err := yyLuaWaitValue(L, func(_ context.Context) (*BlockData, error) { return bm.GetBlockData(x, y, z) })
+		pluginID, caller := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), yyLuaCaller(L)
+		bd, err := yyLuaWaitValue(L, func(ctx context.Context) (*BlockData, error) {
+			return bm.getBlockDataContext(yyWithRegionReadSource(ctx, pluginID, caller), x, y, z)
+		})
 		if err != nil {
 			L.RaiseError("getBlockState: %v", err)
 		}
@@ -655,7 +665,10 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		sx, sy, sz := L.CheckInt(4), L.CheckInt(5), L.CheckInt(6)
 		bm := abot(L)
 		pos, size := [3]int32{int32(x), int32(y), int32(z)}, [3]int32{int32(sx), int32(sy), int32(sz)}
-		region, err := yyLuaWaitValue(L, func(_ context.Context) (map[string]*BlockData, error) { return bm.GetRegionBlockData(pos, size) })
+		pluginID, caller := lua.LVAsString(L.GetGlobal("__PLUGIN_ID__")), yyLuaCaller(L)
+		region, err := yyLuaWaitValue(L, func(ctx context.Context) (map[string]*BlockData, error) {
+			return bm.getRegionBlockDataContext(yyWithRegionReadSource(ctx, pluginID, caller), pos, size)
+		})
 		if err != nil {
 			L.RaiseError("getRegionBlockData: %v", err)
 		}

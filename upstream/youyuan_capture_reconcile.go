@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -95,7 +96,12 @@ func yyGlobalCaptureRun() {
 			wg.Wait()
 			for _, id := range c.Accounts {
 				v := byID[id]
-				if v["busy"] == true {
+				if yyCaptureLandingPending(id) {
+					states[id] = map[string]any{"phase": "waiting_landing", "error": "上线落点尚未确认，暂不轮巡"}
+					selected[id] = true
+					continue
+				}
+				if v["busy"] == true || id != "main" && v["business_plugins_running"] == true {
 					states[id] = map[string]any{"phase": "occupied", "error": "其他观察任务占用，不抢控制；使用其他账号替补"}
 					continue
 				}
@@ -112,6 +118,11 @@ func yyGlobalCaptureRun() {
 					}
 				}
 				if v["connected"] == true && v["is_op"] == true {
+					yyCaptureLaunches.Lock()
+					if launch := yyCaptureLaunches.Items[id]; launch != nil {
+						launch.Started = false
+					}
+					yyCaptureLaunches.Unlock()
 					ready = append(ready, id)
 				} else if v["connected"] == true {
 					if name, ok := v["name"].(string); ok && desired > 0 {
@@ -123,6 +134,14 @@ func yyGlobalCaptureRun() {
 			// Start only the shortfall, try the next candidate when one is cooling
 			// down. A saved token is never reported as a successful game login.
 			short := desired - len(ready)
+			if len(players) == 0 {
+				short = 0
+				summary["provision_hold_reason"] = "没有真人在线，暂不自动增派"
+			}
+			if main := getBotManagerLocked(); main == nil || !main.IsConnected() {
+				short = 0
+				summary["provision_hold_reason"] = "主连接断开，暂停自动增派，避免故障期间反复进服"
+			}
 			if !robotIdentitiesKnown {
 				short = 0
 				summary["provision_hold_reason"] = "已有机器人身份尚未确认，暂停增派，防止把机器人误认真人递归投放"
@@ -132,7 +151,7 @@ func yyGlobalCaptureRun() {
 					break
 				}
 				v := byID[id]
-				if v["connected"] == true || !yyCaptureAllowed(actor, id) {
+				if v["connected"] == true || v["business_plugins_running"] == true || !yyCaptureAllowed(actor, id) {
 					continue
 				}
 				s := yyCaptureProvision(actor, id, c)
@@ -204,7 +223,18 @@ func yyGlobalCaptureRun() {
 					}
 					role := map[string]any{}
 					if e == nil {
-						role, e = yyCaptureCall(actor, id, "observerBridge.assignDimension", []any{map[string]any{"dimension": a.Dimension}})
+						mode := c.GameMode
+						if override, ok := c.DimensionGameModes[fmt.Sprint(a.Dimension)]; ok {
+							mode = override
+						}
+						residency := map[string]any{"dimension": a.Dimension, "game_mode": mode, "invisible": c.Invisible, "auto_respawn": c.AutoRespawn}
+						if landing, configured := c.DimensionLandings[fmt.Sprint(a.Dimension)]; configured {
+							residency["landing"] = landing
+						}
+						if len(a.Players) > 0 {
+							residency["player"] = a.Players[0]
+						}
+						role, e = yyCaptureCall(actor, id, "observerBridge.assignDimension", []any{residency})
 					}
 					if e == nil && role["ready"] == true && v["active"] != true && len(a.Players) > 0 {
 						o["plan_signature"] = string(fingerprint)
@@ -255,6 +285,12 @@ func yyGlobalCaptureRun() {
 		for id := range selected {
 			owned[id] = true
 		}
+		// Busy accounts keep their business session; reclamation must not stop it.
+		for id, state := range states {
+			if v, ok := state.(map[string]any); ok && v["phase"] == "occupied" {
+				selected[id] = true
+			}
+		}
 		yyCaptureRetire(actor, selected, c)
 		for id, v := range yyCaptureIdleStates(actor, selected) {
 			if _, present := states[id]; !present {
@@ -271,6 +307,9 @@ func yyGlobalCaptureRun() {
 			}
 		}
 		summary["active_observers"] = active
+		for key, state := range yyCaptureLandingStates() {
+			states[key] = state
+		}
 		if desired, ok := summary["desired_observers"].(int); ok {
 			summary["shortfall"] = max(0, desired-active)
 		}

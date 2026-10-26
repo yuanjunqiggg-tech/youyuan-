@@ -20,10 +20,10 @@ func TestRuntimeChallengeDoesNotRepeatPassedAuthentication(t *testing.T) {
 }
 
 type fakeChallengeReader struct {
-	packets       []packet.Packet
-	reads, writes int
-	deadline      time.Time
-	err           error
+	packets         []packet.Packet
+	reads, writes   int
+	deadline        time.Time
+	err             error
 }
 
 func (c *fakeChallengeReader) ReadPacket() (packet.Packet, error) {
@@ -35,7 +35,7 @@ func (c *fakeChallengeReader) ReadPacket() (packet.Packet, error) {
 	c.packets = c.packets[1:]
 	return p, nil
 }
-func (c *fakeChallengeReader) WritePacket(packet.Packet) error   { c.writes++; return c.err }
+func (c *fakeChallengeReader) WritePacket(packet.Packet) error { c.writes++; return c.err }
 func (c *fakeChallengeReader) SetReadDeadline(t time.Time) error { c.deadline = t; return nil }
 
 func TestChallengeHandoffRetainsApplicationRPCAndNextLivePacket(t *testing.T) {
@@ -74,3 +74,4 @@ func TestChallengeWorldTimeoutAndWriteFailure(t *testing.T) {
 		}
 	}
 }
+

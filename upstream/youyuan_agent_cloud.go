@@ -73,7 +73,7 @@ func yyAgentCloudAllowed(ctx context.Context, key string) bool {
 	if yyCloudCapability.Key == digest && time.Now().Before(yyCloudCapability.Until) {
 		return yyCloudCapability.Allowed
 	}
-	allowed := yyCheckCloudCapability(ctx, key, "https://toolbox.youyuanqi.dpdns.org")
+	allowed := yyCheckCloudCapability(ctx, key, yySecPlatformOrigin())
 	yyCloudCapability.Key = digest
 	yyCloudCapability.Allowed = allowed
 	yyCloudCapability.Until = time.Now().Add(30 * time.Second)

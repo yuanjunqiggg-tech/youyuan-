@@ -22,6 +22,9 @@ func yyQQValidateAdminIDs(cf yyQQConfig) error {
 	if len(cf.Assistant.CompanionOwner) > 128 {
 		return fmt.Errorf("服主标识过长")
 	}
+	if len(cf.Assistant.BotPlayer) > 64 || strings.ContainsAny(cf.Assistant.BotPlayer, "\r\n") {
+		return fmt.Errorf("主机器人玩家名最长64字符且不能换行")
+	}
 	if cf.Adapter != "qqofficial" {
 		return nil
 	}

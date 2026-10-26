@@ -72,25 +72,6 @@ func registerPlayerAPI(L *lua.LState) {
 		L.Push(lua.LNumber(len(playerInfoMgr.GetAllPlayers())))
 		return 1
 	}))
-	// player.getInventory(name) → {items=[{name,count,slot,damage}]}（走活跃机器人查询）
-	L.SetField(p, "getInventory", L.NewFunction(func(L *lua.LState) int {
-		sel := L.CheckString(1)
-		inv, err := abot(L).QueryPlayerInventory(sel)
-		if err != nil {
-			L.RaiseError("player.getInventory: %v", err)
-		}
-		items := L.NewTable()
-		for i, it := range inv.Items {
-			entry := L.NewTable()
-			entry.RawSetString("name", lua.LString(it.Name))
-			entry.RawSetString("count", lua.LNumber(it.Count))
-			entry.RawSetString("slot", lua.LNumber(it.Slot))
-			entry.RawSetString("damage", lua.LNumber(it.Damage))
-			items.RawSetInt(i+1, entry)
-		}
-		t := L.NewTable()
-		t.RawSetString("items", items)
-		L.Push(t)
-		return 1
-	}))
+	// Share the cooperative query binding; waiting for inventory must release the VM.
+	L.SetField(p, "getInventory", L.GetField(L.GetGlobal("game"), "queryInventory"))
 }

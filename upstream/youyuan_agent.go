@@ -640,6 +640,20 @@ func yyWorkspaceTool(ctx context.Context, ws *yyWorkspace, name string, args map
 		}
 		return content, false
 	case "mcp_list", "mcp_describe", "mcp_call", "mcp_read_resource":
+		// 权限只在这一个地方判：scope = public 按 access，scope = private 只有归属人能调。
+		// 工作区属于本机账号操作员，所以 actor 用 yyMCPActorLocal。
+		if e := yyMCPScopeGuard(str("server"), yyMCPActorLocal, 9); e != nil {
+			return failure(e)
+		}
+		if name == "mcp_list" && str("server") == "" {
+			if rows := yyMCPConnVisible(yyMCPActorLocal, 9); len(rows) > 0 {
+				items := make([]map[string]any, 0, len(rows))
+				for _, c := range rows {
+					items = append(items, yyMCPConnPublicView(c))
+				}
+				return mustJSON(map[string]any{"servers": items, "hint": "把 server 填成 id 再看 tools"}), false
+			}
+		}
 		method := "tools/list"
 		params := map[string]any{}
 		if str("cursor") != "" {
@@ -855,6 +869,10 @@ func yyPublishWorkspace(ws *yyWorkspace) (string, bool) {
 	return "不支持的工作区语言", true
 }
 func yyMCPRequest(ctx context.Context, server *yyMCPServer, method string, params any) ([]byte, error) {
+	// 登记过的服务器（含 stdio / sse / 自定义请求头）统一走 scope 表里的连接实现。
+	if out, handled, e := yyMCPConnRequest(ctx, server, method, params); handled {
+		return out, e
+	}
 	body := map[string]any{"jsonrpc": "2.0", "method": method, "params": params}
 	notification := strings.HasPrefix(method, "notifications/")
 	if !notification {
@@ -940,6 +958,11 @@ func yyWorkspaceMCP(ctx context.Context, ws *yyWorkspace, id, method string, par
 	}
 	ws.Unlock()
 	if index < 0 || !server.Enabled {
+		// 登记表里的服务器不属于任何工作区（例如管理员给全群配的公用 MCP），
+		// 这里按 id 直接连；session/version 由登记表自己维护。
+		if c, ok := yyMCPConnGet(id); ok && c.Enabled {
+			return yyMCPConnRequestDirect(ctx, id, method, params)
+		}
 		return nil, fmt.Errorf("MCP 未启用或不存在")
 	}
 	if server.Version == "" {

@@ -61,7 +61,7 @@ func TestConversionCommandsExecutionAndLossDetection(t *testing.T) {
 	if out["ok"] != true || out["commands"] != float64(2) || !strings.Contains(out["content"].(string), "execute as @a[tag=builder] at @s run say hi") {
 		t.Fatal(out)
 	}
-	for _, body := range []map[string]any{{"content": "1,0,0\nsay hi", "output": "mcfunction"}, {"content": "1,0,0\nsay hi", "mode": "execute", "selector": "@a"}, {"content": "say hi", "mode": "execute", "selector": "@a\nsay inject"}} {
+	for _, body := range []map[string]any{{"content": "1,0,0\nsay hi", "output": "mcfunction"}, {"content": "2,0,0 20\nsay hi", "output": "mcfunction"}, {"content": "1,0,0\nsay hi", "mode": "execute", "selector": "@a"}, {"content": "say hi", "mode": "execute", "selector": "@a\nsay inject"}} {
 		if out = conversionTestCall(t, "/api/youyuan/convert/commands", body); out["ok"] != false {
 			t.Fatal(out)
 		}

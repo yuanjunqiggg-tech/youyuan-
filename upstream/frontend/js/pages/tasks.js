@@ -57,13 +57,69 @@ function yyDrawTaskRows(host, rows) {
     host.append(b);
   }
 }
+// 任务中心：按时间段筛选 + 固定每页条数 + 翻页。
+// 以前是一次性把全部任务铺出来，长列表在手机上根本翻不到底。
+var yyTaskCenterState = { range: 'today', page: 1, size: 8 };
+function yyTaskRangeStart(range, now) {
+  var t = new Date(now || Date.now());
+  t.setHours(0, 0, 0, 0);
+  if (range === 'today') return t.getTime();
+  if (range === '3d') return t.getTime() - 2 * 864e5;
+  if (range === '7d') return t.getTime() - 6 * 864e5;
+  return 0; // all
+}
+function yyTaskFiltered() {
+  var from = yyTaskRangeStart(yyTaskCenterState.range);
+  return yyTaskRows.filter(function (t) {
+    if (!from) return true;
+    var at = (t.updated_at || t.created_at || 0) * 1000;
+    return at >= from;
+  });
+}
+function yyTaskCenterSetRange(range) {
+  yyTaskCenterState.range = range;
+  yyTaskCenterState.page = 1;
+  yyTaskCenterDraw();
+}
+function yyTaskCenterPage(delta) {
+  yyTaskCenterState.page = Math.max(1, yyTaskCenterState.page + delta);
+  yyTaskCenterDraw();
+}
+function yyTaskCenterDraw() {
+  var host = document.getElementById('yy-task-records');
+  if (!host) return;
+  var all = yyTaskFiltered();
+  var size = yyTaskCenterState.size;
+  var pages = Math.max(1, Math.ceil(all.length / size));
+  if (yyTaskCenterState.page > pages) yyTaskCenterState.page = pages;
+  var page = yyTaskCenterState.page;
+  var slice = all.slice((page - 1) * size, page * size);
+  var ranges = [['today', '今天'], ['3d', '近 3 天'], ['7d', '近 7 天'], ['all', '全部']];
+  var chips = ranges.map(function (r) {
+    return '<button type="button" class="yy-filter' + (yyTaskCenterState.range === r[0] ? ' active' : '') +
+      '" aria-pressed="' + (yyTaskCenterState.range === r[0]) + '" onclick="yyTaskCenterSetRange(\'' + r[0] + '\')">' + r[1] + '</button>';
+  }).join('');
+  host.innerHTML = '<div class="yy-filters" style="margin-bottom:8px">' + chips + '</div>' +
+    '<p class="yy-hint" style="margin:0 0 8px">共 ' + all.length + ' 条 · 每页 ' + size + ' 条 · 第 ' + page + '/' + pages + ' 页</p>' +
+    '<div id="yy-task-page-list"></div>' +
+    '<div class="yy-actions" style="justify-content:space-between;margin-top:10px">' +
+    '<button type="button" class="btn-s" onclick="yyTaskCenterPage(-1)" ' + (page <= 1 ? 'disabled' : '') + '>上一页</button>' +
+    '<span class="yy-hint" style="margin:0">' + page + ' / ' + pages + '</span>' +
+    '<button type="button" class="btn-s" onclick="yyTaskCenterPage(1)" ' + (page >= pages ? 'disabled' : '') + '>下一页</button>' +
+    '</div>';
+  var list = document.getElementById('yy-task-page-list');
+  if (list) yyDrawTaskRows(list, slice);
+}
 async function yyTaskCenter() {
-  delete subPageCache["\u4EFB\u52A1\u8BB0\u5F55"];
-  openSubPage("\u4EFB\u52A1\u8BB0\u5F55", yyIntro("\u4F5C\u4E1A\u4E0E\u65AD\u70B9", "\u67E5\u770B\u5F53\u524D\u8D26\u53F7\u7684\u4EFB\u52A1\u3001\u539F\u8BBE\u7F6E\u548C\u6062\u590D\u4F4D\u7F6E\u3002") + '<section class="card" id="yy-task-records">\u6B63\u5728\u8BFB\u53D6\u2026</section>');
+  delete subPageCache['任务记录'];
+  openSubPage('任务记录', yyIntro('作业与断点', '按时间段查看当前账号的任务、原设置和恢复位置。') +
+    '<section class="card" id="yy-task-records">正在读取…</section>');
   try {
-    yyDrawTaskRows(document.getElementById("yy-task-records"), await yyTaskList());
+    await yyTaskList();
+    yyTaskCenterState.page = 1;
+    yyTaskCenterDraw();
   } catch (e) {
-    const h = document.getElementById("yy-task-records");
+    const h = document.getElementById('yy-task-records');
     if (h) h.textContent = e.message;
   }
 }

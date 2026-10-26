@@ -35,10 +35,13 @@ import (
 type BotManager struct {
 	egress                 *yyEgressSession
 	dimensionMaintenanceMu sync.Mutex
+	captureBehaviorKey     string // Protected by dimensionMaintenanceMu.
+	captureBehaviorAt      time.Time
 	physicalMu             sync.Mutex
 	physicalNext           time.Time
 	controlCommandMu       sync.Mutex
-	controlBatchMu         sync.Mutex
+	controlBatchOnce       sync.Once
+	controlBatchSlot       chan struct{}
 	chainFast              yyChainFastGate
 	controlBatchPending    atomic.Int32
 	controlCommandNext     time.Time
@@ -50,6 +53,10 @@ type BotManager struct {
 	conn                   *minecraft.Conn
 	resources              *resources_control.Resources
 	gameInterface          *game_interface.GameInterface
+	gameInterfaceInitMu    sync.Mutex // Serialise first-use setup without blocking packet/heartbeat state.
+	nbtConsoleInitMu       sync.Mutex
+	nbtAssignerInitMu      sync.Mutex
+	nbtWorkspaceEpoch      uint64
 	pktCh                  chan packet.Packet
 	listenerID             string
 	packetIngress          *yyPacketIngress // Per-connection decoded packets, before the host selection filter.
@@ -61,9 +68,9 @@ type BotManager struct {
 	gameMode               int32 // Latest mode confirmed by the server.
 	isOP                   bool
 	opPacketConfirmed      bool // 包检测(UpdateAbilities/AdventureSettings/AddPlayer 权限>=Host)权威确认的 OP；命令验证失败不降级
+	permissionPacketKnown  bool // An explicit server revocation outranks command-based fallbacks.
 	isMain                 bool // 主机器人标记：连接+OP 后自动加载插件、断开时停用全部插件
 	opSent                 bool
-	verifyPending          bool // true when waiting for gamemode response to confirm OP
 	cmdPerm                uint32
 	display                string
 	xuid                   string
@@ -76,6 +83,7 @@ type BotManager struct {
 	botComponent           map[string]*int // 服务器模组列表 (mod UUID → outfit type)
 	connectTime            time.Time       // when Connect() completed — used to suppress early false-OP packets
 	sayTestMsg             string          // /say 测试消息，非空表示正在等待回显确认权限
+	sayTestRequestID       uuid.UUID
 	stopCh                 chan struct{}
 	logCh                  chan string
 	lastOnlineSet          map[string]bool              // 上次玩家在线集合快照（join/leave 差量对比用）
@@ -181,6 +189,7 @@ func (bm *BotManager) Connect(token, server, auth, password string) (resultErr e
 	bm.loginIngress = loginIngress
 	bm.mu.Unlock()
 	cfg := client.Config{
+		PacketFunc:           yyProtocolMetadataSampler(os.Getenv("YY_PROTOCOL_SAMPLE_DIR")),
 		AuthServerAddress:    auth,
 		RentalServerCode:     server,
 		RentalServerPasscode: password,
@@ -276,7 +285,10 @@ func (bm *BotManager) Connect(token, server, auth, password string) (resultErr e
 		return fmt.Errorf("连接已取消")
 	}
 	bm.client = c
+	bm.resetGameInterfacesLocked()
 	bm.conn = conn
+	bm.isOP, bm.opPacketConfirmed, bm.permissionPacketKnown, bm.opSent = false, false, false, false
+	bm.sayTestMsg, bm.sayTestRequestID = "", uuid.Nil
 	bm.tick = 0
 	bm.missedSwingPending = false
 	bm.display = id.DisplayName
@@ -301,7 +313,14 @@ func (bm *BotManager) Connect(token, server, auth, password string) (resultErr e
 	yySenseReset(bm)
 	debugLog("[*] 启动包监听器...")
 	resources_control.NewResourcesControlWithListener(c, func(res *resources_control.Resources) {
+		if auto := config.LoadConfig().AutoRespawn; auto != nil {
+			res.SetAutoRespawn(*auto)
+		}
 		bm.mu.Lock()
+		if bm.conn != conn || !bm.connected {
+			bm.mu.Unlock()
+			return
+		}
 		bm.resources = res
 		bm.pktCh = make(chan packet.Packet, config.PacketQueueSize(config.LoadConfig()))
 		bm.mu.Unlock()
@@ -505,7 +524,10 @@ func (bm *BotManager) connectTanLobby(token, roomID, auth, password string) erro
 		return fmt.Errorf("连接已取消")
 	}
 	bm.client = c
+	bm.resetGameInterfacesLocked()
 	bm.conn = conn
+	bm.isOP, bm.opPacketConfirmed, bm.permissionPacketKnown, bm.opSent = false, false, false, false
+	bm.sayTestMsg, bm.sayTestRequestID = "", uuid.Nil
 	bm.tick = 0
 	bm.missedSwingPending = false
 	bm.display = id.DisplayName
@@ -530,7 +552,14 @@ func (bm *BotManager) connectTanLobby(token, roomID, auth, password string) erro
 	yySenseReset(bm)
 	debugLog("[*] 启动包监听器...")
 	resources_control.NewResourcesControlWithListener(c, func(res *resources_control.Resources) {
+		if auto := config.LoadConfig().AutoRespawn; auto != nil {
+			res.SetAutoRespawn(*auto)
+		}
 		bm.mu.Lock()
+		if bm.conn != conn || !bm.connected {
+			bm.mu.Unlock()
+			return
+		}
 		bm.resources = res
 		bm.pktCh = make(chan packet.Packet, config.PacketQueueSize(config.LoadConfig()))
 		bm.mu.Unlock()
@@ -808,32 +837,8 @@ func (bm *BotManager) consumePackets() {
 			case *packet.CommandOutput:
 				// 用户不需要服务器命令广播日志
 				_ = p.OutputMessages
-				// /say 回退检测：CommandOutput 成功时清除标记通知 opConfirmLoop
-				bm.mu.Lock()
-				if bm.sayTestMsg != "" && p.SuccessCount > 0 {
-					bm.sayTestMsg = ""
-					debugLog("[权限] ✓ /say CommandOutput 成功: 拥有命令权限")
-				}
-				bm.mu.Unlock()
-				// OP verification fallback uses a read-only command
-				bm.mu.Lock()
-				verifying := bm.verifyPending
-				bm.mu.Unlock()
-				if verifying {
-					bm.mu.Lock()
-					bm.verifyPending = false
-					bm.mu.Unlock()
-					if p.SuccessCount > 0 {
-						debugLog("[权限] ✓ 命令验证通过: 拥有管理员权限！")
-						bm.setOP(true, 3, "CmdVerified")
-						if bm.onReady != nil {
-							bm.onReady()
-						}
-					} else {
-						yyReceiveLog(bm.logCh, "[权限] ✗ 命令验证失败: 没有管理员权限")
-						bm.resetOPIfUnconfirmed()
-					}
-				} else if p.SuccessCount > 0 {
+				bm.acceptPermissionReceipt(p)
+				if p.SuccessCount > 0 {
 					bm.checkSelfOP()
 				}
 			case *packet.StructureTemplateDataResponse:
@@ -991,11 +996,9 @@ func (bm *BotManager) opConfirmLoop(conn *minecraft.Conn) {
 
 		if resp != nil && resp.SuccessCount > 0 {
 			debugLog("[权限] ✓ 命令验证通过: 拥有管理员权限！")
-			bm.setOP(true, 3, "CmdVerified")
-			if bm.onReady != nil {
-				bm.onReady()
+			if bm.confirmCommandPermission(3, "CmdVerified") {
+				return
 			}
-			return
 		}
 
 		yyReceiveLog(bm.logCh, fmt.Sprintf("[权限] 命令验证失败(第%d次)", attempt))
@@ -1041,11 +1044,9 @@ func (bm *BotManager) detectOPLegacy(conn *minecraft.Conn) {
 			resp, _, err := bm.SendWSCommandWithTimeout(cmd, time.Second)
 			if err == nil && resp != nil && resp.SuccessCount > 0 {
 				debugLog("[权限] ✓ 命令验证通过")
-				bm.setOP(true, 3, "CmdVerified")
-				if bm.onReady != nil {
-					bm.onReady()
+				if bm.confirmCommandPermission(3, "CmdVerified") {
+					return
 				}
-				return
 			}
 			bm.resetOPIfUnconfirmed()
 		}
@@ -1058,11 +1059,9 @@ func (bm *BotManager) detectOPLegacy(conn *minecraft.Conn) {
 			resp, _, err := bm.SendWSCommandWithTimeout(cmd, time.Second)
 			if err == nil && resp != nil && resp.SuccessCount > 0 {
 				debugLog("[权限] ✓ 主动验证通过")
-				bm.setOP(true, 3, "CmdVerified")
-				if bm.onReady != nil {
-					bm.onReady()
+				if bm.confirmCommandPermission(3, "CmdVerified") {
+					return
 				}
-				return
 			}
 			yyReceiveLog(bm.logCh, "[权限] 主动验证超时，假定无权限")
 		}
@@ -1071,15 +1070,17 @@ func (bm *BotManager) detectOPLegacy(conn *minecraft.Conn) {
 		if proactiveDone && !sayTestDone && time.Since(noOPStart) > 12*time.Second {
 			sayTestDone = true
 			yyReceiveLog(bm.logCh, "[权限] 尝试 /say 测试...")
-			testMsg := "Welcome"
+			requestID := uuid.New()
+			testMsg := "yy-permission-" + requestID.String()
 			bm.mu.Lock()
+			bm.sayTestRequestID = requestID
 			bm.sayTestMsg = testMsg
 			bm.mu.Unlock()
 			conn.WritePacket(&packet.CommandRequest{
-				CommandLine: "say " + testMsg,
+				CommandLine: yyOPProbeCommand,
 				CommandOrigin: protocol.CommandOrigin{
 					Origin:         protocol.CommandOriginPlayer,
-					UUID:           uuid.MustParse(bm.idStr),
+					UUID:           requestID,
 					PlayerUniqueID: bm.eid,
 				},
 				Version: 105,
@@ -1090,13 +1091,13 @@ func (bm *BotManager) detectOPLegacy(conn *minecraft.Conn) {
 			bm.mu.Unlock()
 			if !stillWaiting {
 				debugLog("[权限] ✓ /say 回显成功: 拥有基本命令权限")
-				bm.setOP(true, 1, "SayTest")
-				if bm.onReady != nil {
-					bm.onReady()
+				if bm.confirmCommandPermission(1, "SayTest") {
+					return
 				}
-				return
 			}
+			bm.mu.Lock()
 			bm.sayTestMsg = ""
+			bm.mu.Unlock()
 			yyReceiveLog(bm.logCh, "[权限] /say 未回显，确认无命令权限")
 			noPermConfirmed = true
 			lastNotifyTime = time.Now()
@@ -1108,14 +1109,12 @@ func (bm *BotManager) detectOPLegacy(conn *minecraft.Conn) {
 		if noPermConfirmed && time.Since(lastNotifyTime) > 5*time.Second {
 			lastNotifyTime = time.Now()
 			yyReceiveLog(bm.logCh, "[权限] 重新检测权限...")
-			resp, _, err := bm.SendWSCommandWithTimeout("say Welcome", time.Second)
+			resp, _, err := bm.SendWSCommandWithTimeout(yyOPProbeCommand, time.Second)
 			if err == nil && resp != nil && resp.SuccessCount > 0 {
 				debugLog("[权限] ✓ 命令验证通过: 拥有管理员权限！")
-				bm.setOP(true, 3, "CmdVerified")
-				if bm.onReady != nil {
-					bm.onReady()
+				if bm.confirmCommandPermission(3, "CmdVerified") {
+					return
 				}
-				return
 			}
 			bm.sendNoPermNotify(conn)
 		}
@@ -1148,27 +1147,31 @@ func (bm *BotManager) noPermNotifyLoop(conn *minecraft.Conn) {
 		bm.checkSelfOP()
 		bm.mu.Lock()
 		isOP := bm.isOP
+		packetKnown := bm.permissionPacketKnown
 		bm.mu.Unlock()
 		if isOP {
 			debugLog("[权限] ✓ 包检测到 OP: 拥有管理员权限！")
-			bm.setOP(true, 3, "CmdVerified")
-			if bm.onReady != nil {
-				bm.onReady()
+			if bm.confirmCommandPermission(3, "CmdVerified") {
+				return
 			}
-			return
+		}
+		if packetKnown {
+			continue
 		}
 
 		// 原始 /say 回显兜底检测（不依赖 gameInterface）
 		yyReceiveLog(bm.logCh, "[权限] 静默检测权限...")
-		testMsg := "Welcome"
+		requestID := uuid.New()
+		testMsg := "yy-permission-" + requestID.String()
 		bm.mu.Lock()
+		bm.sayTestRequestID = requestID
 		bm.sayTestMsg = testMsg
 		bm.mu.Unlock()
 		conn.WritePacket(&packet.CommandRequest{
-			CommandLine: "say " + testMsg,
+			CommandLine: yyOPProbeCommand,
 			CommandOrigin: protocol.CommandOrigin{
 				Origin:         protocol.CommandOriginPlayer,
-				UUID:           uuid.MustParse(bm.idStr),
+				UUID:           requestID,
 				PlayerUniqueID: bm.eid,
 			},
 			Version: 105,
@@ -1182,11 +1185,9 @@ func (bm *BotManager) noPermNotifyLoop(conn *minecraft.Conn) {
 		if !stillWaiting {
 			// 检测到权限 → 必定发送"已完成初始化"
 			debugLog("[权限] ✓ /say 回显成功: 拥有命令权限！")
-			bm.setOP(true, 1, "SayTest")
-			if bm.onReady != nil {
-				bm.onReady()
+			if bm.confirmCommandPermission(1, "SayTest") {
+				return
 			}
-			return
 		}
 
 		// 未检测到权限，且还没发满两遍
@@ -1254,10 +1255,18 @@ func (bm *BotManager) checkSelfOP() {
 
 func (bm *BotManager) setOP(op bool, perm uint32, source string) {
 	bm.mu.Lock()
+	packetSource := source == "UpdateAbilities" || source == "AdventureSettings" || source == "AddPlayer"
+	if packetSource {
+		bm.permissionPacketKnown = true
+	} else if op && bm.permissionPacketKnown && !bm.opPacketConfirmed {
+		bm.mu.Unlock()
+		return
+	}
 	wasOP := bm.isOP
 	bm.isOP = op
-	// 包来源与命令确认都会同步 opPacketConfirmed；非 OP 的包来源也会清掉它（权威）。
-	bm.opPacketConfirmed = op
+	if packetSource {
+		bm.opPacketConfirmed = op
+	}
 	bm.cmdPerm = perm
 	// opSent 只在命令验证通过(source=CmdVerified)或超时回退(source=TimeoutFallback)时设置
 	// 包检测(source=UpdateAbilities/AdventureSettings/opPlayers)不设置 opSent
@@ -1275,6 +1284,10 @@ func (bm *BotManager) setOP(op bool, perm uint32, source string) {
 	}
 	// 主机器人取得 OP：自动加载所有未被持久禁用的插件（只触发一次，wasOP!=op 已保证）。
 	if op && !wasOP && bm.isMain {
+		if !config.PluginAutoStartEnabled(config.LoadConfig()) {
+			debugLog("[插件] 已关闭「随连接自动启动」，本次连接不自动加载插件")
+			return
+		}
 		debugLog("[插件] 主机器人已获得OP，开始自动加载插件...")
 		if _, captureOnly := os.Stat(filepath.Join(yyAccounts.Root, "capture-only")); captureOnly != nil {
 			go pluginController.AutoLoadPlugins(bm)
@@ -1312,6 +1325,7 @@ func (bm *BotManager) disconnectLocked() {
 		bm.conn = nil
 	}
 	bm.connected = false
+	bm.resetGameInterfacesLocked()
 	bm.missedSwingPending = false
 	// 主机器人断开：停用（瞬态停止运行）全部插件，不改变禁用状态，重连后自动再加载。
 	if bm.isMain {
@@ -1338,7 +1352,7 @@ func (bm *BotManager) Disconnect() {
 		defer abort.Stop()
 		// 1. Tell server we're leaving — no OP required
 		conn.WritePacket(&packet.Disconnect{
-			Message: "游园工具箱断开连接",
+			Message: yyBrandShort + " 断开连接",
 		})
 		// 2. Also try /kick if we have OP — graceful server-side removal
 		conn.WritePacket(&packet.CommandRequest{
@@ -1454,18 +1468,31 @@ func (bm *BotManager) SendCommand(cmd string) error {
 var structureCallbacks sync.Map
 
 func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time.Duration) (map[string]any, error) {
+	return bm.requestStructureContext(context.Background(), pos, size, timeout)
+}
+
+func (bm *BotManager) requestStructureContext(ctx context.Context, pos [3]int32, size [3]int32, timeout time.Duration) (map[string]any, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := yyValidateRegion(pos, size); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	bm.mu.Lock()
 	fallback := bm.structureExportUnavailable
 	bm.mu.Unlock()
 	if fallback {
-		return bm.yyReadRegionSubChunks(pos, size)
+		return bm.yyReadRegionSubChunksContext(ctx, pos, size)
 	}
-	data, err := bm.requestStructureTemplate(pos, size, timeout)
+	data, err := bm.requestStructureTemplateContext(ctx, pos, size, timeout)
 	if err == nil {
 		return data, nil
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 	if !bm.IsConnected() {
 		return nil, err
@@ -1474,7 +1501,7 @@ func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time
 	bm.structureExportUnavailable = true
 	bm.mu.Unlock()
 	yyReceiveLog(bm.logCh, "[导出] 结构模板未返回有效数据，改用服务器子区块读取；不会把缺失数据当空气")
-	data, fallbackErr := bm.yyReadRegionSubChunks(pos, size)
+	data, fallbackErr := bm.yyReadRegionSubChunksContext(ctx, pos, size)
 	if fallbackErr != nil {
 		return nil, fmt.Errorf("结构通道: %v；子区块通道: %w", err, fallbackErr)
 	}
@@ -1482,6 +1509,13 @@ func (bm *BotManager) RequestStructure(pos [3]int32, size [3]int32, timeout time
 }
 
 func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, timeout time.Duration) (map[string]any, error) {
+	return bm.requestStructureTemplateContext(context.Background(), pos, size, timeout)
+}
+
+func (bm *BotManager) requestStructureTemplateContext(ctx context.Context, pos [3]int32, size [3]int32, timeout time.Duration) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	bm.mu.Lock()
 	if !bm.connected || bm.conn == nil {
 		bm.mu.Unlock()
@@ -1489,10 +1523,15 @@ func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, time
 	}
 
 	// First save the area as a structure so NBT data (commands, chests, etc.) is included.
+	gi := bm.gameInterface
 	// /structure save must be called before ExportFromSave or the server won't return block NBT.
 	name := uuid.New().String()
 	safeName := strings.ReplaceAll(name, "-", "")
-	defer bm.cleanupStructure(safeName)
+	defer func() {
+		if err := bm.cleanupStructure(safeName); err != nil {
+			yyReceiveLog(bm.logCh, fmt.Sprintf("[区域读取] 临时结构清理失败 name=%s error=%v", safeName, err))
+		}
+	}()
 	saveCmd := fmt.Sprintf(`structure save "%s" %d %d %d %d %d %d`,
 		safeName,
 		pos[0], pos[1], pos[2],
@@ -1501,19 +1540,33 @@ func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, time
 	bm.mu.Unlock()
 
 	// Use WS command to save and wait for completion
-	if bm.gameInterface != nil {
-		resp, timedOut, saveErr := bm.gameInterface.Commands().SendWSCommandWithTimeout(saveCmd, 8*time.Second)
+	if gi != nil {
+		commandTimeout := 8 * time.Second
+		if deadline, ok := ctx.Deadline(); ok {
+			if left := time.Until(deadline); left < commandTimeout {
+				commandTimeout = left
+			}
+		}
+		if commandTimeout <= 0 {
+			return nil, ctx.Err()
+		}
+		resp, timedOut, saveErr := gi.Commands().SendWSCommandWithContext(ctx, saveCmd, commandTimeout)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if saveErr != nil {
 			return nil, fmt.Errorf("结构保存失败: %w", saveErr)
 		}
 		if !timedOut && (resp == nil || resp.SuccessCount == 0) {
 			return nil, fmt.Errorf("服务器拒绝结构保存")
 		}
-		bm.gameInterface.Commands().AwaitChangesGeneral()
 	} else {
 		bm.mu.Lock()
 		conn := bm.conn
 		bm.mu.Unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if conn != nil {
 			if e := conn.WritePacket(&packet.SettingsCommand{
 				CommandLine:    saveCmd,
@@ -1522,7 +1575,12 @@ func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, time
 				return nil, e
 			}
 		}
-		time.Sleep(1 * time.Second)
+		if err := yySleepContext(ctx, time.Second); err != nil {
+			return nil, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	bm.mu.Lock()
@@ -1536,6 +1594,9 @@ func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, time
 	bm.mu.Unlock()
 
 	if conn != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if e := conn.WritePacket(&packet.StructureTemplateDataRequest{
 			StructureName: safeName,
 			Position:      protocol.BlockPos{pos[0], pos[1], pos[2]},
@@ -1565,26 +1626,29 @@ func (bm *BotManager) requestStructureTemplate(pos [3]int32, size [3]int32, time
 	case <-time.After(timeout):
 		structureCallbacks.Delete(safeName)
 		return nil, fmt.Errorf("等待结构数据超时")
+	case <-ctx.Done():
+		structureCallbacks.Delete(safeName)
+		return nil, ctx.Err()
 	}
 }
 
 // cleanupStructure deletes a saved structure from the server to avoid accumulation.
-func (bm *BotManager) cleanupStructure(name string) {
-	if bm.gameInterface != nil {
-		bm.gameInterface.Commands().SendWSCommand(
+func (bm *BotManager) cleanupStructure(name string) error {
+	bm.mu.Lock()
+	gi, conn := bm.gameInterface, bm.conn
+	bm.mu.Unlock()
+	if gi != nil {
+		return gi.Commands().SendWSCommand(
 			fmt.Sprintf(`structure delete "%s"`, name),
 		)
-	} else {
-		bm.mu.Lock()
-		conn := bm.conn
-		bm.mu.Unlock()
-		if conn != nil {
-			conn.WritePacket(&packet.SettingsCommand{
-				CommandLine:    fmt.Sprintf(`structure delete "%s"`, name),
-				SuppressOutput: true,
-			})
-		}
 	}
+	if conn != nil {
+		return conn.WritePacket(&packet.SettingsCommand{
+			CommandLine:    fmt.Sprintf(`structure delete "%s"`, name),
+			SuppressOutput: true,
+		})
+	}
+	return fmt.Errorf("连接不可用，未发送临时结构删除请求")
 }
 
 func (bm *BotManager) SendTellraw(msg string) error {
@@ -1655,6 +1719,15 @@ func normalizeDimension(name string) string {
 	// 其他自定义维度也保留原样
 	return lower
 }
+
+// yyDimensionMaxID 是维度 ID 的上限。原版只有 0/1/2，但网易租赁服有自定义维度
+// （dm3、dm4…），协议里同样是 int32，所以不能再用 2 当上界。
+// 用户原话（2026-10-26）：「你把机器人部署到哪个维度，他就会抓哪个维度的包」
+// 「有那些硬限制，你改一下不就好了」。31 是留足余量又不会触发异常值的档位。
+const yyDimensionMaxID = 31
+
+// yyDimensionIDValid 判断一个协议维度 ID 是否在可处理范围内。
+func yyDimensionIDValid(id int32) bool { return id >= 0 && id <= yyDimensionMaxID }
 
 // dimNameToID 将维度名映射为 MCBE 维度 ID（0=overworld, 1=nether, 2=end）。
 // DM 维度（如 dm3）返回对应的数字 ID（3）。
@@ -1809,23 +1882,16 @@ func (bm *BotManager) sendCommandBuffered(channel CommandChannel, cmd string) er
 	return err
 }
 
-// yyNeedsBotContext reports whether a command has to run with the bot itself as
-// the executor. A command that already starts with "execute" carries its own
-// executor chain (as/at/positioned...), so wrapping it in yet another
-// "execute as @a[name=...] at @s run" only costs the server one full player-list
-// scan per command and changes nothing about where it runs.
-func yyNeedsBotContext(cmd string) bool {
-	trimmed := strings.TrimSpace(cmd)
-	if strings.HasPrefix(trimmed, "/") {
-		trimmed = strings.TrimSpace(trimmed[1:])
-	}
-	return !strings.HasPrefix(strings.ToLower(trimmed), "execute ")
-}
+// Preserve the legacy bot context: execute may change only a condition or dimension, without setting an executor.
+func yyNeedsBotContext(_ string) bool { return true }
+
+// Replacer builds its lookup table lazily; share it instead of allocating it for every 20Hz command.
+var yyCommandNameEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 
 func yyFastSettingsPacket(cmd, name string, needsBotContext bool) *packet.SettingsCommand {
 	if name != "" && needsBotContext {
-		escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name)
-		cmd = fmt.Sprintf(`execute as @a[name="%s"] at @s run %s`, escaped, cmd)
+		escaped := yyCommandNameEscaper.Replace(name)
+		cmd = `execute as @a[name="` + escaped + `"] at @s run ` + cmd
 	}
 	return &packet.SettingsCommand{CommandLine: cmd, SuppressOutput: true}
 }

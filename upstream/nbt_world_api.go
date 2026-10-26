@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -26,12 +29,32 @@ type BlockData struct {
 	NBT    map[string]any `json:"nbt,omitempty"`
 }
 
+const yyRegionReadTimeout = 30 * time.Second
+
+type yyRegionReadSource struct {
+	PluginID string
+	Where    string
+}
+
+type yyRegionReadSourceContextKey struct{}
+
+func yyWithRegionReadSource(ctx context.Context, pluginID, where string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, yyRegionReadSourceContextKey{}, yyRegionReadSource{PluginID: pluginID, Where: where})
+}
+
 // ───────────────────────── 读 ─────────────────────────
 
 // GetBlockData 读单个方块完整数据（名称+状态+NBT）。
-// 先传送加载区块（仿 GetBlockTileSafe），再 RequestStructure(1×1×1)。
+// 目标不在当前区块时才传送加载区块，再 RequestStructure(1×1×1)。
 func (bm *BotManager) GetBlockData(x, y, z int) (*BlockData, error) {
-	region, err := bm.GetRegionBlockData([3]int32{int32(x), int32(y), int32(z)}, [3]int32{1, 1, 1})
+	return bm.getBlockDataContext(context.Background(), x, y, z)
+}
+
+func (bm *BotManager) getBlockDataContext(ctx context.Context, x, y, z int) (*BlockData, error) {
+	region, err := bm.getRegionBlockDataContext(ctx, [3]int32{int32(x), int32(y), int32(z)}, [3]int32{1, 1, 1})
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +68,11 @@ func (bm *BotManager) GetBlockData(x, y, z int) (*BlockData, error) {
 
 // GetBlockNBT 只读一个方块的方块实体 NBT（命令方块指令 / 箱子物品 / 告示牌文本 / 旗帜图案）。
 func (bm *BotManager) GetBlockNBT(x, y, z int) (map[string]any, error) {
-	bd, err := bm.GetBlockData(x, y, z)
+	return bm.getBlockNBTContext(context.Background(), x, y, z)
+}
+
+func (bm *BotManager) getBlockNBTContext(ctx context.Context, x, y, z int) (map[string]any, error) {
+	bd, err := bm.getBlockDataContext(ctx, x, y, z)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +81,11 @@ func (bm *BotManager) GetBlockNBT(x, y, z int) (map[string]any, error) {
 
 // GetBlockState 读一个方块的名称 + 方块状态（facing/lit/open 等，不含 NBT）。
 func (bm *BotManager) GetBlockState(x, y, z int) (string, map[string]any, error) {
-	bd, err := bm.GetBlockData(x, y, z)
+	return bm.getBlockStateContext(context.Background(), x, y, z)
+}
+
+func (bm *BotManager) getBlockStateContext(ctx context.Context, x, y, z int) (string, map[string]any, error) {
+	bd, err := bm.getBlockDataContext(ctx, x, y, z)
 	if err != nil {
 		return "", nil, err
 	}
@@ -64,27 +95,115 @@ func (bm *BotManager) GetBlockState(x, y, z int) (string, map[string]any, error)
 // GetRegionBlockData 读一块区域所有方块的名称+状态+NBT（一次结构保存）。
 // 返回以 "x,y,z" 绝对坐标为键的映射。
 func (bm *BotManager) GetRegionBlockData(pos, size [3]int32) (map[string]*BlockData, error) {
-	if size[0] <= 0 || size[1] <= 0 || size[2] <= 0 {
-		return nil, fmt.Errorf("区域尺寸必须为正: %v", size)
+	ctx, cancel := context.WithTimeout(context.Background(), yyRegionReadTimeout)
+	defer cancel()
+	return bm.getRegionBlockDataContext(ctx, pos, size)
+}
+
+func (bm *BotManager) getRegionBlockDataContext(ctx context.Context, pos, size [3]int32) (result map[string]*BlockData, retErr error) {
+	if err := yyValidateRegion(pos, size); err != nil {
+		return nil, err
 	}
-	if bm == nil || bm.conn == nil {
+	if bm == nil {
 		return nil, fmt.Errorf("未连接")
 	}
+	bm.mu.Lock()
+	connected := bm.connected && bm.conn != nil && bm.conn.Context().Err() == nil
+	bm.mu.Unlock()
+	if !connected {
+		return nil, fmt.Errorf("未连接")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, yyRegionReadTimeout)
+	defer cancel()
+	source, traced := ctx.Value(yyRegionReadSourceContextKey{}).(yyRegionReadSource)
+	started := time.Now()
+	if traced {
+		yyReceiveLog(bm.logCh, fmt.Sprintf("[区域读取] 开始 plugin=%q source=%q pos=%v size=%v", source.PluginID, source.Where, pos, size))
+		defer func() {
+			status := "完成"
+			if retErr != nil {
+				status = "失败"
+				if errors.Is(retErr, context.Canceled) || errors.Is(retErr, context.DeadlineExceeded) {
+					status = "取消/超时"
+				}
+			}
+			yyReceiveLog(bm.logCh, fmt.Sprintf("[区域读取] 结束 plugin=%q source=%q pos=%v size=%v status=%s elapsed=%s", source.PluginID, source.Where, pos, size, status, time.Since(started).Round(time.Millisecond)))
+		}()
+	}
+	lock := yyBlockOperationLock(bm)
+	if err := yyLockContext(ctx, lock); err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
 	releaseSpatial := yyBeginSpatialJob(bm, "region-read")
 	defer releaseSpatial()
-	lock := yyBlockOperationLock(bm)
-	lock.Lock()
-	defer lock.Unlock()
-	// 传送到区域中心上方加载区块，否则 structure save 返回空。
-	bm.TP(int(pos[0]+size[0]/2), 150, int(pos[2]+size[2]/2))
-	_ = bm.AwaitChangesGeneral()
-	time.Sleep(400 * time.Millisecond)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if yyRegionNeedsTeleport(bm, pos, size) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err := bm.TP(int(pos[0]+size[0]/2), 150, int(pos[2]+size[2]/2)); err != nil {
+			return nil, err
+		}
+		if err := yySleepContext(ctx, 400*time.Millisecond); err != nil {
+			return nil, err
+		}
+	}
 
-	data, err := bm.RequestStructure(pos, size, 20*time.Second)
+	data, err := bm.requestStructureContext(ctx, pos, size, 20*time.Second)
 	if err != nil {
 		return nil, err
 	}
 	return parseStructureData(data, int(pos[0]), int(pos[1]), int(pos[2])), nil
+}
+
+func yyLockContext(ctx context.Context, lock interface {
+	TryLock() bool
+	Unlock()
+}) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if lock.TryLock() {
+			if err := ctx.Err(); err != nil {
+				lock.Unlock()
+				return err
+			}
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func yySleepContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func yyRegionNeedsTeleport(bm *BotManager, pos, size [3]int32) bool {
+	bm.mu.Lock()
+	current := bm.pos
+	bm.mu.Unlock()
+	cx, cz := int32(math.Floor(float64(current[0])/16)), int32(math.Floor(float64(current[2])/16))
+	return pos[0]>>4 != cx || (pos[0]+size[0]-1)>>4 != cx || pos[2]>>4 != cz || (pos[2]+size[2]-1)>>4 != cz
 }
 
 // parseStructureData 把 RequestStructure 返回的结构数据解析成绝对坐标 → BlockData。

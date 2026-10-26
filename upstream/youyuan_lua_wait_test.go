@@ -6,9 +6,23 @@ import (
 	lua "github.com/yuin/gopher-lua"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestLuaCallerFindsLuaFrameThroughPcall(t *testing.T) {
+	L := lua.NewState()
+	defer L.Close()
+	var got string
+	L.SetGlobal("origin", L.NewFunction(func(L *lua.LState) int { got = yyLuaCaller(L); return 0 }))
+	if err := L.DoString(`local ok = pcall(origin); assert(ok)`); err != nil {
+		t.Fatal(err)
+	}
+	if got == "" || strings.Contains(got, "[G]") || !strings.Contains(got, ":1") {
+		t.Fatalf("caller location lost through Go/pcall frames: %q", got)
+	}
+}
 
 func TestResidentTypedQueryWaitKeepsHealthCallbackResponsive(t *testing.T) {
 	bm := &BotManager{}

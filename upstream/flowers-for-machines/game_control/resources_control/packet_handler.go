@@ -233,6 +233,19 @@ func (r *Resources) handlePacket(pk packet.Packet) {
 		r.handleMovePlayer(p)
 	case *packet.Respawn:
 		r.handleRespawn(p)
+	case *packet.SetHealth:
+		if r.client != nil {
+			self := r.BotInfo().EntityRuntimeID
+			r.respawn.health(self, self, float32(p.Health))
+		}
+	case *packet.UpdateAttributes:
+		if r.client != nil {
+			for _, a := range p.Attributes {
+				if a.Name == "minecraft:health" {
+					r.respawn.health(p.EntityRuntimeID, r.BotInfo().EntityRuntimeID, a.Value)
+				}
+			}
+		}
 	case *packet.CommandOutput:
 		r.handleCommandOutput(p)
 	case *packet.PyRpc:

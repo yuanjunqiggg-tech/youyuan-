@@ -20,6 +20,16 @@ func (*BiomeDefinitionList) ID() uint32 {
 }
 
 func (pk *BiomeDefinitionList) Marshal(io protocol.IO) {
+	// 读取方向：优先走网易 1.21.120 自适应解析（多候选布局 + payload 精确
+	// 耗尽判据）。全部候选失配时退回原解析（panic 由上层 recover 容错，
+	// 连接保持，包被跳过）——行为不比现状差，成功则真正修复 StartGame 序列。
+	if r, ok := io.(*protocol.Reader); ok {
+		if defs, strs, ok := protocol.ReadBiomeDefinitionListAdaptive(r); ok {
+			pk.BiomeDefinitions = defs
+			pk.StringList = strs
+			return
+		}
+	}
 	protocol.Slice(io, &pk.BiomeDefinitions)
 	protocol.FuncSlice(io, &pk.StringList, io.String)
 }

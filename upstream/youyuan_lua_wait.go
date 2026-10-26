@@ -4,10 +4,21 @@ import (
 	"context"
 	"fmt"
 	lua "github.com/yuin/gopher-lua"
+	"strings"
 	"time"
 )
 
 type yyLuaWaitKey struct{}
+
+func yyLuaCaller(L *lua.LState) string {
+	for level := 1; level <= 16; level++ {
+		where := L.Where(level)
+		if where == "" || !strings.HasPrefix(where, "[G]") {
+			return where
+		}
+	}
+	return "Lua caller unavailable"
+}
 
 // Only Go I/O can run outside the VM lock. All Lua inputs must be copied before
 // calling this function; no Lua values or stack operations occur in operation.

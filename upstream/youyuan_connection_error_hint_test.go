@@ -14,7 +14,7 @@ func TestConnectionExpiredServerDoesNotBecomeCredentialFailure(t *testing.T) {
 	if !strings.Contains(yyConnectionActionHint("server_expired"), "服务器已过期") {
 		t.Fatal("missing actionable reason")
 	}
-	if got := yyConnectionRetryDelay(10*time.Second, 245, message); got != 5*time.Minute {
+	if got := yyConnectionRetryDelay(10*time.Second, 245, message); got != 45*time.Second {
 		t.Fatalf("existing bounded retry changed: %s", got)
 	}
 	if got := yyConnectionErrorKind("认证 HTTP 400: 请先登录"); got != "credential_rejected" {

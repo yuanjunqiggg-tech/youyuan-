@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OmineDev/flowers-for-machines/core/minecraft"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/game_control/game_interface"
@@ -78,41 +79,34 @@ func init() {
 // 仅在设置 auto_creative 显式开启时保持创造模式 + 飞行。
 // 只在第一次需要时创建一次，后续复用。
 //
-// 注意：不要在持锁时执行 NewGameInterface，它涉及网络初始化（1-3 秒），
-// 会阻塞心跳导致机器人卡死。先释放锁再初始化，初始化完再写回。
+// 初始化会注册监听器和维护器；独立串行化，避免重复注册，也不占用心跳状态锁。
 func (bm *BotManager) getGameInterface() (*game_interface.GameInterface, error) {
-	bm.mu.Lock()
-	if bm.gameInterface != nil {
-		bm.mu.Unlock()
-		return bm.gameInterface, nil
-	}
-	if bm.resources == nil {
-		bm.mu.Unlock()
-		return nil, fmt.Errorf("resources 未就绪")
-	}
-	resources := bm.resources
-	bm.mu.Unlock() // ← 先释放锁，再执行慢网络初始化
-
-	gi, err := game_interface.NewGameInterface(resources, &yyBotMaintainer{bm: bm})
-	if err != nil {
-		return nil, fmt.Errorf("创建 game_interface: %v", err)
-	}
-	// 注入兜底链作为 querytarget 的兜底：NBT 操作台初始化（TouchMaintainer→getBotPos）
-	// 依赖 querytarget 查自身坐标，首次进服/刚传送/多机并发时命令不稳会整块失败。
-	// 兜底顺序：委托兄弟机器人代为查询 → 本地数据包坐标（与 handleFlyPosition 降级一致）。
-	gi.Movement().SetLocalPositionProvider(bm.querySelfFallback)
-	gi.SetStructureReader(func(pos, size protocol.BlockPos) (map[string]any, error) {
-		return bm.RequestStructure([3]int32(pos), [3]int32(size), 5*time.Second)
+	gi, created, err := bm.loadGameInterface(func(resources *resources_control.Resources, conn *minecraft.Conn) (*game_interface.GameInterface, error) {
+		maintainer := &yyBotMaintainer{bm: bm, conn: conn}
+		gi, err := game_interface.NewGameInterface(resources, maintainer)
+		if err != nil {
+			return nil, err
+		}
+		gi.Movement().SetLocalPositionProvider(func() ([3]float32, bool) {
+			if !maintainer.currentSession() {
+				return [3]float32{}, false
+			}
+			return bm.querySelfFallback()
+		})
+		gi.SetStructureReader(func(pos, size protocol.BlockPos) (map[string]any, error) {
+			if !maintainer.currentSession() {
+				return nil, fmt.Errorf("区域读取所属连接已结束")
+			}
+			return bm.requestStructureContext(conn.Context(), [3]int32(pos), [3]int32(size), 5*time.Second)
+		})
+		return gi, nil
 	})
-
-	bm.mu.Lock()
-	bm.gameInterface = gi
-	bm.mu.Unlock()
+	if err != nil || !created {
+		return gi, err
+	}
 	if m, ok := gi.Maintainer().(*yyBotMaintainer); ok {
 		m.startWatchdog(gi)
 	}
-	// A reconnect may already be in survival and never send another mode-change
-	// packet. Apply the user's enabled maintenance policy once on initialization.
 	go func() {
 		if m := gi.Maintainer(); m != nil {
 			if err := m.TouchMaintainer(gi); err != nil {
@@ -121,6 +115,45 @@ func (bm *BotManager) getGameInterface() (*game_interface.GameInterface, error) 
 		}
 	}()
 	return gi, nil
+}
+
+func (bm *BotManager) loadGameInterface(create func(*resources_control.Resources, *minecraft.Conn) (*game_interface.GameInterface, error)) (*game_interface.GameInterface, bool, error) {
+	bm.mu.Lock()
+	gi := bm.gameInterface
+	bm.mu.Unlock()
+	if gi != nil {
+		return gi, false, nil
+	}
+	bm.gameInterfaceInitMu.Lock()
+	defer bm.gameInterfaceInitMu.Unlock()
+	bm.mu.Lock()
+	gi, resources, conn := bm.gameInterface, bm.resources, bm.conn
+	connected := bm.connected
+	bm.mu.Unlock()
+	if gi != nil {
+		return gi, false, nil
+	}
+	if resources == nil || conn == nil || !connected {
+		return nil, false, fmt.Errorf("当前连接的 resources 未就绪")
+	}
+	gi, err := create(resources, conn)
+	if err != nil {
+		return nil, false, fmt.Errorf("创建 game_interface: %v", err)
+	}
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	if bm.conn != conn || bm.resources != resources || !bm.connected {
+		return nil, false, fmt.Errorf("连接已更换，丢弃旧 game_interface 初始化结果")
+	}
+	bm.gameInterface = gi
+	return gi, true, nil
+}
+
+// Called under bm.mu on disconnect and both rental/room connection replacement paths.
+func (bm *BotManager) resetGameInterfacesLocked() {
+	bm.gameInterface, bm.resources = nil, nil
+	bm.nbtAssigner, bm.nbtConsole = nil, nil
+	bm.nbtWorkspaceEpoch++
 }
 
 // localSelfPos 返回本地数据包追踪的自身坐标，作为 getBotPos 里 querytarget 失败的兜底。
@@ -214,11 +247,15 @@ func (bm *BotManager) ensureGameInterfaceWithRetry() int {
 // 同一个 import 任务复用一个 NBTAssigner，避免每次重建 Console 和 Cache
 // 导致大量网络操作（TP、fill、clear）和内存分配。
 func (bm *BotManager) getNBTAssigner(center protocol.BlockPos) (*nbt_assigner.NBTAssigner, error) {
+	bm.nbtAssignerInitMu.Lock()
+	defer bm.nbtAssignerInitMu.Unlock()
 	bm.mu.Lock()
 	if bm.nbtAssigner != nil {
+		assigner := bm.nbtAssigner
 		bm.mu.Unlock()
-		return bm.nbtAssigner, nil
+		return assigner, nil
 	}
+	conn, epoch := bm.conn, bm.nbtWorkspaceEpoch
 	bm.mu.Unlock()
 
 	console, err := bm.getNBTConsole(center)
@@ -230,21 +267,32 @@ func (bm *BotManager) getNBTAssigner(center protocol.BlockPos) (*nbt_assigner.NB
 	assigner := nbt_assigner.NewNBTAssigner(console, cache)
 
 	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	if bm.conn != conn || bm.nbtWorkspaceEpoch != epoch || bm.nbtConsole != console {
+		return nil, fmt.Errorf("连接或NBT作业已更换，丢弃旧分配器初始化结果")
+	}
 	bm.nbtAssigner = assigner
-	bm.mu.Unlock()
 	return assigner, nil
 }
 
 // getNBTConsole 返回 NBT 操作台，需要时创建。
 func (bm *BotManager) getNBTConsole(center protocol.BlockPos) (*nbt_console.Console, error) {
+	return bm.loadNBTConsole(center, nbt_console.NewConsole)
+}
+
+func (bm *BotManager) loadNBTConsole(center protocol.BlockPos, create func(*game_interface.GameInterface, uint8, protocol.BlockPos) (*nbt_console.Console, error)) (*nbt_console.Console, error) {
+	bm.nbtConsoleInitMu.Lock()
+	defer bm.nbtConsoleInitMu.Unlock()
 	if center == (protocol.BlockPos{}) {
 		center = protocol.BlockPos{9999, 100, 9999}
 	}
 	bm.mu.Lock()
 	if bm.nbtConsole != nil {
+		console := bm.nbtConsole
 		bm.mu.Unlock()
-		return bm.nbtConsole, nil
+		return console, nil
 	}
+	conn, epoch, dim := bm.conn, bm.nbtWorkspaceEpoch, bm.commandDimension
 	bm.mu.Unlock()
 
 	gi, err := bm.getGameInterface()
@@ -252,18 +300,24 @@ func (bm *BotManager) getNBTConsole(center protocol.BlockPos) (*nbt_console.Cons
 		return nil, err
 	}
 	bm.mu.Lock()
-	dim := bm.commandDimension
+	current := bm.conn == conn && bm.nbtWorkspaceEpoch == epoch && bm.gameInterface == gi
 	bm.mu.Unlock()
+	if !current {
+		return nil, fmt.Errorf("连接或NBT作业已更换，未创建旧操作台")
+	}
 
 	dimID := uint8(dimNameToID(dim))
 
-	console, err := nbt_console.NewConsole(gi, dimID, center)
+	console, err := create(gi, dimID, center)
 	if err != nil {
 		return nil, err
 	}
 	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	if bm.conn != conn || bm.nbtWorkspaceEpoch != epoch || bm.gameInterface != gi {
+		return nil, fmt.Errorf("连接或NBT作业已更换，丢弃旧操作台初始化结果")
+	}
 	bm.nbtConsole = console
-	bm.mu.Unlock()
 	return console, nil
 }
 
@@ -553,6 +607,7 @@ func (bm *BotManager) cleanupNBTWorkspace() {
 	bm.mu.Lock()
 	bm.nbtAssigner = nil
 	bm.nbtConsole = nil
+	bm.nbtWorkspaceEpoch++
 	bm.mu.Unlock()
 }
 

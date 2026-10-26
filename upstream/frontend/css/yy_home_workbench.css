@@ -1,0 +1,114 @@
+/* 主页 — 工作台（任务书第 3 部分）
+   旧版：8 个等大方形卡片（grid-2 / grid-card）排在最前，任务列表压到最后。
+   新版顺序：状态条 → 当前任务 → 常用 → 最近活动 → 全部功能。
+   行列表复用 yy_tools_browser.css 的 .yyt-row（同一套视觉语言），
+   这里只补状态条、区块间距和任务状态徽章。 */
+
+.hm { display: flex; flex-direction: column; gap: 16px; padding: 2px 0 24px; }
+
+/* A. 全局状态条：一行读完 服务器 / 连接 / OP / 延迟 */
+.hm-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 13px;
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  background: var(--phx-bg-card);
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.hm-dot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--phx-text-secondary, #8a949c);
+  opacity: .55;
+}
+.hm-dot[data-on="1"] { background: #2ea36b; opacity: 1; box-shadow: 0 0 0 3px rgba(46, 163, 107, .14); }
+.hm-status strong { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.hm-badge {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(20, 126, 130, .12);
+  color: var(--phx-primary);
+}
+.hm-rtt {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--phx-text-secondary, #8a949c);
+}
+
+/* 手动刷新（15 秒冷却）：用户点一下立即拉统一快照，冷却由 yyManualRefresh 控制 */
+.hm-refreshwrap {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.hm-status .hm-rtt + .hm-refreshwrap { margin-left: 8px; }
+.hm-autonote {
+  font-size: 10.5px;
+  color: var(--phx-text-secondary, #8a949c);
+  white-space: nowrap;
+}
+.hm-refresh {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 4px 11px;
+  border: 1px solid var(--phx-border);
+  border-radius: 8px;
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, transform .06s ease;
+}
+.hm-refresh:hover { border-color: var(--phx-primary); color: var(--phx-primary); }
+.hm-refresh:active { transform: scale(.96); }
+.hm-refresh:focus-visible { outline: 2px solid var(--phx-primary); outline-offset: 2px; }
+
+/* B/C/D/E. 区块：标题用工具页同一套 .yyt-cat-title，行直接复用 .yyt-row */
+.hm-block { display: block; }
+.hm .yyt-row { border-radius: 0; }
+.hm .yyt-empty { margin: 2px 2px 0; padding: 14px 2px; }
+
+/* 任务行的状态徽章：components.css 里那套挂在 .tsk-item 下，这里不复用容器，
+   只把四个状态色搬过来，避免为了一个徽章把整行塞进旧的任务列表结构。 */
+.hm-task .tsk-status {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.hm-task .tsk-status.running { background: var(--phx-primary-bg); color: var(--phx-primary); }
+.hm-task .tsk-status.done { background: rgba(111, 186, 44, .12); color: var(--phx-success); }
+.hm-task .tsk-status.failed { background: rgba(224, 90, 90, .12); color: var(--phx-error); }
+.hm-task .tsk-status.paused { background: rgba(245, 166, 35, .12); color: var(--phx-warning); }
+
+/* 任务行里的图标略小于工具行：任务名通常更长，优先给文字留宽度 */
+.hm-task .yyt-ico { flex-basis: 30px; width: 30px; height: 30px; }
+.hm-task .yyt-ico svg { width: 17px; height: 17px; }
+
+/* 320px：状态条允许换行，延迟数字不挤压服务器名 */
+@media (max-width: 359px) {
+  .hm-status { flex-wrap: wrap; gap: 6px 8px; }
+  .hm-rtt { margin-left: 0; }
+}

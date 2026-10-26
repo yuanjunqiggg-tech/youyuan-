@@ -1,13 +1,41 @@
 (function() {
   "use strict";
   const labels = { lua: "Lua", wordbank: "\u8BCD\u5E93", python: "Python", native_cpp: "C++" };
-  const states = { running: "\u8FD0\u884C\u4E2D", waiting: "\u7B49\u5F85\u8FDE\u63A5", stopped: "\u672A\u542F\u52A8", disabled: "\u5DF2\u505C\u7528", error: "\u5F02\u5E38", workspace: "\u5F00\u53D1\u4E2D" };
+  const states = { running: "\u8FD0\u884C\u4E2D", waiting: "\u7B49\u5F85\u8FDE\u63A5", stopped: "\u672A\u542F\u52A8", disabled: "\u5DF2\u505C\u7528", error: "\u5F02\u5E38", workspace: "\u521B\u4F5C\u8349\u7A3F" };
   const scopes = /* @__PURE__ */ new Map();
   let sequence = 0;
   const pendingClicks = /* @__PURE__ */ new Set();
   const actionIcons = { create: "plus", imports: "upload", market: "globe", refresh: "loop", directory: "folder", runtimeDirectory: "folder", backup: "file", runtimeExport: "file", delete: "trash", runtimeDelete: "trash", reload: "loop", chainTool: "next", downloads: "folder" };
   const icon = (name) => typeof ICONS === "object" && ICONS[name] ? '<span class="yps-icon" aria-hidden="true">' + ICONS[name] + "</span>" : "";
   const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+  // 「随服务器连接自动启动插件」开关。后端 config.plugin_auto_start 为 nil 时按开启处理，
+  // 所以这里用 null 表示"还没读到"，读不到就按开启渲染，避免误显示成关闭。
+  let pluginAutoStart = null;
+  async function yyPluginAutoStartLoad() {
+    const r = await A("GET", "/api/config");
+    if (r && r.ok && r.config) {
+      pluginAutoStart = r.config.plugin_auto_start === false ? false : true;
+      const box = document.getElementById("yy-plugin-autostart");
+      if (box) box.checked = pluginAutoStart;
+    }
+  }
+  async function yyPluginAutoStartToggle(checked) {
+    const current = await A("GET", "/api/config");
+    if (!current || !current.ok || !current.config) {
+      T("读取配置失败，开关未保存", "e");
+      return;
+    }
+    const next = Object.assign({}, current.config, { plugin_auto_start: checked === true });
+    const r = await A("POST", "/api/config", next);
+    if (r && r.ok) {
+      pluginAutoStart = checked === true;
+      T(checked ? "已开启：连上服务器后自动加载插件" : "已关闭：连上服务器后不再自动加载插件", "o");
+    } else {
+      const box = document.getElementById("yy-plugin-autostart");
+      if (box) box.checked = pluginAutoStart !== false;
+      T((r && r.error) || "保存失败", "e");
+    }
+  }
   const scope = () => yyReadScope();
   const admin = () => typeof yyAccountAdmin === "function" ? yyAccountAdmin() : typeof yyPlatformUser === "object" && (yyPlatformUser == null ? void 0 : yyPlatformUser.role) === "admin";
   function errorHint(error) {
@@ -150,30 +178,74 @@
     html += '<div class="yps-detail-section yps-danger-zone"><h4>\u5371\u9669\u64CD\u4F5C</h4><div class="yps-actions">' + button("delete", "\u5220\u9664\u63D2\u4EF6", [p.id], "yps-danger") + '</div><p class="yps-note">\u5220\u9664\u4F1A\u79FB\u9664\u4EE3\u7801\u3001\u914D\u7F6E\u4E0E\u6570\u636E\uFF0C\u65E0\u6CD5\u64A4\u9500\u3002\u5220\u9664\u524D\u8BF7\u5148\u300C\u5907\u4EFD ZIP\u300D\u3002</p></div>';
     return html;
   }
+  function kv(pairs) {
+    const items = pairs.filter(([, value]) => value !== "" && value != null);
+    if (!items.length) return "";
+    return '<dl class="yps-kv">' + items.map(([key, value]) => "<div><dt>" + esc(key) + "</dt><dd>" + esc(value) + "</dd></div>").join("") + "</dl>";
+  }
+  function runStateText(p) {
+    const raw = p.raw || {};
+    if (raw.disabled) return "已停用";
+    if (raw.running || p.instances.length) return "正在运行";
+    if (p.state === "error") return "上次启动失败";
+    return "未在运行";
+  }
+  function metricsHTML(p) {
+    if (!p.instances.length) return '<p class="yps-note">插件未运行，暂无运行指标。</p>';
+    return '<dl class="yps-kv">' + p.instances.map((i) => {
+      const name = i.account === "main" ? "主账号" : i.account;
+      return "<div><dt>" + esc(name) + "</dt><dd>已处理 " + Number(i.processed || 0) + " · 失败 " + Number(i.failures || 0) + " · 丢弃 " + Number(i.dropped || 0) + " · 队列 " + Number(i.queue_depth || 0) + "/" + Number(i.queue_capacity || 0) + "</dd></div>";
+    }).join("") + "</dl>";
+  }
+  function instanceRow(p, i) {
+    const name = i.account === "main" ? "主账号" : i.account;
+    return '<div class="yps-instance"><div><strong>' + esc(name) + "</strong><span>" + (i.last_error ? "需要检查" : "正在运行") + "</span>" + (i.last_error ? '<p class="yps-error">' + errorHint(i.last_error) + "</p>" + diagnostics(i.last_error, p.id) : "") + '</div><div class="yps-actions">' + button("runtime", "触发", [p.id, i.account, "event"]) + button("panel", "控制面板", [p.id, i.account]) + button("runtime", "重新加载", [p.id, i.account, "restart"]) + button("runtime", "停止", [p.id, i.account, "stop"]) + "</div></div>";
+  }
   function detail(p) {
-    let html = '<div class="yps-detail" id="yps-detail-' + esc(p.key) + '"><div class="yps-detail-info">' + (p.name.length > 25 ? "<strong>" + esc(p.name) + "</strong>" : "") + "<p>" + esc(p.description || "\u6B64\u63D2\u4EF6\u672A\u586B\u5199\u8BF4\u660E\u3002") + "</p>" + (p.version ? "<span>\u7248\u672C\uFF1A" + esc(p.version) + "</span>" : "") + "</div>";
+    const raw = p.raw || {};
+    const language = labels[p.language] || p.language || "其他";
+    let html = '<div class="yps-detail" id="yps-detail-' + esc(p.key) + '">';
+    let overview = [];
+    if (p.kind === "compat") overview = [["标识", p.id], ["类型", language + " 兼容插件"], ["版本", p.version ? "v" + p.version : ""], ["运行状态", runStateText(p)]];
+    else if (p.kind === "runtime") overview = [["标识", p.id], ["类型", language + " 常驻插件"], ["版本", p.version ? "v" + p.version : ""], ["入口", raw.entry || ""], ["事件", (raw.events || []).join("、")], ["依赖", raw.dependencies ? Object.keys(raw.dependencies).join("、") : ""]];
+    else overview = [["标识", p.id], ["类型", "创作草稿 · " + language], ["状态", raw.state || "等待编辑"]];
+    html += '<div class="yps-detail-section"><h4>概览</h4>' + kv(overview) + '<p class="yps-note">' + esc(p.description || "此插件未填写说明。") + "</p></div>";
     if (p.kind === "compat") {
-      if (p.raw.error) html += '<p class="yps-error">' + errorHint(p.raw.error) + "</p>" + diagnostics(p.raw.error, p.id);
-      html += '<div class="yps-detail-section"><h4>\u7F16\u8F91\u4E0E\u8D44\u6599</h4><div class="yps-actions">' + button("edit", "\u7F16\u8F91\u4EE3\u7801", [p.id]) + (p.language === "lua" ? button("assist", "AI \u5E2E\u5199", [p.id]) : "") + button("config", "\u914D\u7F6E", [p.id]) + button("directory", "\u6587\u4EF6\u4E0E\u6570\u636E", [p.id]) + button("rename", "\u540D\u79F0\u4E0E\u8BF4\u660E", [p.id, p.name, p.raw.description || ""]) + "</div></div>";
-      html += maintenanceGroups(p);
-      html += '<details class="yps-doc"><summary>\u64CD\u4F5C\u6587\u6863</summary><pre>' + esc(p.raw.docs || "\u6B64\u63D2\u4EF6\u6682\u672A\u63D0\u4F9B\u64CD\u4F5C\u6587\u6863\u3002") + "</pre></details>";
+      if (raw.error) html += '<div class="yps-detail-section"><h4>异常</h4><p class="yps-error">' + errorHint(raw.error) + "</p>" + diagnostics(raw.error, p.id) + "</div>";
+      html += '<div class="yps-detail-section"><h4>控制</h4>' + runStateLine(p) + '<div class="yps-actions">' + button(p.state === "disabled" ? "enable" : "switch", p.state === "disabled" ? "启用" : raw.running ? "停止" : "启动", [p.id, p.state !== "running" && !raw.running], raw.running ? "" : "yps-primary") + button("reload", "重新加载", [p.id]) + button(raw.disabled ? "enable" : "disable", raw.disabled ? "恢复自动启动" : "停用并关闭自动启动", [p.id]) + '</div><p class="yps-note">重新加载只重读代码，不影响自动启动设置；停用后本次与下次都不启动。</p></div>';
+      html += '<div class="yps-detail-section"><h4>配置与文件</h4><div class="yps-actions">' + button("edit", "编辑代码", [p.id]) + (p.language === "lua" ? button("assist", "AI 帮写", [p.id]) : "") + button("config", "配置", [p.id]) + button("directory", "文件与数据", [p.id]) + button("rename", "名称与说明", [p.id, p.name, raw.description || ""]) + "</div></div>";
+      html += '<div class="yps-detail-section"><h4>维护</h4><div class="yps-actions">' + button("backup", "备份 ZIP", [p.id]) + button("upload", "上传到市场", [p.id]) + '</div><p class="yps-note">备份包包含代码、配置与数据目录；上传到市场不会删除本地文件。</p></div>';
+      html += '<div class="yps-detail-section yps-danger-zone"><h4>危险操作</h4><div class="yps-actions">' + button("delete", "删除插件", [p.id], "yps-danger") + '</div><p class="yps-note">删除会移除代码、配置与数据，无法撤销。删除前请先「备份 ZIP」。</p></div>';
+      html += '<details class="yps-doc"><summary>操作文档</summary><pre>' + esc(raw.docs || "此插件暂未提供操作文档。") + "</pre></details>";
     } else if (p.kind === "runtime") {
-      html += '<div class="yps-detail-section"><h4>\u8D26\u53F7\u5B9E\u4F8B</h4>';
-      for (const i of p.instances) html += '<div class="yps-instance"><div><strong>' + esc(i.account === "main" ? "\u4E3B\u8D26\u53F7" : i.account) + "</strong><span>" + (i.last_error ? "\u9700\u8981\u68C0\u67E5" : "\u6B63\u5728\u8FD0\u884C") + "</span>" + (i.last_error ? '<p class="yps-error">' + errorHint(i.last_error) + "</p>" + diagnostics(i.last_error, p.id) : "") + '</div><div class="yps-actions">' + button("runtime", "\u89E6\u53D1", [p.id, i.account, "event"]) + button("panel", "\u63A7\u5236\u9762\u677F", [p.id, i.account]) + button("runtime", "\u91CD\u8F7D", [p.id, i.account, "restart"]) + button("runtime", "\u505C\u6B62", [p.id, i.account, "stop"]) + "</div></div>";
-      if (!p.instances.length) html += '<p class="yps-note">\u5F53\u524D\u6CA1\u6709\u8FD0\u884C\u5B9E\u4F8B\u3002\u542F\u52A8\u76EE\u6807\uFF1A' + esc(currentAccount()) + "\u3002</p>";
-      html += '<div class="yps-actions">' + button("runtime", "\u542F\u52A8\u5F53\u524D\u8D26\u53F7", [p.id, currentAccount(), "start"]) + button("runtimeEdit", "\u7F16\u8F91 / AI", [p.id, p.language]) + button("runtimeDirectory", "\u6587\u4EF6\u4E0E\u6570\u636E", [p.id]) + button("runtimeExport", "\u5BFC\u51FA ZIP", [p.id]) + button("runtimeDelete", "\u5220\u9664\u63D2\u4EF6", [p.id], "yps-danger") + "</div></div>";
+      const active = p.instances.length > 0;
+      html += '<div class="yps-detail-section"><h4>控制</h4>' + runStateLine(p) + '<div class="yps-actions">' + (active ? button("runtime", "触发一次", [p.id, currentAccount(), "event"], "yps-primary") + button("runtime", "重新加载", [p.id, currentAccount(), "restart"]) + button("runtime", "停止", [p.id, currentAccount(), "stop"]) : button("runtime", "启动当前账号", [p.id, currentAccount(), "start"], "yps-primary")) + button("panel", "控制面板", [p.id, currentAccount()]) + '</div><p class="yps-note">启动、停止与重新加载都会真实下发到内核，结果在列表行与下方状态条回显。</p></div>';
+      html += '<div class="yps-detail-section"><h4>账号实例</h4>';
+      if (p.instances.length) for (const i of p.instances) html += instanceRow(p, i);
+      else html += '<p class="yps-note">当前没有运行实例。启动目标账号：' + esc(currentAccount()) + "。</p>";
+      html += "</div>";
+      html += '<div class="yps-detail-section"><h4>运行指标</h4>' + metricsHTML(p) + '<p class="yps-note">内核只提供计数与最近一次错误，不保留历史日志文件；需要长期记录请在插件内自行落盘。</p></div>';
+      html += '<div class="yps-detail-section"><h4>配置与文件</h4><div class="yps-actions">' + button("runtimeDirectory", "文件与数据", [p.id]) + button("runtimeEdit", "编辑代码 / AI", [p.id, p.language]) + '</div><p class="yps-note">清单 manifest.json 与代码同在插件目录，改动后点「重新加载」生效。</p></div>';
+      html += '<div class="yps-detail-section"><h4>维护</h4><div class="yps-actions">' + button("runtimeExport", "导出 ZIP", [p.id]) + '</div><p class="yps-note">导出包含代码、配置与数据目录。</p></div>';
+      html += '<div class="yps-detail-section yps-danger-zone"><h4>危险操作</h4><div class="yps-actions">' + button("runtimeDelete", "删除插件", [p.id], "yps-danger") + '</div><p class="yps-note">删除会移除代码、配置与数据，无法撤销。删除前请先导出 ZIP。</p></div>';
     }
-    if (p.spaces.length) {
-      html += '<div class="yps-detail-section"><h4>\u521B\u4F5C\u8349\u7A3F' + (p.kind !== "workspace" ? " \xB7 \u5DF2\u5173\u8054" : "") + "</h4>";
-      for (const w of p.spaces) html += '<div class="yps-workspace"><div><strong>' + esc(w.name || w.id) + "</strong><span>" + esc(w.state || "\u7B49\u5F85\u7F16\u8F91") + '</span></div><div class="yps-actions">' + button("workspace", "\u4EE3\u7801", [w.id, "code"]) + button("workspace", "AI \u5E2E\u5199", [w.id, "agent"]) + button("archive", "\u5F52\u6863\u5DE5\u4F5C\u533A", [w.id]) + "</div></div>";
+    if (p.kind === "workspace") {
+      html += '<div class="yps-detail-section"><h4>创作草稿</h4><div class="yps-actions">' + button("workspace", "继续写代码", [p.id, "code"]) + button("workspace", "AI 帮写", [p.id, "agent"], "yps-primary") + button("archive", "归档草稿", [p.id]) + '</div><p class="yps-note">草稿不是已安装插件，完成后发布才会出现在插件列表。</p></div>';
+    }
+    if (p.spaces.length && p.kind !== "workspace") {
+      html += '<div class="yps-detail-section"><h4>创作草稿 · 已关联</h4>';
+      for (const w of p.spaces) html += '<div class="yps-workspace"><div><strong>' + esc(w.name || w.id) + "</strong><span>" + esc(w.state || "等待编辑") + '</span></div><div class="yps-actions">' + button("workspace", "代码", [w.id, "code"]) + button("workspace", "AI 帮写", [w.id, "agent"]) + button("archive", "归档工作区", [w.id]) + "</div></div>";
       html += "</div>";
     }
     return html + "</div>";
   }
   function row(p, state) {
-    const language = labels[p.language] || p.language || "\u5176\u4ED6";
-    const mark = { lua: "Lu", python: "Py", native_cpp: "C++", wordbank: "\u8BCD" }[p.language] || "\uFF0B";
-    return '<details class="yps-row" data-yps-language="' + esc(p.language) + '" data-yps-key="' + esc(p.key) + '" data-yy-plugin="' + esc(p.id) + '"' + (state.open.has(p.key) ? " open" : "") + '><summary aria-controls="yps-detail-' + esc(p.key) + '"><span class="yps-chevron" aria-hidden="true">\u203A</span><span class="yps-language" aria-hidden="true"><b>' + esc(mark) + '</b><i></i></span><span class="yps-identity"><strong>' + esc(p.name) + "</strong><small>" + esc(p.description || language + " \u63D2\u4EF6") + '</small><span class="yps-item-tags"><span>' + esc(language) + "</span>" + (p.version ? "<span>v" + esc(p.version) + "</span>" : "") + (p.spaces.length && p.kind !== "workspace" ? "<span>\u5DF2\u5173\u8054\u8349\u7A3F</span>" : "") + '</span></span><span class="yps-row-meta"><span class="yps-badge yps-state-' + p.state + '" data-yps-label="' + esc(stateLabel(p)) + '">' + esc(stateLabel(p)) + "</span><small>" + esc(p.kind === "workspace" ? "\u7B49\u5F85\u53D1\u5E03" : p.kind === "runtime" && p.instances.length ? p.instances.map((i) => i.account === "main" ? "\u4E3B\u8D26\u53F7" : i.account).join(" \xB7 ") : p.raw.running ? "\u63D2\u4EF6\u5DF2\u542F\u52A8" : "\u6309\u9700\u542F\u52A8") + '</small></span><span class="yps-primary-action">' + primary(p) + '</span></summary><p class="yps-row-status" role="status" hidden></p>' + detail(p) + "</details>";
+    const language = labels[p.language] || p.language || "其他";
+    const mark = { lua: "Lu", python: "Py", native_cpp: "C++", wordbank: "词" }[p.language] || "＋";
+    const version = p.version ? "v" + (p.version.length > 15 ? p.version.slice(0, 14) + "…" : p.version) : "";
+    const meta = [p.description || language + " 插件", version, p.spaces.length && p.kind !== "workspace" ? "已关联草稿" : ""].filter(Boolean).join(" · ");
+    const sub = p.kind === "workspace" ? "等待发布" : p.kind === "runtime" && p.instances.length ? p.instances.map((i) => i.account === "main" ? "主账号" : i.account).join(" · ") : p.state === "running" || p.state === "error" ? "" : p.raw.disabled ? "已停用自动启动" : "按需启动";
+    return '<details class="yps-row" data-yps-language="' + esc(p.language) + '" data-yps-key="' + esc(p.key) + '" data-yy-plugin="' + esc(p.id) + '"' + (state.open.has(p.key) ? " open" : "") + '><summary aria-controls="yps-detail-' + esc(p.key) + '"><span class="yps-chevron" aria-hidden="true">›</span><span class="yps-language" aria-hidden="true"><b>' + esc(mark) + '</b><i></i></span><span class="yps-identity"><strong>' + esc(p.name) + '</strong><small>' + esc(meta) + '</small></span><span class="yps-row-meta"><span class="yps-badge yps-state-' + p.state + '" data-yps-label="' + esc(stateLabel(p)) + '">' + esc(stateLabel(p)) + '</span><small>' + esc(sub) + '</small></span><span class="yps-primary-action">' + primary(p) + '</span></summary><p class="yps-row-status" role="status" hidden></p>' + detail(p) + '</details>';
   }
   function groups(rows, by) {
     const names = by === "language" ? labels : by === "source" ? { installed: "\u5DF2\u5B89\u88C5", linked: "\u5DF2\u5173\u8054\u66F4\u65B0", workspace: "\u521B\u4F5C\u8349\u7A3F" } : states;
@@ -216,7 +288,7 @@
     const running = state.rows.filter((p) => p.state === "running" || p.instances.length).length;
     const installed = state.rows.filter((p) => p.kind !== "workspace").length;
     const drafts = ((_a = data[0]) == null ? void 0 : _a.ok) ? (data[0].workspaces || []).filter((w) => w.language !== "mcfunction").length : "\u2014";
-    host.innerHTML = '<section class="yps-shell content-inner"><header class="yps-header"><div class="yps-title-wrap"><span class="yps-title-icon" aria-hidden="true">' + icon("folder") + '</span><div><span class="yps-eyebrow">\u6E38\u56ED\u5DE5\u5177\u7BB1 / \u6269\u5C55\u7BA1\u7406</span><h2>\u6211\u7684\u63D2\u4EF6</h2><p>\u5E38\u7528\u63D2\u4EF6\u968F\u624B\u542F\u52A8\uFF0C\u4EE3\u7801\u3001\u914D\u7F6E\u4E0E\u6587\u4EF6\u4E00\u5904\u7BA1\u7406\u3002</p></div></div><div class="yps-header-actions">' + button("imports", "\u5BFC\u5165\u63D2\u4EF6") + button("create", "\u521B\u5EFA\u63D2\u4EF6", [], "yps-primary") + '</div></header><div class="yps-overview"><div class="yps-metric yps-metric-installed">' + icon("folder") + "<div><strong>" + installed + '</strong><span>\u5DF2\u5B89\u88C5\u63D2\u4EF6</span></div></div><div class="yps-metric yps-metric-running">' + icon("radio") + "<div><strong>" + running + '</strong><span>\u6B63\u5728\u8FD0\u884C</span></div></div><div class="yps-metric yps-metric-drafts">' + icon("file") + "<div><strong>" + drafts + '</strong><span>\u521B\u4F5C\u8349\u7A3F</span></div></div><div class="yps-overview-note">' + button("refresh", "\u5237\u65B0\u72B6\u6001") + '<span>\u4EE5\u6700\u8FD1\u4E00\u6B21\u8BFB\u53D6\u4E3A\u51C6</span></div></div><div id="yy-plugin-operation-status" class="yps-operation" role="status" aria-live="polite" hidden></div><div id="yps-last-result" class="yps-result" role="status" aria-live="polite" hidden></div>' + (failures.length ? '<div class="yps-error yps-load-error" role="alert">' + failures.map((error) => esc(errorHint(error))).join("<br>") + diagnostics(failures.join("\n")) + "<p>\u90E8\u5206\u5217\u8868\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u8BF7\u5237\u65B0\u91CD\u8BD5\u3002</p></div>" : "") + '<div class="yps-layout"><aside class="yps-side"><span class="yps-section-label">\u63D2\u4EF6\u5E93</span><nav aria-label="\u63D2\u4EF6\u6765\u6E90">' + [["all", "\u5168\u90E8\u9879\u76EE"], ["installed", "\u5DF2\u5B89\u88C5"], ["linked", "\u5DF2\u5173\u8054\u66F4\u65B0"], ["workspace", "\u521B\u4F5C\u8349\u7A3F"]].map(([key, title]) => '<button type="button" data-yps-source="' + key + '" aria-pressed="' + (state.source === key) + '"><span>' + title + "</span><b>" + state.rows.filter((p) => key === "all" || (key === "installed" ? p.kind !== "workspace" : p.source === key)).length + "</b></button>").join("") + '</nav><div class="yps-discover"><span class="yps-section-label">\u53D1\u73B0\u4E0E\u5DE5\u5177</span>' + button("market", "\u6D4F\u89C8\u63D2\u4EF6\u5E02\u573A") + button("chainTool", "\u547D\u4EE4\u94FE\u5DE5\u5177") + '</div><details class="yps-resources"><summary>\u8D44\u6599\u4E0E\u5F00\u53D1</summary><div>' + button("library", "\u6211\u7684\u63D2\u4EF6\u5E02\u573A") + button("downloads", "\u63D2\u4EF6\u751F\u6210\u6587\u4EF6") + button("doc", "Python \u624B\u518C", ["python-runtime"]) + button("doc", "C++ \u624B\u518C", ["cpp-runtime"]) + '</div></details></aside><main class="yps-main"><div class="yps-toolbar"><label class="yps-search"><span>\u641C\u7D22\u63D2\u4EF6</span><span class="yps-search-field">' + icon("search") + '<input id="yps-search" type="search" autocomplete="off" placeholder="\u540D\u79F0\u3001\u8BF4\u660E\u6216\u8D26\u53F7\u2026" value="' + esc(state.query) + '"></span></label><div class="yps-selects">' + select("yps-language", "\u8BED\u8A00", { all: "\u5168\u90E8\u8BED\u8A00", ...labels }, state.language) + select("yps-state", "\u72B6\u6001", { all: "\u5168\u90E8\u72B6\u6001", ...states }, state.state) + select("yps-group", "\u5206\u7EC4", { state: "\u6309\u8FD0\u884C\u72B6\u6001", language: "\u6309\u8BED\u8A00", source: "\u6309\u6765\u6E90" }, state.group) + '</div></div><div class="yps-inventory-meta"><span id="yps-match-count"></span><span>\u5C55\u5F00\u67E5\u770B\u914D\u7F6E\u4E0E\u6587\u4EF6</span></div><div id="yps-inventory"></div><details class="yps-updates"><summary><span>' + icon("loop") + '\u6765\u6E90\u4E0E\u66F4\u65B0</span><small>\u68C0\u67E5\u7248\u672C \xB7 \u7BA1\u7406\u5173\u8054</small></summary><div><p class="yps-note">\u68C0\u67E5\u5DF2\u5173\u8054\u7684\u63D2\u4EF6\u7248\u672C\uFF0C\u6709\u66F4\u65B0\u540E\u518D\u51B3\u5B9A\u662F\u5426\u5B89\u88C5\u3002</p><div class="yps-actions"><button type="button" class="yps-button" id="yy-plugin-check" onclick="yyCheckPluginUpdates()">\u68C0\u67E5\u66F4\u65B0</button>' + button("sources", "\u5173\u8054\u66F4\u65B0\u6765\u6E90") + '</div><label class="yps-auto"><input id="yy-plugin-auto-check" type="checkbox"' + (prefs.auto === true ? " checked" : "") + '>\u8FDB\u5165\u63D2\u4EF6\u9875\u65F6\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0</label><div id="yy-plugin-update-result" role="status"></div></div></details><pre id="yy-runtime-result" hidden></pre></main></div></section>';
+    host.innerHTML = '<section class="yps-shell content-inner"><header class="yps-header"><div class="yps-title-wrap"><span class="yps-title-icon" aria-hidden="true">' + icon("folder") + '</span><div><h2>\u6211\u7684\u63D2\u4EF6</h2><p>\u5E38\u7528\u63D2\u4EF6\u968F\u624B\u542F\u52A8\uFF0C\u4EE3\u7801\u3001\u914D\u7F6E\u4E0E\u6587\u4EF6\u4E00\u5904\u7BA1\u7406\u3002</p></div></div><div class="yps-header-actions">' + button("imports", "\u5BFC\u5165\u63D2\u4EF6") + button("create", "\u521B\u5EFA\u63D2\u4EF6", [], "yps-primary") + '</div></header><div class="yps-overview"><div class="yps-metric yps-metric-running"><i class="yps-dot" data-tone="on" aria-hidden="true"></i><strong>' + running + '</strong><span>\u8FD0\u884C\u4E2D</span></div><div class="yps-metric yps-metric-installed"><i class="yps-dot" data-tone="off" aria-hidden="true"></i><strong>' + installed + '</strong><span>\u5DF2\u5B89\u88C5</span></div><div class="yps-metric yps-metric-drafts"><i class="yps-dot" data-tone="draft" aria-hidden="true"></i><strong>' + drafts + '</strong><span>\u8349\u7A3F</span></div><div class="yps-overview-note">' + '<label class="yps-auto yps-autostart" title="开启后，服务器连上并取得 OP 时自动加载所有未停用的插件"><input id="yy-plugin-autostart" type="checkbox"' + (pluginAutoStart === false ? "" : " checked") + '>随连接自动启动</label>' + button("refresh", "刷新") + '</div></div><div id="yy-plugin-operation-status" class="yps-operation" role="status" aria-live="polite" hidden></div><div id="yps-last-result" class="yps-result" role="status" aria-live="polite" hidden></div>' + (failures.length ? '<div class="yps-error yps-load-error" role="alert">' + failures.map((error) => esc(errorHint(error))).join("<br>") + diagnostics(failures.join("\n")) + "<p>\u90E8\u5206\u5217\u8868\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u8BF7\u5237\u65B0\u91CD\u8BD5\u3002</p></div>" : "") + '<div class="yps-layout"><aside class="yps-side"><span class="yps-section-label">\u63D2\u4EF6\u5E93</span><nav aria-label="\u63D2\u4EF6\u6765\u6E90">' + [["all", "\u5168\u90E8\u9879\u76EE"], ["installed", "\u5DF2\u5B89\u88C5"], ["linked", "\u5DF2\u5173\u8054\u66F4\u65B0"], ["workspace", "\u521B\u4F5C\u8349\u7A3F"]].map(([key, title]) => '<button type="button" data-yps-source="' + key + '" aria-pressed="' + (state.source === key) + '"><span>' + title + "</span><b>" + state.rows.filter((p) => key === "all" || (key === "installed" ? p.kind !== "workspace" : p.source === key)).length + "</b></button>").join("") + '</nav></aside><main class="yps-main"><div class="yps-toolbar"><label class="yps-search"><span>\u641C\u7D22\u63D2\u4EF6</span><span class="yps-search-field">' + icon("search") + '<input id="yps-search" type="search" autocomplete="off" placeholder="\u540D\u79F0\u3001\u8BF4\u660E\u6216\u8D26\u53F7\u2026" value="' + esc(state.query) + '"></span></label><div class="yps-selects">' + select("yps-language", "\u8BED\u8A00", { all: "\u5168\u90E8\u8BED\u8A00", ...labels }, state.language) + select("yps-state", "\u72B6\u6001", { all: "\u5168\u90E8\u72B6\u6001", ...states }, state.state) + select("yps-group", "\u5206\u7EC4", { state: "\u6309\u8FD0\u884C\u72B6\u6001", language: "\u6309\u8BED\u8A00", source: "\u6309\u6765\u6E90" }, state.group) + '</div></div><div class="yps-inventory-meta"><span id="yps-match-count"></span></div><div id="yps-inventory"></div><details class="yps-updates"><summary><span>' + icon("loop") + '\u6765\u6E90\u4E0E\u66F4\u65B0</span><small>\u68C0\u67E5\u7248\u672C \xB7 \u7BA1\u7406\u5173\u8054</small></summary><div><p class="yps-note">\u68C0\u67E5\u5DF2\u5173\u8054\u7684\u63D2\u4EF6\u7248\u672C\uFF0C\u6709\u66F4\u65B0\u540E\u518D\u51B3\u5B9A\u662F\u5426\u5B89\u88C5\u3002</p><div class="yps-actions"><button type="button" class="yps-button" id="yy-plugin-check" onclick="yyCheckPluginUpdates()">\u68C0\u67E5\u66F4\u65B0</button>' + button("sources", "\u5173\u8054\u66F4\u65B0\u6765\u6E90") + '</div><label class="yps-auto"><input id="yy-plugin-auto-check" type="checkbox"' + (prefs.auto === true ? " checked" : "") + '>\u8FDB\u5165\u63D2\u4EF6\u9875\u65F6\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0</label><div id="yy-plugin-update-result" role="status"></div></div></details><pre id="yy-runtime-result" hidden></pre></main><div class="yps-side-extra"><div class="yps-discover"><span class="yps-section-label">\u53D1\u73B0\u4E0E\u5DE5\u5177</span>' + button("market", "\u6D4F\u89C8\u63D2\u4EF6\u5E02\u573A") + button("chainTool", "\u547D\u4EE4\u94FE\u5DE5\u5177") + '<details class="yps-resources"><summary>\u8D44\u6599\u4E0E\u5F00\u53D1</summary><div>' + button("library", "\u6211\u7684\u63D2\u4EF6\u5E02\u573A") + button("downloads", "\u63D2\u4EF6\u751F\u6210\u6587\u4EF6") + button("doc", "Python \u624B\u518C", ["python-runtime"]) + button("doc", "C++ \u624B\u518C", ["cpp-runtime"]) + '</div></details></div></div></section>';
     host.querySelector("#yps-search").addEventListener("input", (event) => {
       state.query = event.target.value;
       paintRows();
@@ -231,6 +303,11 @@
       paintRows();
     }));
     host.querySelector("#yy-plugin-auto-check").addEventListener("change", (event) => yyPluginAutoCheck(event.target.checked));
+    const autostartBox = host.querySelector("#yy-plugin-autostart");
+    if (autostartBox) {
+      autostartBox.addEventListener("change", (event) => yyPluginAutoStartToggle(event.target.checked));
+      if (pluginAutoStart === null) yyPluginAutoStartLoad();
+    }
     host.querySelector(".yps-shell").addEventListener("click", click);
     paintRows();
     if (prefs.auto === true && Date.now() - (prefs.lastCheck || 0) > 15 * 60 * 1e3) yyCheckPluginUpdates();

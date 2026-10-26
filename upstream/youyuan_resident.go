@@ -26,12 +26,14 @@ type yyLuaResident struct {
 	stop                                           context.CancelFunc
 	senseQueue                                     chan yySenseDelivery
 	priorityQueue                                  chan yySenseDelivery
+	interactionQueue                               chan yySenseDelivery
 	queueLastWaitNS, queueMaxWaitNS                atomic.Int64
 	senseDone                                      chan struct{}
 	senseStop                                      sync.Once
 	senseDropped                                   atomic.Uint64
 	botReadyDelivered                              sync.Map
 	callbackCalls, callbackFailures                atomic.Uint64
+	callbackHandlers                               sync.Map
 	callbackLastNS, callbackMaxNS, callbackTotalNS atomic.Int64
 	activeHandler                                  atomic.Value
 	activeSince                                    atomic.Int64
@@ -45,24 +47,32 @@ type yySenseDelivery struct {
 	Plugin, Handler string
 	Args            []any
 	QueuedAt        time.Time
+	Interactive     bool
 }
 
-func yyQueueSenseLua(r *yyLuaResident, bm *BotManager, id, handler string, args []any) {
+func yyQueueSenseLua(r *yyLuaResident, bm *BotManager, id, handler string, args []any, interactive ...bool) {
 	select {
 	case <-r.senseDone:
 		return
 	default:
 	}
 	select {
-	case yySenseDeliveryQueue(r, args) <- yySenseDelivery{bm, id, handler, args, time.Now()}:
+	case yySenseDeliveryQueue(r, args, interactive...) <- yySenseDelivery{Bot: bm, Plugin: id, Handler: handler, Args: args, QueuedAt: time.Now()}:
 	case <-r.senseDone:
 	default:
 		r.senseDropped.Add(1)
 	}
 }
-func yySenseDeliveryQueue(r *yyLuaResident, args []any) chan yySenseDelivery {
+func yySenseDeliveryQueue(r *yyLuaResident, args []any, interactive ...bool) chan yySenseDelivery {
+	if len(interactive) > 0 && interactive[0] && r.interactionQueue != nil {
+		return r.interactionQueue
+	}
 	if len(args) > 0 {
 		if e, ok := args[0].(map[string]any); ok {
+			// Chat can wait for commands or prompts; do not hold the entity FIFO behind it.
+			if r.interactionQueue != nil && (e["_packet_type"] == "Text" || e["packet_type"] == "Text" || e["type"] == "chat" || e["type"] == "text") {
+				return r.interactionQueue
+			}
 			switch e["type"] {
 			case "hurt", "health", "death", "death_details", "player_kill", "respawn", "session_join", "session_leave", "dimension_change", "equipment":
 				if r.priorityQueue != nil {
@@ -132,7 +142,7 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool, sourceDirs .
 		yyLuaMu.Lock()
 	}
 	limits := yyObservationSettings()
-	r := &yyLuaResident{senseQueue: make(chan yySenseDelivery, limits.EventQueue), priorityQueue: make(chan yySenseDelivery, limits.PriorityQueue), senseDone: make(chan struct{})}
+	r := &yyLuaResident{senseQueue: make(chan yySenseDelivery, limits.EventQueue), priorityQueue: make(chan yySenseDelivery, limits.PriorityQueue), interactionQueue: make(chan yySenseDelivery, limits.PriorityQueue), senseDone: make(chan struct{})}
 	r.lifetime, r.stop = context.WithCancel(context.Background())
 	r.mu.Lock()
 	yyLuaStates[key] = r
@@ -189,6 +199,7 @@ func yyLoadResident(bm *BotManager, id, src string, secondary bool, sourceDirs .
 	} else {
 		go r.runSense()
 		go r.runSenseQueue(r.priorityQueue)
+		go r.runSenseQueue(r.interactionQueue)
 		// OP readiness may precede import or hot reload. Replay after all
 		// modules have defined their final callbacks, without re-running source.
 		connected := false
@@ -295,6 +306,10 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 	defer func() {
 		r.activeSince.Store(0)
 		ns := time.Since(started).Nanoseconds()
+		entry, _ := r.callbackHandlers.LoadOrStore(fnName, &yyHandlerStats{})
+		stats := entry.(*yyHandlerStats)
+		stats.Calls.Add(1)
+		stats.TotalNS.Add(ns)
 		if ns >= int64(100*time.Millisecond) {
 			r.lastSlowCallback.Store(map[string]any{"handler": fnName, "elapsed_ms": float64(ns) / 1e6, "started_at": started.Format(time.RFC3339Nano), "finished_at": time.Now().Format(time.RFC3339Nano), "includes_io_wait": true})
 		}
@@ -339,4 +354,9 @@ func yyCallResidentState(bm *BotManager, id, fnName string, args []any, exported
 		return nil, nil
 	}
 	return luaToGo(L.Get(-1)), nil
+}
+
+type yyHandlerStats struct {
+	Calls   atomic.Uint64
+	TotalNS atomic.Int64
 }

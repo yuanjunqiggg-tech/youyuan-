@@ -34,6 +34,7 @@ type Reader struct {
 	}
 	shieldID      int32
 	limitsEnabled bool
+	sliceBytes    uint64
 }
 
 // NewReader creates a new Reader using the io.ByteReader passed as underlying source to read bytes from.
@@ -664,6 +665,17 @@ func (r *Reader) checkByteLength(length uint32) {
 	if remaining, ok := r.r.(interface{ Len() int }); ok && uint64(length) > uint64(remaining.Len()) {
 		r.panicf("字节长度 %v 超出剩余数据 %v", length, remaining.Len())
 	}
+}
+
+// Count limits alone do not bound arrays of large or nested wire structures.
+// Keep an allocation budget even when compatibility limits are disabled.
+func (r *Reader) SliceAllocation(length uint32, elementSize uintptr) {
+	const max = 32 << 20
+	bytes := uint64(length) * uint64(elementSize)
+	if elementSize != 0 && bytes/uint64(elementSize) != uint64(length) || bytes > max-r.sliceBytes {
+		r.panicf("切片累计分配超出内存安全预算")
+	}
+	r.sliceBytes += bytes
 }
 
 // ShieldID returns the shield ID provided to the reader.

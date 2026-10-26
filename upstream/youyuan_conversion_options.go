@@ -12,11 +12,10 @@ import (
 )
 
 var yyConvertSelector = regexp.MustCompile(`^@[pares](\[[^\r\n]*\])?$`)
-var yyConvertTriple = regexp.MustCompile(`^[012],[01],[01]$`)
 var yyConvertBlockName = regexp.MustCompile(`^[a-z0-9_.:-]+$`)
 
 func yyConvertControl(line string) bool {
-	return line == "." || line == "!" || yyConvertTriple.MatchString(line) || strings.HasPrefix(line, "@") || strings.HasPrefix(line, "wait ") || strings.HasPrefix(line, "#组") || strings.HasPrefix(line, "#执行") || strings.HasPrefix(line, "#测试")
+	return line == "." || line == "!" || yyChainHeader.MatchString(line) || strings.HasPrefix(line, "@") || strings.HasPrefix(line, "wait ") || strings.HasPrefix(line, "#组") || strings.HasPrefix(line, "#执行") || strings.HasPrefix(line, "#测试")
 }
 
 // The explicit envelope retains empty borders; legacy array exports are also readable.

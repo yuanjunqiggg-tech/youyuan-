@@ -1,0 +1,308 @@
+# R102: 条件触发时开启20Hz快速批量111级下探；无任务时不得独立启动。地狱129/末地256/主世界318。
+1,0,0
+/scoreboard objectives add yy_surface_owner dummy
+/scoreboard objectives add yy_surface_age dummy
+.
+2,0,0 20
+# 每整轮开始前确认请求仍存在，不在上一轮尚未处理完时持续堆下探批次。
+@wait {"command":"testfor @a[tag=yy_surface_latched,tag=!yy_surface_cancel]","edge":false,"poll_ms":100}
+# Cancel pending/active marker by matching private owner scoreboard before any descent.
+# Cleanup works even if marker is high above the player.
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp] at @s as @a[tag=yy_surface_cancel] if score @s yy_surface_owner = @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=0.2,c=1] yy_surface_owner run tag @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=0.2,c=1] add yy_surface_cleanup
+/kill @e[type=armor_stand,name="YY_SURFACE_R83",tag=yy_surface_cleanup]
+# R97: Bedrock dimension-local selector; no Java if dimension
+/tag @a[tag=yy_surface_latched] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_latched] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_latched] remove yy_surface_dim_overworld
+/execute in nether positioned 0 -100 0 as @a[rm=1,tag=yy_surface_latched,tag=!yy_surface_cancel] run tag @s add yy_surface_dim_nether
+/execute in the_end positioned 0 -100 0 as @a[rm=1,tag=yy_surface_latched,tag=!yy_surface_cancel] run tag @s add yy_surface_dim_end
+/execute in overworld positioned 0 -100 0 as @a[rm=1,tag=yy_surface_latched,tag=!yy_surface_cancel] run tag @s add yy_surface_dim_overworld
+/scoreboard players set @a[tag=yy_surface_latched,tag=!yy_surface_spawn_issued] yy_surface_age 0
+/scoreboard players random @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] yy_surface_owner 1 2000000000
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel,tag=!yy_surface_spawn_issued] at @s run summon armor_stand "YY_SURFACE_R83" ~ ~ ~
+/tag @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] add yy_surface_spawn_issued
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] at @s run scoreboard players operation @e[type=armor_stand,name="YY_SURFACE_R83",tag=!surface_tp,r=1,c=1] yy_surface_owner = @s yy_surface_owner
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] at @s run tag @e[type=armor_stand,name="YY_SURFACE_R83",tag=!surface_tp,r=1,c=1] add surface_tp
+/execute as @a[tag=yy_surface_latched,tag=!return_surface,tag=!yy_surface_cancel] at @s if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=1,c=1] run tag @s add return_surface
+# R98 fix: Nether uses a single teleport to Y=129 on the following line; Duplicated teleport caused the stand to leave r=2 selection.
+/execute as @a[tag=return_surface,tag=yy_surface_dim_nether,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s run tp @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] ~ 129 ~
+/execute as @a[tag=return_surface,tag=yy_surface_dim_end,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s run tp @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] ~ 256 ~
+/execute as @a[tag=return_surface,tag=yy_surface_dim_overworld,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s run tp @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] ~ 318 ~
+/execute as @a[tag=return_surface,tag=yy_surface_dim_nether,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s positioned ~ 129 ~ if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] run tag @s add yy_surface_top
+/execute as @a[tag=return_surface,tag=yy_surface_dim_end,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s positioned ~ 256 ~ if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] run tag @s add yy_surface_top
+/execute as @a[tag=return_surface,tag=yy_surface_dim_overworld,tag=!yy_surface_top,tag=!yy_surface_cancel] at @s positioned ~ 318 ~ if entity @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,r=2,c=1] run tag @s add yy_surface_top
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,tag=!yy_surface_active] at @s positioned ~ 129 ~ if entity @s[r=0.2] run tag @s add yy_surface_active
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,tag=!yy_surface_active] at @s positioned ~ 256 ~ if entity @s[r=0.2] run tag @s add yy_surface_active
+/execute as @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp,tag=!yy_surface_active] at @s positioned ~ 318 ~ if entity @s[r=0.2] run tag @s add yy_surface_active
+/scoreboard players reset @a[tag=return_surface,scores={雪球菜单=2}] 雪球菜单
+/scoreboard players add @a[tag=yy_surface_latched] yy_surface_age 1
+/scoreboard players add @e[type=armor_stand,tag=yy_surface_active] yy_surface_age 1
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s if block ~ ~ ~ air if block ~ ~1 ~ air unless block ~ ~-1 ~ air unless block ~ ~-1 ~ lava unless block ~ ~-1 ~ water run tag @s add yy_surface_ready
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=!yy_surface_ready] at @s run tp @s ~ ~-1 ~
+0,0,0
+/execute as @e[type=armor_stand,tag=yy_surface_active,tag=yy_surface_ready] at @s as @a[tag=return_surface,tag=!yy_surface_cancel] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run tp @s ~ ~ ~
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s unless block ~ ~-1 ~ air as @a[tag=return_surface] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner if entity @s[r=2] run tag @s add yy_surface_done
+/execute as @a[tag=yy_surface_done] run titleraw @s actionbar {"rawtext":[{"text":"§b✦ 已安全返回地面"}]}
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s as @a[tag=yy_surface_done] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run tag @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] add yy_surface_cleanup
+/kill @e[type=armor_stand,tag=yy_surface_cleanup]
+/tag @a[tag=yy_surface_done] remove yy_surface_latched
+/tag @a[tag=yy_surface_done] remove return_surface
+/tag @a[tag=yy_surface_done] remove yy_surface_top
+/tag @a[tag=yy_surface_done] remove yy_surface_spawn_issued
+/tag @a[tag=yy_surface_done] remove yy_surface_confirm_sound
+/scoreboard players reset @a[tag=yy_surface_done] yy_surface_age
+/tag @a[tag=yy_surface_done] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_done] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_done] remove yy_surface_dim_overworld
+/tag @a[tag=yy_surface_done] remove yy_surface_done
+/tag @a[tag=yy_surface_latched,scores={yy_surface_age=25..}] add yy_surface_failed
+/execute as @a[tag=yy_surface_failed] run tellraw @s {"rawtext":[{"text":"§c寻找地面超时，已停止本次查找。"}]}
+/execute as @e[type=armor_stand,tag=yy_surface_active] at @s as @a[tag=yy_surface_failed] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run tag @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] add yy_surface_cleanup
+/kill @e[type=armor_stand,tag=yy_surface_cleanup]
+/tag @a[tag=yy_surface_failed] remove yy_surface_latched
+/tag @a[tag=yy_surface_failed] remove return_surface
+/tag @a[tag=yy_surface_failed] remove yy_surface_top
+/tag @a[tag=yy_surface_failed] remove yy_surface_spawn_issued
+/tag @a[tag=yy_surface_failed] remove yy_surface_confirm_sound
+/scoreboard players reset @a[tag=yy_surface_failed] yy_surface_age
+/tag @a[tag=yy_surface_failed] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_failed] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_failed] remove yy_surface_dim_overworld
+/tag @a[tag=yy_surface_failed] remove yy_surface_failed
+# Cancellation explicitly clears score, persistent latch and all session flags.
+/scoreboard players reset @a[tag=yy_surface_cancel,scores={雪球菜单=2}] 雪球菜单
+/tag @a[tag=yy_surface_cancel] remove return_surface
+/tag @a[tag=yy_surface_cancel] remove yy_surface_latched
+/tag @a[tag=yy_surface_cancel] remove yy_surface_top
+/tag @a[tag=yy_surface_cancel] remove yy_surface_spawn_issued
+/tag @a[tag=yy_surface_cancel] remove yy_surface_confirm_sound
+/tag @a[tag=yy_surface_cancel] remove yy_surface_cancel_sound
+/scoreboard players reset @a[tag=yy_surface_cancel] yy_surface_age
+/tag @a[tag=yy_surface_cancel] remove yy_surface_dim_nether
+/tag @a[tag=yy_surface_cancel] remove yy_surface_dim_end
+/tag @a[tag=yy_surface_cancel] remove yy_surface_dim_overworld
+/tag @a[tag=yy_surface_cancel] remove yy_surface_cancel
+# R97: cleanup only owned markers; 1Hz not repeated high-frequency scans
+/execute unless entity @a[tag=return_surface] run kill @e[type=armor_stand,name="YY_SURFACE_R83",tag=surface_tp]
+/kill @e[type=armor_stand,name="YY_SURFACE_R83",scores={yy_surface_age=25..}]
+# YY_R97_SURFACE_20261024

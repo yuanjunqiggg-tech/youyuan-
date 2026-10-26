@@ -1,0 +1,20 @@
+plugins { id 'com.android.application'; id 'com.chaquo.python' }
+android {
+ namespace 'org.youyuan.toolbox'
+ compileSdk 34
+ defaultConfig {
+  applicationId 'org.youyuan.toolbox'; minSdk 26; targetSdk 33; versionCode 1078; versionName '0.10.78'
+  ndk { abiFilters 'arm64-v8a', 'x86_64' }
+ }
+ buildTypes { release { minifyEnabled false } }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+ packaging { jniLibs { useLegacyPackaging true } }
+}
+chaquopy { defaultConfig { version '3.12'; buildPython System.getenv('YY_BUILD_PYTHON') ?: 'python' } }
+dependencies {
+ implementation 'androidx.webkit:webkit:1.9.0'
+ implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+ implementation 'dev.rikka.shizuku:api:13.1.5'
+ implementation 'dev.rikka.shizuku:provider:13.1.5'
+}
+

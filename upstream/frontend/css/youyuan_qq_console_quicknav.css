@@ -1,0 +1,90 @@
+/* 群服互通 · 手机端快捷跳转 + 助手面板输入框尺寸
+   与 youyuan_qq_console.css 共用 --yyq-* 令牌（令牌定义在那里，这里只取值）；
+   只作用于 #yyq-root 与 #yy-qq-assistant-panel，不动全局 input/textarea。 */
+
+/* ---------- 快捷跳转 chips（状态带下面一行，横滑） ---------- */
+.yyq-quicknav {
+  display: flex;
+  align-items: center;
+  gap: var(--yyq-gap-s, 8px);
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  margin: -4px 0 -2px;
+  padding: 0 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.yyq-quicknav::-webkit-scrollbar { display: none; }
+.yyq-quicknav[hidden] { display: none; }
+.yyq-quicknav-chip {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--yyq-line-2, #e7ecee);
+  border-radius: var(--yyq-radius-pill, 999px);
+  background: var(--yyq-surface, #fff);
+  color: var(--yyq-ink-2, #5f6f73);
+  font-size: var(--yyq-font-s, 12px);
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.yyq-quicknav-chip[hidden] { display: none; }
+.yyq-quicknav-chip:hover,
+.yyq-quicknav-chip:focus-visible {
+  border-color: var(--yyq-accent, #087f79);
+  color: var(--yyq-accent, #087f79);
+  background: var(--yyq-accent-weak, rgba(8, 127, 121, .1));
+  outline: none;
+}
+.yyq-quicknav-chip:active { transform: scale(.97); }
+
+/* 状态带是 sticky 的（top 6-8px，高 44-48px），跳过去别被它盖住 */
+#yyq-status,
+#yyq-caps,
+#yyq-skills,
+#yyq-access,
+#yyq-persona,
+#yyq-faces,
+#yyq-assistant { scroll-margin-top: 68px; }
+
+/* 技能等折叠块是「展开后才异步拉数据」，行是后插进来的。Chrome 的滚动锚定
+   会为了稳住视口里的锚点把 scrollTop 往上推 500px，导致点 chip 跳过去又被顶走。
+   折叠体内部不做锚定，内容只往下长，落点就停在 scroll-margin-top。 */
+#yyq-root .yyq-fold-body { overflow-anchor: none; }
+
+/* ---------- 助手面板输入框 ---------- */
+/* 原生 textarea 不写 width 就按 cols=20 排版，手机上只剩 150px 宽。
+   这里统一撑满面板宽度，并给一个能写人设的最小高度。 */
+#yy-qq-assistant-panel textarea {
+  width: 100%;
+  min-height: 88px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+#yy-qq-assistant-panel #yy-qq-ai-prompt { min-height: 132px; }
+#yy-qq-assistant-panel #yy-qq-ai-prompt,
+#yy-qq-assistant-panel textarea {
+  border-radius: var(--yyq-radius-sm, 8px);
+  font-size: var(--yyq-font-s, 12px);
+  line-height: 1.6;
+}
+
+@media (max-width: 560px) {
+  #yyq-status,
+  #yyq-caps,
+  #yyq-skills,
+  #yyq-access,
+  #yyq-persona,
+  #yyq-faces,
+  #yyq-assistant { scroll-margin-top: 60px; }
+
+  .yyq-quicknav { height: 38px; margin: -2px 0 0; }
+  .yyq-quicknav-chip { height: 32px; }
+}

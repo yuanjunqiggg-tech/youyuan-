@@ -41,3 +41,34 @@ func TestReaderRejectsTruncatedBytesAndKeepsValidPayload(t *testing.T) {
 		t.Fatal(v)
 	}
 }
+
+func TestComplexSliceAllocationRejectedBeforeMake(t *testing.T) {
+	r := NewReader(bytes.NewBuffer(nil), 0, false)
+	type bigElement [4096]byte
+	var values []bigElement
+	defer func() {
+		if recover() == nil {
+			t.Fatal("256 MiB array was not rejected before allocation")
+		}
+		if values != nil {
+			t.Fatal("allocated rejected array")
+		}
+	}()
+	FuncSliceOfLen(r, 65536, &values, func(*bigElement) {})
+}
+
+func TestSliceBudgetIsCumulativeAndClientListsAbove1024StillWork(t *testing.T) {
+	r := NewReader(bytes.NewBuffer(make([]byte, 1500)), 0, false)
+	var values []byte
+	FuncSliceOfLen(r, 1500, &values, r.Uint8)
+	if len(values) != 1500 {
+		t.Fatal(len(values))
+	}
+	r.SliceAllocation(1, 20<<20)
+	defer func() {
+		if recover() == nil {
+			t.Fatal("nested allocation budget bypassed")
+		}
+	}()
+	r.SliceAllocation(1, 20<<20)
+}

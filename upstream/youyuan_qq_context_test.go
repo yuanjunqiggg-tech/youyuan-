@@ -77,6 +77,36 @@ func TestQQMessageRouteRejectsUnknownLegacyGroup(t *testing.T) {
 	}
 }
 
+func TestQQGroupMessageCarriesPublicAvatarURL(t *testing.T) {
+	if got := yyQQMessageAvatarURL("onebot", "3184003950"); got != "https://q.qlogo.cn/g?b=qq&nk=3184003950&s=140" {
+		t.Fatal("onebot qq number avatar", got)
+	}
+	for _, bad := range [][2]string{{"qqofficial", "3184003950"}, {"onebot", "member-openid"}, {"onebot", "12"}, {"onebot", ""}} {
+		if got := yyQQMessageAvatarURL(bad[0], bad[1]); got != "" {
+			t.Fatal("avatar invented for", bad, got)
+		}
+	}
+	oldQQ, oldGroups := yyQQ, yyQQMessages.Groups
+	defer func() { yyQQ, yyQQMessages.Groups = oldQQ, oldGroups }()
+	yyQQMessages.Groups = map[string][]yyQQGroupMessage{}
+	yyQQ = yyQQConfig{GroupID: "g", Groups: []yyQQGroup{{ID: "g", Enabled: true}}, Adapter: "onebot"}
+	cf := yyQQSnapshot()
+	yyQQRememberGroupMessage(cf, "3184003950", "昵称", "在吗", "m1")
+	rows := yyQQRecentMessages(cf, 10)
+	if len(rows) != 1 || rows[0].Avatar != "https://q.qlogo.cn/g?b=qq&nk=3184003950&s=140" {
+		t.Fatal("recent message missing avatar", rows)
+	}
+	mux := http.NewServeMux()
+	yyQQMessageRoutes(mux)
+	r := httptest.NewRecorder()
+	mux.ServeHTTP(r, httptest.NewRequest("GET", "/api/qq/messages?group=g&limit=5", nil))
+	// Go 的 encoding/json 默认把 & 转义成 \u0026，浏览器 JSON.parse 会还原，按片段断言。
+	body := r.Body.String()
+	if !strings.Contains(body, `"avatar":"https://q.qlogo.cn/g?b=qq`) || !strings.Contains(body, "nk=3184003950") || !strings.Contains(body, "s=140") {
+		t.Fatal("route response missing avatar", body)
+	}
+}
+
 func TestQQNormalConversationStillStopsForOwner(t *testing.T) {
 	oldSessions, oldEpoch := yyQQCompanions.Sessions, yyQQCompanions.Epoch
 	defer func() { yyQQCompanions.Sessions = oldSessions; yyQQCompanions.Epoch = oldEpoch }()
@@ -88,7 +118,7 @@ func TestQQNormalConversationStillStopsForOwner(t *testing.T) {
 	cf.Assistant.CompanionAllMessages = true
 	cf.Assistant.CompanionOwner = "owner"
 	now := time.Now()
-	key, epoch, seq, _, ok := yyQQCompanionBegin(cf, "member", "晚上好", false, now)
+	key, epoch, seq, _, ok, _ := yyQQCompanionBegin(cf, "member", "晚上好", false, now)
 	if !ok {
 		t.Fatal("ordinary message not accepted")
 	}
@@ -96,7 +126,7 @@ func TestQQNormalConversationStillStopsForOwner(t *testing.T) {
 	if yyQQCompanionCurrent(cf, key, epoch, seq, now.Add(time.Second)) {
 		t.Fatal("owner response failed to stop")
 	}
-	if _, _, _, _, ok := yyQQCompanionBegin(cf, "member", "/命令 kill @a", false, now); ok {
+	if _, _, _, _, ok, _ := yyQQCompanionBegin(cf, "member", "/命令 kill @a", false, now); ok {
 		t.Fatal("command treated as chat")
 	}
 }

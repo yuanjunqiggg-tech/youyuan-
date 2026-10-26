@@ -48,8 +48,11 @@ func yyQQGameNotice(player, text string) {
 	}
 }
 func yyQQSelection(cf yyQQConfig, player, text string, now time.Time) (handled bool, group, message, notice string) {
-	choose := yyQQHasPrefix(text, ".Q群选择")
-	send := yyQQHasPrefix(text, ".通")
+	// 游戏侧指令同样走别名表：玩家改 .通/.Q群选择 后这里即时生效。
+	cmdSelect := yyQQCommandText(cf, "select_group")
+	cmdRelay := yyQQCommandText(cf, "relay")
+	choose := yyQQHasPrefix(text, cmdSelect)
+	send := yyQQHasPrefix(text, cmdRelay)
 	if !choose && !send {
 		return
 	}
@@ -72,17 +75,17 @@ func yyQQSelection(cf yyQQConfig, player, text string, now time.Time) (handled b
 		}
 	}
 	if choose {
-		arg := strings.TrimSpace(strings.TrimPrefix(text, ".Q群选择"))
+		arg := strings.TrimSpace(strings.TrimPrefix(text, cmdSelect))
 		if arg != "" {
 			n, e := strconv.Atoi(arg)
 			c, ok := yyQQChoices[player]
 			if e != nil || !ok || now.After(c.Until) || n < 1 || n > len(c.IDs) {
-				notice = "选择已过期或序号无效，请发送 .Q群选择 重新查看列表。"
+				notice = "选择已过期或序号无效，请发送 " + cmdSelect + " 重新查看列表。"
 				return
 			}
 			group = c.IDs[n-1]
 			if !yyQQGroupEnabled(cf, group) {
-				notice = "这个群已停用，请发送 .Q群选择 重新选择。"
+				notice = "这个群已停用，请发送 " + cmdSelect + " 重新选择。"
 				return
 			}
 			if len(yyQQPlayerGroups) >= 4096 && yyQQPlayerGroups[player] == "" {
@@ -94,15 +97,15 @@ func yyQQSelection(cf yyQQConfig, player, text string, now time.Time) (handled b
 			yyQQHelper.Dirty = true
 			delete(yyQQChoices, player)
 			message = c.Message
-			notice = "默认QQ群已设为 " + yyQQGroupLabel(cf, group) + "。以后使用 .通 内容；更换群请发送 .Q群选择。"
+			notice = "默认QQ群已设为 " + yyQQGroupLabel(cf, group) + "。以后使用 " + cmdRelay + " 内容；更换群请发送 " + cmdSelect + "。"
 			return
 		}
 	} else {
-		message = strings.TrimSpace(strings.TrimPrefix(text, ".通"))
+		message = strings.TrimSpace(strings.TrimPrefix(text, cmdRelay))
 		group = yyQQPlayerGroups[player]
 		if group != "" && yyQQGroupEnabled(cf, group) {
 			if message == "" {
-				notice = "当前默认QQ群：" + yyQQGroupLabel(cf, group) + "。发送 .通 内容；更换请发送 .Q群选择。"
+				notice = "当前默认QQ群：" + yyQQGroupLabel(cf, group) + "。发送 " + cmdRelay + " 内容；更换请发送 " + cmdSelect + "。"
 			}
 			return
 		}
@@ -119,7 +122,7 @@ func yyQQSelection(cf yyQQConfig, player, text string, now time.Time) (handled b
 		ids = append(ids, g.ID)
 		lines = append(lines, fmt.Sprintf("%d. %s", i+1, yyQQGroupLabel(cf, g.ID)))
 	}
-	lines = append(lines, "发送 .Q群选择 1 选择第1个群。之后 .通 内容会发往默认群；发送 .Q群选择 可重新选群。")
+	lines = append(lines, "发送 "+cmdSelect+" 1 选择第1个群。之后 "+cmdRelay+" 内容会发往默认群；发送 "+cmdSelect+" 可重新选群。")
 	if message != "" {
 		lines = append(lines, "你的第一条消息已暂存，选择后自动转发。")
 	}
@@ -130,6 +133,11 @@ func yyQQSelection(cf yyQQConfig, player, text string, now time.Time) (handled b
 	return
 }
 func yyQQGameSelection(cf yyQQConfig, player, text string) bool {
+	// .通 状态 / .通 自动 开|关 先走转发开关（youyuan_qq_relay.go），
+	// 其余 .通 内容 仍然按下面的老路径当消息发到群里。
+	if yyQQRelayGameCommand(cf, player, text) {
+		return true
+	}
 	handled, group, message, notice := yyQQSelection(cf, player, text, time.Now())
 	if !handled {
 		return false

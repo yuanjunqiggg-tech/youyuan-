@@ -98,6 +98,7 @@ type Conn struct {
 	readDeadline    <-chan time.Time
 
 	sendMu           sync.Mutex
+	inputTick        uint64 // Serialised with every outbound PlayerAuthInput, including teleport/respawn ACKs.
 	outboundObserver atomic.Pointer[outboundPacketObserver]
 	// bufferedSend is a slice of byte slices containing packets that are 'written'. They are buffered until
 	// they are sent each 20th of a second.
@@ -109,7 +110,7 @@ type Conn struct {
 	readyToLogin bool
 	// loggedIn is a bool indicating if the connection was logged in. It is set to true after the entire login
 	// sequence is completed.
-	loggedIn bool
+	loggedIn  bool
 	loginOnly bool
 	// spawn is a bool channel indicating if the connection is currently waiting for its spawning in
 	// the world: It is completing a sequence that will result in the spawning.
@@ -383,6 +384,17 @@ func (conn *Conn) writePacketLocked(pk packet.Packet) error {
 	case <-conn.ctx.Done():
 		return conn.closeErr("write packet")
 	default:
+	}
+	if input, ok := pk.(*packet.PlayerAuthInput); ok {
+		if conn.inputTick == ^uint64(0) {
+			return errors.New("player input tick exhausted")
+		}
+		copy := *input
+		if copy.Tick <= conn.inputTick {
+			copy.Tick = conn.inputTick + 1
+		}
+		conn.inputTick = copy.Tick
+		pk = &copy
 	}
 	buf := internal.BufferPool.Get().(*bytes.Buffer)
 	defer func() {

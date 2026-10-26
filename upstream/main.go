@@ -18,10 +18,12 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
 	"io"
+	"math"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -43,6 +45,7 @@ import (
 	"bot-apk/prism"
 	"bot-apk/state"
 
+	"github.com/OmineDev/flowers-for-machines/core/minecraft"
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
 )
 
@@ -99,10 +102,7 @@ func (h *SSEHub) Emit(event, data string) {
 		}
 	}
 	for ch := range h.clients {
-		select {
-		case ch <- msg:
-		default:
-		}
+		yyEnqueueSSE(ch, msg, event == "task_done" || event == "task_error" || event == "task_paused")
 	}
 	if h.secondary != nil {
 		h.secondary.Emit(event, data)
@@ -251,7 +251,16 @@ func handleStatic(prefix, dir string) http.HandlerFunc {
 			ct = "audio/wav"
 		}
 		w.Header().Set("Content-Type", ct)
+		// Embed assets never change between builds, so a content ETag lets the
+		// WebView revalidate with a 304 instead of re-downloading ~3 MB on every
+		// launch. Cache-Control stays "no-cache" so stale files are still caught.
+		etag := fmt.Sprintf("\"%x-%x\"", len(data), crc32.ChecksumIEEE(data))
+		w.Header().Set("ETag", etag)
 		w.Header().Set("Cache-Control", "no-cache")
+		if inm := r.Header.Get("If-None-Match"); inm != "" && strings.Contains(inm, etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 		w.Write(data)
 	}
 }
@@ -264,6 +273,9 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data, _ := frontendFS.ReadFile("frontend/index.html")
+	data = yyThemeInjectIndex(data)
+	// DSH-04：把控制台会话 token 注入 <head>，前端所有 /api/ 请求带上它。
+	data = yyConsoleInjectToken(data)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
@@ -331,6 +343,17 @@ func handleTaskStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 检查机器人连接
+	if req.Type == "import" || req.Type == "import_multi" {
+		var p map[string]any
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": "无效导入参数"})
+			return
+		}
+		if err := yyValidateImportRegionParams(req.Type, p); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+	}
 	botMgrMu.Lock()
 	connected := botMgr != nil && botMgr.IsConnected()
 	botMgrMu.Unlock()
@@ -656,7 +679,17 @@ func handlePluginRun(w http.ResponseWriter, r *http.Request) {
 	connected := bm != nil && bm.IsConnected()
 	botMgrMu.Unlock()
 	if !connected {
-		writeJSON(w, map[string]any{"ok": false, "error": "未连接"})
+		// 未连接不再硬阻断：启动只是排队，连上后 AutoLoadPlugins 会加载它。
+		// 只有真正无法成立的请求才拦：未知插件、已被持久停用的插件。
+		if !pluginController.Has(req.ID) {
+			writeJSON(w, map[string]any{"ok": false, "error": "未知插件 " + req.ID})
+			return
+		}
+		if pluginController.IsDisabled(req.ID) {
+			writeJSON(w, map[string]any{"ok": false, "error": "插件已被停用，请先启用再启动"})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "connected": false, "queued": true, "id": req.ID, "message": "机器人未连接，已排队；连接后自动加载"})
 		return
 	}
 	if err := pluginController.Run(bm, req.ID); err != nil {
@@ -679,7 +712,8 @@ func handlePluginStop(w http.ResponseWriter, r *http.Request) {
 	bm := botMgr
 	botMgrMu.Unlock()
 	if bm == nil {
-		writeJSON(w, map[string]any{"ok": false, "error": "插件执行上下文不存在"})
+		// 未连接时没有执行上下文，也不会有运行中的实例：停止按幂等成功处理。
+		writeJSON(w, map[string]any{"ok": true, "connected": false, "stopped": false, "message": "机器人未连接，插件没有运行中的实例"})
 		return
 	}
 	if err := pluginController.Stop(bm, req.ID); err != nil {
@@ -703,7 +737,9 @@ func handlePluginReload(w http.ResponseWriter, r *http.Request) {
 	connected := bm != nil && bm.IsConnected()
 	botMgrMu.Unlock()
 	if !connected {
-		writeJSON(w, map[string]any{"ok": false, "error": "未连接"})
+		// 未连接时重载 = 重新读取磁盘上的插件定义；真正加载等连上后自动进行。
+		_ = pluginController.ScanPlugins()
+		writeJSON(w, map[string]any{"ok": true, "connected": false, "queued": true, "id": req.ID, "message": "机器人未连接；已重新读取插件文件，连接后自动加载"})
 		return
 	}
 	if err := pluginController.Reload(bm, req.ID); err != nil {
@@ -829,7 +865,15 @@ func handlePluginSetConfig(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true})
+	// 配置写磁盘与连接状态无关：未连接也照常保存，只是要等连上后才生效。
+	botMgrMu.Lock()
+	connected := botMgr != nil && botMgr.IsConnected()
+	botMgrMu.Unlock()
+	out := map[string]any{"ok": true, "saved": true, "connected": connected}
+	if !connected {
+		out["message"] = "配置已保存，机器人连接后生效"
+	}
+	writeJSON(w, out)
 }
 
 func handlePluginData(w http.ResponseWriter, r *http.Request) {
@@ -975,6 +1019,23 @@ func handlePrismLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "result": result})
 }
 
+// yyAwaitBotClosed blocks until the given bot's connection reaches a terminal
+// state (conn closed or context done), or the limit expires. It serializes
+// "disconnect old -> connect new" so the server never sees two live sessions
+// for the same account — the ghost second bot users reported.
+func yyAwaitBotClosed(bm *BotManager, limit time.Duration) {
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		bm.mu.Lock()
+		conn := bm.conn
+		bm.mu.Unlock()
+		if conn == nil || conn.Context().Err() != nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Token          string `json:"token"`
@@ -1020,6 +1081,10 @@ func handleBotConnect(w http.ResponseWriter, r *http.Request) {
 	// a bad connection freezes status requests and makes switches look dead.
 	if previousBot != nil {
 		previousBot.Disconnect()
+		// 等待旧连接到达终态再建新连接：服务器侧旧会话清理是异步的，
+		// 立即新建会让新旧会话在服务器并存——用户看到的"第二个假机器人"。
+		// 上限 3s（Disconnect 内部已有 2s 强制 Close 兜底）。
+		yyAwaitBotClosed(previousBot, 3*time.Second)
 	}
 	bm := NewBotManager()
 	bm.isMain = true // 主机器人：OP 后自动加载插件、断开时停用全部
@@ -1097,25 +1162,48 @@ func handleBotDisconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleBotStatus(w http.ResponseWriter, r *http.Request) {
+	// Read the configured target before taking the lock: it is plain file I/O and
+	// must not delay a connect/disconnect that is waiting on botMgrMu.
+	serverTarget := config.ReloadConfig().ServerCode
 	botMgrMu.Lock()
-	defer botMgrMu.Unlock()
-	isOP := false
+	bm := botMgr
+	botMgrMu.Unlock()
+	connected, isOP := false, false
 	serverCode := ""
 	queueDepth, queueCapacity := 0, 0
-	if botMgr != nil {
-		isOP = botMgr.IsOP()
-		serverCode = botMgr.ServerCode()
-		botMgr.mu.Lock()
-		queueDepth, queueCapacity = len(botMgr.pktCh), cap(botMgr.pktCh)
-		botMgr.mu.Unlock()
+	var conn *minecraft.Conn
+	if bm != nil {
+		bm.mu.Lock()
+		connected = bm.connected
+		isOP = bm.isOP || bm.opPacketConfirmed
+		serverCode = bm.serverCode
+		queueDepth, queueCapacity = len(bm.pktCh), cap(bm.pktCh)
+		conn = bm.conn
+		bm.mu.Unlock()
+		if connected && conn != nil {
+			connected = conn.Context().Err() == nil
+		}
+	}
+	var gameRTT any
+	if connected && conn != nil {
+		stats := conn.NetworkStats()
+		available, _ := stats["available"].(bool)
+		acknowledged, _ := stats["acknowledged_datagrams"].(uint64)
+		rtt, rttOK := stats["rtt_ms"].(float64)
+		if available && acknowledged > 0 && rttOK && !math.IsNaN(rtt) && !math.IsInf(rtt, 0) && rtt >= 0 {
+			gameRTT = rtt
+		}
 	}
 	writeJSON(w, map[string]any{
 		"ok":                    true,
-		"connected":             botMgr != nil && botMgr.IsConnected(),
+		"connected":             connected,
 		"is_op":                 isOP,
 		"server":                serverCode,
+		"server_target":         serverTarget,
 		"packet_queue_depth":    queueDepth,
 		"packet_queue_capacity": queueCapacity,
+		"game_rtt_ms":           gameRTT,
+		"game_rtt_source":       "raknet_ack",
 	})
 }
 
@@ -3849,6 +3937,11 @@ func handleSkinOnlineHead(w http.ResponseWriter, r *http.Request) {
 	}
 	skinData, sw, sh, ok := playerInfoMgr.GetPlayerSkin(playerName)
 	if !ok {
+		// 内存里没有就查磁盘：箱子重启、或这次 PlayerList 没带这个玩家时，
+		// 仍然给得出同一个人上次的皮肤，而不是一句「没有缓存」。
+		skinData, sw, sh, ok = yySkinCacheGet(playerName)
+	}
+	if !ok {
 		writeJSON(w, map[string]any{"ok": false, "error": "玩家不在线或没有皮肤缓存"})
 		return
 	}
@@ -3858,6 +3951,34 @@ func handleSkinOnlineHead(w http.ResponseWriter, r *http.Request) {
 	thumb := extractSkinHead(img)
 	w.Header().Set("Content-Type", "image/png")
 	png.Encode(w, thumb)
+}
+
+// handleSkinOnlineTexture 返回在线玩家皮肤的原始纹理 PNG。
+// 账号页的立体皮肤预览（前端 CSS 3D 拼面）与本地头像裁剪都需要整张纹理，
+// 而不是裁好的头；没有这个接口时前端只能去 crafatar/minotar 查，
+// 按玩家名查会拿到同名陌生玩家的皮肤——这是「账号页一堆奇葩头像」的根因。
+func handleSkinOnlineTexture(w http.ResponseWriter, r *http.Request) {
+	playerName := r.URL.Query().Get("player")
+	if playerName == "" {
+		writeJSON(w, map[string]any{"ok": false, "error": "缺少 player"})
+		return
+	}
+	skinData, sw, sh, ok := playerInfoMgr.GetPlayerSkin(playerName)
+	if !ok {
+		// 内存里没有就查磁盘：箱子重启、或这次 PlayerList 没带这个玩家时，
+		// 仍然给得出同一个人上次的皮肤，而不是一句「没有缓存」。
+		skinData, sw, sh, ok = yySkinCacheGet(playerName)
+	}
+	if !ok {
+		writeJSON(w, map[string]any{"ok": false, "error": "玩家不在线或没有皮肤缓存"})
+		return
+	}
+	img := image.NewNRGBA(image.Rect(0, 0, int(sw), int(sh)))
+	copy(img.Pix, skinData)
+	w.Header().Set("Content-Type", "image/png")
+	// 皮肤会换，缓存短一点；同一玩家连续请求由浏览器缓存兜住。
+	w.Header().Set("Cache-Control", "private, max-age=120")
+	png.Encode(w, img)
 }
 
 // ========== Map Player ==========
@@ -4090,6 +4211,8 @@ func runStartupProtection() {
 		}
 	}
 	if !allPassed {
+		// 后台复查同样要落判定：否则篡改结论只停在事件流里，闸门看不到。
+		yyIntegritySet(yyIntegrityTampered, "内嵌资源完整性校验失败")
 		hub.Emit("integrity_alert", mustJSON(map[string]any{
 			"check": "summary", "passed": false,
 			"message": "资源完整性校验失败，可能被篡改，请从官方渠道重新下载",
@@ -4124,8 +4247,11 @@ func runStartupProtection() {
 		}
 		// 服务器权威判定：签名无效 → 直接进入拦截模式。
 		// 即使本地校验被绕过，只要应用联网上报，也会被服务器判定为盗版并锁定。
-		if resp.SignatureValid == false {
+		// 只在「确实上报过签名」时才认这条结论：Linux/自建分支上报的签名恒为空，
+		// 服务端对空签名的判定不能拿来锁死正常用户。
+		if resp.SignatureValid == false && strings.TrimSpace(sigHash) != "" {
 			MarkTampered("服务器判定签名无效")
+			yyIntegritySet(yyIntegrityTampered, "服务器判定签名无效")
 		}
 		hub.Emit("version_check", mustJSON(map[string]any{
 			"ok":                   resp.OK,
@@ -4279,7 +4405,9 @@ func refreshToolboxInfo() {
 func GetEffectivePrompt() string { return yyNoticeText("join") }
 
 // GetEffectiveName 获取实际生效的名称
-func GetEffectiveName() string { return "游园" }
+// GetEffectiveName 群内/游戏内显示的产品名。统一走 MCORT 品牌硬编码层
+// （mcort_brand.go），不再散落字面量。
+func GetEffectiveName() string { return yyBrandShort }
 
 // getCreatorName 获取召唤者显示名称，用于无权限时发送提示消息
 // 匿名用户 → "匿名用户"
@@ -4801,6 +4929,7 @@ func StartServer(port string, dataDir string) error {
 	os.MkdirAll(dataDir, 0755)
 	_ = os.Setenv("YY_AUTH_CONFIG_DIR", dataDir)
 	yyDataRoot = dataDir
+	yySkinDiskInit(dataDir)
 	if runtime.GOOS == "android" {
 		// Multipart uploads above the in-memory threshold must use the app's own
 		// writable directory, never Android's inaccessible /data/local/tmp.
@@ -4818,6 +4947,11 @@ func StartServer(port string, dataDir string) error {
 		}
 	}
 
+	// 启动自检（自身封签 + TracerPid + 构建指纹）。见 protect_selfcheck.go。
+	// 这是唯一接线点：Linux/Windows 原生启动和 Android JNI 启动都会经过 StartServer。
+	// 自检只写 security.log 告警，不阻断启动；YY_SELFTEST=1 时打印后退出。
+	yySelfCheckStartup(dataDir)
+
 	hub = NewSSEHub()
 	initFloatingHub()
 	state.InitCheckpointDB(dataDir)
@@ -4833,8 +4967,8 @@ func StartServer(port string, dataDir string) error {
 	pluginController.SetPluginDirs(privateDir, "")
 	_ = pluginController.ScanPlugins()
 
-	// 启动前先做一次性签名/包名校验。Android 已在 GoMain 之前通过 JNI 上报。
-	// 判定为被篡改后，下方 HTTP 中间件会对所有请求返回拦截页。
+	// 启动前先做一次性签名/包名/内嵌资源校验。Android 已在 GoMain 之前通过 JNI 上报。
+	// 判定为被篡改后，yyIntegrityGate 中间件（integrity_gate.go）会对所有请求返回拦截页。
 	// 自建 GPL 分支使用自己的签名；不访问原作者的授权服务。
 
 	// 从配置读取自定义 DNS 和 TLS 设置
@@ -4853,6 +4987,17 @@ func StartServer(port string, dataDir string) error {
 
 	recoverCheckpoints()
 
+	// 完整性判定：同步执行，必须在监听端口之前完成。
+	// 结果写进包级状态（integrity_gate.go），由 yyIntegrityGate 中间件执行拦截；
+	// 平台取不到校验依据时降级为「未知，不拦截」，不会误伤正常用户。
+	yyRunStartupIntegrity(dataDir)
+
+	// 启动自检：签名/资源完整性/调试器探测。
+	// 这个函数 2026-10 之前一直只定义、从没被调用过（死代码），
+	// 等于 APK 签名校验从来没真正跑起来 —— 改一行 JS 重签就能照跑。
+	// 放 goroutine 里跑，避免自检慢拖住端口监听。
+	go runStartupProtection()
+
 	// 启动心跳上报循环
 	// 已移除原作者心跳上报
 
@@ -4864,6 +5009,8 @@ func StartServer(port string, dataDir string) error {
 	mux := http.NewServeMux()
 	yyRegisterAPI(mux, dataDir)
 	yyProfilerRoute(mux)
+	// 完整性状态出口：只给布尔与原因，不暴露任何 hash 值。
+	mux.HandleFunc("/api/youyuan/integrity", yyIntegrityStatusHandler)
 	for alias, target := range map[string]string{"/api/chains/list": "/api/youyuan/chains", "/api/youyuan/skills": "/api/ai/skills", "/api/youyuan/skills/list": "/api/ai/skills"} {
 		target := target
 		mux.HandleFunc(alias, func(w http.ResponseWriter, r *http.Request) {
@@ -5045,6 +5192,10 @@ func StartServer(port string, dataDir string) error {
 	mux.HandleFunc("/api/skin/online-build", handleSkinOnlineBuild)
 	mux.HandleFunc("/api/skin/head", handleSkinHead)
 	mux.HandleFunc("/api/skin/online-head", handleSkinOnlineHead)
+	mux.HandleFunc("/api/skin/online-texture", handleSkinOnlineTexture)
+	// 按账号取皮肤：不依赖玩家名，也不需要内核在线（账号页详情用）。
+	mux.HandleFunc("/api/skin/account-head", handleSkinAccountHead)
+	mux.HandleFunc("/api/skin/account-texture", handleSkinAccountTexture)
 	mux.HandleFunc("/api/permission/storage", handleStoragePermission)
 	mux.HandleFunc("/api/cache/clear", handleCacheClear)
 	mux.HandleFunc("/api/push/pending", handlePushPending)
@@ -5094,22 +5245,47 @@ func StartServer(port string, dataDir string) error {
 	}
 
 	corsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// DSH-04：不再回 *。只对同源（127.0.0.1 / localhost 任意端口）回显 Origin；
+		// 跨站预检直接 403，恶意网页拿不到任何 /api/ 响应。
+		origin := r.Header.Get("Origin")
+		sameOrigin := origin == "" ||
+			strings.HasPrefix(origin, "http://127.0.0.1:") ||
+			strings.HasPrefix(origin, "http://localhost:")
+		if origin != "" && sameOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		yyDownloadCORS(w)
 		if r.Method == "OPTIONS" {
+			if !sameOrigin {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 			w.WriteHeader(204)
 			return
+		}
+		// 写操作只接受同源；跨站表单/脚本一律拒绝。
+		if r.Method != "GET" && r.Method != "HEAD" {
+			if site := r.Header.Get("Sec-Fetch-Site"); site == "cross-site" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 		}
 		mux.ServeHTTP(w, r)
 	})
 
-	handler := corsHandler
+	// 完整性闸门包在最外层：CORS 之前就把篡改请求挡掉，
+	// 静态资源（logo/字体/图片）一并不放行 —— 少一类例外，少一个绕过面。
+	// DSH-04：控制台会话 token 再包一层，挡掉「同机恶意网页直接 fetch 127.0.0.1」。
+	handler := yyConsoleAuth(yyIntegrityGate(corsHandler))
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	// 绑定 0.0.0.0：控制面板与插件网页都允许局域网访问（用户决定不加认证；
-	// 插件网页可选密码，见 /web 路由注释）。
+	// 只绑回环：控制面板与插件网页不对外网开放，局域网也访问不到。
+	// （旧注释写的是「绑定 0.0.0.0，允许局域网访问」，与代码不符，已纠正——
+	//  这会直接影响安全评估结论：本机之外的机器连不上这个端口，任何
+	//  「从局域网打进来」的风险模型都不成立；反之，「同机任意进程可读」成立。）
 	ln, err := net.Listen("tcp", "127.0.0.1:"+port)
 	if err != nil {
 		return err

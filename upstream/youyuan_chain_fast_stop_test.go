@@ -11,16 +11,16 @@ func TestFastChainChildDeadlineOnlyResumesBeforeUnknownWrite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	wrapped := fmt.Errorf("module: %w", ctx.Err())
-	if !yyChainFastInvocationEnded(ctx, wrapped, nil) {
+	if !yyChainFastInvocationEnded(ctx, wrapped, false) {
 		t.Fatal("child invocation timeout before send must return to its parent")
 	}
-	if !yyChainFastInvocationEnded(ctx, wrapped, []map[string]any{{"submitted": true}}) {
+	if !yyChainFastInvocationEnded(ctx, wrapped, false) {
 		t.Fatal("a completed local write must not poison a child ending before its next chunk")
 	}
-	if yyChainFastInvocationEnded(ctx, wrapped, []map[string]any{{"submitted": true, "unknown": true}}) {
+	if yyChainFastInvocationEnded(ctx, wrapped, true) {
 		t.Fatal("child timeout after an unknown write must stop, not resume")
 	}
-	if yyChainFastInvocationEnded(context.Background(), fmt.Errorf("network error"), nil) {
+	if yyChainFastInvocationEnded(context.Background(), fmt.Errorf("network error"), false) {
 		t.Fatal("transport errors must stop")
 	}
 }

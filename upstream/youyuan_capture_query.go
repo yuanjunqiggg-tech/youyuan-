@@ -23,7 +23,7 @@ func yyCaptureQueryRows(p *packet.CommandOutput) []game_interface.TargetQuerying
 				ID        *int64 `json:"id"`
 				UUID      string `json:"uniqueId"`
 			}
-			if json.Unmarshal(entry, &required) != nil || required.Dimension == nil || *required.Dimension > 2 || required.ID == nil && required.UUID == "" {
+			if json.Unmarshal(entry, &required) != nil || required.Dimension == nil || !yyDimensionIDValid(int32(*required.Dimension)) || required.ID == nil && required.UUID == "" {
 				continue
 			}
 			var v game_interface.TargetQueryingInfo

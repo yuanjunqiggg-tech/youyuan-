@@ -22,25 +22,26 @@
 - **Python**：`C:/Users/Lenovo/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe`
 - **构建**：`cd upstream && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../build/youyuan-linux-x86_64 .`
 
-## 2. 当前进行中的事故（2026-10-21，box 已被重置）
+## 2. 2026-10-21 系统重置事故 · 已恢复（当日结案）
 
-- **用户重启无效后误触「重置系统」**：系统盘已还原为全新 Ubuntu 24.04，SSH banner 恢复但
-  host key 已变（，pin 已更新）；**root 仅接受 publickey**，密码认证被禁。
-- box 上原数据（/opt/youyuan、/var/lib/youyuan）随系统盘丢失；**数据盘（若有）待确认**。
-- Cloudflare 侧不受影响：用户账号 DO、游戏账号 vault、隧道 ingress 规则都在 CF，未丢。
-- 恢复套件已全部备好：（一键重建）+ 本地资产：
-  二进制 、cloudflared、、
-  隧道令牌 、发信 、
-  配置快照 + 、插件源码 （ds-r20a 两个包）、
-  命令链 dump （含雪球菜单_综合功能.txt）。
-- **唯一卡点：SSH 进入方式**。等用户在控制台开密码认证（或绑私钥给我），先
-   盘点数据盘，再全量重建。
+- 用户重启无效后误触「重置系统」：系统盘还原，**无数据盘，box 数据全丢**。host key 已变
+  （`fcc50f87...`，已更新 pin）；新密码 `yuanJUNQI314//`（2026-10-21 12:56 用户提供）。
+- **已全量重建**（rebuild 脚本 + SSH）：服务 active，`/health` = `{"ok":true,"version":"0.10.78","tools":269,"ready":true}`。
+- **已恢复项**：5 个配置（youyuan-remote/platform-identity/qq-bridge/config/mail-config）、
+  r20a 插件×2、命令链×3（雪球菜单完好，10-21 01:30 dump）、**R21B 插件全套**
+  （见第 9 节）。
+- **仍失效项**：cloudflared 命名隧道已在 CF 侧被删除（`Unauthorized: Tunnel not found`），
+  此路已废；**主通道唯一出口 = box 主动 WSS 拨 `wss://toolbox.youyuanqi.dpdns.org/device/connect`**。
+- **外部硬阻塞**：认证端 `prism.adblanlu.qzz.io` 实测该 token 名下 3 个山头服
+  `94F195C41B5_1/_2/_3` **全部「山头服已过期」(code=1005026)**。机器人进不了服，
+  插件无法自动加载（需等用户续费租赁服；疑似对应「疣螈的山头」=_3，续费后与用户确认）。 
 
 ## 3. 部署事实（别再猜）
 
 | 部署物 | 要重启 box 吗 | 生效方式 |
 |---|---|---|
 | Go 二进制（upstream） | **要** | `systemctl restart youyuan.service`，PID 会变 |
+| **新插件目录放到磁盘** | **要** | 扫描只在启动时跑（main.go ScanPlugins），reload 只对已注册 id 有效 |
 | Cloudflare Worker | 不要 | `wrangler deploy` 即时生效 |
 | 前端静态页 | 不要 | 随 Worker 部署 |
 | config.json | 不要 | `/api/youyuan/connection-policy` 等 API 热生效 |
@@ -66,6 +67,8 @@
 | 恢复守护 | `maintenance/server_recovery_daemon.py`（日志 `maintenance/server-recovery.log`） |
 | 部署（带回滚点） | `maintenance/deploy_linux_bin.py` |
 | MCP 专用连接令牌 | `D:/YouYuan-APK/private/Grok专用连接网址-0.10.11.txt` |
+| SSH 直跑远程命令 | `maintenance/ssh_run.py "<cmd>"`（工作区 maintenance/，paramiko+密码） |
+| R21B 插件部署 | `maintenance/deploy_r21b.py`（exports zip → box 插件文件+数据） |
 | CDP 探针（Chrome 9333） | `maintenance/cdp-identity-probe.js`、`cdp-mcp-probe.js` |
 | 用户历史消息蒸馏 | `outputs/_user_messages_readable.txt`、`outputs/codex-历史要求提炼.md` |
 | 项目状态/待办 | `BOOT.md`、`未解决清单.md`、`任务备忘录.md`、`PROJECT_STATE.md` |
@@ -74,7 +77,7 @@
 
 ## 6. 需求进度（10 条清单，2026-10-21 状态）
 
-- **已上线**：命令通道修复 + 死亡误报修复（`5d64743`，待 box 恢复后部署）。
+- **已上线**：命令通道修复 + 死亡误报修复（`5d64743`，**已部署到 box** 0.10.78）；MCP/注册链路恢复。
 - **未做**：房间发现三分类正方形卡片（"多维度"）、终端富配色、视角观察不开旁观、UI 重构若干。
 - **群服互通缺口**：RAG 向量库、表情包收发、聊天记录导出。
 - QQ 官方机器人能力已存在（`upstream/youyuan_qq*.go` 13 个文件）。
@@ -91,6 +94,28 @@
 | 症状 | 第一嫌疑 | 处置 |
 |---|---|---|
 | 注册卡「正在注册」 | box 邮件中继挂 | 恢复 box；线上 auth 页已有 80s 超时，不会永久转圈 |
-| MCP 503「执行端未连接」 | box↔CF 中继断 | 恢复 box 后用 cdp-mcp-probe.js 复测 |
+| MCP 503「执行端未连接」（not_sent） | **桶错位**（见第 9 节）或 box↔CF 中继断 | 先 `curl localhost:19429/api/youyuan/remote` 看 state；桶错位就 PATCH url 加 `?device=<桶名>` |
 | 机器人卡顿/掉线 | 重连风暴→握手洪水 | 已堵（5d64743）；部署后真服 A/B 复测 |
 | SSH banner 超时 | box sshd 失联 | 控制台重启；server_recovery_daemon.py 守着 |
+| 连接返回「山头服已过期/请加_1~_3」 | 租赁服过期/一 token 多服歧义 | 认证端问题，需用户续费/选服，代码侧无解 |
+
+## 9. 2026-10-21 恢复期关键新知（踩过的坑）
+
+- **部署的 Worker 比本地代码新**：线上 `/mcp/link/<token>` 处理和 `not_sent` 结构化 503
+  （带 trace_id/submitted/confirmed/outcome）本地仓库没有（可能 dashboard 直接部署过）。
+  改线上行为前先 curl 探契约，别假设本地代码=线上代码。
+- **WSS 桶错位 bug（本次 MCP 503 真凶）**：box 裸拨 `/device/connect` 会落进
+  `primary-device` DO（legacy_owner 用户 relay_prefix 为空 + 客户端不发 X-YouYuan-Device），
+  而 `/mcp/link/` 按 token 绑定到 `linux-server` 桶 → 两边对不上，MCP 全 503。
+  **修复（零代码）**：`POST /api/youyuan/remote {"url":"wss://.../device/connect?device=linux-server"}`，
+  服务自动重连即生效。根治要在 Go 侧给拨号加 `X-YouYuan-Device` 头（未做，待办）。
+- **注册验证码链路**：`POST /api/identity/register-code {username,email(QQ邮箱)}` →
+  relay DO → box `/api/youyuan/mail/send`（QQ SMTP，读 mail-config.json）。实测 200 即真发信；
+  限流 60s/次。**注意该端点的设备路由不经过 primary-device 桶**（修桶后仍通）。
+- **插件真身找回路径**：box 的插件代码在 `<dataDir>/插件文件/<id>/`（`plugins/` 目录不是扫描目录，
+  里面放的东西不生效）。完整恢复源 = `D:/YouYuan-APK/private/exports/ds_ai_agent_r21b_test-20261012-222936.zip`
+  （导出格式 youyuan.plugin.backup v1：`插件文件/<id>` 代码 + `插件数据文件/<id>` 数据）。
+  已部署到 `/var/lib/youyuan/插件文件/ds_ai_agent_r21b_test` + 数据 228 个文件，
+  plugin list 可见（unloaded 等机器人 OP 后自动加载）。
+- **chains/ 与插件 command_txt 关系**：runtime 链在 `<dataDir>/chains/*.txt`（= 插件数据目录副本），
+  插件代码目录的 command_txt 是首次登记用的原文（10-08 旧于 chains/ 10-21，属正常，勿覆盖）。

@@ -1,6 +1,5 @@
 // 云端同源前端用用户口令访问 APK；本机 WebView 不需二次口令。
 (function(){
- try{localStorage.setItem('prism_wizard_done','true')}catch(error){}
  if(location.hostname==='127.0.0.1'||location.hostname==='localhost')return;
  if(['toolbox.youyuanqi.dpdns.org','youyuan-apk-v030.yuanjunqiggg.workers.dev'].includes(location.hostname)){
   var selected=new URL(location.href);if(!selected.searchParams.get('device')||selected.searchParams.get('device')==='primary-device'){selected.searchParams.set('device','linux-server');history.replaceState(null,'',selected)}

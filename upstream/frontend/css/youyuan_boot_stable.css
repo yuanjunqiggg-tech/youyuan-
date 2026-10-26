@@ -1,0 +1,49 @@
+/* 首屏稳定层：配合 youyuan_boot_stable.js，只做占位与骨架，不改动既有组件样式。
+   在 index.html 中于全部样式之后加载，用于覆盖 youyuan_usability.css 的
+   .yy-turnstile-slot:empty{min-height:0}（Turnstile 异步挂载时的跳动源）。 */
+
+/* 1. 登录卡片：Turnstile slot 显示期间即使为空也保持 65px，
+   widget（iframe 65px）异步插入时无缝填充，按钮不被推挤。 */
+.yy-identity-card .yy-turnstile-slot:empty {
+  min-height: 65px;
+}
+/* slot 被 JS 显式加锁时同样保持（异常兜底） */
+.yy-identity-card .yy-turnstile-slot.yy-ts-hold:empty {
+  min-height: 65px;
+}
+
+/* 2. 登录卡片：结果/提示行占位，文字异步填入不改变卡片高度。 */
+.yy-identity-card #yy-login-result {
+  min-height: 1.6em;
+}
+.yy-identity-card #yy-login-result:empty {
+  min-height: 1.6em;
+}
+
+/* 3. 互通页（及同类子页）即时骨架：与最终卡片结构一致的浅色条。 */
+.yy-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0 2px;
+}
+.yy-skeleton .yy-sk-line {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--phx-border-light) 25%, var(--phx-bg-secondary) 50%, var(--phx-border-light) 75%);
+  background-size: 200% 100%;
+  animation: yy-sk-shimmer 1.4s ease-in-out infinite;
+}
+.yy-skeleton .w30 { width: 30%; }
+.yy-skeleton .w40 { width: 40%; }
+.yy-skeleton .w60 { width: 60%; }
+.yy-skeleton .w80 { width: 80%; }
+.yy-skeleton .w90 { width: 90%; }
+@keyframes yy-sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yy-skeleton .yy-sk-line { animation: none; }
+}

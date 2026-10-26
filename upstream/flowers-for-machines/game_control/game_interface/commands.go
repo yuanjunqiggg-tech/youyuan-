@@ -1,9 +1,9 @@
 package game_interface
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
@@ -129,25 +129,40 @@ func (c *Commands) sendCommandWithResp(command string, origin uint32, timeout ti
 	isTimeOut bool,
 	err error,
 ) {
-	var terminalErr error
+	return c.sendCommandWithRespContext(context.Background(), command, origin, timeout)
+}
 
+type commandReply struct {
+	output *packet.CommandOutput
+	err    error
+}
+
+func (c *Commands) sendCommandWithRespContext(ctx context.Context, command string, origin uint32, timeout time.Duration) (*packet.CommandOutput, bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
 	api := c.api
-	doOnce := new(sync.Once)
 	requestID := uuid.New()
-	channel := make(chan struct{})
+	channel := make(chan commandReply, 1)
 
 	api.Resources.Commands().SetCommandRequestCallback(
 		requestID,
 		func(p *packet.CommandOutput, connCloseErr error) {
-			doOnce.Do(func() {
-				resp, terminalErr = p, connCloseErr
-				close(channel)
-			})
+			select {
+			case channel <- commandReply{output: p, err: connCloseErr}:
+			default:
+			}
 		},
 	)
 	defer api.Resources.Commands().DeleteCommandRequestCallback(requestID)
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
 
-	err = api.WritePacket(
+	err := api.WritePacket(
 		packCommandRequest(
 			command, origin, requestID,
 		),
@@ -155,29 +170,36 @@ func (c *Commands) sendCommandWithResp(command string, origin uint32, timeout ti
 	if err != nil {
 		return nil, false, fmt.Errorf("发送命令(带响应)失败: %v", err)
 	}
+	return waitCommandReply(ctx, channel, command, origin, timeout)
+}
 
+func waitCommandReply(ctx context.Context, channel <-chan commandReply, command string, origin uint32, timeout time.Duration) (*packet.CommandOutput, bool, error) {
 	if timeout == 0 {
 		timeout = DefaultTimeoutCommandRequest
 	}
+	var deadline <-chan time.Time
 	if timeout > 0 {
 		timer := time.NewTimer(timeout)
 		defer timer.Stop()
-		select {
-		case <-channel:
-		case <-timer.C:
-			// A timeout is unknown, not proof that the server did not execute. Never resend here.
-			return nil, true, fmt.Errorf(
-				"发送命令(带响应): 命令请求%#v(来源=%d)超时(超时时间=%v秒)",
-				command, origin, float64(timeout)/float64(time.Second),
-			)
+		deadline = timer.C
+	}
+	select {
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	case reply := <-channel:
+		if reply.err != nil {
+			return nil, false, fmt.Errorf("发送命令(带响应)失败: %w", reply.err)
 		}
+		return reply.output, false, nil
+	case <-deadline:
+		// A timeout is unknown, not proof that the server did not execute. Never resend here.
+		return nil, true, fmt.Errorf("发送命令(带响应): 命令请求%#v(来源=%d)超时(超时时间=%v秒)", command, origin, float64(timeout)/float64(time.Second))
 	}
-	<-channel
+}
 
-	if terminalErr != nil {
-		return nil, false, fmt.Errorf("发送命令(带响应)失败: %v", terminalErr)
-	}
-	return resp, false, nil
+// SendWSCommandWithContext stops waiting and unregisters the receipt on cancellation; it never resends.
+func (c *Commands) SendWSCommandWithContext(ctx context.Context, command string, timeout time.Duration) (*packet.CommandOutput, bool, error) {
+	return c.sendCommandWithRespContext(ctx, command, protocol.CommandOriginAutomationPlayer, max(0, timeout))
 }
 
 // SendPlayerCommandWithTimeout 以玩家的身份向租赁服发送命令 command 并获取响应体。
@@ -271,10 +293,9 @@ func (c *Commands) SendWSCommandWithResp(command string) (resp *packet.CommandOu
 // 它曾被广泛使用而难以替代，但此处出于语义兼容性而保留
 func (c *Commands) AwaitChangesGeneral() error {
 	for range DefaultAwaitChangesCount {
-		// 带超时等待空命令响应：网易可能不响应空命令，2s 超时避免永久卡死（书导入等），
-		// 同时给附魔等操作留出同步时间——纯 fire-and-forget 会让附魔后不等同步、
-		// 移回物品时被服务器拒绝（Ench stage 2）。
-		_, isTimeout, err := c.SendWSCommandWithTimeout("", DefaultTimeoutCommandRequest)
+		// Empty commands are often ignored and consumed the full timeout at every NBT stage.
+		name, _ := json.Marshal(c.api.BotName)
+		_, isTimeout, err := c.SendWSCommandWithTimeout(fmt.Sprintf("testfor @a[name=%s]", name), DefaultTimeoutCommandRequest)
 		if err != nil && !isTimeout {
 			return fmt.Errorf("等待通用变更失败: %v", err)
 		}

@@ -1,0 +1,49 @@
+# R96 恢复原版常驻穷举雪球菜单；无@ gate、无data、无装备限制、无Lua传送。
+# 所有菜单操作与111次下探每20Hz普通链连续执行；没有匹配对象时原生命令自然无效。
+1,0,0
+/scoreboard objectives add 雪球菜单 dummy
+/scoreboard objectives add 互传 dummy
+/scoreboard objectives add 在线时间 dummy
+/scoreboard objectives add yy_surface_owner dummy
+/scoreboard objectives add yy_surface_age dummy
+
+.
+
+2,0,0 20
+# 无条件常驻：检测所有雪球实体，每个抛出的雪球当轮计分、发音、清理。
+/execute at @e[type=snowball] as @p[r=3] run tag @s remove yy_menu_confirm_sound
+/execute at @e[type=snowball] as @p[r=3] run tag @s remove yy_menu_close_sound
+/execute at @e[type=snowball] as @p[r=3] run tag @s remove yy_surface_confirm_sound
+/execute at @e[type=snowball] as @p[r=3] run scoreboard players add @s 雪球菜单 1
+/execute at @e[type=snowball] run playsound block.end_portal_frame.fill @p[r=3]
+/kill @e[type=snowball]
+
+.
+2,0,0 20
+# 菜单/互传/返回请求存在时，以原20Hz运行活动段；空闲回收，不独立常驻。
+@gate {"command":"execute unless entity @a[scores={雪球菜单=1..}] unless entity @a[scores={互传=1}] unless entity @a[tag=yy_surface_latched] unless entity @a[tag=return_surface] unless entity @a[tag=yy_surface_cancel] run testfor @a","poll_ms":100,"else":"_雪球菜单_按需20Hz.txt"}
+
+.
+
+2,0,0 20
+# 返回地面由本入口拥有：无请求不运行，结束后回收；重连不依赖另一个手动开关。
+@gate {"command":"testfor @a[tag=yy_surface_latched,tag=!yy_surface_cancel]","poll_ms":100,"then":"_雪球菜单_回地表模块.txt"}
+
+.
+
+2,0,0 20
+/execute as @r at @s unless entity @s[x=200000,z=200000,dx=-400000,dz=-400000] in overworld run tp @s 10062.41 157.00 10062.56
+/execute as @r at @s unless entity @s[x=200000,z=200000,dx=-400000,dz=-400000] run tellraw @s {"rawtext":[{"text":"§e前方的区域暂不开放\n请以后再来探索吧~~"}]}
+
+.
+
+2,0,0 0.016666667
+/scoreboard players add @a 在线时间 1
+
+.
+
+# YY ISSUEFIX: shared TPA countdown: 1Hz, real-time scoreboard, auto expire in existing 20Hz segment.
+2,0,0 1
+/execute if entity @a[scores={互传=1}] if score 时间 互传 matches 1.. run scoreboard players remove 时间 互传 1
+/execute as @a[scores={互传=1}] if score 时间 互传 matches 1.. run titleraw @s actionbar {"rawtext":[{"text":"§d互传申请 §f剩余 §e"},{"score":{"name":"时间","objective":"互传"}},{"text":"§f 秒\n§7到期自动取消，只有其他玩家确认才会传送"}]}
+# R97_FIX_SELECTOR_AND_SURFACE_GATE_20261024

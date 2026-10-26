@@ -3,7 +3,6 @@ package building
 import (
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -62,16 +61,17 @@ func TestImportSnakeResumeIncludesRemainingOddRowChunks(t *testing.T) {
 	}
 }
 
-func TestImportChecksNegativeWorldChunkBoundaries(t *testing.T) {
-	checked := map[[2]int]bool{}
+func TestImportUsesWorldAreaWithoutClientLoadProbe(t *testing.T) {
+	var bounds [4]int
 	task := &ImportTask{Data: importFixture(16, 16), BaseX: -1, BaseZ: -1, Speed: -1,
-		ChunkLoaded: func(cx, cz int) bool { checked[[2]int{cx, cz}] = true; return true },
-		SetBlock:    func(_, _, _ int32, _, _ string) error { return nil }}
+		ChunkLoaded:    func(int, int) bool { t.Fatal("client probe blocked import"); return false },
+		TickingPreload: func(_ string, x1, z1, x2, z2 int) error { bounds = [4]int{x1, z1, x2, z2}; return nil },
+		TickingCleanup: func() {}, SetBlock: func(_, _, _ int32, _, _ string) error { return nil }}
 	if err := task.Run(); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(checked, map[[2]int]bool{{-1, -1}: true, {-1, 0}: true, {0, -1}: true, {0, 0}: true}) {
-		t.Fatal("world chunk boundary was not checked", checked)
+	if bounds != [4]int{-1, -1, 14, 14} {
+		t.Fatal(bounds)
 	}
 }
 
@@ -84,14 +84,11 @@ func TestImportUnitTransportFailureCannotComplete(t *testing.T) {
 	}
 }
 
-func TestImportChunkLoadTimeoutCannotPlaceOrCommit(t *testing.T) {
-	placed, committed := 0, 0
-	task := &ImportTask{Data: importFixture(1, 1), Speed: -1,
-		ChunkLoaded: func(_, _ int) bool { return false },
-		SetBlock:    func(_, _, _ int32, _, _ string) error { placed++; return nil },
-		OnProgress:  func(_, _, _, _, _ int) { committed++ }}
-	if err := task.Run(); err == nil || !strings.Contains(err.Error(), "区块加载超时") || placed != 0 || committed != 0 {
-		t.Fatalf("unloaded chunk was accepted: err=%v placed=%d commits=%d", err, placed, committed)
+func TestImportDoesNotUseUnreliableClientLoadGate(t *testing.T) {
+	placed, committed, probes := 0, 0, 0
+	task := &ImportTask{Data: importFixture(1, 1), Speed: -1, ChunkLoaded: func(int, int) bool { probes++; return false }, SetBlock: func(_, _, _ int32, _, _ string) error { placed++; return nil }, OnProgress: func(_, _, _, _, _ int) { committed++ }}
+	if err := task.Run(); err != nil || placed != 1 || committed != 1 || probes != 0 {
+		t.Fatal(err, placed, committed, probes)
 	}
 }
 

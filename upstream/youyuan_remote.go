@@ -25,6 +25,7 @@ import (
 type yyRemoteConfig struct {
 	URL         string `json:"url"`
 	DeviceToken string `json:"device_token"`
+	Device      string `json:"device"`
 	Enabled     bool   `json:"enabled"`
 	Key         string `json:"key"`
 }
@@ -107,6 +108,8 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 					_ = json.Unmarshal(value, &candidate.URL)
 				case "device_token":
 					_ = json.Unmarshal(value, &candidate.DeviceToken)
+				case "device":
+					_ = json.Unmarshal(value, &candidate.Device)
 				case "enabled":
 					_ = json.Unmarshal(value, &candidate.Enabled)
 				}
@@ -132,11 +135,14 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 		if yyAccounts.Worker {
 			accountID = filepath.Base(dataDir)
 		}
-		writeJSON(w, map[string]any{"ok": true, "config": map[string]any{"url": yyRemote.URL, "enabled": yyRemote.Enabled, "has_device_token": yyRemote.DeviceToken != ""}, "state": yyRemoteState, "key": yyRemote.Key, "account_id": accountID, "local_mcp_url": "http://127.0.0.1:" + yyCorePort + "/mcp/", "public_urls": yyPublicURLs(yyRemote.URL), "relay_connected": yyRemote.Enabled && yyRemoteState == "已连接"})
+		writeJSON(w, map[string]any{"ok": true, "config": map[string]any{"url": yyRemote.URL, "device": yyRemote.Device, "enabled": yyRemote.Enabled, "has_device_token": yyRemote.DeviceToken != ""}, "state": yyRemoteState, "key": yyRemote.Key, "account_id": accountID, "local_mcp_url": "http://127.0.0.1:" + yyCorePort + "/mcp/", "public_urls": yyPublicURLs(yyRemote.URL), "relay_connected": yyRemote.Enabled && yyRemoteState == "已连接"})
 	})
 	mux.HandleFunc("/api/youyuan/catalog", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "routes": yyAPIRoutes})
 	})
+	// 统一快照：首页概览 7 条 GET 合并成 1 条，给 Cloudflare Worker + DO 的
+	// 双扣配额止血。进程内直调既有 handler，不复制业务逻辑。
+	mux.HandleFunc("/api/youyuan/snapshot", yySnapshotHandler)
 	mux.HandleFunc("/api/youyuan/events", func(w http.ResponseWriter, r *http.Request) {
 		var cursor int64
 		fmt.Sscan(r.URL.Query().Get("after"), &cursor)
@@ -154,13 +160,17 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 	mux.HandleFunc("/mcp/", yyMCP)
 	yyTunnelRoutes(mux, dataDir)
 	yyMCPLinksRoutes(mux, dataDir)
+	yyMCPScopeRoutes(mux, dataDir)
 	yyRegisterQQ(mux, dataDir)
+	// 群→游戏 转发：off/keyword/auto/interval 四模式 + 定时打包循环（youyuan_qq_relay.go）。
+	yyQQRelayRoutes(mux)
 	yyObserverBridgeRoutes(mux, dataDir)
 	yyRuntimeRoutes(mux, dataDir)
 	yyCommandRoutes(mux, dataDir)
 	yyHostFilesRoutes(mux, dataDir)
 	yyExportCenterRoutes(mux, dataDir)
 	yyPluginOutputRoutes(mux)
+	yyThemeRoutes(mux, dataDir)
 	yyBlockVideoRoutes(mux, dataDir)
 	yyConverterRoutes(mux)
 	yyAgentRoutes(mux, dataDir)
@@ -181,6 +191,13 @@ func yyRegisterAPI(mux *http.ServeMux, dataDir string) {
 	yyIdentityRoutes(mux, dataDir)
 	yyMailRoutes(mux, dataDir)
 	yyGameAuthRoutes(mux)
+	// 世界种子：从登录 StartGame 包读取本机实际收到的种子（只读快照，不联网）。
+	yyWorldSeedRoutes(mux)
+	mux.HandleFunc("/api/youyuan/connection-diagnostics", yyConnectionDiagnosticsHandler)
+	// 自建插件市场：列表/详情/创建/传版本/送审/审核/安装/我的，金额一律 int64 分。
+	yyMarketRoutes(mux, dataDir)
+	// 先恢复"用户主动断开"标记，再启动自动连接循环；顺序反了会在重启后立刻自动连一次。
+	yyPauseStateInit(dataDir)
 	yyStartAutoConnection()
 }
 
@@ -504,11 +521,18 @@ func yyMCPTools() []any {
 	return tools
 }
 
-func yyRemoteDialHeaders(deviceToken string) http.Header {
-	return http.Header{
+func yyRemoteDialHeaders(deviceToken, device string) http.Header {
+	headers := http.Header{
 		"Authorization": []string{"Bearer " + deviceToken},
 		"User-Agent":    []string{"YouYuan-Toolbox/" + yyAppVersion},
 	}
+	// 设备标识头：中继按此把连接放进对应设备桶（如 linux-server）。
+	// 不带该头时中继默认 primary-device，多设备部署会桶错位（MCP/邮件中继全 503）。
+	// URL 查询参数 ?device= 只是兼容兜底，头才是正路。
+	if device != "" {
+		headers.Set("X-YouYuan-Device", device)
+	}
+	return headers
 }
 
 func yyStartRemote(port, dataDir string, mux *http.ServeMux) {
@@ -528,7 +552,7 @@ func yyStartRemote(port, dataDir string, mux *http.ServeMux) {
 			yyRemoteMu.Lock()
 			yyRemoteState = "连接中"
 			yyRemoteMu.Unlock()
-			options := &websocket.DialOptions{HTTPHeader: yyRemoteDialHeaders(cfg.DeviceToken)}
+			options := &websocket.DialOptions{HTTPHeader: yyRemoteDialHeaders(cfg.DeviceToken, cfg.Device)}
 			conn, _, err := websocket.Dial(ctx, cfg.URL, options)
 			if err == nil {
 				delay = time.Second

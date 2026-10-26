@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -57,6 +59,36 @@ func yyNormalizeServer(raw string) string {
 	}
 	return raw
 }
+
+// 用户「主动断开」是权威意图：必须跨重启保留，否则服务一重启 auto_connect
+// 就把它顶回来，用户看到的就是"我明明断了它自己又连上"。
+// 用独立标记文件而不是写进 config.json：配置会被前端整份回写，标记文件不会被误覆盖。
+var yyPauseMarkerPath string
+
+func yyPauseStateInit(dataDir string) {
+	if dataDir == "" {
+		return
+	}
+	yyPauseMarkerPath = filepath.Join(dataDir, "auto-connect-paused")
+	if _, err := os.Stat(yyPauseMarkerPath); err == nil {
+		yyAutoConnection.Lock()
+		yyAutoConnection.paused, yyAutoConnection.wanted = true, false
+		yyAutoConnection.Unlock()
+		debugLog("[连接] 检测到上次是主动断开，本次启动不自动重连，等待手动连接")
+	}
+}
+
+func yyWritePauseMarker(paused bool) {
+	if yyPauseMarkerPath == "" {
+		return
+	}
+	if paused {
+		_ = os.WriteFile(yyPauseMarkerPath, []byte(time.Now().Format(time.RFC3339)), 0o644)
+		return
+	}
+	_ = os.Remove(yyPauseMarkerPath)
+}
+
 func yyBeginConnectionAttempt() bool {
 	yyAutoConnection.Lock()
 	defer yyAutoConnection.Unlock()
@@ -66,6 +98,7 @@ func yyBeginConnectionAttempt() bool {
 	yyAutoConnection.busy = true
 	yyAutoConnection.wanted = true
 	yyAutoConnection.paused = false
+	yyWritePauseMarker(false)
 	yyAutoConnection.attempted = true
 	yyAutoConnection.last = time.Now()
 	yyAutoConnection.attempts++
@@ -94,6 +127,7 @@ func yyResumeAutoConnection() {
 	yyAutoConnection.paused, yyAutoConnection.wanted = false, true
 	yyAutoConnection.last = time.Time{}
 	yyAutoConnection.Unlock()
+	yyWritePauseMarker(false)
 }
 
 func yyConnectionState(c *config.AppConfig, bm *BotManager) map[string]any {
@@ -141,6 +175,7 @@ func yyConnectionPolicy(w http.ResponseWriter, r *http.Request) {
 		}
 		yyConfigMutationMu.Lock()
 		c := config.LoadConfig()
+		previousAutoReconnect := c.AutoReconnect
 		if patch.AutoConnect != nil {
 			c.AutoConnect = *patch.AutoConnect
 		}
@@ -162,7 +197,10 @@ func yyConnectionPolicy(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]any{"ok": false, "error": fmt.Sprint(e)})
 			return
 		}
-		if patch.Resume || patch.AutoReconnect != nil && *patch.AutoReconnect {
+		// 只有「显式 resume」或「自动重连从关变开」才算用户要恢复自动连接。
+		// 原来只要 body 里带 auto_reconnect:true 就 resume，于是前端每次同步策略
+		// 都会把用户手动断开的暂停状态清掉——这就是"断了又自己连回来"。
+		if patch.Resume || patch.AutoReconnect != nil && *patch.AutoReconnect && !previousAutoReconnect {
 			yyResumeAutoConnection()
 		}
 		if patch.AutoCreative != nil && *patch.AutoCreative {
@@ -188,6 +226,7 @@ func yyPauseAutoConnection() {
 	yyAutoConnection.wanted = false
 	yyAutoConnection.paused = true
 	yyAutoConnection.Unlock()
+	yyWritePauseMarker(true)
 }
 func yyMayAutoConnect(c *config.AppConfig, connected bool, now time.Time) bool {
 	yyAutoConnection.Lock()
@@ -216,6 +255,12 @@ func yyStartAutoConnection() {
 			c := config.ReloadConfig()
 			bm := getBotManagerLocked()
 			connected := bm != nil && bm.IsConnected()
+			// 掉线可观测：连上之后又被踢的跳变只有这里能看到，记进诊断报告。
+			server := ""
+			if bm != nil {
+				server = bm.ServerCode()
+			}
+			yyNoteConnectionSample(connected, server)
 			if !yyMayAutoConnect(c, connected, now) {
 				continue
 			}

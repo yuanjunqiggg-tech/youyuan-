@@ -6,7 +6,7 @@ import {readPacketAllowed,readTools} from './mcp-link-policy.mjs';
 import {oauthHandle,oauthRoute,oauthResolve,mcpChallenge} from './oauth.mjs';
 import {publicDiscoveryMethods,discoveryResponse,toolAuthRequired,oauthToolMetadata} from './mcp-discovery.mjs';
 // 自有域名中继。设备主动连接，所有请求仍由游园执行端真实执行。
-export default {
+const workerEntry = {
   async fetch(request, env) {
     const url = new URL(request.url);
     if(isPrivateDistributionPath(url.pathname))return new Response("Not found",{status:404,headers:{"Cache-Control":"no-store"}});
@@ -32,8 +32,8 @@ export default {
     }
     const link=url.pathname.match(/^\/mcp\/link\/([a-f0-9]{64})\/?$/);
     if(link){
-      linkGrant=await identityResolve(env,link[1],'mcp');if(!linkGrant)return Response.json({error:'专用连接已撤销或过期'},{status:401});
-      if(!linkGrant.user.cloud_allowed)return Response.json({error:'订阅已到期',code:'SUBSCRIPTION_REQUIRED'},{status:403});
+      linkGrant=await identityResolve(env,link[1],'mcp');if(!linkGrant)return Response.json({error:'专用连接已撤销或过期，请在「MCP 专用连接」重新生成',code:'LINK_REVOKED'},{status:401});
+      if(!linkGrant.user.cloud_allowed)return Response.json({error:'订阅已到期，MCP 连接已暂停；续订后同一个网址自动恢复',code:'SUBSCRIPTION_REQUIRED'},{status:403});
       url.pathname='/mcp/';url.search='';url.searchParams.set('device',linkGrant.device);
       const headers=new Headers(request.headers);headers.delete('X-YouYuan-Device');
       request=new Request(url,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,duplex:'half'});
@@ -81,16 +81,18 @@ export default {
     const qqMatch=url.pathname.match(/^\/qq\/webhook\/([a-f0-9-]{36})\/([A-Za-z0-9_-]{1,48})(?:\/([A-Za-z0-9_-]{1,64}))?$/);
     const legacyAccount=url.pathname.match(/^\/qq\/webhook\/accounts\/([A-Za-z0-9_-]{1,64})$/);
     const qqCallback = (url.pathname === '/qq/webhook'||!!qqMatch||!!legacyAccount) && request.method === 'POST';
-    const protectedPath = device || url.pathname.startsWith('/api/') || url.pathname.startsWith('/mcp') || url.pathname==='/health';
+    // 插件导出能力型下载：URL 自带 token（≥8位）即免登录直通 box 侧 owner 兜底下载（box 侧另有 32hex 随机 id 保护）
+    const capDownload = url.pathname === '/api/youyuan/exports/download' && (url.searchParams.get('token') || '').length >= 8 && /^[a-f0-9]{32}$/i.test(url.searchParams.get('id') || '');
+    const protectedPath = !capDownload && (device || url.pathname.startsWith('/api/') || url.pathname.startsWith('/mcp') || url.pathname==='/health');
     // Check entitlement on every request, including existing control tokens.
     // Register/login/me remain available without cloud execution permission.
     if(protectedPath&&identity&&!identity.user.cloud_allowed)return Response.json({ok:false,error:'云端工具箱仅限管理员或有效订阅用户',code:'SUBSCRIPTION_REQUIRED',user:identity.user},{status:403});
-    if (!protectedPath && !qqCallback && url.pathname !== '/health') return env.ASSETS.fetch(request);
+    if (!protectedPath && !capDownload && !qqCallback && url.pathname !== '/health') return env.ASSETS.fetch(request);
     const supplied = request.headers.get('Authorization') ?? '';
     const expected = 'Bearer ' + (device ? env.DEVICE_TOKEN : env.CONSOLE_TOKEN);
     const library = url.pathname.startsWith('/api/library/');
     const libraryDevice = library && env.DEVICE_TOKEN && supplied==='Bearer '+env.DEVICE_TOKEN;
-    if (!qqCallback && !libraryDevice && !identity && (!expected.slice(7) || supplied !== expected)) {
+    if (!qqCallback && !libraryDevice && !capDownload && !identity && (!expected.slice(7) || supplied !== expected)) {
       if(url.pathname.startsWith('/mcp'))return mcpChallenge(request);
       return Response.json(url.pathname.startsWith('/api/')||url.pathname==='/health'?{ok:false,error:'登录状态已失效，请重新登录',code:'AUTH_REQUIRED'}:{error:'中继密钥不正确'},{status:401});
     }
@@ -99,7 +101,7 @@ export default {
       const target=new URL(request.url);target.hostname='auth.youyuanqi.dpdns.org';target.pathname='/api/accounts';return env.AUTH_SERVICE.fetch(new Request(target,request));
     }
     if (url.pathname==='/api/cloud/status') return Response.json({ok:true,product:'游园独立控制后端',version:'0.10.75',domain:url.hostname,runtime:'Cloudflare Workers + Durable Objects',auth_origin:'https://auth.youyuanqi.dpdns.org',execution:'Linux执行；网页通过授权中继访问，管理员直连按已验证的部署配置启用',linux_transport:env.LINUX_DIRECT_MODE==='relay'?'relay':'owner_direct_available',user:identity?.user||(isOwner?{username:'项目管理员',role:'admin',cloud_allowed:true,legacy_owner:true,assigned_devices:['linux-server']}:null)});
-    const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || (isOwner||identity?.user?.legacy_owner?'linux-server':'primary-device');
+    const requestedDevice=request.headers.get('X-YouYuan-Device') || url.searchParams.get('device') || (capDownload||isOwner||identity?.user?.legacy_owner?'linux-server':'primary-device');
     if(!/^[A-Za-z0-9_-]{1,48}$/.test(requestedDevice))return Response.json({error:'设备标识无效'},{status:400});
     // Assigned control permission cannot replace the shared node connection.
     const assigned=!device&&identity?.user?.assigned_devices?.includes(requestedDevice)&&requestedDevice.startsWith('linux-');
@@ -233,4 +235,16 @@ export class YouYuanRelay {
   }
   webSocketError(socket) {this.webSocketClose(socket);}
 }
+export default {async fetch(request, env) {
+  // Durable Objects 抛出的是平台级异常（例如免费额度用尽），不兜住就会变成
+  // Cloudflare 1101 空页面，客户端完全看不到原因。这里只做错误形态转换，
+  // 绝不伪造成功响应。其他异常照常抛出，保持原有可观测性。
+  try{return await workerEntry.fetch(request,env)}
+  catch(error){
+    const message=String((error&&error.message)||error);
+    if(/Exceeded allowed volume of requests in Durable Objects free tier/i.test(message))return Response.json({ok:false,error:'云端执行端暂时不可用：Cloudflare Durable Objects 免费额度已用尽（或当前套餐未含该能力），需账号所有者升级 Workers 付费计划后恢复',code:'RELAY_QUOTA_EXCEEDED'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'600'}});
+    if(/Durable Object|cannot access durable/i.test(message))return Response.json({ok:false,error:'云端执行端暂时不可用，请稍后重试',code:'RELAY_UNAVAILABLE'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'30'}});
+    throw error;
+  }
+}};
 

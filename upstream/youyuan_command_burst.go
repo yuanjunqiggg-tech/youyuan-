@@ -105,7 +105,7 @@ func yyCommandBurstWindow(bm *BotManager, commands []string, options yyCommandOp
 	if e := ctx.Err(); e != nil {
 		return nil, e
 	}
-	err := conn.WritePacketBatch(packets)
+	err := bm.writeControlBatch(ctx, func() error { return conn.WritePacketBatch(packets) })
 	if err != nil {
 		return nil, fmt.Errorf("整批发送失败，执行结果未知，未重发：%w", err)
 	}

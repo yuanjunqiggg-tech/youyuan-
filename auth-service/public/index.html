@@ -1,4 +1,6 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>游园 · 游戏认证</title><style>
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08796c">
+<!-- 预连接：Turnstile 脚本与它的 iframe 都在这个源上，提前握手可省一次 DNS+TLS -->
+<link rel="preconnect" href="https://challenges.cloudflare.com" crossorigin><link rel="dns-prefetch" href="https://challenges.cloudflare.com"><title>游园 · 游戏认证</title><style>
 :root{color-scheme:light;--green:#08796c;--ink:#173632}*{box-sizing:border-box}body{margin:0;background:#f2f6f5;color:var(--ink);font:16px/1.65 system-ui,sans-serif}main{max-width:1040px;padding:40px 20px;margin:auto}h1{font-size:38px;line-height:1.2}h2{font-size:23px}small,p{color:#617873}section{background:#fff;border:1px solid #dce8e4;border-radius:20px;padding:24px;margin:20px 0;box-shadow:0 8px 28px #183a3108}.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}label{display:block;margin-top:14px}input,select,textarea{width:100%;padding:12px;border:1px solid #c6d9d2;border-radius:10px;font:inherit;background:#fafcfb}button{cursor:pointer;border:0;border-radius:10px;padding:12px 18px;margin:14px 8px 0 0;background:var(--green);color:white;font:inherit;min-height:44px}button.secondary{background:#e7f0ed;color:var(--ink)}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}header{display:flex;justify-content:space-between;align-items:center}a{color:var(--green)}[hidden]{display:none!important}@media(max-width:700px){.grid{grid-template-columns:1fr}main{padding:22px 14px}h1{font-size:30px}}
 .auth-account{display:grid;grid-template-columns:56px 1fr;gap:8px 16px}.auth-avatar{grid-row:1/3;width:52px;height:52px;border-radius:16px;margin:0;font-size:22px}.auth-account h3,.auth-account p{margin:0}.auth-account>button:not(.auth-avatar){grid-column:2;width:fit-content;margin:4px 0}.managed-policy{padding:12px;background:#f0f6f4;border-radius:12px}#pending-accounts section{border-left:4px solid #c78e30}#batch-jobs section{border-left:4px solid var(--green)}#pending-accounts img{display:block;max-width:220px;margin:14px 0}@media(max-width:700px){.auth-account{grid-template-columns:44px 1fr}.auth-avatar{width:42px;height:42px}}
 
@@ -14,7 +16,7 @@ section{border-color:var(--line);border-radius:18px;padding:26px;box-shadow:0 6p
 h2{font-size:21px;line-height:1.4;margin:0 0 10px}h3{font-size:17px}p,small{color:var(--muted)}
 #login{width:min(100%,460px);margin:0 auto 36px;padding:30px}
 #login>div{display:flex;background:#f0f4f5;border-radius:10px;padding:4px;gap:4px;margin:22px 0}
-#login>div button{flex:1;margin:0;min-height:40px;padding:8px 12px}
+#login>div button{flex:1;margin:0;min-height:44px;padding:8px 12px}
 #login>div button.secondary{background:transparent}
 label{font-size:13px;font-weight:600;margin-top:18px}
 input,select,textarea{min-width:0;max-width:100%;min-height:46px;padding:10px 12px;border-color:#cad6d9;background:white;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -32,10 +34,505 @@ pre{font-size:13px;word-break:break-word;max-width:100%}.managed-policy{font-siz
 #accounts section,#admin-accounts section{margin:0;padding:20px}.auth-account{min-width:0}.auth-account p{overflow-wrap:anywhere}
 @media(max-width:760px){main{padding:20px 16px 40px}.grid{grid-template-columns:minmax(0,1fr)}main>h1{font-size:26px;margin-top:28px}#login{padding:24px}section{padding:20px}header{font-size:13px}.grid>section{margin:0}#workspace>header{margin-bottom:20px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
-</style><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script><link rel="stylesheet" href="/console.css"><link rel="stylesheet" href="/auth-entry.css"><main><header><b>游园 · 游戏账号</b><a data-toolbox-return href="https://toolbox.youyuanqi.dpdns.org/">打开工作台</a></header><h1>连接游戏，从账号开始。</h1><p>一个入口，管理你的游戏账号与机器人。登录游园后，即可添加账号、选择皮肤和获取连接令牌。</p>
-<section id="login"><h2>游园平台账号</h2><p>使用工具箱的游园账号登录。第一次使用请先注册，并验证你的 QQ 邮箱。</p><div><button id="identity-login-tab" type="button" onclick="identityMode('login')">登录</button><button id="identity-register-tab" type="button" class="secondary" onclick="identityMode('register')">注册账号</button></div><form id="identity-form" onsubmit="identitySubmit(event)"><label for="username">游园账号</label><input id="username" autocomplete="username" required minlength="3" maxlength="32"><div id="identity-register-fields" hidden><label for="platform-email">QQ邮箱</label><input id="platform-email" type="email" placeholder="123456@qq.com" autocomplete="email" maxlength="71"><label for="platform-code">邮箱验证码</label><input id="platform-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6位验证码"><button id="identity-send-code" type="button" class="secondary" onclick="identitySendCode()">发送验证码</button><p>验证码10分钟内有效，发送后保持账号名称和邮箱不变。</p></div><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128"><button id="identity-submit" type="submit">登录</button><pre id="identity-result" role="status"></pre></form><p><a data-toolbox-return href="https://toolbox.youyuanqi.dpdns.org/">返回工具箱</a></p></section>
-<div id="workspace" hidden><header><h2 id="welcome">我的游戏凭据</h2><button class="secondary" onclick="logout()">退出平台账号</button></header><div class="grid"><section><h2>添加游戏账号</h2><details id="registration-guide"><summary>注册与接入教程</summary><ol><li>先登录游园平台账号。平台邮箱验证码仅用于游园注册。</li><li>网易账号选“网易邮箱登录”；4399账号先完成官方注册，再回到这里选“4399渠道账号登录”。</li><li>填写本人账号、密码；需要创建或更改游戏昵称时填写下方昵称。服务将完成渠道登录、游戏认证和令牌签发。</li><li>需要实名/短信/验证码时，按官方验证页面本人完成，回到待验证任务继续。</li><li>令牌签发后，在工具箱账号管理选择游园独立认证，保存令牌和服务器号，再连接。</li></ol><p>网页中出现4399游戏列表只表示平台注册完成，不能代表Minecraft游戏档案或游园令牌已经生成。</p><button class="secondary" type="button" onclick="open4399Official()">打开4399官方注册</button></details><label>方式</label><select id="mode" onchange="mode()"><option value="login_email">网易邮箱登录</option><option value="register_guest">一键创建游客账号</option><option value="login_4399" disabled>4399渠道登录（当前暂不可用）</option><option value="import_cookie">导入网易登录Cookie</option></select><label>显示名称</label><input id="name" maxlength="48"><div id="email-fields"><label>网易邮箱</label><input id="email" type="email" autocomplete="off"><label>网易密码</label><input id="game-password" type="password" autocomplete="off"></div><div id="guest-fields" hidden><label>游戏昵称 · 2–20个字符</label><input id="nickname" maxlength="20"></div><div id="4399-fields" hidden><label>4399用户名</label><input id="4399-username" autocomplete="username"><label>4399密码</label><input id="4399-password" type="password" autocomplete="off"><p>已有4399账号直接登录。注册网站的游戏列表不会创建游园令牌；注册后请回到这里继续。</p><button type="button" class="secondary" onclick="open4399Official()">打开4399官方注册</button><div id="4399-captcha" hidden><img id="4399-captcha-image" alt="4399验证码"><label>手动输入验证码</label><input id="4399-captcha-code" autocomplete="one-time-code"></div></div><div id="cookie-fields" hidden><label>网易登录Cookie</label><textarea id="cookie"></textarea></div><p class="managed-policy">本平台采用项目托管模式：项目管理员可调用所添加的游戏账号，此权限固定开启。网易密码和Cookie不在管理列表中展示。</p><div id="turnstile-create"></div><button id="create" onclick="create()">添加并签发令牌</button><p>不保存网易明文密码。登录凭据加密保存，自动刷新默认开启；遇到实名或安全验证需本人完成。</p><pre id="result"></pre></section><section><h2>使用游戏令牌</h2><p>APK验证服务器选择“游园独立认证”，令牌填入账号工作空间。游戏在线还需要保持APK运行并开启断线重连。</p><label>认证地址</label><input id="auth-origin" readonly value="https://auth.youyuanqi.dpdns.org"><label>游戏令牌</label><input id="token" type="password" readonly><button onclick="copy()">复制令牌</button><button class="secondary" onclick="reveal()">显示 / 隐藏</button><p>令牌与平台MCP控制密钥不同。撤销凭据后不能重新登录；已建立的游戏连接不会被强制踢出。</p></section></div><section><h2>游客批量账号任务</h2><p>一次平台邮箱验证后，可在同一登录会话管理多批账号。每批1–10个；官方游戏账号需要验证时暂停，完成本人验证后继续。不承诺一条网易/4399短信能创建10个不同账号。</p><label>本批数量</label><input id="batch-count" type="number" min="1" max="10" value="1"><label>昵称前缀</label><input id="batch-prefix" maxlength="16" placeholder="例如游园机器人"><div id="turnstile-batch"></div><button class="secondary" onclick="createBatch()">建立批量任务</button><p>4399渠道接入绑定已有账号，不会把同一个4399账号算作十个不同账号。建立任务不会立即注册。点击“连续执行本批”可依次创建；每创建一个账号会暂停并要求填写游戏昵称，保存后才能继续下一项。遇到验证或错误会暂停，关闭网页也会停止连续提交。</p><div id="batch-jobs"></div></section><section id="pending-section" hidden><h2>待完成安全验证</h2><div id="pending-accounts"></div></section><section id="project-admin" hidden><h2>项目管理 · 托管游戏账号</h2><p>项目管理员可管理本平台添加的全部游戏凭据。个人网易密码和Cookie不会显示。</p><label>平台用户</label><select id="admin-user" onchange="adminAccounts()"></select><div id="admin-accounts"></div></section><section><h2>账号列表</h2><button class="secondary" onclick="refresh()">刷新状态</button><div id="accounts"></div></section></div><small>游园游戏账号服务 · 凭据加密保存</small></main>
-<script src="/return-context.js"></script><script>
+/* ── 登录页优化层（只作用于登录页，不影响工作区） ── */
+/* 移动端 16px 字号：避免 iOS 聚焦时整页自动放大 */
+#username,#password,#platform-email,#platform-code{font-size:16px}
+#username::placeholder,#password::placeholder,#platform-email::placeholder,#platform-code::placeholder{color:#9fb0b4;font-weight:400}
+/* 提示区：淡底 + 左侧色条，错误一眼可见 */
+#identity-result:not(:empty){margin-top:16px;padding:12px 14px;border-radius:12px;background:#f4f8f7;border-left:3px solid var(--green);font-size:13.5px;line-height:1.7;color:#24403c;font-family:inherit}
+/* 密码可见切换 */
+.yy-pw-wrap{position:relative;display:block}
+.yy-pw-wrap input{padding-right:52px}
+.yy-pw-toggle{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:44px;height:44px;min-height:0;padding:0;margin:0;border:0;background:transparent;color:#55676e;border-radius:10px;font-size:12.5px;font-weight:600;box-shadow:none}
+.yy-pw-toggle:hover:not(:disabled){background:#eef4f3;color:var(--green);filter:none}
+/* 注册模式：验证码按钮与输入框同排，少占一行 */
+#identity-register-fields #identity-send-code{margin-top:8px}
+/* 两处跳转链接补足 44px 触控高度：它们是移动端唯一离开登录页的入口 */
+main>header a{display:inline-flex;align-items:center;min-height:44px}
+#login>p:last-child a[data-toolbox-return]{display:inline-block;padding:12px 6px;min-height:44px}
+@media(max-width:420px){
+  main{padding:14px 13px 28px !important}
+  main>header{padding:6px 0 12px !important;gap:8px !important}
+  main>header b{font-size:14px !important}
+  main>header b:before{width:32px !important;height:32px !important;font-size:17px !important;border-radius:10px !important}
+  main>header a{font-size:12px !important;padding:7px 10px !important}
+  main>h1{font-size:22px !important;margin:18px 0 8px !important;letter-spacing:-.02em !important}
+  main>p{font-size:12.5px !important;line-height:1.7 !important;margin-bottom:16px !important;padding:0 2px !important}
+  #login{padding:18px 15px 16px !important;border-radius:17px !important;margin-bottom:24px !important}
+  #login>h2{font-size:18px !important;margin-bottom:6px !important}
+  #login>p:first-of-type{font-size:12.5px !important;line-height:1.7 !important}
+  #login>div{margin:14px 0 !important;padding:3px !important;border-radius:9px !important}
+  #login>div button{min-height:44px !important;font-size:13px !important;padding:6px 8px !important}
+  #login label{font-size:12.5px !important;margin-top:14px !important}
+  #login input{min-height:46px !important;padding:9px 11px !important}
+  #login button{min-height:44px !important}
+  #identity-submit{margin-top:16px !important;font-size:15px !important}
+  section{padding:16px !important;border-radius:15px !important}
+  #identity-form+p{font-size:12px !important;margin-top:12px !important}
+  #identity-result:not(:empty){font-size:12.5px !important;padding:10px 12px !important}
+  details{font-size:12.5px !important;padding:10px 12px !important}
+}
+
+/* ===== 以下为 console.css 全文（内联，消除首屏阻塞请求）===== */
+/* 游园 · 账号控制台（琉璃质感层）
+   结构类名保持不变：auth-shell / auth-nav / auth-account-card / auth-account-details /
+   auth-section / auth-avatar / auth-status / auth-metrics / auth-dialog。
+   注意：本文件内容已内联进 index.html 的 style 块（消除首屏阻塞请求），
+   改这里之后必须同步 index.html，否则不会生效。 */
+
+:root{
+  --glass:rgba(255,255,255,.62);
+  --glass-strong:rgba(255,255,255,.84);
+  --glass-line:rgba(255,255,255,.78);
+  --shadow:0 20px 50px -24px rgba(14,58,52,.38),0 2px 8px -4px rgba(14,58,52,.1);
+  --shadow-lift:0 28px 64px -26px rgba(14,58,52,.46);
+  --accent:#08796c;
+  --accent-2:#12a58f;
+}
+
+body{
+  background:
+    radial-gradient(900px 620px at 6% -12%,#d7f2e9 0%,transparent 58%),
+    radial-gradient(820px 520px at 102% -6%,#e2eefb 0%,transparent 55%),
+    radial-gradient(760px 700px at 48% 112%,#efe8fb 0%,transparent 62%),
+    #f3f8f7;
+  background-attachment:fixed;
+}
+main{width:min(100%,1280px);padding:24px 28px 60px}
+#workspace{margin-top:24px}
+
+/* 侧栏：悬浮琉璃面板 */
+.auth-shell{display:grid;grid-template-columns:196px minmax(0,1fr);gap:26px;align-items:start}
+.auth-nav{
+  position:sticky;top:20px;display:grid;gap:4px;padding:8px;
+  background:var(--glass);border:1px solid var(--glass-line);border-radius:20px;
+  box-shadow:var(--shadow);backdrop-filter:blur(20px) saturate(1.5);
+}
+.auth-nav button{
+  margin:0;text-align:left;background:transparent;color:#5c7570;padding:13px 15px;border-radius:13px;
+  transition:background .25s ease,color .25s ease,transform .2s ease,box-shadow .25s ease;
+}
+.auth-nav button:hover{background:rgba(255,255,255,.6);color:#20443f;transform:translateX(2px)}
+.auth-nav button[aria-selected=true]{
+  background:linear-gradient(135deg,rgba(18,165,143,.18),rgba(8,121,108,.08));
+  color:#05655a;box-shadow:inset 0 0 0 1px rgba(18,165,143,.22),0 6px 18px -12px rgba(8,121,108,.6);
+}
+.auth-main{min-width:0}
+.auth-page>section{margin-top:0}
+.auth-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.auth-top h2{margin:0;letter-spacing:-.02em}
+.auth-top button{margin:0}
+
+/* 指标卡：三块玻璃 */
+.auth-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.auth-metrics article{
+  position:relative;overflow:hidden;padding:16px 18px;border-radius:18px;
+  background:linear-gradient(150deg,rgba(255,255,255,.9),rgba(255,255,255,.55));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);backdrop-filter:blur(16px);
+}
+.auth-metrics article::after{
+  content:'';position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,var(--accent-2),transparent 70%);opacity:.55;
+}
+.auth-metrics strong{display:block;font-size:27px;line-height:1.15;letter-spacing:-.03em}
+.auth-metrics span{font-size:12px;color:#6b827e}
+
+/* 工具栏与批量选择条 */
+.auth-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.auth-toolbar input{flex:1;min-width:150px}
+.auth-toolbar select{width:auto;max-width:180px}
+.auth-toolbar button{margin:0}
+.auth-selection{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  background:rgba(255,255,255,.55);border:1px solid var(--glass-line);border-radius:16px;
+  padding:9px 14px;margin-bottom:14px;backdrop-filter:blur(14px);box-shadow:0 10px 28px -22px rgba(14,58,52,.4);
+}
+.auth-selection button{margin:0;padding:8px 12px}
+.auth-selection input{width:18px;min-height:18px;margin:0}
+.auth-selection label{display:flex;align-items:center;gap:8px;margin:0;font-size:13px}
+
+/* 账号卡片：琉璃 + 悬停扫光 + 展开滑入 */
+.auth-main #accounts{display:flex;flex-direction:column;gap:12px;grid-template-columns:none}
+.auth-account-card{
+  position:relative;overflow:hidden;display:block;min-width:0;
+  padding:14px 18px;border-radius:20px;
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.58));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);backdrop-filter:blur(18px) saturate(1.45);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s,border-color .28s;
+}
+.auth-account-card::before{
+  content:'';position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.7),transparent);
+  transform:translateX(-140%);opacity:0;
+}
+.auth-account-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:#fff}
+.auth-account-card:hover::before{opacity:.75;animation:yy-sheen 1.05s ease}
+.auth-account-card.expanded{border-color:rgba(18,165,143,.35);box-shadow:var(--shadow-lift),0 0 0 1px rgba(18,165,143,.18)}
+@keyframes yy-sheen{to{transform:translateX(240%)}}
+.auth-account-head{display:flex;align-items:center;gap:14px;min-width:0}
+.auth-account-head>input[type=checkbox]{flex:0 0 18px;margin:0;accent-color:var(--accent)}
+.auth-account-card header{padding:0;border:0}
+.auth-account-card input[type=checkbox]{width:18px;min-height:18px}
+
+/* 头像：圆角方块 + 内描边 */
+.auth-avatar{
+  flex-shrink:0;display:grid;place-items:center;width:54px;height:54px;min-height:54px;padding:0;margin:0;line-height:1;
+  border:0;border-radius:17px;background:linear-gradient(140deg,#e9f7f3,#d3e9e4);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),0 8px 20px -12px rgba(14,58,52,.55);
+  transition:transform .25s ease;
+}
+.auth-account-card:hover .auth-avatar{transform:scale(1.04)}
+.auth-avatar img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated;border-radius:inherit}
+.auth-avatar-empty{display:grid;place-items:center;position:relative;width:100%;height:100%;overflow:hidden;background:transparent;border-radius:inherit;color:#7d9590}
+.auth-avatar-empty>svg{width:100%;height:100%;fill:currentColor;opacity:1;shape-rendering:geometricPrecision}
+.auth-avatar-empty>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* 身份文本 */
+.auth-identity-button{
+  display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:3px;
+  text-align:left;background:transparent;color:var(--ink);padding:4px 2px;margin:0;border-radius:10px;
+}
+.auth-identity-button strong{font-size:16.5px;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auth-identity-button span{font-size:11.5px;color:#718a85;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+
+/* 状态胶囊 */
+.auth-status{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:5px 11px;border-radius:999px;
+  background:rgba(18,165,143,.1);color:#07745f;font-size:11.5px;font-weight:600;
+  border:1px solid rgba(18,165,143,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.6);min-height:32px;cursor:pointer;
+}
+.auth-status::before{content:'';width:6px;height:6px;border-radius:50%;background:#12b48d;box-shadow:0 0 0 3px rgba(18,180,141,.16)}
+.auth-status.error{background:rgba(216,124,62,.11);color:#a1542a;border-color:rgba(216,124,62,.22)}
+.auth-status.error::before{background:#e08a4e;box-shadow:0 0 0 3px rgba(224,138,78,.16)}
+.auth-account-card .auth-status{font-size:12px}
+
+/* 展开按钮：文字 + 旋转箭头 */
+.auth-detail-button{
+  margin:0;padding:9px 13px;border-radius:12px;background:rgba(255,255,255,.6);
+  border:1px solid rgba(18,165,143,.18);color:#0a6b60;font-size:12.5px;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;transition:background .22s,border-color .22s;
+}
+.auth-detail-button::after{
+  content:'';width:7px;height:7px;border-right:1.8px solid currentColor;border-bottom:1.8px solid currentColor;
+  transform:rotate(45deg) translateY(-2px);transition:transform .3s cubic-bezier(.2,.8,.2,1);
+}
+.auth-detail-button[aria-expanded=true]{background:linear-gradient(135deg,rgba(18,165,143,.16),rgba(8,121,108,.08))}
+.auth-detail-button[aria-expanded=true]::after{transform:rotate(-135deg) translateY(-1px)}
+
+/* 详情面板：滑入 */
+.auth-account-details{
+  border-top:1px solid rgba(18,120,108,.12);margin-top:12px;padding-top:14px;min-width:0;
+  animation:yy-panel-in .36s cubic-bezier(.2,.8,.2,1);
+}
+.auth-account-details[hidden]{display:none}
+@keyframes yy-panel-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* 详情头部：皮肤台 + 资料胶囊 */
+.auth-detail-hero{display:grid;grid-template-columns:minmax(128px,152px) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.auth-hero-stage{
+  position:relative;min-height:156px;border-radius:16px;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 34%,#f7fdfb,#dcebe7);
+  border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 #fff,0 10px 26px -20px rgba(14,58,52,.6);
+}
+.auth-detail-skin{position:absolute;inset:0}
+.auth-pose-bar{
+  position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:3px;padding:3px;
+  border-radius:10px;background:rgba(255,255,255,.72);backdrop-filter:blur(8px);box-shadow:0 4px 14px -8px #123;
+}
+.auth-pose-bar button{margin:0;padding:4px 9px;min-height:0;font-size:11px;border-radius:7px;background:transparent;color:#44615c}
+.auth-pose-bar button[aria-pressed=true]{background:#fff;color:var(--accent);box-shadow:0 1px 4px #173b4920}
+.auth-hero-meta{display:grid;gap:8px;align-content:center;min-width:0}
+.auth-chip{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:12px;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.8);font-size:12px;min-width:0;
+}
+.auth-chip i{font-style:normal;color:#6f8681;flex:0 0 auto}
+.auth-chip b{font-weight:600;font-size:12.5px;text-align:right;overflow-wrap:anywhere;min-width:0}
+
+/* 折叠区：0fr→1fr 真实滑动 */
+.auth-section{
+  background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.72);border-radius:16px;
+  margin:0 0 10px;overflow:hidden;backdrop-filter:blur(10px);
+  transition:background .28s,border-color .28s,box-shadow .28s;
+}
+.auth-section.open{background:rgba(255,255,255,.8);border-color:rgba(18,165,143,.2);box-shadow:0 12px 30px -22px rgba(14,58,52,.55)}
+.auth-section-head{
+  display:flex;align-items:center;gap:10px;width:100%;padding:13px 15px;margin:0;border:0;background:transparent;
+  color:var(--ink);font-size:14px;font-weight:600;text-align:left;cursor:pointer;min-height:0;border-radius:0;
+}
+.auth-section-head:hover{background:rgba(255,255,255,.5)}
+.auth-section-icon{
+  display:grid;place-items:center;flex:0 0 auto;width:26px;height:26px;border-radius:9px;
+  background:linear-gradient(135deg,#e8f8f3,#d4ece6);color:var(--accent);font-size:12px;
+}
+.auth-section-title{flex:1;min-width:0}
+.auth-chevron{width:8px;height:8px;border-right:1.8px solid #6f8b86;border-bottom:1.8px solid #6f8b86;transform:rotate(45deg);transition:transform .3s cubic-bezier(.2,.8,.2,1);opacity:.7}
+.auth-section-head[aria-expanded=true] .auth-chevron{transform:rotate(-135deg)}
+.auth-section-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s cubic-bezier(.2,.8,.2,1)}
+.auth-section.open .auth-section-body{grid-template-rows:1fr}
+.auth-section-inner{overflow:hidden;padding:0 15px;transition:padding .3s ease}
+.auth-section.open .auth-section-inner{padding:0 15px 15px}
+.auth-section p{margin:0 0 10px;font-size:13px;color:#5f7873}
+.auth-hint{font-size:12.5px!important;color:#718a85!important;margin-bottom:12px!important}
+.auth-field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+.auth-field-grid label{margin-top:0;font-size:12.5px}
+.auth-field-grid input{margin-top:6px}
+.auth-action-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.auth-action-row button{margin:0;min-height:40px;padding:9px 13px;border-radius:11px;font-size:13px}
+.auth-notice{padding:10px 13px;background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.8);border-radius:12px;margin:12px 0 0!important;font-size:12px!important;color:#6f8681!important}
+
+/* 服务卡片与弹窗 */
+.auth-services{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.auth-services a,.auth-services>button{
+  display:block;text-decoration:none;padding:20px;border-radius:18px;color:var(--ink);
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.58));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);transition:transform .25s,box-shadow .25s;
+}
+.auth-services a:hover,.auth-services>button:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.auth-services h3{margin:0 0 6px;font-size:16px}
+.auth-services p{margin:0;font-size:13px;color:#6b827e}
+.auth-dialog{
+  width:min(640px,94vw);max-height:90dvh;border:1px solid var(--glass-line);border-radius:24px;padding:22px;color:var(--ink);
+  overflow:auto;background:rgba(255,255,255,.9);backdrop-filter:blur(22px) saturate(1.5);box-shadow:0 40px 90px -30px rgba(10,40,36,.5);
+}
+.auth-dialog::backdrop{background:rgba(12,32,28,.35);backdrop-filter:blur(4px)}
+.auth-dialog>header{margin-bottom:16px;position:sticky;top:-22px;background:transparent;z-index:2}
+.auth-dialog>header button{margin:0}
+.auth-dialog .dialog-actions{display:flex;gap:8px;flex-wrap:wrap}
+.auth-dialog .dialog-actions button{flex:1;margin-right:0}
+.skin-stage{height:340px;border:1px solid var(--glass-line);border-radius:18px;background:radial-gradient(ellipse at 50% 40%,#f2faf8,#dfecea);overflow:hidden}
+.auth-skin-controls{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.auth-skin-controls [role=group]{display:flex;background:rgba(240,246,245,.9);padding:4px;border-radius:11px;gap:3px}
+.auth-skin-controls button{margin:0;padding:8px 13px;border-radius:8px;background:transparent;color:#46606a}
+.auth-skin-controls button[aria-pressed=true]{background:#fff;color:#0d6a63;box-shadow:0 1px 5px #173b4920}
+.auth-skin-controls+p{text-align:center;font-size:12px;color:#76868c}
+/* 360/390 窄屏：三组控件保持一行，不再让「复位视角」整组换行掉到下面（2026-10-26 第 31 条）。 */
+@media (max-width:420px){
+ .auth-skin-controls{flex-wrap:nowrap;gap:6px}
+ .auth-skin-controls [role=group]{flex:1 1 0;min-width:0;justify-content:center}
+ .auth-skin-controls button{padding:8px 5px;font-size:12px;white-space:nowrap;min-height:40px}
+ .auth-pose-bar button{min-height:38px;min-width:44px;padding:7px 8px}
+}
+.auth-avatar-choices{display:flex;gap:8px;flex-wrap:wrap}
+.auth-avatar-choices button{margin:0;width:44px;padding:6px;font-size:24px}
+
+/* 资料区大头像：与列表头像同一套三级链 */
+.auth-profile-avatar{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.auth-avatar-large{
+  flex-shrink:0;display:grid;place-items:center;width:72px;height:72px;border-radius:18px;overflow:hidden;
+  background:linear-gradient(140deg,#e9f7f3,#d3e9e4);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),0 8px 20px -12px rgba(14,58,52,.55);
+}
+.auth-avatar-large img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.auth-profile-avatar p{margin:0;font-size:12.5px}
+
+/* 组件码预加载区：真实纹理小预览 + 待应用列表 */
+.auth-component-preload{margin-top:14px}
+.auth-component-preload textarea{min-height:74px;resize:vertical}
+.auth-component-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;margin-top:10px}
+.auth-component-tile{
+  display:grid;justify-items:center;gap:6px;padding:10px 8px;border-radius:14px;text-align:center;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.8);
+}
+.auth-component-tile img,.auth-component-tile .auth-avatar-empty{width:48px;height:48px;border-radius:10px;image-rendering:pixelated}
+.auth-component-tile img{object-fit:cover;display:block}
+.auth-component-tile b{font-size:12px;font-weight:600;max-width:100%;overflow-wrap:anywhere}
+.auth-component-tile span{color:var(--muted);font-size:11px}
+.auth-component-tile button{margin:0;min-height:34px;padding:6px 12px;font-size:12px}
+
+#auth-page-tokens input{font-family:ui-monospace,monospace}
+.auth-main .grid{display:block}
+.auth-main .grid>section{margin:0 0 18px}
+
+/* 全局提示条：深色琉璃 */
+#result{
+  position:fixed;left:50%;bottom:16px;transform:translateX(-50%);max-width:min(90vw,720px);max-height:160px;overflow:auto;
+  background:rgba(18,45,41,.9);color:#f2fbf8;border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:12px 18px;margin:0;
+  z-index:50;box-shadow:0 18px 44px -18px rgba(6,30,26,.8);backdrop-filter:blur(12px);
+}
+#result:empty{display:none}
+#result a{color:#9de9d7}
+
+/* 项目管理 · 托管账号池 */
+#auth-page-pool .pool-head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+#auth-page-pool .pool-picker{display:flex;flex-direction:column;gap:6px;min-width:min(100%,260px);flex:1}
+#auth-page-pool .pool-picker label{margin:0;font-size:12px;color:#6b827e}
+#auth-page-pool #admin-accounts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:14px}
+#admin-accounts article{
+  position:relative;overflow:hidden;padding:18px;border-radius:18px;
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.6));
+  border:1px solid var(--glass-line);box-shadow:var(--shadow);transition:transform .25s,box-shadow .25s;
+}
+#admin-accounts article:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+#admin-accounts .pool-id{font-family:ui-monospace,monospace;font-size:11.5px;color:#718a85}
+#admin-accounts h3{margin:0 0 4px;font-size:16px}
+#admin-accounts .pool-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+#admin-accounts .pool-actions button{margin:0;flex:1 1 auto;min-width:0;padding:9px 10px;font-size:12.5px;border-radius:11px}
+
+/* 移动端 */
+@media(max-width:760px){
+  main{padding:18px 14px 40px}
+  .auth-shell{display:block}
+  .auth-nav{position:static;display:flex;gap:4px;overflow-x:auto;margin-bottom:18px;padding:5px;border-radius:16px}
+  .auth-nav button{flex:1 0 auto;padding:11px 12px;text-align:center;white-space:nowrap}
+  .auth-metrics{gap:8px}
+  .auth-metrics article{padding:12px 14px;border-radius:14px}
+  .auth-metrics strong{font-size:23px}
+  .auth-dialog{padding:18px}
+  .auth-dialog>header{top:-18px}
+  .auth-account-card{padding:12px 14px;border-radius:16px}
+  .auth-avatar{width:46px;height:46px;min-height:46px;border-radius:14px}
+  .auth-identity-button strong{font-size:15px}
+  .auth-detail-button{display:none}
+  .auth-toolbar select{flex:1;max-width:none}
+  .auth-main #accounts{grid-template-columns:1fr}
+  .auth-detail-hero{grid-template-columns:1fr}
+  .auth-hero-stage{min-height:180px}
+  .auth-hero-meta{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+  .auth-section-inner,.auth-section.open .auth-section-inner{padding-left:12px;padding-right:12px}
+  .auth-action-row button{width:100%;margin-right:0}
+  #admin-accounts{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+
+/* 取用令牌后就地显示：不再把用户送去另一个页签复制 */
+.auth-token-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #dae3e5);
+  border-radius: 10px;
+  background: var(--bg-soft, #f5f7f8);
+  font-size: 12px;
+}
+.auth-token-inline > span { color: var(--muted, #5f6f73); }
+.auth-token-inline > code {
+  flex: 1 1 180px;
+  min-width: 0;
+  font: 11px/1.5 ui-monospace, Consolas, monospace;
+  overflow-wrap: anywhere;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #fff;
+}
+.auth-token-inline > small { flex: 1 1 100%; color: var(--muted, #5f6f73); font-size: 11px; }
+.auth-token-inline > button { min-height: 34px; }
+
+/* ══════════════════════════════════════════════════════════════
+   可读性与触控修正层
+   为什么放在文件末尾：上面是既有视觉层，这里只做"叠加修正"，
+   避免逐条改动原有规则带来的回归风险。同权重时后者胜出。
+   ══════════════════════════════════════════════════════════════ */
+
+/* 次要文字加深：原 #65777e / #718a85 / #6b827e 在 #eff5f4 背景上
+   实测对比度 3.7–4.3:1，低于 WCAG AA 的 4.5:1（12–15px 正文）。
+   统一收到 #55676e（约 5.4:1）与 #43585f（约 6.8:1，用于 11px 等宽字）。 */
+:root{--muted:#55676e;--muted-strong:#43585f}
+
+.auth-nav button{color:#4d6560}
+.auth-metrics span{color:var(--muted)}
+.auth-identity-button span{color:var(--muted-strong)}
+.auth-section p{color:var(--muted)}
+.auth-hint{color:var(--muted)!important}
+.auth-notice{color:var(--muted)!important}
+.auth-chip i{color:var(--muted)}
+.auth-services p{color:var(--muted)}
+#auth-page-pool .pool-picker label{color:var(--muted)}
+#admin-accounts .pool-id{color:var(--muted-strong)}
+.auth-skin-controls+p{color:var(--muted)}
+.auth-token-inline>span,.auth-token-inline>small{color:var(--muted)}
+
+/* 触控目标：细指针设备保持紧凑观感，粗指针（手机/触屏）统一放大到 44px。
+   为什么不用一刀切 44px：桌面端状态胶囊被撑到 44px 会破坏卡片节奏。 */
+.auth-detail-button{min-height:44px}
+.auth-action-row button{min-height:44px}
+.auth-selection button{min-height:44px}
+#admin-accounts .pool-actions button{min-height:44px}
+.auth-section-head{min-height:48px}
+@media(pointer:coarse){
+  .auth-status{min-height:44px;padding:9px 13px}
+  .auth-pose-bar button{min-height:36px;padding:7px 11px}
+  .auth-skin-controls button{min-height:44px}
+  .auth-avatar-choices button{min-height:44px}
+}
+/* 窄屏基本等于触屏：不依赖 pointer 探测，直接放大状态胶囊的点击区 */
+@media(max-width:760px){.auth-status{min-height:44px;padding:9px 13px}}
+
+/* 360–400px 窄屏：卡片头部三件套（勾选/头像/状态）在 360px 下会挤到
+   文字只剩 ~100px，缩小间距换回可读宽度。 */
+@media(max-width:400px){
+  .auth-account-head{gap:9px}
+  .auth-account-card{padding:12px}
+  .auth-metrics{gap:6px}
+  .auth-metrics article{padding:11px 12px}
+  .auth-metrics span{font-size:11px;letter-spacing:-.01em}
+  .auth-toolbar{gap:8px}
+  .auth-dialog{width:96vw;padding:14px;border-radius:18px}
+  .auth-dialog>header{top:-14px}
+  #result{left:10px;right:10px;transform:none;max-width:none;bottom:10px;padding:10px 13px}
+  .auth-token-inline>code{flex-basis:100%}
+}
+
+/* 首屏骨架：会话已存在时，账号列表要等 /api/accounts 回来才有内容。
+   先给同尺寸占位，避免"登录框消失 → 一大片空白 → 卡片突然刷出"。 */
+.yy-skel{
+  display:block;border-radius:12px;
+  background:linear-gradient(90deg,#e9f1ef 25%,#f6fbfa 37%,#e9f1ef 63%);
+  background-size:400% 100%;animation:yy-skel 1.5s ease-in-out infinite;
+}
+@keyframes yy-skel{from{background-position:100% 0}to{background-position:-100% 0}}
+.yy-skel-row{height:74px;border-radius:18px;margin-bottom:12px}
+.yy-skel-line{height:14px;margin-bottom:10px}
+.yy-skel-block{height:120px}
+/* 登录卡片形状的占位：会话已存在时先占住登录卡的位置，
+   避免控制台脚本到位后整页重排（CLS）。 */
+.yy-boot-card{
+  width:min(100%,460px);margin:0 auto 36px;padding:30px;
+  background:#fff;border:1px solid var(--line,#e0e7e9);border-radius:24px;
+  box-shadow:0 24px 70px #264a4312,0 2px 6px #264a4306;
+}
+@media(prefers-reduced-motion:reduce){.yy-skel{animation:none;background:#eef4f3}}
+
+/* ===== 以下为 auth-entry.css 全文（内联）===== */
+/* A quiet branded backdrop; no remote artwork, trackers or animation.
+   注意：本文件内容已内联进 index.html 的 style 块（消除首屏阻塞请求），
+   改这里之后必须同步 index.html，否则不会生效。 */
+body{background-color:#eff5f4;background-image:radial-gradient(ellipse at 15% 5%,#c8e4de9c,transparent 50%),radial-gradient(ellipse at 95% 75%,#dce6f9a8,transparent 48%),radial-gradient(#557a711c .7px,transparent .7px);background-size:auto,auto,22px 22px;background-attachment:fixed}
+main>header{border-bottom-color:#c8d8d5a3;padding:12px 0 20px}
+main>header b{display:flex;align-items:center;gap:10px}
+main>header b:before{content:'游';display:grid;place-items:center;width:36px;height:36px;background:#08796c;color:#fff;border-radius:11px;font-size:19px;box-shadow:0 5px 14px #08796c22}
+main>header a{font-size:13px;padding:9px 13px;border:1px solid #c5d9d4;background:#ffffffb3;border-radius:10px;white-space:nowrap}
+main>h1{font-size:32px;margin-top:44px;line-height:1.35;letter-spacing:-.025em}
+/* 副标题与登录卡同宽（460px）：1280 实测原来 440 宽导致左边缘比卡片右移 10px。
+   两侧都是 margin:auto 居中，同宽即同左边缘；窄屏下由容器宽度决定，360/390 不变。 */
+main>p{font-size:14px;line-height:1.85;max-width:460px}
+#login{padding:28px 32px 24px;border-color:#fff;background:#ffffffed;box-shadow:0 24px 70px #264a4312,0 2px 6px #264a4306;border-radius:24px}
+#login>h2{font-size:22px;margin-bottom:8px}
+#login>p:first-of-type{font-size:13px;margin:0;line-height:1.8}
+#login label{font-size:13px;margin-top:19px}
+#login input{min-height:48px;background:#f8fbfa;border-color:#d3dfdc;border-radius:11px}
+#login button{min-height:46px;border-radius:11px}
+#login #identity-submit{box-shadow:0 6px 16px #08796c21}
+#identity-send-code{margin-top:10px}
+main>small{display:block;margin-top:30px;font-size:12px;text-align:center;color:#55676e}
+@media(max-width:600px){main>h1{font-size:27px;margin-top:30px}main>header{gap:10px}main>header b{font-size:15px}#login{padding:24px 22px;border-radius:20px}main>p{padding:0 10px}}
+
+/* 平台账号登录/注册前置人机验证：容器只占位，组件由 Turnstile 注入 */
+.turnstile-identity{margin:14px 0 4px;min-height:65px;display:flex;justify-content:flex-start}
+.turnstile-identity:empty{min-height:0;margin:0}
+/* 站点启用了 Turnstile 时由 JS 打上 .yy-tq-on：
+   即使组件还没注入也先占住 65px，避免提交按钮被顶下去（CLS）。 */
+.turnstile-identity.yy-tq-on:empty{min-height:65px;margin:14px 0 4px}
+
+</style><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script><main><header><b>游园 · 游戏账号</b><a data-toolbox-return href="https://toolbox.youyuanqi.dpdns.org/">打开工作台</a></header><h1>连接游戏，从账号开始。</h1><p>一个入口，管理你的游戏账号与机器人。登录游园后，即可添加账号、选择皮肤和获取连接令牌。</p>
+<section id="login"><h2>游园平台账号</h2><p>使用工具箱的游园账号登录。第一次使用请先注册，并验证你的 QQ 邮箱。</p><div><button id="identity-login-tab" type="button" onclick="identityMode('login')">登录</button><button id="identity-register-tab" type="button" class="secondary" onclick="identityMode('register')">注册账号</button></div><form id="identity-form" onsubmit="identitySubmit(event)"><label for="username">游园账号</label><input id="username" autocomplete="username" required minlength="3" maxlength="32" placeholder="3–32 位，字母或数字"><div id="identity-register-fields" hidden><label for="platform-email">QQ邮箱</label><input id="platform-email" type="email" placeholder="123456@qq.com" autocomplete="email" maxlength="71"><label for="platform-code">邮箱验证码</label><input id="platform-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6位验证码"><button id="identity-send-code" type="button" class="secondary" onclick="identitySendCode()">发送验证码</button><p>验证码10分钟内有效，发送后保持账号名称和邮箱不变。</p></div><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="至少 10 位"><div id="turnstile-identity" class="turnstile-identity"></div><button id="identity-submit" type="submit">登录</button><pre id="identity-result" role="status"></pre></form><p><a data-toolbox-return href="https://toolbox.youyuanqi.dpdns.org/">返回工具箱</a></p></section>
+<div id="yy-boot" hidden aria-hidden="true"><div class="yy-boot-card"><span class="yy-skel yy-skel-line" style="width:42%"></span><span class="yy-skel yy-skel-line" style="width:68%"></span><span class="yy-skel yy-skel-block"></span></div></div><div id="workspace" hidden><header><h2 id="welcome">我的游戏凭据</h2><button class="secondary" onclick="logout()">退出平台账号</button></header><div class="grid"><section><h2>添加游戏账号</h2><details id="registration-guide"><summary>注册与接入教程</summary><ol><li>先登录游园平台账号。平台邮箱验证码仅用于游园注册。</li><li>网易账号选“网易邮箱登录”；4399账号先完成官方注册，再回到这里选“4399渠道账号登录”。</li><li>填写本人账号、密码；需要创建或更改游戏昵称时填写下方昵称。服务将完成渠道登录、游戏认证和令牌签发。</li><li>需要实名/短信/验证码时，按官方验证页面本人完成，回到待验证任务继续。</li><li>令牌签发后，在工具箱账号管理选择游园独立认证，保存令牌和服务器号，再连接。</li></ol><p>网页中出现4399游戏列表只表示平台注册完成，不能代表Minecraft游戏档案或游园令牌已经生成。</p><button class="secondary" type="button" onclick="open4399Official()">打开4399官方注册</button></details><form id="account-form" onsubmit="accountSubmit(event)"><label>方式</label><select id="mode" onchange="mode()"><option value="login_email">网易邮箱登录</option><option value="register_guest">一键创建游客账号</option><option value="login_4399" disabled>4399渠道登录（当前暂不可用）</option><option value="import_cookie">导入网易登录Cookie</option></select><label>显示名称</label><input id="name" maxlength="48"><div id="email-fields"><label>网易邮箱</label><input id="email" type="email" autocomplete="off"><label>网易密码</label><input id="game-password" type="password" autocomplete="off"></div><div id="guest-fields" hidden><label>游戏昵称 · 2–20个字符</label><input id="nickname" maxlength="20"></div><div id="4399-fields" hidden><label>4399用户名</label><input id="4399-username" autocomplete="username"><label>4399密码</label><input id="4399-password" type="password" autocomplete="off"><p>已有4399账号直接登录。注册网站的游戏列表不会创建游园令牌；注册后请回到这里继续。</p><button type="button" class="secondary" onclick="open4399Official()">打开4399官方注册</button><div id="4399-captcha" hidden><img id="4399-captcha-image" alt="4399验证码"><label>手动输入验证码</label><input id="4399-captcha-code" autocomplete="one-time-code"></div></div><div id="cookie-fields" hidden><label>网易登录Cookie</label><textarea id="cookie"></textarea></div><p class="managed-policy">本平台采用项目托管模式：项目管理员可调用所添加的游戏账号，此权限固定开启。网易密码和Cookie不在管理列表中展示。</p><div id="turnstile-create"></div><button id="create" type="submit">添加并签发令牌</button></form><p>不保存网易明文密码。登录凭据加密保存，自动刷新默认开启；遇到实名或安全验证需本人完成。</p><pre id="result"></pre></section><section><h2>使用游戏令牌</h2><p>APK验证服务器选择“游园独立认证”，令牌填入账号工作空间。游戏在线还需要保持APK运行并开启断线重连。</p><label>认证地址</label><input id="auth-origin" readonly value="https://auth.youyuanqi.dpdns.org"><label>游戏令牌</label><form id="token-form" onsubmit="event.preventDefault()"><input id="token" type="password" readonly></form><button type="button" onclick="copy()">复制令牌</button><button type="button" class="secondary" onclick="reveal()">显示 / 隐藏</button><p>令牌与平台MCP控制密钥不同。撤销凭据后不能重新登录；已建立的游戏连接不会被强制踢出。</p></section></div><section><h2>游客批量账号任务</h2><p>一次平台邮箱验证后，可在同一登录会话管理多批账号。每批1–10个；官方游戏账号需要验证时暂停，完成本人验证后继续。不承诺一条网易/4399短信能创建10个不同账号。</p><label>本批数量</label><input id="batch-count" type="number" min="1" max="10" value="1"><label>昵称前缀</label><input id="batch-prefix" maxlength="16" placeholder="例如游园机器人"><div id="turnstile-batch"></div><button class="secondary" onclick="createBatch()">建立批量任务</button><p>4399渠道接入绑定已有账号，不会把同一个4399账号算作十个不同账号。建立任务不会立即注册。点击“连续执行本批”可依次创建；每创建一个账号会暂停并要求填写游戏昵称，保存后才能继续下一项。遇到验证或错误会暂停，关闭网页也会停止连续提交。</p><div id="batch-jobs"></div></section><section id="pending-section" hidden><h2>待完成安全验证</h2><div id="pending-accounts"></div></section><section id="project-admin" hidden><h2>项目管理 · 托管游戏账号</h2><p>项目管理员可管理本平台添加的全部游戏凭据。个人网易密码和Cookie不会显示。</p><div class="pool-head"><div class="pool-picker"><label for="admin-user">平台用户</label><select id="admin-user" onchange="adminAccounts()"></select></div><button class="secondary" onclick="adminAccounts()">刷新托管列表</button></div><div id="admin-accounts"></div></section><section><h2>账号列表</h2><button class="secondary" onclick="refresh()">刷新状态</button><div id="accounts"><span class="yy-skel yy-skel-row"></span><span class="yy-skel yy-skel-row"></span><span class="yy-skel yy-skel-row"></span></div></section></div><small>游园游戏账号服务 · 凭据加密保存</small></main>
+<script src="/return-context.js" defer></script><script>
 let key=sessionStorage.getItem('yy-auth-device')||'',session=sessionStorage.getItem('yy-auth-session')||'';
 const el=id=>document.getElementById(id);
 async function api(path,body,credential=key){const control=new AbortController(),timer=setTimeout(()=>control.abort(),80000);try{const response=await fetch(path,{method:body?'POST':'GET',signal:control.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+credential},body:body?JSON.stringify(body):undefined});let r;try{r=await response.json()}catch{throw Error('服务响应异常，请稍后重试')}if(!r.ok){const e=Error(r.error||r.message||'操作失败');e.verification_url=r.verification_url;e.pending_id=r.pending_id;e.verification_kind=r.verification_kind;e.captcha_url=r.captcha_url;e.captcha_id=r.captcha_id;throw e}return r}catch(e){if(e.name==='AbortError')throw Error('认证请求超时。原任务保留，请刷新待处理列表后继续。');throw e}finally{clearTimeout(timer)}}
@@ -44,20 +541,37 @@ function identityMode(action){platformMode=action;const registering=action==='re
 function mailCountdown(){const seconds=Math.max(0,Math.ceil((mailRetryUntil-Date.now())/1000));el('identity-send-code').disabled=seconds>0;el('identity-send-code').textContent=seconds?seconds+'秒后重发':'发送验证码';if(!seconds&&mailTimer){clearInterval(mailTimer);mailTimer=null}}
 async function identitySendCode(){if(!el('username').reportValidity()||!el('platform-email').reportValidity())return;const b=el('identity-send-code');if(Date.now()<mailRetryUntil)return;b.disabled=true;el('identity-result').textContent='正在发送验证码邮件…';try{const r=await api('/api/identity/register-code',{username:el('username').value,email:el('platform-email').value},'');el('identity-result').textContent=r.message;mailRetryUntil=Date.now()+(r.retry_after||60)*1000;if(mailTimer)clearInterval(mailTimer);mailTimer=setInterval(mailCountdown,1000);mailCountdown()}catch(e){el('identity-result').textContent=e.message;b.disabled=false;}}
 async function identitySubmit(event){event.preventDefault();if(!el('identity-form').reportValidity())return;await identity(platformMode)}
-async function identity(action){const b=el('identity-submit');b.disabled=true;try{el('identity-result').textContent='正在连接…';const body={username:el('username').value,password:el('password').value};if(action==='register'){body.email=el('platform-email').value;body.email_code=el('platform-code').value}const r=await api('/api/identity/'+action,body,'');key=r.device_token;session=r.session_token;sessionStorage.setItem('yy-auth-device',key);sessionStorage.setItem('yy-auth-session',session);el('password').value='';el('platform-code').value='';if(mailTimer){clearInterval(mailTimer);mailTimer=null}el('welcome').textContent=r.user.username+' · 游戏凭据';ready();await refresh()}catch(e){el('identity-result').textContent=e.message}finally{b.disabled=false}}
-function ready(){el('login').hidden=!!key;el('workspace').hidden=!key;if(key)adminInit();else el('project-admin').hidden=true}
+async function identity(action){const b=el('identity-submit');b.disabled=true;try{el('identity-result').textContent='正在连接…';const body={username:el('username').value,password:el('password').value,turnstile_token:yyTqToken('identity')};if(action==='register'){body.email=el('platform-email').value;body.email_code=el('platform-code').value}const r=await api('/api/identity/'+action,body,'');key=r.device_token;session=r.session_token;sessionStorage.setItem('yy-auth-device',key);sessionStorage.setItem('yy-auth-session',session);el('password').value='';el('platform-code').value='';if(mailTimer){clearInterval(mailTimer);mailTimer=null}el('welcome').textContent=r.user.username+' · 游戏凭据';ready();await refresh()}catch(e){el('identity-result').textContent=e.message;yyTqReset('identity')}finally{b.disabled=false}}
+/* 为什么要这个闸门：console.js 已改为 defer，首帧可能早于它执行。
+   此时若直接显示 #workspace，用户会看到 console.js 尚未重排的旧结构，
+   等脚本到位再整体换成琉璃控制台，观感就是"页面跳一下"。
+   所以 key 存在时先显示同形状骨架，等 __yyConsoleBooted 置位再揭真内容。 */
+function ready(){const booted=window.__yyConsoleBooted===true;el('login').hidden=!!key;el('workspace').hidden=!key||!booted;const boot=el('yy-boot');if(boot)boot.hidden=!key||booted;if(key&&booted)adminInit();else el('project-admin').hidden=true}
+/* 兜底：若 console.js 加载失败，load 之后也要把工作区放出来，不能让骨架一直转 */
+window.addEventListener('load',function(){if(!window.__yyConsoleBooted){window.__yyConsoleBooted=true;ready()}});
 async function logout(){if(session)try{await api('/api/identity/logout',{},session)}catch{}sessionStorage.removeItem('yy-auth-device');sessionStorage.removeItem('yy-auth-session');key='';session='';el('token').value='';el('accounts').textContent='';ready()}
 function mode(){const value=el('mode').value;el('email-fields').hidden=value!=='login_email';el('guest-fields').hidden=!['register_guest','login_4399'].includes(value);el('4399-fields').hidden=value!=='login_4399';el('cookie-fields').hidden=value!=='import_cookie'}
+/* 添加账号的字段（含网易/4399 密码框）放进 #account-form 后：
+   密码框才有 form owner（Chrome 不再报 "not contained in a form"，密码管理器能识别），
+   在任意字段按 Enter 也会走表单提交，和点“添加并签发令牌”等价、不刷新页面。 */
+function accountSubmit(event){event.preventDefault();create()}
 async function create(){el('create').disabled=true;el('result').textContent='正在认证，请稍候…';try{const r=await api('/api/accounts',{turnstile_token:yyTqToken('create'),action:el('mode').value,name:el('name').value,email:el('email').value,password:el('game-password').value,nickname:el('nickname').value,cookie:el('cookie').value,username:el('4399-username').value,...(el('mode').value==='login_4399'?{password:el('4399-password').value,captcha:el('4399-captcha-code').value,captcha_id:captcha4399id,...(pending4399id?{action:'resume_4399',id:pending4399id}:{})}:{}),allow_project_admin:true});el('game-password').value='';el('4399-password').value='';pending4399id='';el('cookie').value='';el('token').value=r.login_token;el('auth-origin').value=r.auth_url;el('result').textContent='账号已保存，已签发自己的游戏令牌。';await refresh()}catch(e){el('result').textContent=e.message.split(' verify_url=')[0];if(el('mode').value==='login_4399'&&e.pending_id)pending4399id=e.pending_id;if(e.verification_kind==='captcha_4399'){captcha4399id=e.captcha_id||'';el('4399-captcha').hidden=false;el('4399-captcha-image').src=e.captcha_url||'';}if(e.verification_url){const link=document.createElement('a');link.href=e.verification_url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='打开网易本人安全验证';el('result').append(document.createElement('br'),link)}await refresh()}finally{el('create').disabled=false}}
-async function refresh(){try{const r=await api('/api/accounts');el('accounts').textContent='';renderPending(r.pending||[]);renderBatches(r.batches||[]);for(const row of r.accounts){const item=document.createElement('section'),title=document.createElement('h3'),info=document.createElement('p');item.className='auth-account';const avatar=document.createElement('button');avatar.className='auth-avatar';avatar.textContent=(row.nickname||row.name||'游').slice(0,1);avatar.title='查看账号资料';avatar.onclick=()=>{info.hidden=!info.hidden};item.append(avatar);title.textContent=row.name;info.textContent='游戏ID '+row.game_id+' · '+(row.nickname||'未设置昵称')+' · '+row.status+' · '+(row.keep_alive?'定时刷新已启用':'定时刷新已关闭')+(row.last_refresh?' · '+new Date(row.last_refresh).toLocaleString():'');item.append(title,info);for(const [name,action]of [['取用令牌','token'],['刷新凭据','refresh'],['设置昵称','nickname'],['选择皮肤组件','skin'],['查看皮肤设置','skin_info'],[row.keep_alive?'关闭定时刷新':'开启定时刷新','configure'],['撤销','delete']]){const button=document.createElement('button');button.className='secondary';button.textContent=name;button.onclick=async()=>{try{if(action==='rooms'){await showRooms(row,item);return}if(action==='servers'){await showServers(row,item);return}const body={id:row.id,action};if(action==='delete'&&!confirm('撤销这个账号的游戏凭据？'))return;if(action==='nickname'){body.nickname=prompt('游戏昵称',row.nickname||'');if(body.nickname===null)return}if(action==='skin'){body.item_id=prompt('本账号已拥有的皮肤组件码（只选择，不购买）','');if(body.item_id===null)return;}if(action==='configure')body.keep_alive=!row.keep_alive;const result=await api('/api/accounts',body);if(result.skin_info){el('result').textContent='当前皮肤组件：'+(result.skin_info.ItemID||'未设置')+(result.reconnect_required?' · 下次重新连接游戏时应用':'');}if(result.login_token)el('token').value=result.login_token;await refresh()}catch(e){el('result').textContent=e.message}};item.append(button)}el('accounts').append(item)}if(!r.accounts.length)el('accounts').textContent='尚未添加游戏账号。'}catch(e){el('result').textContent=e.message}}
+/* 复制：返回是否真的成功。
+   非 https 或权限被拒时 navigator.clipboard 会抛错，退到 execCommand；
+   execCommand 返回 false 表示确实没复制上，此时不能装作成功，按钮和提示都要显示失败。 */
+async function copyText(t,btn){let ok=false;try{await navigator.clipboard.writeText(t);ok=true}catch(e){try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.append(ta);ta.select();ok=document.execCommand('copy')===true;ta.remove()}catch{ok=false}}if(btn){const old=btn.textContent;btn.textContent=ok?'已复制':'复制失败';setTimeout(()=>{btn.textContent=old},1400)}return ok}
+function showTokenInline(card,token,authUrl){if(!card)return;let box=card.querySelector('.auth-token-inline');if(!box){box=document.createElement('div');box.className='auth-token-inline';card.append(box)}box.textContent='';const label=document.createElement('span');label.textContent='游戏令牌';const val=document.createElement('code');val.textContent=token;const copy=document.createElement('button');copy.className='secondary';copy.type='button';copy.textContent='复制令牌';copy.onclick=()=>copyText(token,copy);const origin=document.createElement('small');origin.textContent='认证地址 '+authUrl+' · 填进工具箱「账号与连接」即可使用';box.append(label,val,copy,origin)}
+async function refresh(){try{const r=await api('/api/accounts');el('accounts').textContent='';renderPending(r.pending||[]);renderBatches(r.batches||[]);for(const row of r.accounts){const item=document.createElement('section'),title=document.createElement('h3'),info=document.createElement('p');item.className='auth-account';const avatar=document.createElement('button');avatar.className='auth-avatar';avatar.textContent=(row.nickname||row.name||'游').slice(0,1);avatar.title='查看账号资料';avatar.onclick=()=>{info.hidden=!info.hidden};item.append(avatar);title.textContent=row.name;info.textContent='游戏ID '+row.game_id+' · '+(row.nickname||'未设置昵称')+' · '+row.status+' · '+(row.keep_alive?'定时刷新已启用':'定时刷新已关闭')+(row.last_refresh?' · '+new Date(row.last_refresh).toLocaleString():'');item.append(title,info);for(const [name,action]of [['取用令牌','token'],['刷新凭据','refresh'],['设置昵称','nickname'],['选择皮肤组件','skin'],['查看皮肤设置','skin_info'],[row.keep_alive?'关闭定时刷新':'开启定时刷新','configure']]){const button=document.createElement('button');button.className='secondary';button.textContent=name;button.onclick=async()=>{try{if(action==='rooms'){await showRooms(row,item);return}if(action==='servers'){await showServers(row,item);return}const body={id:row.id,action};if(action==='nickname'){body.nickname=prompt('游戏昵称',row.nickname||'');if(body.nickname===null)return}if(action==='skin'){body.item_id=prompt('本账号已拥有的皮肤组件码（只选择，不购买）','');if(body.item_id===null)return;}if(action==='configure')body.keep_alive=!row.keep_alive;const result=await api('/api/accounts',body);if(result.skin_info){el('result').textContent='当前皮肤组件：'+(result.skin_info.ItemID||'未设置')+(result.reconnect_required?' · 下次重新连接游戏时应用':'');}if(result.login_token){el('token').value=result.login_token;showTokenInline(item,result.login_token,result.auth_url);const copied=await copyText(result.login_token);el('result').textContent=copied?'令牌已复制到剪贴板，认证地址已显示在卡片里。':'浏览器不允许自动复制，令牌已显示在卡片里，请手动选中复制。'}await refresh()}catch(e){el('result').textContent=e.message}};item.append(button)}el('accounts').append(item)}if(!r.accounts.length)el('accounts').textContent='尚未添加游戏账号。'}catch(e){el('result').textContent=e.message}}
 async function showServers(row,item){try{const r=await api('/api/accounts',{action:'servers',id:row.id});item.querySelector('.server-list')?.remove();const panel=document.createElement('div');panel.className='server-list';const info=document.createElement('p');info.textContent='选择真实已加入的山头，保留其他加入记录。';panel.append(info);for(const server of r.servers||[]){const b=document.createElement('button');b.className='secondary';b.textContent=(server.index||'')+'. '+(server.name||'山头服务器');b.onclick=async()=>{try{await api('/api/accounts',{action:'configure',id:row.id,server_id:server.id});el('result').textContent='已选择 '+(server.name||'山头')+'。APK服务器号填写 DomainSID:'+server.id;}catch(e){el('result').textContent=e.message}};panel.append(b)}if(!r.servers?.length)panel.append('当前账号尚未加入山头，请先使用邀请链接连接。');item.append(panel)}catch(e){el('result').textContent=e.message}}
-async function copy(){try{await navigator.clipboard.writeText(el('token').value);el('result').textContent='令牌已复制。'}catch{el('result').textContent='请显示令牌后手动复制。'}}function reveal(){el('token').type=el('token').type==='password'?'text':'password'}
+async function copy(){const ok=await copyText(el('token').value);el('result').textContent=ok?'令牌已复制。':'浏览器不允许自动复制，请点“显示”后手动选中复制。'}function reveal(){el('token').type=el('token').type==='password'?'text':'password'}
 identityMode('login');ready();
 async function showRooms(row,item,keyword,offset=0){try{if(keyword===undefined){keyword=prompt('房间号或名称，搜索准确 room_id','');if(keyword===null)return}const r=await api('/api/accounts',{action:'rooms',id:row.id,keyword,offset});item.querySelector('.room-list')?.remove();const panel=document.createElement('div');panel.className='room-list';for(const room of r.rooms||[]){const b=document.createElement('button');b.className='secondary';b.textContent=(room.name||'联机房间')+' · 房主 '+room.owner+' · '+room.players+'/'+room.max_players+' · room_id '+room.room_id;b.onclick=()=>{el('result').textContent='APK准确服务器标识：LobbyGame:room_id='+room.room_id+'。保留房间密码，使用游园认证。'};panel.append(b)}if(!r.rooms?.length)panel.append('没有匹配的在线房间');if(r.rooms?.length===20){const b=document.createElement('button');b.textContent='下一页';b.onclick=()=>showRooms(row,item,keyword,offset+20);panel.append(b)}item.append(panel)}catch(e){el('result').textContent=e.message}}
 
-function renderPending(rows){el('pending-section').hidden=!rows.length;el('pending-accounts').textContent='';for(const row of rows){const card=document.createElement('section'),title=document.createElement('h3'),status=document.createElement('p');title.textContent=(row.name||row.nickname||'游戏账号')+' · '+(row.verification_required?'待本人安全验证':'待重试登录');status.setAttribute('role','status');status.textContent=row.last_error||'请按下方步骤继续，原任务不会重新创建';card.append(title,status);if(row.verification_url){const a=document.createElement('a');a.href=row.verification_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='打开官方本人验证';card.append(a)}let password=null,code=null;if(row.action==='login_4399'){password=document.createElement('input');password.type='password';password.autocomplete='off';password.placeholder='4399密码 · 仅用于本次继续';card.append(password);if(row.captcha_url){const image=document.createElement('img');image.src=row.captcha_url;image.alt='4399验证码';code=document.createElement('input');code.placeholder='填写图片中的验证码';card.append(image,code)}}for(const [label,action]of [['验证完成 / 重试并继续',row.action==='login_4399'?'resume_4399':'resume_guest'],['取消本次任务','cancel_guest']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=async()=>{b.disabled=true;status.textContent='正在继续原任务，请稍候…';try{const body={action,id:row.id};if(action==='resume_4399'){if(!password.value)throw Error('请填写4399密码');body.password=password.value;body.captcha_id=row.captcha_id||'';body.captcha=code?.value||'';}const r=await api('/api/accounts',body);if(r.login_token){el('token').value=r.login_token;el('auth-origin').value=r.auth_url}el('result').textContent=action==='cancel_guest'?'已取消待验证任务':'账号已保存，令牌已签发';await refresh()}catch(e){status.textContent=e.message;el('result').textContent=e.message;if(e.captcha_url||e.verification_url)await refresh()}finally{b.disabled=false}};card.append(b)}el('pending-accounts').append(card)}}
+function renderPending(rows){el('pending-section').hidden=!rows.length;el('pending-accounts').textContent='';for(const row of rows){const card=document.createElement('section'),title=document.createElement('h3'),status=document.createElement('p');title.textContent=(row.name||row.nickname||'游戏账号')+' · '+(row.verification_required?'待本人安全验证':'待重试登录');status.setAttribute('role','status');status.textContent=row.last_error||'请按下方步骤继续，原任务不会重新创建';card.append(title,status);if(row.verification_url){const a=document.createElement('a');a.href=row.verification_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='打开官方本人验证';card.append(a)}let password=null,code=null;if(row.action==='login_4399'){/* 动态生成的密码框同样要有 form owner（否则 Chrome 报同一句警告、密码管理器不认）；
+   提交即等价于点“验证完成 / 重试并继续”，不刷新页面。 */
+const fieldForm=document.createElement('form');fieldForm.className='yy-pending-form';fieldForm.addEventListener('submit',event=>{event.preventDefault();card.querySelector('[data-yy-resume]')?.click()});password=document.createElement('input');password.type='password';password.autocomplete='off';password.placeholder='4399密码 · 仅用于本次继续';fieldForm.append(password);if(row.captcha_url){const image=document.createElement('img');image.src=row.captcha_url;image.alt='4399验证码';code=document.createElement('input');code.placeholder='填写图片中的验证码';fieldForm.append(image,code)}card.append(fieldForm)}for(const [label,action]of [['验证完成 / 重试并继续',row.action==='login_4399'?'resume_4399':'resume_guest'],['取消本次任务','cancel_guest']]){const b=document.createElement('button');b.type='button';b.textContent=label;if(action==='resume_4399')b.dataset.yyResume='1';b.onclick=async()=>{b.disabled=true;status.textContent='正在继续原任务，请稍候…';try{const body={action,id:row.id};if(action==='resume_4399'){if(!password.value)throw Error('请填写4399密码');body.password=password.value;body.captcha_id=row.captcha_id||'';body.captcha=code?.value||'';}const r=await api('/api/accounts',body);if(r.login_token){el('token').value=r.login_token;el('auth-origin').value=r.auth_url}el('result').textContent=action==='cancel_guest'?'已取消待验证任务':'账号已保存，令牌已签发';await refresh()}catch(e){status.textContent=e.message;el('result').textContent=e.message;if(e.captcha_url||e.verification_url)await refresh()}finally{b.disabled=false}};card.append(b)}el('pending-accounts').append(card)}}
 async function adminInit(){try{const r=await api('/api/admin/accounts',null,session||key);el('project-admin').hidden=false;const selected=el('admin-user').value;el('admin-user').textContent='';for(const u of r.users){const option=document.createElement('option');option.value=u.id;option.textContent=u.username;el('admin-user').append(option)}if([...el('admin-user').options].some(o=>o.value===selected))el('admin-user').value=selected;await adminAccounts()}catch{el('project-admin').hidden=true}}
-async function adminAccounts(){const id=el('admin-user').value;if(!id)return;try{const r=await api('/api/admin/accounts?user_id='+encodeURIComponent(id),null,session||key);const host=el('admin-accounts');host.textContent='';for(const row of r.accounts){const card=document.createElement('section'),title=document.createElement('h3');title.textContent=row.name+' · '+row.game_id;card.append(title);for(const [label,action]of [['取用游戏令牌','token'],['刷新游戏凭据','refresh'],['查看已加入山头','servers']]){const b=document.createElement('button');b.textContent=label;b.onclick=async()=>{b.disabled=true;try{const result=await api('/api/admin/accounts',{user_id:id,id:row.id,action},session||key);if(result.login_token){el('token').value=result.login_token;el('auth-origin').value=result.auth_url;el('result').textContent='已取用托管账号令牌和24小时有效的专用认证地址。管理员工具箱同时填入这两个值；撤销凭据或账号注销后失效。'}else if(result.servers)el('result').textContent=result.servers.map(x=>x.name).join('、')||'未加入山头';else el('result').textContent='已刷新授权账号凭据';}catch(e){el('result').textContent=e.message}finally{b.disabled=false}};card.append(b)}host.append(card)}if(!r.accounts.length)host.textContent='该用户尚无托管游戏账号。'}catch(e){el('result').textContent=e.message}}
+async function adminAccounts(){const id=el('admin-user').value;if(!id)return;try{const r=await api('/api/admin/accounts?user_id='+encodeURIComponent(id),null,session||key);const host=el('admin-accounts');host.textContent='';for(const row of r.accounts){const card=document.createElement('article'),title=document.createElement('h3'),uid=document.createElement('span'),actions=document.createElement('div');title.textContent=row.name||('账号 '+row.game_id);uid.className='pool-id';uid.textContent='UID '+row.game_id;actions.className='pool-actions';for(const [label,action]of [['取用游戏令牌','token'],['刷新游戏凭据','refresh'],['查看已加入山头','servers']]){const b=document.createElement('button');b.textContent=label;b.onclick=async()=>{b.disabled=true;try{const result=await api('/api/admin/accounts',{user_id:id,id:row.id,action},session||key);if(result.login_token){el('token').value=result.login_token;el('auth-origin').value=result.auth_url;showTokenInline(card,result.login_token,result.auth_url);const copied=await copyText(result.login_token);el('result').textContent=copied?'令牌已复制到剪贴板，认证地址已显示在卡片里。':'浏览器不允许自动复制，令牌已显示在卡片里，请手动选中复制。'}else if(result.servers)el('result').textContent=result.servers.map(x=>x.name).join('、')||'未加入山头';else el('result').textContent='已刷新授权账号凭据';}catch(e){el('result').textContent=e.message}finally{b.disabled=false}};actions.append(b)}card.append(title,uid,actions);host.append(card)}if(!r.accounts.length)host.textContent='该用户尚无托管游戏账号。'}catch(e){el('result').textContent=e.message}}
 
 let pending4399id='',captcha4399id='';
 function open4399Official(){window.open('https://web.4399.com/user/reg.php?internal=1','_blank','noopener');}
@@ -87,7 +601,7 @@ function yyTqToken(name){if(!yyTqSite)return undefined;const w=yyTqWidgets[name]
 function yyTqReset(name){try{const w=yyTqWidgets[name];if(w&&window.turnstile)turnstile.reset(w)}catch{}}
 function yyTqRender(){
  if(!yyTqSite||!window.turnstile)return false;
- for(const [name,boxId] of [['create','turnstile-create'],['batch','turnstile-batch']]){
+ for(const [name,boxId] of [['identity','turnstile-identity'],['create','turnstile-create'],['batch','turnstile-batch']]){
   const box=document.getElementById(boxId);if(!box)continue;
   if(yyTqWidgets[name]!==undefined)continue;
   box.textContent='';yyTqWidgets[name]=turnstile.render(box,{sitekey:yyTqSite,theme:'auto',callback:()=>{},'error-callback':()=>{},'expired-callback':()=>yyTqReset(name)});
@@ -97,9 +611,40 @@ function yyTqRender(){
 (async function(){
  try{const r=await fetch('/api/turnstile-config');const d=await r.json();
   if(!d.enabled||!d.site_key)return; yyTqSite=d.site_key;
+  // 提前占住验证码容器高度，避免 Turnstile 注入 iframe 时把提交按钮顶下去
+  document.querySelectorAll('.turnstile-identity').forEach(b=>b.classList.add('yy-tq-on'));
   for(let i=0;i<40;i++){if(window.turnstile&&yyTqRender())return;await new Promise(r=>setTimeout(r,250))}
  }catch{}
 })();
-</script><script src="/skin-viewer.js"></script><script src="/console.js"></script></html>
+</script><script>
+/* 登录页增强：密码可见切换 + 记住上次账号（独立于认证逻辑，失败静默） */
+(function(){
+  try{
+    var pw=document.getElementById('password');
+    if(pw&&pw.parentNode){
+      var wrap=document.createElement('div');wrap.className='yy-pw-wrap';
+      pw.parentNode.insertBefore(wrap,pw);wrap.appendChild(pw);
+      var btn=document.createElement('button');
+      btn.type='button';btn.className='yy-pw-toggle';btn.textContent='显示';
+      btn.setAttribute('aria-label','显示密码');
+      btn.onclick=function(){
+        var show=pw.type==='password';
+        pw.type=show?'text':'password';
+        btn.textContent=show?'隐藏':'显示';
+        btn.setAttribute('aria-label',show?'隐藏密码':'显示密码');
+        try{pw.focus({preventScroll:true})}catch(_){}
+      };
+      wrap.appendChild(btn);
+    }
+    var u=document.getElementById('username');
+    var last=localStorage.getItem('yy-auth-last-user');
+    if(last&&u&&!u.value)u.value=last;
+    var form=document.getElementById('identity-form');
+    if(form&&u)form.addEventListener('submit',function(){
+      try{localStorage.setItem('yy-auth-last-user',u.value||'')}catch(_){}
+    });
+  }catch(_){}
+})();
+</script><script src="/skin-viewer.js?v=2026102601" defer></script><script src="/console.js?v=2026102601" defer></script></html>
 
 

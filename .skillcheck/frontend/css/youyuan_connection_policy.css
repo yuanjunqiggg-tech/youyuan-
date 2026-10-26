@@ -1,0 +1,51 @@
+/* Real, focusable controls replace the invisible full-row checkbox overlay. */
+.yy-switch-row{display:flex;gap:16px;min-width:0;align-items:center;justify-content:space-between}
+.yy-switch-row .yy-switch-text{order:0;flex:1;min-width:0;line-height:1.6;font-size:14px;color:var(--phx-text)}
+.yy-switch-row .tgl{display:none!important}
+.yy-switch-row input[type=checkbox]{order:1;position:relative!important;inset:auto!important;opacity:1!important;z-index:auto!important;pointer-events:auto!important;appearance:none;-webkit-appearance:none;flex:0 0 48px;width:48px!important;height:28px!important;min-height:28px;margin:0;background:var(--phx-border);border:0;border-radius:20px;cursor:pointer;transition:background .15s}
+.yy-switch-row input[type=checkbox]::before{content:'';position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 3px #0002;transition:transform .15s}
+.yy-switch-row input[type=checkbox]:checked{background:var(--phx-primary)}
+.yy-switch-row input[type=checkbox]:checked::before{transform:translateX(20px)}
+.yy-switch-row input[type=checkbox]:focus-visible{outline:3px solid var(--phx-primary);outline-offset:4px}
+.yy-switch-row input[type=checkbox]:disabled{opacity:.55!important;cursor:wait}
+#tab-settings .content-inner{max-width:1440px}
+#tab-settings .yy-form-grid{gap:24px}
+#tab-settings .card{padding:24px;border-radius:18px;border-color:var(--phx-border);box-shadow:0 4px 18px #18344204}
+#tab-settings .yy-form-head h3{font-size:17px;line-height:1.5}
+#tab-settings .yy-policy-switch{padding:14px 0!important;border-bottom:1px solid var(--phx-border-light);margin:0}
+.yy-connection-summary{background:var(--phx-primary-bg);border:1px solid var(--phx-border-light);padding:16px;border-radius:12px;margin-bottom:24px;display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.yy-connection-summary p{width:100%;margin:0!important;font-size:13px!important;color:var(--phx-text)!important;line-height:1.8}
+.yy-connection-summary [hidden]{display:none!important}
+#tab-settings .yy-config-footer{position:relative;inset:auto;background:var(--phx-bg);border-top:1px solid var(--phx-border);padding:16px 0;z-index:auto;isolation:isolate}
+@media(min-width:1100px){#tab-settings>.content-inner>.yy-form-grid{grid-template-columns:minmax(0,1.12fr) minmax(0,1fr)}}
+@media(max-width:760px){#tab-settings .card{padding:20px}#tab-settings .yy-heading h2{font-size:26px}#tab-settings .yy-form-grid{grid-template-columns:1fr}#tab-settings .yy-config-footer span{max-width:55%}}
+@media(prefers-reduced-motion:reduce){.yy-switch-row input[type=checkbox],.yy-switch-row input[type=checkbox]::before{transition:none}}
+
+/* The save card belongs to normal document flow. No floating/composited
+   text layer; navigation lens must not sample page text behind it. */
+#tab-settings .yy-settings-save{position:static!important;inset:auto!important;transform:none!important;filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;will-change:auto!important;isolation:auto;display:flex;align-items:center;justify-content:space-between;gap:20px;background:var(--phx-bg-card);margin:20px 0}
+#tab-settings .yy-settings-save h3{margin:0 0 6px}#tab-settings .yy-settings-save p{margin:0;line-height:1.6}
+#tab-settings .yy-settings-save button{position:static;flex-shrink:0;min-height:48px;margin:0}
+#tab-settings .card{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+#bottom-nav{isolation:isolate;overflow:hidden;background:var(--phx-bg-card)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+#bottom-nav .nav-glide-lens{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:linear-gradient(135deg,color-mix(in srgb,var(--phx-primary) 14%,var(--phx-bg-card)),var(--phx-bg-card));mix-blend-mode:normal}
+@media(max-width:600px){#tab-settings .yy-settings-save{align-items:stretch;flex-direction:column;gap:14px}#tab-settings .yy-settings-save button{width:100%;min-height:48px}}
+
+.yy-multi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:14px 0}
+.yy-multi-choice{display:flex!important;align-items:center;gap:12px;padding:14px;border:1px solid var(--phx-border);border-radius:12px;cursor:pointer;min-width:0;overflow-wrap:anywhere}
+.yy-multi-choice input[type=checkbox],.yy-skill-select input[type=checkbox]{display:inline-block!important;appearance:auto!important;-webkit-appearance:checkbox!important;width:22px!important;height:22px!important;opacity:1!important;position:static!important;flex-shrink:0;margin:0 10px 0 0;accent-color:var(--phx-primary)}
+.yy-multi-choice:has(input:checked),.yy-multi-choice-card.is-selected{border:2px solid var(--phx-primary);background:color-mix(in srgb,var(--phx-primary) 9%,var(--phx-bg-card))}
+.yy-multi-choice-card strong{display:block;cursor:pointer;padding:8px 0}.yy-skill-select{display:flex!important;align-items:center;gap:10px;min-height:46px;cursor:pointer}
+#cfg-global-capture-status{margin:8px 0 16px}
+
+.yy-server-player-limit{min-width:0;margin-top:18px;padding-top:14px;border-top:1px solid var(--phx-border)}
+.yy-server-player-limit>summary{cursor:pointer;font-weight:600;font-size:14px}
+.yy-server-player-limit input[type="number"]{box-sizing:border-box;width:100%;min-width:0}
+.yy-capture-simple{min-width:0}.yy-capture-simple .yy-multi-grid{grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))}
+.yy-capture-simple .yy-multi-choice{box-sizing:border-box;padding:12px}.yy-capture-simple .yy-multi-choice span{min-width:0;overflow-wrap:anywhere}
+.yy-capture-simple .yy-actions{flex-wrap:wrap}.yy-capture-simple .yy-hint{overflow-wrap:anywhere}
+
+/* 四个等宽按钮一排：工单反馈 / 全部 API / 检测更新 / 修改平台密码 */
+.yy-actions.yy-actions-four{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;width:100%}
+.yy-actions.yy-actions-four button{width:100%;min-width:0;margin:0;justify-content:center;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:760px){.yy-actions.yy-actions-four{grid-template-columns:repeat(2,minmax(0,1fr))}}

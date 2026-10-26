@@ -15,7 +15,7 @@ func yyDocumentationRoutes(mux *http.ServeMux) {
 			return
 		}
 		language := r.URL.Query().Get("language")
-		if language == "account-pool" || language == "account-bridge" || language == "command-chain-api" || language == "physical-actions" || language == "block-media" || language == "self-auth" || language == "qq-assistant" || language == "public-tunnel" || language == "mcp-connection" {
+		if language == "account-pool" || language == "account-bridge" || language == "command-chain-api" || language == "physical-actions" || language == "block-media" || language == "self-auth" || language == "qq-assistant" || language == "public-tunnel" || language == "mcp-connection" || language == "world-seed" {
 			data, e := aiSkillsFS.ReadFile("skills/" + language + "/index.md")
 			if e != nil {
 				writeJSON(w, map[string]any{"ok": false, "error": e.Error()})

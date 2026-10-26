@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol"
+	"github.com/OmineDev/flowers-for-machines/core/minecraft/protocol/packet"
 	"github.com/OmineDev/flowers-for-machines/utils"
 
 	"github.com/google/uuid"
@@ -17,6 +18,19 @@ type StructureBackup struct {
 // NewStructureBackup 根据 api 返回并创建一个新的 StructureBackup
 func NewStructureBackup(api *Commands) *StructureBackup {
 	return &StructureBackup{api: api}
+}
+
+func checkStructureResult(resp *packet.CommandOutput, timedOut bool, err error, request string) error {
+	if err != nil {
+		return err
+	}
+	if timedOut || resp == nil {
+		return fmt.Errorf("结构命令未得到确认，不计为成功: %s", request)
+	}
+	if resp.SuccessCount == 0 {
+		return fmt.Errorf("结构命令执行失败: %s; %v", request, resp.OutputMessages)
+	}
+	return nil
 }
 
 // backupStructure 是一个内部实现细节，
@@ -33,27 +47,8 @@ func (s *StructureBackup) backupStructure(startPos protocol.BlockPos, endPos pro
 	)
 	resp, isTimeout, err := api.SendWSCommandWithTimeout(request, DefaultTimeoutCommandRequest)
 
-	if isTimeout {
-		// 超时兜底已在 sendCommandWithResp 内经自动(WS)通道 fire-and-forget 再发一次，
-		// 此处仅短暂同步，让服务器有时间完成保存。
-		err = api.AwaitChangesGeneral()
-		if err != nil {
-			return uuid.UUID{}, fmt.Errorf("备份结构失败: %v", err)
-		}
-		return uniqueId, nil
-	}
-
-	if err != nil {
+	if err = checkStructureResult(resp, isTimeout, err, request); err != nil {
 		return uuid.UUID{}, fmt.Errorf("备份结构失败: %v", err)
-	}
-
-	if resp.SuccessCount == 0 {
-		return uuid.UUID{}, fmt.Errorf(
-			"备份结构: 将(%d,%d,%d)备份到(%d,%d,%d)失败，因为命令%#v的成功计数为0",
-			startPos[0], startPos[1], startPos[2],
-			endPos[0], endPos[1], endPos[2],
-			request,
-		)
 	}
 
 	return uniqueId, nil
@@ -97,25 +92,8 @@ func (s *StructureBackup) RevertStructure(uniqueID uuid.UUID, pos protocol.Block
 	)
 	resp, isTimeOut, err := api.SendWSCommandWithTimeout(request, DefaultTimeoutCommandRequest)
 
-	if isTimeOut {
-		// 超时兜底已在 sendCommandWithResp 内经自动(WS)通道 fire-and-forget 再发一次，
-		// 此处仅短暂同步，让服务器有时间完成恢复。
-		err = api.AwaitChangesGeneral()
-		if err != nil {
-			return fmt.Errorf("恢复结构失败: %v", err)
-		}
-		return nil
-	}
-
-	if err != nil {
+	if err = checkStructureResult(resp, isTimeOut, err, request); err != nil {
 		return fmt.Errorf("恢复结构失败: %v", err)
-	}
-
-	if resp.SuccessCount == 0 {
-		return fmt.Errorf(
-			"恢复结构: 在(%d,%d,%d)恢复结构%#v失败，因为命令%#v的成功计数为0",
-			utils.MakeUUIDSafeString(uniqueID), pos[0], pos[1], pos[2], request,
-		)
 	}
 
 	return nil

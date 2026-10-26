@@ -40,18 +40,23 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 		if in.State != "已完成" && in.State != "错误暂停" {
 			in.State = "已停止"
 		}
-		_ = yyChainSaveConfig(in.Config)
+		if !in.Ephemeral {
+			_ = yyChainSaveConfig(in.Config)
+		}
 		in.Unlock()
 		close(done)
 	}()
 	makeWorker := func(chain yyChain, cfg yyChainConfig) *yyChainInstance {
+		in.Lock()
+		redstone := in.Redstone
+		in.Unlock()
 		cfg.Scheduling = "file"
-		if len(chain.Nodes) > 0 && chain.Nodes[0].Type == 1 {
+		if len(chain.Nodes) > 0 && chain.Nodes[0].Type == 1 && !chain.Nodes[0].Redstone {
 			cfg.RunCount = 1
 		}
 		childCtx, cancel := context.WithCancel(ctx)
 		commands := len(chain.Nodes)
-		w := &yyChainInstance{Config: cfg, Plan: yyChainPlan{Chains: []yyChain{chain}, Commands: commands, Periods: 1, Hz: chain.Hz}, Ephemeral: true, StartedAt: time.Now(), State: "等待连接", cancel: cancel, done: make(chan struct{})}
+		w := &yyChainInstance{Config: cfg, Plan: yyChainPlan{Chains: []yyChain{chain}, Commands: commands, Periods: 1, Hz: chain.Hz}, Ephemeral: true, Redstone: redstone, StartedAt: time.Now(), State: "等待连接", cancel: cancel, done: make(chan struct{})}
 		go runner(w, childCtx)
 		return w
 	}
@@ -61,9 +66,13 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 			return
 		}
 		in.Lock()
-		plan, cfg, rev, trigger := in.Plan, in.Config, in.Revision, in.Trigger
+		plan, cfg, rev, trigger, redstone := in.Plan, in.Config, in.Revision, in.Trigger, in.Redstone
 		in.Trigger = false
 		in.Unlock()
+		if !in.Ephemeral {
+			cfg.CadenceBaseHz = 0
+		}
+		cfg = yyChainCadenceConfig(plan, cfg)
 		if rev != revision {
 			for len(workers) > len(plan.Chains) {
 				w := workers[len(workers)-1]
@@ -82,9 +91,9 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 					workers = append(workers, w)
 					// Optional initialization barrier, only for the leading pulse
 					// prefix. Independent non-leading segments remain concurrent.
-					leading := cfg.Bootstrap && len(chain.Nodes) > 0 && chain.Nodes[0].Type == 1
+					leading := cfg.Bootstrap && len(chain.Nodes) > 0 && chain.Nodes[0].Type == 1 && !chain.Nodes[0].Redstone
 					for _, prior := range plan.Chains[:index] {
-						leading = leading && len(prior.Nodes) > 0 && prior.Nodes[0].Type == 1
+						leading = leading && len(prior.Nodes) > 0 && prior.Nodes[0].Type == 1 && !prior.Nodes[0].Redstone
 					}
 					if leading {
 						select {
@@ -124,6 +133,7 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 		lastError := ""
 		for index, w := range workers {
 			w.Lock()
+			w.Redstone = redstone
 			if trigger {
 				w.Trigger = true
 			}
@@ -143,13 +153,7 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 			if elapsed > 0 {
 				hz = float64(w.Cycles) / elapsed
 			}
-			targetHz := w.Plan.Hz
-			if targetHz == 0 {
-				targetHz = w.Config.Hz
-			}
-			if targetHz == 0 && w.Config.IntervalMS > 0 {
-				targetHz = 1000 / float64(w.Config.IntervalMS)
-			}
+			targetHz := float64(time.Second) / float64(yyChainPeriod(w.Plan, w.Config))
 			kind := 0
 			if len(w.Plan.Chains) > 0 && len(w.Plan.Chains[0].Nodes) > 0 {
 				kind = w.Plan.Chains[0].Nodes[0].Type
@@ -157,7 +161,7 @@ func (in *yyChainInstance) runSegmentsWith(ctx context.Context, runner func(*yyC
 			if kind == 1 {
 				targetHz, hz = 0, 0
 			}
-			rows = append(rows, map[string]any{"segment": index + 1, "type": kind, "target_hz": targetHz, "actual_hz": hz, "cycles": w.Cycles, "submitted": w.Submitted, "executed": w.Executed, "skipped": w.Skipped, "state": w.State, "error": w.LastError, "last_round_ms": w.LastRoundMS})
+			rows = append(rows, map[string]any{"segment": index + 1, "type": kind, "source_hz": w.Plan.Hz, "target_hz": targetHz, "actual_hz": hz, "cycles": w.Cycles, "submitted": w.Submitted, "executed": w.Executed, "skipped": w.Skipped, "state": w.State, "error": w.LastError, "last_round_ms": w.LastRoundMS})
 			w.Unlock()
 		}
 		in.Lock()

@@ -105,7 +105,7 @@ func TestProductUserAgentOnOwnedHTTPAndRemoteHandshake(t *testing.T) {
 	}))
 	defer wsServer.Close()
 	defer close(socketDone)
-	headers := yyRemoteDialHeaders("fixture-device-session")
+	headers := yyRemoteDialHeaders("fixture-device-session", "")
 	headers.Set("X-YouYuan-Audit", "fixture-header")
 	conn, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(wsServer.URL, "http")+"/device/connect", &websocket.DialOptions{HTTPHeader: headers})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestProductUserAgentOnOwnedHTTPAndRemoteHandshake(t *testing.T) {
 	}
 	defer conn.CloseNow()
 	record("remote WebSocket handshake", "upstream/youyuan_remote.go", 507, "GET", "/device/connect", "Bearer fixture-device-session", "", "fixture-header")
-	if yyRemoteDialHeaders("second-fixture").Get("X-YouYuan-Audit") != "" {
+	if yyRemoteDialHeaders("second-fixture", "").Get("X-YouYuan-Audit") != "" {
 		t.Fatal("WebSocket handshake headers leaked between sessions")
 	}
 	if output := os.Getenv("YY_UA_AUDIT_OUT"); output != "" {
@@ -121,5 +121,18 @@ func TestProductUserAgentOnOwnedHTTPAndRemoteHandshake(t *testing.T) {
 		if err := os.WriteFile(output, data, 0600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestRemoteDialHeadersDevice(t *testing.T) {
+	if got := yyRemoteDialHeaders("tok", "").Get("X-YouYuan-Device"); got != "" {
+		t.Fatalf("空 device 不应带设备头，实际 %q", got)
+	}
+	h := yyRemoteDialHeaders("tok", "linux-server")
+	if got := h.Get("X-YouYuan-Device"); got != "linux-server" {
+		t.Fatalf("设备头应为 linux-server，实际 %q", got)
+	}
+	if got := h.Get("Authorization"); got != "Bearer tok" {
+		t.Fatalf("Authorization 头丢失: %q", got)
 	}
 }

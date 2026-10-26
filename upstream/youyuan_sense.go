@@ -82,6 +82,8 @@ type yySenseState struct {
 	Events              []map[string]any
 	ActionEvents        []map[string]any
 	ActionEvictedSeq    uint64
+	CombatEvents        []map[string]any
+	CombatEvictedSeq    uint64
 	Seq                 uint64
 	Session             string // Reconnect changes the cursor namespace.
 	SessionBase         uint64
@@ -151,6 +153,8 @@ func yySenseReset(bm *BotManager) {
 	s.Events = []map[string]any{}
 	s.ActionEvents = nil
 	s.ActionEvictedSeq = 0
+	s.CombatEvents = nil
+	s.CombatEvictedSeq = 0
 	s.ModuleEvents = nil
 	s.ModuleSeq = 0
 	s.ModuleKills = nil
@@ -266,7 +270,8 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 	hurtDisplay := func(a *yyActorObservation, at time.Time) bool {
 		return nearBody(a) && combatRecent(s, at)
 	}
-	dead := func(a *yyActorObservation) {		if a.Dead != nil && *a.Dead {
+	dead := func(a *yyActorObservation) {
+		if a.Dead != nil && *a.Dead {
 			return
 		}
 		v := true
@@ -824,6 +829,13 @@ func yySenseHandle(bm *BotManager, pk packet.Packet) {
 		if kind != "move" && (kind != "rotation" || e["entity_type"] == "minecraft:player") {
 			s.ActionEvents = append(s.ActionEvents, e)
 		}
+		if yyWorldCombatEvent(e) {
+			s.CombatEvents = append(s.CombatEvents, e)
+		}
+	}
+	if n := len(s.CombatEvents) - yyObservationSettings().EventHistory; n > 0 {
+		s.CombatEvictedSeq = s.CombatEvents[n-1]["sequence"].(uint64)
+		s.CombatEvents = s.CombatEvents[n:]
 	}
 	if n := len(s.ActionEvents) - yyObservationSettings().EventHistory; n > 0 {
 		s.ActionEvictedSeq = s.ActionEvents[n-1]["sequence"].(uint64)

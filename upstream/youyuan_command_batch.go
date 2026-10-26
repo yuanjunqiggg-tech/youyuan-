@@ -139,12 +139,6 @@ func yyCommandBatchDefaultsContext(ctx context.Context, bm *BotManager, args []a
 		return nil, fmt.Errorf("账号命令调度繁忙：最多8个等待调用，没有继续堆积")
 	}
 	defer bm.controlBatchPending.Add(-1)
-	for !bm.controlBatchMu.TryLock() {
-		if e := yyChainSleep(ctx, 5*time.Millisecond); e != nil {
-			return nil, e
-		}
-	}
-	defer bm.controlBatchMu.Unlock()
 	if e := ctx.Err(); e != nil {
 		return nil, e
 	}
@@ -193,15 +187,16 @@ func yyCommandBatchDefaultsContext(ctx context.Context, bm *BotManager, args []a
 		base["channel"] = options.Channel
 		base["transport"] = options.Transport
 		if options.Mode == "submit" {
-			var e error
-			switch options.Transport {
-			case "settings":
-				e = conn.WritePacket(&packet.SettingsCommand{CommandLine: command, SuppressOutput: true})
-			case "pyrpc":
-				e = bm.SendAICommand(command)
-			default:
-				e = conn.WritePacket(request)
-			}
+			e := bm.writeControlBatch(ctx, func() error {
+				switch options.Transport {
+				case "settings":
+					return conn.WritePacket(&packet.SettingsCommand{CommandLine: command, SuppressOutput: true})
+				case "pyrpc":
+					return bm.SendAICommand(command)
+				default:
+					return conn.WritePacket(request)
+				}
+			})
 			if e != nil {
 				return nil, e
 			}
@@ -214,7 +209,7 @@ func yyCommandBatchDefaultsContext(ctx context.Context, bm *BotManager, args []a
 			default:
 			}
 		})
-		if e := conn.WritePacket(request); e != nil {
+		if e := bm.writeControlBatch(ctx, func() error { return conn.WritePacket(request) }); e != nil {
 			res.Commands().DeleteCommandRequestCallback(id)
 			return nil, e
 		}

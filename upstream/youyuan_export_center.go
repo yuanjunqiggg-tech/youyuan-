@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -142,6 +143,62 @@ func yyExportRecord(root, id string, actor yyPoolActor) (yyPluginExport, error) 
 	d.Owner = d.OwnerID
 	return d.yyPluginExport, nil
 }
+// yyExportSendFile 把 root/<id>.zip 当附件发出去。
+// 只做「发文件」这一件事，鉴权由调用方负责（token 分支或 actor 分支各自校验过）。
+func yyExportSendFile(w http.ResponseWriter, r *http.Request, root, id string) {
+	if !yyExportID(id) {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(root, id+".zip")
+	info, e := os.Lstat(path)
+	if e != nil || !info.Mode().IsRegular() {
+		http.NotFound(w, r)
+		return
+	}
+	name, sum := id+".zip", ""
+	if raw, readErr := os.ReadFile(filepath.Join(root, id+".json")); readErr == nil {
+		var d yyPluginExportDisk
+		if json.Unmarshal(raw, &d) == nil {
+			if d.Name != "" {
+				name = d.Name
+			}
+			sum = d.SHA256
+		}
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if sum != "" {
+		w.Header().Set("X-Content-SHA256", sum)
+	}
+	http.ServeFile(w, r, path)
+}
+
+// yyExportTokenOK 校验能力型下载令牌。
+// 令牌 = 该导出 sha256 的前 16 位（由 yyExportShareURL 生成）。
+// 走常量时间比较，避免按字节提前返回泄漏时间差；长度不在 8~32 之间直接拒绝。
+func yyExportTokenOK(root, id, token string) bool {
+	token = strings.ToLower(strings.TrimSpace(token))
+	if !yyExportID(id) || len(token) < 8 || len(token) > 32 {
+		return false
+	}
+	raw, e := os.ReadFile(filepath.Join(root, id+".json"))
+	if e != nil {
+		return false
+	}
+	var d yyPluginExportDisk
+	if json.Unmarshal(raw, &d) != nil {
+		return false
+	}
+	sum := strings.ToLower(strings.TrimSpace(d.SHA256))
+	if len(sum) < 16 {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(sum[:16]), []byte(token)) == 1
+}
+
 func yyExportResponse(w http.ResponseWriter, r *http.Request, source, id, kind string) {
 	a, e := yyExportActor(r, true)
 	if e != nil {
@@ -196,28 +253,31 @@ func yyExportCenterRoutes(mux *http.ServeMux, dataDir string) {
 			http.Error(w, "使用GET下载", 405)
 			return
 		}
+		// 能力型 URL：带 token 的下载只放行「这一条导出」，且 token 必须命中
+		// 该导出 sha256 的前 16 位。这里以前完全不看 token —— 只要拿到 id
+		// （32 位十六进制）就能下别人的 ZIP，等于匿名越权。
+		// token 分支不需要 actor：它本身就是能力凭证；不带 token 的分支保持原样（要登录）。
+		query := r.URL.Query()
+		id := query.Get("id")
+		if token := strings.TrimSpace(query.Get("token")); token != "" {
+			if !yyExportTokenOK(root, id, token) {
+				http.NotFound(w, r)
+				return
+			}
+			yyExportSendFile(w, r, root, id)
+			return
+		}
 		a, e := yyExportActor(r, false)
 		if e != nil {
 			http.Error(w, e.Error(), 403)
 			return
 		}
-		v, e := yyExportRecord(root, r.URL.Query().Get("id"), a)
+		v, e := yyExportRecord(root, id, a)
 		if e != nil {
 			http.NotFound(w, r)
 			return
 		}
-		path := filepath.Join(root, v.ID+".zip")
-		info, e := os.Lstat(path)
-		if e != nil || !info.Mode().IsRegular() {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(v.Name))
-		w.Header().Set("Cache-Control", "private, no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Content-SHA256", v.SHA256)
-		http.ServeFile(w, r, path)
+		yyExportSendFile(w, r, root, v.ID)
 	})
 	mux.HandleFunc("/api/youyuan/exports/info", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

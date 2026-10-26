@@ -1,0 +1,127 @@
+/* MCP 归属与连接面板（youyuan_mcp_scope.js）。
+   只补「一行一台服务器 + 表单栅格」这两块，颜色/间距全部沿用设计变量，
+   不覆盖 youyuan_design.css 里的通用 .yy-hint / .yy-badge / .yy-readout。 */
+
+.yy-mcps-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.yy-mcps-head strong {
+  font-size: 12px;
+  color: var(--phx-text);
+}
+
+.yy-mcps-list {
+  display: flex;
+  flex-direction: column;
+  margin: 6px 0 14px;
+}
+
+.yy-mcps-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--phx-border-light);
+  min-width: 0;
+}
+
+.yy-mcps-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.yy-mcps-row strong {
+  font-size: 11px;
+  display: inline-block;
+  margin-right: 6px;
+  overflow-wrap: anywhere;
+}
+
+.yy-mcps-row .yy-badge {
+  margin-right: 4px;
+}
+
+.yy-mcps-row small {
+  display: block;
+  font-size: 10px;
+  color: var(--phx-text-secondary);
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.yy-mcps-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+
+.yy-mcps-row-actions .yy-text-btn {
+  min-height: 28px;
+  padding: 4px 7px;
+  font-size: 11px;
+}
+
+.yy-mcps-form {
+  border: 1px solid var(--phx-border-light);
+  border-radius: 10px;
+  padding: 12px 14px 16px;
+  margin: 0;
+  background: var(--phx-bg-secondary);
+}
+
+.yy-mcps-form legend {
+  font-size: 11px;
+  color: var(--phx-text-secondary);
+  padding: 0 6px;
+}
+
+.yy-mcps-form label {
+  display: block;
+  font-size: 11px;
+  color: var(--phx-text-secondary);
+  margin: 10px 0 5px;
+}
+
+.yy-mcps-form input,
+.yy-mcps-form select,
+.yy-mcps-form textarea {
+  width: 100%;
+  font-size: 12px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 7px;
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+}
+
+.yy-mcps-form textarea {
+  font-family: Consolas, monospace;
+  resize: vertical;
+}
+
+.yy-mcps-ack {
+  display: flex !important;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px !important;
+}
+
+.yy-mcps-ack input {
+  width: auto !important;
+  min-height: 0;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .yy-mcps-row-actions {
+    width: 100%;
+  }
+}

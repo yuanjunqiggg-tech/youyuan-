@@ -294,13 +294,14 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 		L.SetField(game, strings.TrimPrefix(method, "game."), L.NewFunction(func(L *lua.LState) int {
 			if method == "game.sendCommand" && L.GetTop() == 1 && L.GetGlobal("__YY_COMMAND_OPTIONS__") == lua.LNil {
 				cmd := L.CheckString(1)
-				if hook := getSendCommandHook(); hook != nil {
-					if e := hook(cmd); e != nil {
-						L.RaiseError("%v", e)
+				bm, hook := abot(L), getSendCommandHook()
+				_, e := yyLuaWaitValue(L, func(_ context.Context) (bool, error) {
+					if hook != nil {
+						return true, hook(cmd)
 					}
-					return 0
-				}
-				if e := abot(L).SendCommandNoWait(ChannelAI, cmd); e != nil {
+					return true, bm.SendCommandNoWait(ChannelAI, cmd)
+				})
+				if e != nil {
 					L.RaiseError("sendCommand: %v", e)
 				}
 				return 0
@@ -312,7 +313,7 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 			if method == "game.sendCommand" {
 				if hook := getSendCommandHook(); hook != nil {
 					command := L.CheckString(1)
-					if err := hook(command); err != nil {
+					if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) { return true, hook(command) }); err != nil {
 						L.RaiseError("sendCommand: %v", err)
 					}
 					return 0
@@ -320,16 +321,14 @@ func registerPluginCommandAPI(L *lua.LState, game *lua.LTable) {
 			}
 			var result any
 			var err error
-			if _, ok := yyAsyncDocs[method]; ok {
-				result, err = yyAsyncCommandCall(yyAsyncCommandKey{abot(L), lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))}, method, args, yyLuaCommandDefaults(L))
-			} else if method == "game.sendCommandFast" || method == "game.sendCommandsFast" || method == "game.sendCommand" {
-				result, err = yyPluginCommandCall(abot(L), method, args, yyLuaCommandDefaults(L))
-			} else {
-				bm, options := abot(L), yyLuaCommandDefaults(L)
-				result, err = yyLuaWaitValue(L, func(_ context.Context) (any, error) {
-					return yyPluginCommandCall(bm, method, args, options)
-				})
-			}
+			bm, options := abot(L), yyLuaCommandDefaults(L)
+			owner := yyAsyncCommandKey{bm, lua.LVAsString(L.GetGlobal("__PLUGIN_ID__"))}
+			result, err = yyLuaWaitValue(L, func(_ context.Context) (any, error) {
+				if _, ok := yyAsyncDocs[method]; ok {
+					return yyAsyncCommandCall(owner, method, args, options)
+				}
+				return yyPluginCommandCall(bm, method, args, options)
+			})
 			if err != nil {
 				L.RaiseError("%s: %v", method, err)
 				return 0

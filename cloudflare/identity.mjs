@@ -1,4 +1,5 @@
 import {normalizeEmail,validQQEmail,requestRegistrationCode,checkRegistrationCode,liveIndex} from './email-verification.mjs';
+import {verifyTurnstile,turnstileEnabled,turnstileSiteKey,requireHuman,issuePowChallenge} from './turnstile.mjs';
 const encode = bytes => [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');
 const randomToken = () => encode(crypto.getRandomValues(new Uint8Array(32)));
 const digest = async text => encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)));
@@ -21,6 +22,19 @@ export async function identityResolve(env,token,purpose='session'){
 }
 export async function identityRoute(request,env){
  const url=new URL(request.url),action=url.pathname.split('/').pop();
+ // 站点密钥是公开信息；本地页面（127.0.0.1 / localhost）也要能读到，所以允许跨域。
+ if(action==='turnstile-config'){
+  const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET','Cache-Control':'public, max-age=300'};
+  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
+  return Response.json({ok:true,enabled:turnstileEnabled(env),site_key:turnstileSiteKey(env)},{headers:cors});
+ }
+ // 兜底挑战：Turnstile 在部分网络下加载不出来时，前端改算 PoW，避免登录死锁。
+ if(action==='pow-challenge'){
+  const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET','Cache-Control':'no-store'};
+  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
+  const challenge=await issuePowChallenge(env);
+  return Response.json({ok:true,...challenge},{headers:cors});
+ }
  if(!['register-code','register','login','me','binding','logout','claim','delete','users','entitlement','password','reset-password','mcp-links','backup','delete-user'].includes(action))return response({ok:false,error:'未知账号操作'},404);
  const ip=request.headers.get('CF-Connecting-IP')||'local';
  const body=request.method==='GET'?'{}':await request.text();if(body.length>16384)return response({ok:false,error:'请求过大'},413);
@@ -62,11 +76,12 @@ export async function identityHandle(request,ctx,env){
  }
  if(action==='mcp-links'){
   const owner=!!env.CONSOLE_TOKEN&&bearer===env.CONSOLE_TOKEN;
-  if(!owner&&(!user||!publicUser(user).cloud_allowed))return response({ok:false,error:'仅管理员或有效订阅用户可创建 MCP 连接'},403);
+  if(!owner&&!user)return response({ok:false,error:'登录状态已失效，请重新登录游园账号',code:'AUTH_REQUIRED'},401);
   const principal=owner?'project-owner':user.id,op=input.op||'list';
   if(op==='list'){const rows=await ctx.storage.list({prefix:'mcp-link:'});return response({ok:true,links:[...rows.values()].filter(g=>g.user===principal).map(g=>({id:g.id,name:g.name,device:g.device,scope:g.scope,expires:g.expires}))});}
   if(op==='revoke'){const g=await ctx.storage.get('mcp-link:'+String(input.id||''));if(!g||g.user!==principal)return response({ok:false,error:'连接不存在'},404);await ctx.storage.delete('mcp-link:'+g.id);return response({ok:true});}
   if(op!=='create')return response({ok:false,error:'op支持list/create/revoke'},400);
+  if(!owner&&!publicUser(user).cloud_allowed)return response({ok:false,error:'订阅已到期，续订后可创建新的 MCP 连接；已签发的网址会保留',code:'SUBSCRIPTION_REQUIRED'},403);
   const device=String(input.device||'primary-device'),scope=input.scope||'read',hours=input.hours===undefined?720:Number(input.hours);
   if(!/^[A-Za-z0-9_-]{1,48}$/.test(device)||!['read','control'].includes(scope)||!Number.isInteger(hours)||hours<1||hours>8760)return response({ok:false,error:'设备、权限或有效期无效'},400);
   if(!owner&&!user.legacy_owner&&device.startsWith('linux-')&&!(user.assigned_devices||[]).includes(device))return response({ok:false,error:'该 Linux 节点未授权'},403);
@@ -101,6 +116,9 @@ export async function identityHandle(request,ctx,env){
   const name=String(input.username||'').normalize('NFKC').trim().toLowerCase(),password=String(input.password||'');
   if(!/^[A-Za-z0-9_\-\u4e00-\u9fff]{3,32}$/.test(name)||password.length<10||password.length>128)return response({ok:false,error:'账号需 3–32 个字符，密码需 10–128 个字符'},400);
   const ip=await digest(request.headers.get('X-Identity-IP')||'local');
+  // 注册与登录都必须先过真人确认：Turnstile 未配置 secret 时软放行，
+  // 配置后没有 turnstile_token 一律拒绝，避免被脚本批量注册/撞库。
+  try{await requireHuman(env,input,request.headers.get('X-Identity-IP')||'')}catch(error){return response({ok:false,error:error.message,code:'TURNSTILE_REQUIRED'},403)}
   // Shared household networks can onboard several users without sharing an account.
   for(const [key,limit,window] of [['rate:'+action+':'+ip,action==='register'?20:30,action==='register'?3600000:60000],['rate:login:'+name,10,60000]]){
    const allowed=await ctx.storage.transaction(async store=>{let rate=await store.get(key)||{start:now,n:0};if(now-rate.start>window)rate={start:now,n:0};rate.n++;await store.put(key,rate);return rate.n<=limit});if(!allowed)return response({ok:false,error:'尝试过于频繁，请稍后再试'},429);

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>审查用 · 托管账号详情</title>
+<link rel="stylesheet" href="../../frontend/css/base.css">
+<link rel="stylesheet" href="../../frontend/css/layout.css">
+<link rel="stylesheet" href="../../frontend/css/components.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_design.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_accounts.css">
+<link rel="stylesheet" href="../../frontend/css/youyuan_account_pool.css">
+<style>
+  html,body{margin:0;padding:0;min-height:100%;background:var(--phx-bg);color:var(--phx-text)}
+  #sub-page{height:100vh}
+  .sub-page.show{display:flex;flex-direction:column;height:100vh}
+  .sp-body{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .yy-intro{margin:0 0 10px}
+  .yy-intro h2{margin:0;font-size:16px;font-weight:700}
+  .yy-intro p{margin:4px 0 0;font-size:11px;color:var(--phx-text-secondary);line-height:1.6}
+</style>
+</head>
+<body class="sp-open">
+<div class="yy-side-nav" style="display:none"></div>
+<div id="sub-page" class="sub-page show"></div>
+<script src="stub.js"></script>
+<script src="../../frontend/js/youyuan_accounts.js"></script>
+<script>
+  var accounts = [
+    { id: "cred-1", name: "最长的托管账号名字测试一二三四五六七八九十", has_token: true, token_masked: "nk_9f8e7d6c5b4a39281706f5e4d3c2b1a0", enabled: true, server: "114800", player_name: "PolarisBot", uuid: "069a79f4-44e9-4726-a5be-fca90e38aaf5", keep_alive: true, lease: { phase: "bound", player: "PolarisBot" } },
+    { id: "cred-2", name: "小号", has_token: false, enabled: false },
+    { id: "cred-3", name: "Builder", has_token: true, token_masked: "已保存令牌", enabled: true }
+  ];
+  window.yyPoolRows = accounts;
+  window.yyPlatformUser = { id: "u1", role: "admin" };
+
+  // 列表：真实 .yy-compact-row 结构
+  var list = document.createElement("div");
+  list.className = "content-inner";
+  list.style.padding = "12px 16px";
+  list.innerHTML = '<div class="yy-compact-list" id="harness-list"></div>';
+  document.body.insertBefore(list, document.getElementById("sub-page"));
+  document.getElementById("harness-list").innerHTML = accounts.map(function (a) {
+    return '<button class="yy-compact-row">' + yyPoolAvatarHTML(a) +
+      '<span class="yy-compact-identity"><strong>' + yyEscape(a.name) + '</strong><small>服务器 ' +
+      yyEscape(a.server || "未选择") + ' · 玩家 ' + yyEscape((a.lease && a.lease.player) || "未绑定") + '</small></span>' +
+      '<span class="yy-compact-status">' + (a.has_token ? (a.enabled ? "已启用" : "未启用") : "缺少令牌") + '</span>' +
+      '<span class="yy-row-chevron" aria-hidden="true">›</span></button>';
+  }).join("");
+
+  // 详情页：含令牌行与换皮肤按钮
+  yyPoolDetail(0);
+</script>
+</body>
+</html>

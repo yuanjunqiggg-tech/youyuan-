@@ -1,0 +1,20 @@
+{
+  "source_at": "2026-10-26T07:09:02+0800",
+  "deployed": false,
+  "supply": {
+    "command": "/give @r[hasitem={item=snowball,data=1,quantity=..7}] snowball 7 1",
+    "threshold": 8,
+    "amount": 7,
+    "data": 1,
+    "file_segment_hz": 20,
+    "frequency_coupling_pending": "Whole main-module Hz override also changes this 20Hz segment; need native menu/fixed-clock integration review before adopting this candidate for 80Hz usage."
+  },
+  "surface": {
+    "before_sha256": "348a2970e923d9a9952dba4282296164786cfa7df936e71854785e175d085c16",
+    "removed_only": [
+      "/execute as @e[type=armor_stand,tag=yy_surface_active] at @s unless block ~ ~-1 ~ air as @a[tag=return_surface,tag=!yy_surface_cancel] if score @s yy_surface_owner = @e[type=armor_stand,tag=yy_surface_active,r=0.1,c=1] yy_surface_owner run effect @s slow_falling 12 0 true"
+    ],
+    "new_sha256": "c2bdd1479e2aa2119cd4e8c218c37681cd3e06d805e2225a4155f068257e7c72",
+    "downward_commands_preserved": true
+  }
+}

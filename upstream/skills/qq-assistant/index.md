@@ -157,4 +157,66 @@ watch/plan/handoff接口有明确差别：watch真实提交镜头/身体跟随�
 现场屏幕自动化仍报nodeRepl.fetch/超时；源码/接口测试与真实点击滚动验收分开记录。未完成事项见当前未完成清单.md。
 
 
-0.10.57新增：.群日志 [1..80] 默认20，分段回复机器人实际收到的群消息；不读取QQ完整历史，不是原生合并聊天卡。普通成员隐藏坐标。名单刷新只依赖成功/list，不以死亡期间坐标查询失败冒充离服。图片发送不等于表情包识别；图像理解/表情图库尚未实现。
+0.10.57新增：.群日志 [1..80] 默认20，分段回复机器人实际收到的群消息；不读取QQ完整历史，不是原生合并聊天卡。普通成员隐藏坐标。名单刷新只依赖成功/list，不以死亡期间坐标查询失败冒充离服。图片发送与图像理解是两回事：发送是往外发图，图像理解是让 AI 看到群里的图（见下面「AI 识图（多模态）」）。
+
+## AI 识图（多模态）
+
+群消息里带图片或表情包时，图片会直接挂到 AI 那一轮对话上（OpenAI 兼容的 image_url 多模态片段），模型不用调工具就能看到。同时挂载最多 3 张，控制请求体大小与视觉开销。
+
+三种图片来源都会处理：
+- image 段自带 url（ NapCat 常态）；
+- 只有 file（QQ 内部文件 ID）的段——表情包/市场表情的常态，后端自动调 OneBot `get_image` 换成可访问 URL 再喂给模型；
+- 消息文本里直接贴的图片直链（链接前后粘中文也能识别）。
+
+### view_image 工具
+模型可主动调用 `view_image` 看一张图。参数：
+- `url`：http/https 图片链接；
+- `file`：OneBot image 段的 file 字段（只有 file 没有 url 时用，后端自动换链）。
+
+同一用户每分钟最多 3 次（视觉请求额外花钱且慢）。返回图片内容描述（主体、图中文字照抄、表情包说明情绪或梗；看不清就如实说看不清）。当前消息里的图通常已直挂，优先直接看；只有看别的图时才调。
+
+### 视觉开关三态（assistant.vision）
+QQ 助手配置 `assistant.vision` 为 *bool：
+- 缺省（null）= 自动检测：按模型名里的 vision / vl / 4o / claude / gemini 等字样判断（旧行为）；
+- `true` = 强制开启；
+- `false` = 强制关闭。
+
+自动检测只认模型名，DeepSeek 这类实际支持视觉但名字看不出来的模型会被漏判（用户实际踩过：模型明明是多模态，群里的图却一张都看不到）。遇到这种模型，在工具箱「互通 → QQ → 人设与试跑 → 多模态识图」里选「强制开启」。
+
+### 地址安全
+只接受 http(s) 图片地址；`data:` 内联图片与内网地址（localhost/私网 IP）一律拒绝，防止模型侧或机器人侧被当跳板读内网资源（SSRF）。
+
+### 自查接口
+`GET /api/qq/ai/selfcheck` 返回：
+- `supports_vision`：当前是否开启识图（三态判定结果）；
+- `vision_mode`：`auto` / `forced_on` / `forced_off`；
+- `model_id` / `model_name` / `model_found`。
+
+「AI 看不到群里的图」时按这个顺序排查：model_found → vision_mode → supports_vision。
+
+## 技能系统（AI 自主行为能力 · 0.10.60）
+
+AI 不只是聊天：它在系统提示词里看得到自己有哪些「技能」，想用时在回复里输出 `技能[功能词] 参数`，后端解析并替它执行，执行结果以 system 身份回喂对话历史（玩家看不到原始回执）。一次回复里可以输出多个技能段（「他想点几个都行」）。
+
+技能注册表在 `upstream/youyuan_qq_skills.go` 的 `yyQQSkillDefs`，初始 8 项：meme（收藏表情）/ poke（拍一拍）/ like（点赞）/ ban（禁言）/ kick（踢人）/ avatar（改头像）/ emoji（贴表情）/ recall（撤回）。
+
+- **功能词可改**：`assistant.skills[id].word` 覆盖默认功能词（如把 `meme` 改成「表情包」），AI 在提示词里看到的就是改后的词；
+- **开关可配**：`assistant.skills[id].enabled`，关闭后技能从提示词清单里消失；
+- **底层能力闸门**：技能最终走 `yyQQRunAction`（能力开关/限流/最低角色/留痕），能力关着的技能在视图里标 `cap_off`；
+- **禁言/踢人的 user 解析**：`yyQQResolveGroupUser` 三级解析——5-11 位数字直接用、成员字典按名反查、最近群消息按名反查；解析不到会给 AI 可操作的错误回执；
+- **ban/kick 也是 AI 工具**（`yyQQAITools`，管理员以上等级收窄），模型走 ToolCalls 通道时同样可用；
+- **meme 自动拉列表**：AI 输出 `技能[meme]` 不带编号时，后端自动替它拉一次收藏表情清单并回喂，下一轮它再选编号发。
+
+只读视图：`GET /api/qq/assistant/skills`（skills 列表 + delay 区间含 pending/兜底值）。保存走 `POST /api/qq/config` 的 `assistant.skills` 深合并。
+
+### AI 回复间隔（不秒回）
+
+`assistant.reply_delay_min` / `reply_delay_max`（秒）：AI 开口前随机等待区间，睡眠发生在**占用并发槽之前**，不堵请求队列。双 0 = 待定，走内置兜底 2-6 秒（面板必须显示兜底值与待定标记，设过即消——用户明令「不要默认值」的正确解法：兜底生效 + 待定标注 + 可自定）。
+
+### 指令格式玩家自定（command_aliases）
+
+`assistant.command_aliases`（map：指令 ID → 指令串，34 个 ID 见 `upstream/youyuan_qq_commands.go` 的 `yyQQCommandDefaults`）。`.通`、`.改头像 图片`、`.点赞` 等全部格式由玩家自定，空串/未设回内置默认；匹配、帮助文本、`.能力` 清单、认领码提示全部按生效指令渲染。
+
+### 触发词调用能力（capability 动作）
+
+触发词动作类型新增 `capability`：`params.kind` = 能力 ID（13 种：like/emoji_like/qzone/delete_qzone/avatar/long_nick/nick/kick/ban/recall/relay_history/poke/sticker），`params.arg` 先过 `yyQQTriggerRender` 变量展开再进 `yyQQRunAction` 闸门。ban 的参数约定「QQ号 [分钟数，默认10]」。GET /api/qq/triggers 的 actions 元数据带 capability 的 kind options，前端动态渲染。
