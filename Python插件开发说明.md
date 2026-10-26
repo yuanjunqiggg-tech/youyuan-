@@ -73,6 +73,15 @@ plugin.codeDir/dataDir/configDir/resourceDir/tempDir区分目录；Lua旧数据�
 - [system · Android设备](system.md)：系统桥、通知、震动、Shizuku；桌面支持范围与Android不同。
 - [storage · 缓存与事务](storage.md)：内存键值、原子加分、自动持久化与条件事务。
 - [web · 插件控制页面](web.md)：声明式页面、HTML资源、动作回调与事件推送，重载清理旧注册。
+- [accounts · 跨账号调用](accounts.md)：以当前控制端身份读取目标账号状态、发消息、批量提交命令或调用其常驻插件导出函数。授权按账号定向生效，跨账号递归调用被拒绝。
+- [accountsPool · 共享机器人账号池](accountsPool.md)：登记、启动、绑定、借用与释放机器人，统一保存抓包配置并生成错峰观察规划。规划不等于执行，启动请求不等于进服。
+- [diagnostics · 解码与事件诊断](diagnostics.md)：真实解码包计数、事件队列配置、事件追踪、可见性与战斗证据。只报告已收到的数据，被覆盖的历史标为未知。
+- [entities · 实体观测快照](entities.md)：身份、位置、血量、属性与装备，只覆盖服务器已下发且未过期的数据，不扫描全世界。
+- [entity · 单实体读取与伤害](entity.md)：血量字段区分已知与未知，未知最大生命保留 null；伤害事件不推断攻击者。
+- [hud · HUD频道管理](hud.md)：同一玩家多插件文本按优先级仲裁显示，过期自动恢复下一频道；只管理经本接口发送的内容。
+- [mcp · 本机MCP](mcp.md)：工具列表、资源目录、调用与连接信息。自动绑定当前账号，不允许指定其他账号，不导出密钥。
+- [observerBridge · 观察桥与采集](observerBridge.md)：采集密钥、自身输入接入、常驻观察、轮巡、维度调度与跨账号事件汇总。submitted 不等于服务器已广播，不承诺全服覆盖。
+- [scoreboard · 计分板读写](scoreboard.md)：读取已同步条目，提交原生 add/remove/set；提交成功不等于服务器已生效。
 
 语法块是参数顺序参考；下方游戏用例为完整工作流。章节包含当前真实注册方法，不用内部Go函数名冒充插件API。
 
@@ -800,6 +809,127 @@ host.game.waitMsg(player, timeoutSec)
 - 报错：失败抛 `waitMsg: <err>`。
 - 底层：在机器人**收包循环**里为该玩家注册一个"等待通道"，玩家下一条聊天消息到达时投递给等待者。它**独占**该玩家的消息——同一玩家已有活跃等待会话时，新消息会被它消费掉，`onChat` 等其它 handler 收不到。
 
+### `game.getBlockTileAsync`
+
+```python
+host.game.getBlockTileAsync(x, y, z)
+```
+
+- 功能、参数、返回与约束：x,y,z整数；后台执行原getBlockTileRaw的WS方块查询，不传送；立即返回ticket。game.commandResult(ticket,0,true)完成时result={block,confirmed=true}，失败返回error，不编造方块。适合事件处理器，不能用于查询未加载的全世界。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.getOnlinePlayers`
+
+```python
+host.game.getOnlinePlayers()
+```
+
+- 功能、参数、返回与约束：无参数；用querytarget @a读取当前在线玩家名列表，等价于game.getTarget("@a")。未连接或查询失败抛getOnlinePlayers: <err>。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.getServerTPS`
+
+```python
+host.game.getServerTPS()
+```
+
+- 功能、参数、返回与约束：无参数；返回服务器上报的TPS数值。当前宿主没有原生服务器TPS数据源，内部观测恒为未知，因此实际返回nil；不使用世界时间、本地时钟、命令RTT或配置tick率代替。getTPS/getServerTPS/serverTPS/getTickRate/getServerTickRate是同一实现的五个别名。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.getServerTickRate`
+
+```python
+host.game.getServerTickRate()
+```
+
+- 功能、参数、返回与约束：同getServerTPS的同一实现别名；当前宿主无服务器TPS数据源，返回nil。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.getTPS`
+
+```python
+host.game.getTPS()
+```
+
+- 功能、参数、返回与约束：同getServerTPS的同一实现别名；当前宿主无服务器TPS数据源，返回nil。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.getTickRate`
+
+```python
+host.game.getTickRate()
+```
+
+- 功能、参数、返回与约束：同getServerTPS的同一实现别名；当前宿主无服务器TPS数据源，返回nil。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.importBlocks`
+
+```python
+host.game.importBlocks(list, options)
+```
+
+- 功能、参数、返回与约束：list为方块条目数组（每项含x/y/z等相对坐标，越界直接报错）；options支持x/y/z=基准坐标（默认0/64/0）、speed（负值按0）、region_mode=1..3、dimension=overworld|nether|the_end、anti_loss=true时逐区块testforblock确认已加载。异步启动本机结构导入，返回任务句柄，用game.importWait等待；会传送机器人并占用空间作业，失败不输出缺块结果。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.importWait`
+
+```python
+host.game.importWait(job)
+```
+
+- 功能、参数、返回与约束：job为game.importBlocks返回的本机任务句柄；阻塞等待该任务结束，成功返回true，任务失败或上下文取消抛importWait: <err>。传入非本机任务句柄报『不是本机导入任务』。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.sceneStats`
+
+```python
+host.game.sceneStats()
+```
+
+- 功能、参数、返回与约束：无参数。只返回已观测实体计数cached/present/fresh及packet_count/time，不复制装备与实体明细；供周期公告和监控使用。不是全服实体数量。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.sendCommandWithResp`
+
+```python
+host.game.sendCommandWithResp(command, channel, seconds)
+```
+
+- 功能、参数、返回与约束：command字符串；channel默认ai（走normalizeCommandChannel校验）；seconds默认5，须为正数。发送命令并等待真实回包，返回包内容映射；超时报『等待服务器回包超时，命令可能已执行』，不自动重发。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `game.serverTPS`
+
+```python
+host.game.serverTPS()
+```
+
+- 功能、参数、返回与约束：同getServerTPS的同一实现别名；当前宿主无服务器TPS数据源，返回nil。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
 # player · 玩家资料与感知
 
 缓存、XUID、权限、背包、位置与已同步血量。未知血量不是20。
@@ -916,6 +1046,61 @@ host.player.position(target)
 - 功能、参数、返回与约束：target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 
+### `player.changeExperience`
+
+```python
+host.player.changeExperience(options)
+```
+
+- 功能、参数、返回与约束：options={request_id,expected_session,operation:set_level|add_levels|add_points,amount,expected_level?}；当前机器人需游戏OP，原生xp命令，区分not_sent/outcome_unknown/rejected/accepted/verified；同request_id不重复发送。set_level需先读取并提交expected_level。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `player.equipment`
+
+```python
+host.player.equipment(target)
+```
+
+- 功能、参数、返回与约束：name或runtime_id；head/chest/legs/feet/main_hand/off_hand/body，每槽含known/item_id/item_id_known/network_id/count/enchantments/enchantments_known/nbt/received_at/age_ms/stale。物品名来自本会话ItemRegistry；附魔来自NBT。未知槽或未同步附魔不编造。expires_at=null：装备包没有物品失效时间。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `player.experience`
+
+```python
+host.player.experience()
+```
+
+- 功能、参数、返回与约束：无参数；当前机器人实际游戏等级与经验条0–1，未同步为null，total_xp未知，不发送查询命令。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `player.inventory`
+
+```python
+host.player.inventory(target, window_id)
+```
+
+- 功能、参数、返回与约束：target=self,window_id=0；读取本机器人实际收到的InventoryContent/InventorySlot，不做同步背包查询。其他玩家背包服务器通常不广播，返回known=false；不把装备冒充整个背包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `player.rotation`
+
+```python
+host.player.rotation(target)
+```
+
+- 功能、参数、返回与约束：name或runtime_id；pitch/yaw/head_yaw各自known、updated_at、source/stale。MovePlayer及Absolute/Delta真实角度，旋转无位移也更新。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
 # world · 方块与物理操作
 
 查询、setblock、真实挖掘和手持物品点击。权限替换方块与生存挖掘是两种机制。
@@ -977,6 +1162,17 @@ host.world.useBlock(x, y, z, face, slot)
 
 - 功能、参数、返回与约束：x,y,z,face=1,slot=0；真实手持物品点击指定方块面（可放置、开容器），需要已观测目标方块和六格范围。不是 setblock；返回提交状态，消耗与放置观察服务器。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `world.containerState`
+
+```python
+host.world.containerState(x, y, z)
+```
+
+- 功能、参数、返回与约束：x,y,z整数。读取当前维度BlockActorData已同步的容器类型：known/is_container/block_entity_id/timestamp/stale/source，不查询网络、不返回箱内物品；新UpdateBlock使旧记录失效。未广播或过期保持未知，不证明由玩家放置。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
 
 # events · 事件与抓包
 
@@ -1246,6 +1442,266 @@ host.events.subscribeFiltered(packet_type, filter, handler)
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
 - 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
 
+### `events.captureSummary`
+
+```python
+host.events.captureSummary(options)
+```
+
+- 功能、参数、返回与约束：options同events.summary；抓包计数与最近元数据，返回overwritten/sampled_out。抓包必须先开启；计数范围为当前保留环，不是全服。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.catalog`
+
+```python
+host.events.catalog()
+```
+
+- 功能、参数、返回与约束：无参数。列出真实事件类型、来源及范围；不保证未下发的数据。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.define`
+
+```python
+host.events.define(definition, handler)
+```
+
+- 功能、参数、返回与约束：definition为插件私有JSON映射：{name,packet,filter:{fields:{...},every_ms:0},fields:{输出字段:包字段路径}}。仅映射已解码的单一包，不执行代码、不伪造可信度；停止插件自动退订。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.moduleHistory`
+
+```python
+host.events.moduleHistory(options)
+```
+
+- 功能、参数、返回与约束：options={session?,after?,limit?}；当前机器人规范模块战斗事件独立历史与module_sequence游标，避免被移动事件挤掉。limit默认256、1..4096；容量沿用diagnostics.configure的event_history，重连reset，覆盖lost；不含乐器高频事件。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.on`
+
+```python
+host.events.on(kind, handler)
+```
+
+- 功能、参数、返回与约束：kind,handler；订阅宿主统一事件，kind从events.catalog查询；无需开启抓包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onContainerChange`
+
+```python
+host.events.onContainerChange(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；真实BlockActorData容器类型变化，block.container_known/is_container/block_entity_id；不返回物品NBT、不把变化当作玩家放置证明。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onDamageDisplay`
+
+```python
+host.events.onDamageDisplay(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；已验证BREquipDamageEventServer/GetBroadcastData模块伤害显示；target.unique_id、damage_text、position与position_known。数字为显示文字，不是确认的HP扣血；attacker_known=false、dimension_known=false，不改血量缓存。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onDimensionChange`
+
+```python
+host.events.onDimensionChange(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；服务器ChangeDimension，旧维度实体数据标为过期。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onEntityHurt`
+
+```python
+host.events.onEntityHurt(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；真实掉血优先；ActorEventHurt等50ms关联UpdateAttributes，未同步血量时damage_known=false；hurt_signal仅诊断，不计作另一伤害。含target、damage/health/max_health、attacker_known=false（无可靠攻击者包时），event_id。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onEntityKill`
+
+```python
+host.events.onEntityKill(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；接收已验证Minecraft/vipEventSystem/PlayerKillMob<UUID>服务器模块击杀报告；攻击者与目标UniqueID精确字符串，名字仅由在线PlayerList关联。evidence=server_module_reported；不是PvP onPlayerKill，不补造血量/RuntimeID，模块未广播则不可用。同会话有界缓存按来源/攻击者/目标去重。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onEquipmentChanged`
+
+```python
+host.events.onEquipmentChanged(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；服务器装备包即时缓存更新，含已更新槽位，不同步查询玩家背包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onGlobalHealthChange`
+
+```python
+host.events.onGlobalHealthChange(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；仅模块health_changed有有限current血量和entity_id时触发；max未知保留null；与entities.health协议缓存分开。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onGlobalSwing`
+
+```python
+host.events.onGlobalSwing(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；仅收到转发模块swing事件且有明确player_id时触发；不把命中攻击当空挥，不扫描最近玩家。global表示转发模块不按机器人视距过滤，不承诺模块已安装。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onHealthChanged`
+
+```python
+host.events.onHealthChanged(handler)
+```
+
+- 功能、参数、返回与约束：同onHealthChange，含previous及真实max，未知max=null。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onObservedAction`
+
+```python
+host.events.onObservedAction(handler)
+```
+
+- 功能、参数、返回与约束：handler；统一接收swing/hurt/equipment/rotation/entity_kill/damage_display。真实挥臂只来自swing；伤害和击杀不能冒充空挥。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onPlayerKill`
+
+```python
+host.events.onPlayerKill(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；可信服务器death.attack翻译包提供击杀者且关联已知玩家，唯一death event_id，仅触发一次；同次death_details补充不重复计分。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onPlayerRespawn`
+
+```python
+host.events.onPlayerRespawn(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；与session_join独立，死亡到存活/RespawnReady的生命周期去重。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onRotation`
+
+```python
+host.events.onRotation(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；服务器角度字段变化。旋转包即使位置不变也刷新时间。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onServerObservation`
+
+```python
+host.events.onServerObservation(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；YouyuanBridge/ObserverV1/Observation实际下发时回调，含模块事件、精确实体ID、收到时间和证据；需安装主动转发模块，OP不自动安装。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onSessionJoin`
+
+```python
+host.events.onSessionJoin(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；真实PlayerList新增条目，不能把AddPlayer视距出现当进服。服务器不广播PlayerList则无法直接观测。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.onSessionLeave`
+
+```python
+host.events.onSessionLeave(handler)
+```
+
+- 功能、参数、返回与约束：handler(event)；真实PlayerList移除条目，不把RemoveActor离开视距当退服。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `events.summary`
+
+```python
+host.events.summary(options)
+```
+
+- 功能、参数、返回与约束：options={after_sequence,limit:20,types:[],entity_type,runtime_id}；只读规范事件计数和最近轻量条目，不展开装备/背包；完整事件用明确view=raw或事件游标接口。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
 # packet · 原始协议包
 
 schema/describe查询字段，on/onAll监听，send请求服务器执行；不会取得服务器未下发的数据。
@@ -1431,6 +1887,28 @@ host.bot.teleport(x, y, z)
 
 - 功能、参数、返回与约束：x,y,z 世界坐标。执行服务器 tp @s 并等待真实命令结果，需要对应权限；没有权限时报错或 success=false。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `bot.requestViewDistance`
+
+```python
+host.bot.requestViewDistance(chunks, timeout_ms)
+```
+
+- 功能、参数、返回与约束：chunks=1..2147483647协议整数，不附加32区块上限。发送RequestChunkRadius（同时设置MaxChunkRadius）并等待服务器ChunkRadiusUpdated；服务器可调小或不回复。confirmed仅表示收到半径响应，不保证远方血量/挥臂广播；超时返回confirmed=false，不冒充生效。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `bot.swingAir`
+
+```python
+host.bot.swingAir()
+```
+
+- 功能、参数、返回与约束：无参数；在下一正常PlayerAuthInput心跳提交一次MissedSwing，复用当前位置/视角与递增输入Tick，不发旧式Animate。重复未发送请求合并；submitted=false表示仅排队；服务器广播/处理另行观察。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
 
 # chains · 命令链管理
 
@@ -1643,6 +2121,149 @@ host.building.parse(path)
 - 报错：加载失败抛 `building.parse: <err>`。
 - 底层：`building.LoadStructureFile(path)`，遍历方块计数，读 `NBTBlocks`/`HasCommand`。
 
+### `building.containerData`
+
+```python
+host.building.containerData(name, items, options)
+```
+
+- 功能、参数、返回与约束：容器名,Items数组,options?；生成经过类型/槽位检查的方块NBT，不连接游戏。options支持custom_name。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.exportRegion`
+
+```python
+host.building.exportRegion(start, size, options)
+```
+
+- 功能、参数、返回与约束：起点,尺寸,{workers:1}?；异步按区块读取并保存mcstructure。只使用已配置的同服Fleet机器人，失败不输出缺块文件。返回job_id，用nbtJob查询本机文件路径。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.importLimits`
+
+```python
+host.building.importLimits(limits)
+```
+
+- 功能、参数、返回与约束：{x?,z?}；返回常加载官方上限和当前导入器实际粒度；不执行游戏命令，不代表当前服务器已验收。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.nbtCapabilities`
+
+```python
+host.building.nbtCapabilities()
+```
+
+- 功能、参数、返回与约束：无参数；实际底层支持的方块/特殊物品及制作行为目录。支持表不是全服实测保证。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.nbtJob`
+
+```python
+host.building.nbtJob(job_id)
+```
+
+- 功能、参数、返回与约束：job_id；读取当前账号的NBT任务状态；submitted与目标结构读回verified区分。任务内存留存，重启不恢复。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.normalizeNBT`
+
+```python
+host.building.normalizeNBT(nbt)
+```
+
+- 功能、参数、返回与约束：NBT对象；按Bedrock物品字段恢复Count/Slot/ench/Damage等NBT类型，拒绝越界，保留未知字段。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.placeContainer`
+
+```python
+host.building.placeContainer(x, y, z, name, items, options)
+```
+
+- 功能、参数、返回与约束：x,y,z,容器名,Items数组,options?；异步使用真实NBT工作台制作、铁砧改名、附魔及结构复制；返回job_id，用nbtJob查验证结果。会移动机器人、初始化时清背包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.placeSkull`
+
+```python
+host.building.placeSkull(x, y, z, skullType, states)
+```
+
+- 功能、参数、返回与约束：x,y,z,SkullType(0..6),states?；异步通过真实头颅物品放置和结构缓存复制；返回job_id，使用nbtJob读取实际SkullType。会使用NBT工作台并移动机器人。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.planRegion`
+
+```python
+host.building.planRegion(start, size)
+```
+
+- 功能、参数、返回与约束：{x,y,z},{sx,sy,sz}；按16x128x16分块，返回不重叠完整覆盖的单元。规划不等于执行。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.resumeImport`
+
+```python
+host.building.resumeImport(task_id)
+```
+
+- 功能、参数、返回与约束：task_id；按保留的原坐标、文件校验和分区布局恢复。文件改变或机器人不就绪明确报错。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.startImport`
+
+```python
+host.building.startImport(options)
+```
+
+- 功能、参数、返回与约束：{path,x,y,z,speed,dimension?,rotation?,region_size_chunks?,preload_size_chunks?,ticking_preload?,multi?,bot_names?}；region_size_chunks=0沿用旧档位，1..10为单机每批边长；preload_size_chunks=0沿用批次，或选择批次整数倍的大窗口复用一个常加载区。10需要X/Z对齐16。multi当前按单区块单元分工。返回提交状态；用taskList查进度。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.stopImport`
+
+```python
+host.building.stopImport()
+```
+
+- 功能、参数、返回与约束：无参数；请求停止当前账号作业，等待清理和断点落盘期间禁止启动重叠作业。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `building.taskList`
+
+```python
+host.building.taskList()
+```
+
+- 功能、参数、返回与约束：无参数；列出当前账号/当前服务器的真实作业断点、原参数、进度和状态。running不等于服务器已确认所有方块。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
 # media · 图片与音乐
 
 图片字符画、MIDI解析、音高换算；解析函数本身不自动向游戏播放。
@@ -1820,6 +2441,39 @@ host.plugin.tempDir()
 
 - 功能、参数、返回与约束：无参数；插件数据目录下.tmp，可自行删除临时文件。
 - 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+### `plugin.call`
+
+```python
+host.plugin.call(pluginID, function, args)
+```
+
+- 功能、参数、返回与约束：pluginID,exportedFunction,args数组；调用当前账号正在运行的常驻插件plugin_api导出函数，不重跑源码、不自动启用已停用插件。目标正在执行/循环调用明确报错，参数结果保留结构。MCP可经game/call调用。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `plugin.exportFile`
+
+```python
+host.plugin.exportFile(relative_file)
+```
+
+- 功能、参数、返回与约束：relative_file；取得当前插件生成文件的下载信息，保持原格式/原字节，不是备份整个插件。文件须已写入plugin.dataDir。链接需登录当前账号，snapshot=false表示下载当前文件版本。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `plugin.listOutputs`
+
+```python
+host.plugin.listOutputs(relative_dir)
+```
+
+- 功能、参数、返回与约束：relative_dir默认.；列出当前插件数据目录内生成的文件，返回path/name/bytes/modified_at/download_url，不返回文件内容。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
 
 # util · 文件、时间与调度
 
@@ -2101,6 +2755,28 @@ host.util.write_file(path, content)
 - 报错：建目录/写文件失败抛 `write_file: <err>`。
 - 底层：`os.MkdirAll` + `os.WriteFile(path, []byte(content), 0644)`。
 
+### `util.monotonicMs`
+
+```python
+host.util.monotonicMs()
+```
+
+- 功能、参数、返回与约束：无参数，进程启动以来单调时间毫秒，适合间隔计算；不是Unix时间。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `util.serverTick`
+
+```python
+host.util.serverTick()
+```
+
+- 功能、参数、返回与约束：返回known/tick/source/updated_at；仅观测UpdateAttributes的真实非零tick，不以本地50ms计时冒充服务器tick。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
 # api · 跨插件调用
 
 通过plugin_api导出函数；Lua、Python、C++可相互调用已启动实例。
@@ -2117,6 +2793,22 @@ host.api.require(id)
 - 返回：Lua代理表或nil；Python代理对象；C++yy::RemotePlugin。
 - 底层与游戏效果：Lua→Lua调用同一常驻实例，不重跑源码；跨语言通过序列化桥调用目标导出函数。API不是安装依赖的包管理器。
 - 错误：参数不符、未连接或服务器拒绝时按接口返回/异常处理；不要将提交当作游戏成功。
+
+## api.call 可直达的附加方法
+
+下面 7 个方法在宿主 `yyExtraMethods` 里有真实实现，但没有登记成独立命名空间，因此不能写成 `seed.xxx()`；插件里只能经 `api.call("<方法名>", {...})`（Python `host.api.call`，C++ `client.api.call`）或 HTTP `/api/youyuan/game/call` 调用。它们不在命名空间注册表里，`api.catalog` 的命名空间列表不会列出。
+
+| 方法 | 说明 |
+|---|---|
+| `seed.manifest` | 无参数；返回版本表、维度、结构清单与引擎自检（btree 是否装载）。不联网、不读用户文件。 |
+| `seed.structures` | {seed,version=1.21.4,edition=java,dim=overworld,types='village,mansion',cx=0,cz=0,r=256,limit=20000}；返回区块坐标的结构点。precision=exact 的结构可复现，candidate 的需要进游戏确认。范围过大自动截断并给 truncated=true。 |
+| `seed.biome` | {seed,version,cx,cz} 或 {seed,version,points:[[cx,cz],...]}；返回生物群系 id/key/中文名/RGB。仅主世界走气候噪声，下界/末界给代表群系并注明。 |
+| `seed.slime` | {seed,cx=0,cz=0,r=16}；Java 版史莱姆区块，exact。基岩版算法不同，明确拒绝而不是给错结果。 |
+| `seed.stronghold` | {seed,version,count=128}；要塞区块坐标，cubiomes 逐位复刻，exact。 |
+| `seed.summary` | {seed,version,dim,cx,cz,r}；首屏摘要 + 最近结构，给面板/机器人回话用。 |
+| `packet.catalog` | 无参数；本版本所有注册包名/ID/字段数/能否抓包，单包字段用 packet.schema 或 /api/youyuan/packets/schema?name=Animate；schema 存在不代表服务器广播。 |
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
 
 # http · 网络与JSON
 
@@ -2423,6 +3115,822 @@ host.web.serve(name, entry)
 - 报错：同 `web.page`。
 - 底层：`registerWebPage(&webPage{Kind:"html", Entry:entry})`；静态根目录 `插件文件/<id>/www`，经 `webStaticSafe` 防路径逃逸 + `serveWebStatic` 提供。
 
+
+# accounts · 跨账号调用
+
+以当前控制端身份读取目标账号状态、发消息、批量提交命令或调用其常驻插件导出函数。授权按账号定向生效，跨账号递归调用被拒绝。
+
+
+### `accounts.callPlugin`
+
+```python
+host.accounts.callPlugin(target, pluginID, function, args)
+```
+
+- 功能、参数、返回与约束：target,pluginID,function,args数组；调用目标常驻插件的导出函数，不重跑源码。禁止跨账号递归调用。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accounts.list`
+
+```python
+host.accounts.list()
+```
+
+- 功能、参数、返回与约束：无参数；列出本控制端的账号ID、名称，不返回令牌。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accounts.sendCommandsFast`
+
+```python
+host.accounts.sendCommandsFast(target, commands, options)
+```
+
+- 功能、参数、返回与约束：target,commands,options?；在目标账号顺序提交完整命令数组，不等待逐条回包。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accounts.sendMessage`
+
+```python
+host.accounts.sendMessage(target, text)
+```
+
+- 功能、参数、返回与约束：target,text；授权后由目标机器人发游戏聊天，不伪装玩家。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accounts.status`
+
+```python
+host.accounts.status(target)
+```
+
+- 功能、参数、返回与约束：target；按定向授权读取目标账号连接状态。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# accountsPool · 共享机器人账号池
+
+登记、启动、绑定、借用与释放机器人，统一保存抓包配置并生成错峰观察规划。规划不等于执行，启动请求不等于进服。
+
+
+### `accountsPool.acquire`
+
+```python
+host.accountsPool.acquire(options)
+```
+
+- 功能、参数、返回与约束：options；预留空闲机器人并绑定player/server，不自动创建游戏账号。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.add`
+
+```python
+host.accountsPool.add(account)
+```
+
+- 功能、参数、返回与约束：account；保存自己账号的Token/auth_url/server，owner_id由宿主绑定。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.bind`
+
+```python
+host.accountsPool.bind(id, options)
+```
+
+- 功能、参数、返回与约束：id,options；player/server，持久绑定；不自动传送。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.bindings`
+
+```python
+host.accountsPool.bindings(options)
+```
+
+- 功能、参数、返回与约束：options?；只读自己的绑定状态；管理员all=true。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.captureConfigure`
+
+```python
+host.accountsPool.captureConfigure(patch)
+```
+
+- 功能、参数、返回与约束：patch对象；统一保存enabled/accounts/auto_fleet/auto_provision/account_limit/fleet_steps/idle_seconds/player_limit/enforce_player_limit和镜头参数。本人或明确shared_capture账号可选；自动1/2/3、>10为5、>=15为6台，数量非0为人工基础投入；fleet_steps=[{min_players:1,observers:1},...]可自定义递增人数阶梯，最多32台子进程，不限双机器人；无真人停镜头，专用采集进程60秒回收。分维度回防/借调/错峰，失败冷却替补。修改会影响本设备统一观察，不创建插件。dimension_landings按0/1/2配置{x,y,z}（其他维度标识暂不支持落点坐标）；仅配置过的维度启用上线前救援，实际坐标及子连接确认后停止TP；无确认60秒停止子连接，states中landing:<id>可核对结果。game_mode设默认模式，dimension_game_modes按维度标识覆盖；keep保持当前。invisible/quick_tp/auto_respawn分别选择隐身、自动靠近和死亡自动重生；省略或auto_respawn=null沿用账号设置。dimension_accounts与dimension_game_modes支持字符串维度标识：0主世界/1下界/2末地老配置照旧，也接受dm、minecraft:overworld等自定义标识，最多8条，格式限1～40位小写字母数字与_:.-。当前运行时只能调度主世界/下界/末地，映射不到的维度保留配置、跳过并记一条warn，不会崩溃也不会猜维度。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.captureRoster`
+
+```python
+host.accountsPool.captureRoster(options)
+```
+
+- 功能、参数、返回与约束：options={include_bots:false}；只读本服当前名单和原生querytarget真实维度，用于诊断。include_bots=true仅诊断受管机器人，不改变生产观察排除规则，不传送/发镜头；维度缺失标unknown。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.captureStatus`
+
+```python
+host.accountsPool.captureStatus()
+```
+
+- 功能、参数、返回与约束：无参数；读取宿主全局抓包config/plan/states/candidates。真实玩家维度未知不会猜测；active/submitted不是全局无漏包证明。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.handoff`
+
+```python
+host.accountsPool.handoff(incoming_id, outgoing_id, options)
+```
+
+- 功能、参数、返回与约束：incoming_id,outgoing_id,options={player,mode:camera|follow|hybrid,interval_seconds:2,timeout_seconds:3,next_player?}；先让接替机器人观察同一目标，收到对应的新区域更新后才停止原观察，超时保留原观察。可让原观察者接着观察next_player；两端均须在自己的授权池。返回真实ready/old_released，不等于零漏包。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.invoke`
+
+```python
+host.accountsPool.invoke(id, options)
+```
+
+- 功能、参数、返回与约束：id,options；method/path/query/body，通过该机器人真实API执行，path仅/api。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.list`
+
+```python
+host.accountsPool.list(options)
+```
+
+- 功能、参数、返回与约束：options?；普通用户只列自己的机器人，管理员可all=true。无凭据返回。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.observationPlan`
+
+```python
+host.accountsPool.observationPlan(options)
+```
+
+- 功能、参数、返回与约束：options={accounts:[账号ID，main可选],players:[真实在线名，可空],dwell_seconds:0.5,radius_blocks:48,include_bots:false}；返回错峰路线、内部机器人标签和排除名单。普通用户只用自己的池，管理员可用授权池。只是规划，不启动或传送；48格是参考，不是必达半径。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.release`
+
+```python
+host.accountsPool.release(id, options)
+```
+
+- 功能、参数、返回与约束：id,options?；解除绑定；idle_seconds默认60，期间可再次acquire；到期停用。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.start`
+
+```python
+host.accountsPool.start(id, options)
+```
+
+- 功能、参数、返回与约束：id,options?；真实启动独立内核并请求连接指定server，成功请求不等于进服。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.status`
+
+```python
+host.accountsPool.status(id)
+```
+
+- 功能、参数、返回与约束：id；读取该机器人真实连接和插件状态。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `accountsPool.stop`
+
+```python
+host.accountsPool.stop(id)
+```
+
+- 功能、参数、返回与约束：id；断开并停用此机器人，取消保活。
+- 宿主实现：以当前控制端身份执行，跨账号需定向授权；失败返回错误，不伪造成功。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# diagnostics · 解码与事件诊断
+
+真实解码包计数、事件队列配置、事件追踪、可见性与战斗证据。只报告已收到的数据，被覆盖的历史标为未知。
+
+
+### `diagnostics.combat`
+
+```python
+host.diagnostics.combat(target)
+```
+
+- 功能、参数、返回与约束：target；返回保留事件中的伤害/血量/死亡/击杀，含同一event_id的补充证据。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `diagnostics.configure`
+
+```python
+host.diagnostics.configure(config)
+```
+
+- 功能、参数、返回与约束：config?；宿主持久配置：event_queue/priority_queue/runtime_queue/async_tickets/event_history/actors各1..65536，stale_ms=1..86400000。事件队列变更在插件重载时生效，其余立即影响后续操作。不是命令CPS限速，也不是包种类上限。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `diagnostics.entity`
+
+```python
+host.diagnostics.entity(target)
+```
+
+- 功能、参数、返回与约束：target；同entities.get，额外完整字段来源及过期信息。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `diagnostics.receiveTransport`
+
+```python
+host.diagnostics.receiveTransport()
+```
+
+- 功能、参数、返回与约束：无参数；当前连接协商协议、真实注册包ID与解码前帧/字节/未知包计数。decode_panics是解码中断，trailing_bytes_frames是完成已知字段后剩余扩展字节，decoded_frames是完成解码的帧，returned_packets是返回上层的包数；decode_errors是旧版异常合计，不能当丢包数。只保存数字元数据，不保存认证或包内容。不依赖服务器组件。单批数量限制与业务留存容量分别报告，不冒充全服广播权限。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `diagnostics.stats`
+
+```python
+host.diagnostics.stats()
+```
+
+- 功能、参数、返回与约束：当前账号解码包计数、最后包时间、实体数、事件缓冲及配置、断线/踢出诊断和整个宿主内存/GC；非单插件内存。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `diagnostics.trace`
+
+```python
+host.diagnostics.trace(event_id)
+```
+
+- 功能、参数、返回与约束：event_id或sequence字符串；查询保留的事件及关联死亡/受伤详情；被覆盖返回known=false，不虚构历史。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `diagnostics.visibility`
+
+```python
+host.diagnostics.visibility()
+```
+
+- 功能、参数、返回与约束：无参数。实际区块半径、Publisher、筛选前decoded/selected/filtered和enqueued/cancelled逐类型计数。ingress含监听阶段与登录缓存回放，login_ingress单独记录挑战回调，两者有重叠不能相加；不含解码失败。显式PyRpc抓包时记录应用事件名称、不留参数；登录目录亦只留名称，容量event_history。记录不代表可调用或全服广播。无宿主距离过滤；区块半径不等于实体广播范围。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# entities · 实体观测快照
+
+身份、位置、血量、属性与装备，只覆盖服务器已下发且未过期的数据，不扫描全世界。
+
+
+### `entities.attributes`
+
+```python
+host.entities.attributes(target)
+```
+
+- 功能、参数、返回与约束：target；返回服务器同步的属性字典，value/min/max/updated_at/source；armor仅服务器同步minecraft:armor时已知，不按穿戴猜护甲点数。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `entities.get`
+
+```python
+host.entities.get(target)
+```
+
+- 功能、参数、返回与约束：runtime_id十进制字符串或玩家名；服务器观测快照，含身份/位置/health结构/attributes/装备/视角/present/stale。未收到为known=false，不扫描全世界。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `entities.health`
+
+```python
+host.entities.health(target)
+```
+
+- 功能、参数、返回与约束：同entity.health，读取服务器UpdateAttributes/SetHealth缓存，不发送查询命令。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `entities.nearby`
+
+```python
+host.entities.nearby(position, radius, dimension)
+```
+
+- 功能、参数、返回与约束：position=[x,y,z],radius=32,dimension?；已观测、仍存在且位置未过期的实体；不查询不可见区域。位置省略或self时使用机器人实际位置。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# entity · 单实体读取与伤害
+
+血量字段区分已知与未知，未知最大生命保留 null；伤害事件不推断攻击者。
+
+
+### `entity.health`
+
+```python
+host.entity.health(target)
+```
+
+- 功能、参数、返回与约束：target=self或runtime_id字符串；current/max/previous/damage/known/max_known/stale/updated_at/source。最大生命未知为null，绝不假定20。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `entity.onDamage`
+
+```python
+host.entity.onDamage(handler)
+```
+
+- 功能、参数、返回与约束：同events.onEntityHurt；血量下降确认伤害，只有ActorEvent时数量未知，不能由最近玩家或挥臂猜攻击者。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+- 回调：Lua传全局函数名字符串；Python可传函数对象或模块函数名；C++先用on注册再传处理器名。停用/重载清理本实例注册。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# hud · HUD频道管理
+
+同一玩家多插件文本按优先级仲裁显示，过期自动恢复下一频道；只管理经本接口发送的内容。
+
+
+### `hud.remove`
+
+```python
+host.hud.remove(player, channel)
+```
+
+- 功能、参数、返回与约束：player,channel；删除本插件频道，下一调度恢复仍活跃频道；卸载插件自动清理。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `hud.set`
+
+```python
+host.hud.set(player, channel, options)
+```
+
+- 功能、参数、返回与约束：player,channel,{text,kind=actionbar/title/subtitle,priority=0,duration_ms=2000}；宿主统一频道仲裁，优先级最高的活跃频道显示，文本变化更新，过期恢复下一频道。默认不重播动画。仅管理经hud接口发送的内容，无法阻止绕开管理器的原始titleraw。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `hud.update`
+
+```python
+host.hud.update(player, channel, options)
+```
+
+- 功能、参数、返回与约束：player,channel,{text,kind=actionbar/title/subtitle,priority=0,duration_ms=2000}；宿主统一频道仲裁，优先级最高的活跃频道显示，文本变化更新，过期恢复下一频道。默认不重播动画。仅管理经hud接口发送的内容，无法阻止绕开管理器的原始titleraw。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# mcp · 本机MCP
+
+工具列表、资源目录、调用与连接信息。自动绑定当前账号，不允许指定其他账号，不导出密钥。
+
+
+### `mcp.call`
+
+```python
+host.mcp.call(tool_name, arguments)
+```
+
+- 功能、参数、返回与约束：tool_name,arguments对象；使用本机真实MCP工具分发与权限，自动绑定当前账号，不允许指定别的账号。不访问旧固定云桥，不导出密钥。
+- 宿主实现：走本机真实MCP服务端，与插件实例无关；连接失败直接报错。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `mcp.connection`
+
+```python
+host.mcp.connection()
+```
+
+- 功能、参数、返回与约束：无参数，读取当前实例真实本机MCP地址、远端状态与账号。密钥由宿主内部使用，不返回给模型或聊天。
+- 宿主实现：走本机真实MCP服务端，与插件实例无关；连接失败直接报错。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `mcp.readResource`
+
+```python
+host.mcp.readResource(uri)
+```
+
+- 功能、参数、返回与约束：uri，按需读取真实MCP资源。
+- 宿主实现：走本机真实MCP服务端，与插件实例无关；连接失败直接报错。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `mcp.resources`
+
+```python
+host.mcp.resources()
+```
+
+- 功能、参数、返回与约束：无参数，读取本机MCP资源目录。
+- 宿主实现：走本机真实MCP服务端，与插件实例无关；连接失败直接报错。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `mcp.tools`
+
+```python
+host.mcp.tools()
+```
+
+- 功能、参数、返回与约束：无参数，读取本机实际MCP工具列表，不自动把全部说明塞进AI上下文。
+- 宿主实现：走本机真实MCP服务端，与插件实例无关；连接失败直接报错。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# observerBridge · 观察桥与采集
+
+采集密钥、自身输入接入、常驻观察、轮巡、维度调度与跨账号事件汇总。submitted 不等于服务器已广播，不承诺全服覆盖。
+
+
+### `observerBridge.assignDimension`
+
+```python
+host.observerBridge.assignDimension(options)
+```
+
+- 功能、参数、返回与约束：options={dimension:0|1|2,player?,landing?:{x,y,z},game_mode?:keep|survival|creative|adventure|spectator,invisible?:bool,auto_respawn?:bool}；仅控制本机器人，关闭auto_creative维护；未指定模式保持当前。跨维度优先靠近该维度目标玩家；无玩家时仅使用明确配置的落点，否则保留当前位置。导入导出期间暂停；ready按真实身体维度判断。需本账号OP。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.attachSelf`
+
+```python
+host.observerBridge.attachSelf(source_id, token)
+```
+
+- 功能、参数、返回与约束：source_id,token；将当前已连接机器人的自身加密前输入接入采集桥，player_id必须匹配本机UUID/XUID/名字。异步采集、不阻塞命令发送；不等于其他玩家已接入。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.coverage`
+
+```python
+host.observerBridge.coverage(options)
+```
+
+- 功能、参数、返回与约束：options={server?}；按需汇总本宿主主账号、舰队与托管子账号的实际观测覆盖、维度和错误；不表示全服覆盖。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.create`
+
+```python
+host.observerBridge.create(options)
+```
+
+- 功能、参数、返回与约束：options={name,source:player_input|game_server,server,player_id?}；创建独立采集密钥（仅返回一次）。客户端数据不冒充服务端确认；接入不自动获得山头服模块权限。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.detachSelf`
+
+```python
+host.observerBridge.detachSelf()
+```
+
+- 功能、参数、返回与约束：无参数。停止当前机器人的输入采集，游戏连接和其他来源不受影响。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.dimensionStatus`
+
+```python
+host.observerBridge.dimensionStatus()
+```
+
+- 功能、参数、返回与约束：读取本机器人实际维度、游戏模式、连接和OP；不能将摄像机位置当身体维度。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.events`
+
+```python
+host.observerBridge.events(after, limit)
+```
+
+- 功能、参数、返回与约束：after=0,limit=256；读取events/cursor/overwritten，保存cursor。event.data为封装，动作字段在event.data.data。swing_input:Animate挥臂或PlayerAuthInput.missed_swing空挥；attack_input攻击提交；position_input位置/视角；health_observation本人服务器血量。只覆盖已注册且实际接入来源，不覆盖机器人权威缓存；重启清空历史。详细技能player-actions。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.health`
+
+```python
+host.observerBridge.health(runtimeId, options)
+```
+
+- 功能、参数、返回与约束：runtimeId字符串,options={server?,dimension?}；读取各在线观测账号最新真实血量，附观察者/session/来源/过期状态；维度或实体身份冲突返回未知。不会覆盖本机entities缓存。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.inputStatus`
+
+```python
+host.observerBridge.inputStatus()
+```
+
+- 功能、参数、返回与约束：无参数。自身输入桥运行状态、采集记录数、未投递数和错误；不代表游戏处理成功。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.jobState`
+
+```python
+host.observerBridge.jobState()
+```
+
+- 功能、参数、返回与约束：返回当前账号导入导出等空间作业的paused/reasons；插件先检查paused再发传送，避免高频重复触发暂停错误。作业结束自动恢复，普通查询和非移动命令保持可用。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.localView`
+
+```python
+host.observerBridge.localView(options)
+```
+
+- 功能、参数、返回与约束：options={mode:coverage|health|events,target?,dimension?,session?,after?,limit?}；仅当前连接快照，供观测聚合使用；无递归，不执行游戏指令。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.locator`
+
+```python
+host.observerBridge.locator(target, options)
+```
+
+- 功能、参数、返回与约束：玩家名或UniqueID字符串,options={server?}；汇总真实PlayerLocation广播，即使没有AddPlayer也保留；包没有维度、血量或RuntimeID，这些字段明确未知。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.patrolStart`
+
+```python
+host.observerBridge.patrolStart(options)
+```
+
+- 功能、参数、返回与约束：options={players:[真实在线名],interval_seconds:0.001,single_follow_seconds:2,duration_seconds:0,restore_position:true}。空players自动选择当前真人/其他玩家，排除自己；每次开启分配独立计分板编号一次，刷新需停止重开。按1..N顺序TP只发不等，单玩家使用single_follow_seconds。默认关闭；0.001是提交目标间隔，不是服务器生效保证；插件停止自动取消。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.patrolStatus`
+
+```python
+host.observerBridge.patrolStatus()
+```
+
+- 功能、参数、返回与约束：无参数。真实submitted/rounds、missed_intervals、position_updates、by_player事件计数、最后实际坐标、错误与清理状态；不是全局覆盖证明。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.patrolStop`
+
+```python
+host.observerBridge.patrolStop()
+```
+
+- 功能、参数、返回与约束：无参数。取消当前账号轮巡，移除本次专用分数目标；默认恢复起点。插件不能关闭其他插件拥有的轮巡。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.revoke`
+
+```python
+host.observerBridge.revoke(source_id)
+```
+
+- 功能、参数、返回与约束：source_id；撤销采集密钥。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.rpcEvents`
+
+```python
+host.observerBridge.rpcEvents(after, limit)
+```
+
+- 功能、参数、返回与约束：after=0,limit=256；读取当前连接收到的YouyuanBridge/ObserverV1/Observation；来源server_module_reported，与协议属性缓存分开。重连清空，不代表已验证引擎事件。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.rpcProbe`
+
+```python
+host.observerBridge.rpcProbe(timeout_ms)
+```
+
+- 功能、参数、返回与约束：timeout_ms=3000；向YouyuanBridge/ObserverV1发送Hello，只在对应Capabilities回复匹配request_id时confirmed=true。超时不代表其他网易模块不可用。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.rpcQuery`
+
+```python
+host.observerBridge.rpcQuery(query, timeout_ms)
+```
+
+- 功能、参数、返回与约束：{query,target?},timeout_ms=3000；查询已安装YouyuanBridge服务端只读Provider；收到对应Reply才confirmed=true。没有Provider不会凭空读取服务端数据。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.serverHistory`
+
+```python
+host.observerBridge.serverHistory(options)
+```
+
+- 功能、参数、返回与约束：options={session?,after?,limit?}；当前连接主动转发模块历史，带reset/lost/cursor/接收时间；不执行网络请求，不使用旧会话记录。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.serverSnapshot`
+
+```python
+host.observerBridge.serverSnapshot(entity_id)
+```
+
+- 功能、参数、返回与约束：entity_id字符串；读取当前会话最近模块health_changed/health_snapshot，返回known/current/max/previous/来源/时间/stale。未知不填20；需已收到转发模块，不覆盖本机属性缓存。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.sources`
+
+```python
+host.observerBridge.sources()
+```
+
+- 功能、参数、返回与约束：无参数。采集来源、绑定服务器/玩家、最后序号/时间；不返回密钥。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.watchStart`
+
+```python
+host.observerBridge.watchStart(options)
+```
+
+- 功能、参数、返回与约束：options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:15}；camera模式只用摄像机视角、不切旁观模式，默认可把身体保持在目标body_radius_blocks内（0关闭）；远处可见性以实际下发包核对，切换期间会有观察空档；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.watchStatus`
+
+```python
+host.observerBridge.watchStatus()
+```
+
+- 功能、参数、返回与约束：返回本账号常驻观察目标、真实区域发布时间、submitted、missed_intervals、错误。region_updated只是收到对应区域包，不等于零漏包。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.watchStop`
+
+```python
+host.observerBridge.watchStop()
+```
+
+- 功能、参数、返回与约束：取消本账号常驻观察，清除本次相机并恢复已确认的原位置；不会关闭其他插件拥有的观察。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `observerBridge.worldEvents`
+
+```python
+host.observerBridge.worldEvents(options)
+```
+
+- 功能、参数、返回与约束：options={server?,dimension?,cursors?,limit?,stream:combat|actions}；汇总各账号规范事件，返回每账号session/sequence游标；重连标明reset，历史覆盖标明lost。再次使用返回cursors避免重复；limit是每观察者返回条数。combat独立保留真实战斗事件，区域切换的生物出现/消失不会挤掉命中。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+# scoreboard · 计分板读写
+
+读取已同步条目，提交原生 add/remove/set；提交成功不等于服务器已生效。
+
+
+### `scoreboard.get`
+
+```python
+host.scoreboard.get(objective, player)
+```
+
+- 功能、参数、返回与约束：objective,player；读取SetScore已同步条目，未广播known=false，不同步查询全服。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `scoreboard.increment`
+
+```python
+host.scoreboard.increment(objective, player, amount)
+```
+
+- 功能、参数、返回与约束：objective,player,amount整数；提交原生scoreboard add/remove，不本地读改写，避免竞态；提交不等于服务器成功。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
+
+### `scoreboard.set`
+
+```python
+host.scoreboard.set(objective, player, value)
+```
+
+- 功能、参数、返回与约束：objective,player,value整数；提交计分板设置，submitted=true/confirmed=false，调用Confirmed命令或同步SetScore才能验证结果。
+- 宿主实现：当前实例绑定到对应账号；错误不会伪造成功；服务器未同步的数据保持未知。
+
+<!-- 2026-10-26 补写：源码注册面同步 -->
 
 # 常驻内核、命令缓冲与资源重载
 

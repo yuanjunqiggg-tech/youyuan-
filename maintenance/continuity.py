@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -235,6 +236,43 @@ def render(project, db):
     (home / "任务清单.md").write_text("\n".join(tasks), "utf8")
 
 
+def record(project, file, agent):
+    """Other native clients explicitly hand off a message; never scan their storage."""
+    file = file.resolve()
+    allowed = MEMORY_HOME.parent / "输入" / agent
+    if not file.is_relative_to(allowed.resolve()) or file.stat().st_size > 4 * 1024 * 1024:
+        raise ValueError("Record must be a <=4MiB JSON file in D:/游园/输入/<agent>/")
+    value = json.loads(file.read_text("utf-8-sig"))
+    text, at, role = value.get("text"), value.get("at"), value.get("role", "user")
+    if not isinstance(text, str) or not text or role not in ("user", "assistant"):
+        raise ValueError("Record needs nonempty original text and user/assistant role")
+    parsed = datetime.fromisoformat(at.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("Record timestamp needs timezone")
+    home, db, vault = databases(project)
+    with closing(db), closing(vault):
+        secrets = credential_setup(vault)
+        key = agent + ":" + str(value.get("id") or digest(at + role + text))
+        old = db.execute("SELECT body_sha256 FROM messages WHERE id=?", (key,)).fetchone()
+        if old and old[0] != digest(text):
+            raise ValueError("Original message is immutable; use a new id for a correction")
+        db.execute("INSERT OR IGNORE INTO messages VALUES(?,?,?,?,?,?)",
+                   (key, at, role, "message", redact(text, secrets), digest(text)))
+        db.execute("INSERT OR IGNORE INTO origins VALUES(?,?,?,?)", (key, str(file), 1, agent))
+        vault.execute("INSERT OR IGNORE INTO originals VALUES(?,?,?)",
+                      (key, protected(json.dumps(value, ensure_ascii=False).encode("utf8")), digest(text)))
+        paths = set(asset_paths(text))
+        for attachment in value.get("attachments", []):
+            path = attachment.get("path") if isinstance(attachment, dict) else attachment
+            if not isinstance(path, str) or not re.match(r"^[A-Za-z]:[/\\]", path):
+                raise ValueError("Attachment path must be an absolute Windows path")
+            paths.add(path)
+        for path in paths:
+            db.execute("INSERT OR IGNORE INTO assets VALUES(?,?,?,?)", (key, path, "native-client-attachment", int(Path(path).exists())))
+        vault.commit(); db.commit(); render(project, db)
+        print(json.dumps({"recorded": key, "new": old is None, "actor_label": agent, "native_client_identity_verified": False}, ensure_ascii=False))
+
+
 def split_text(text, limit=480, overlap=80):
     for start in range(0, len(text), limit - overlap):
         yield start, text[start:start + limit]
@@ -335,12 +373,14 @@ def main():
     idx = sub.add_parser("index");idx.add_argument("--vectors", action="store_true")
     query = sub.add_parser("search");query.add_argument("query");query.add_argument("--top", type=int, default=5);query.add_argument("--semantic", action="store_true")
     sub.add_parser("status")
+    rec = sub.add_parser("record");rec.add_argument("file", type=Path)
     args = parser.parse_args();project = args.project.resolve()
     success = False
     try:
         if args.command == "sync":sync(project, args.since)
         elif args.command == "index":index(project, args.vectors)
         elif args.command == "search":search(project, args.query, args.top, args.semantic)
+        elif args.command == "record":record(project, args.file, args.agent)
         else:print(json.dumps(status(databases(project)[1]), ensure_ascii=False))
         success = True
     finally:

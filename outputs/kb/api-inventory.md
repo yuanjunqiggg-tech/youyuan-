@@ -12,7 +12,7 @@
 | 中间件顺序 | `yyConsoleAuth(yyIntegrityGate(corsHandler))`（`main.go:5280`）；会话鉴权在最外层，只拦 `/api` 与 `/api/*` |
 | 方法列 | ServeMux 不按方法分流；方法由 handler 体内 `r.Method ==/!= ...` 推断，「任意」= 该 handler 未做方法判断 |
 | 入参列 | `q:` = query 字段；`b:` = JSON body / 表单字段（取 `json:"..."` tag 与 `FormValue`），各最多列 8 个 |
-| 计数 | 源码共 **384** 处 `HandleFunc` 注册，本表 **384** 条（一一对应）。其中 `youyuan_plugin_outputs.go:127` 一处是 `for range` 循环注册、展开 3 条真实路径，故运行时实际注册 **386** 条 |
+| 计数 | 源码共 **384** 处路径字面量注册（`grep -h 'mux\.HandleFunc(' upstream/*.go` 排除 `_test.go` 得 386 个调用点，其中 2 个参数不是字面量），本表 **384** 条（一一对应）。`youyuan_plugin_outputs.go:127` 在 `for range` 中展开 3 条（净 +2），另加 `main.go:5016` 别名循环 3 条与 `youyuan_accounts.go:318` 子树前缀 1 条，运行时实际注册 **390** 条（见 5.5） |
 
 ## 1. 注册点分布（按文件）
 
@@ -490,7 +490,7 @@
 | 任意 | `/wizard.js` | upstream/main.go:5036 | — | 无 | 原始字节 |
 | 任意 | `/ws` | upstream/main.go:5050 | — | 无 | 见 handler |
 
-> 路径后标 (未接线) 的 8 条，其 `yy*Routes()` 注册函数在生产代码里从未被调用（只在 `_test.go` 里调用），线上实际 404，详见 5.2。
+> 路径后标 (未接线) 的 8 条，其 `yy*Routes()` 注册函数在生产代码里从未被调用（只在 `_test.go` 里调用），线上实际 404，详见 5.4。
 
 ## 3. Cloudflare Worker 路由表
 
@@ -542,6 +542,19 @@ Worker 侧三个要点：
 
 ## 4. 鉴权模型说明
 
+全项目只有 **5 类**鉴权，分属两个进程，互相不能替代。先给总表，细节见 4.1 / 4.2 / 4.3：
+
+| # | 类别 | 落在哪 | 典型路径 | 带什么 |
+|---|---|---|---|---|
+| 1 | **无鉴权** | Go + Worker | `/`、`/health`、静态资源、`/api/identity/turnstile-config` | — |
+| 2 | **`Authorization: Bearer <control_token>`** | Worker（云端） | `/api/*`、`/mcp*`、`/health`（云端入口） | `env.CONSOLE_TOKEN` 或 `env.DEVICE_TOKEN` 或 identity session |
+| 3 | **控制台会话 token** | Go（本机） | 本机 `/api/*` 全部（除豁免） | `X-YouYuan-Console-Token`（前端 fetch 包装自动加） |
+| 4 | **设备头 `X-YouYuan-Device`** | Worker（云端） | 所有需要转发的 `/api/*` | 设备**标识**（路由用）+ 配套 `X-YouYuan-Device-Key`（真凭证） |
+| 5 | **能力型 URL（带 token 免登录）** | Go + Worker | `/api/youyuan/exports/download`、`/mcp/link/<64hex>` | URL 里的 `token` + `id` |
+
+一句话区分：#2 是「云端的门」，#3 是「本机的门」，#4 决定「进哪台机器的门」，#5 是「门都不要，凭票入场」。
+**带了 #3 不会自动满足 #2/#4**，反之亦然。
+
 ### 4.1 本机 Go 服务的四种凭证
 
 | 凭证 | 携带方式 | 从哪来 | 适用范围 | 失效表现 |
@@ -568,3 +581,96 @@ Worker 侧三个要点：
 - `/api/qq/webhook`：Ed25519 签名校验（`youyuan_qq.go:926`），签名头 `X-Signature-Ed25519` / `X-Signature-Timestamp` / `X-Bot-Appid`。
 - `/api/bridge/*`：互通令牌（见 4.1），与会话 token **互不替代**——带了会话 token 但没有 `X-Bridge-Token` 依然 401。
 
+### 4.3 第五类：云端 Worker 的设备头与会话（`cloudflare/worker.mjs`）
+
+本机 Go 服务只有「回环 + 会话 token」；**设备维度只存在于 Worker**，两类东西容易混：
+
+| 头 / 参数 | 是不是凭证 | 作用 | 位置 | 失效表现 |
+|---|---|---|---|---|
+| `X-YouYuan-Device`（或 `?device=`） | **不是**，是**路由头** | 决定这条请求转发到哪台执行端（`primary-device` / `linux-server` / 租户设备） | `worker.mjs:104` | 不匹配 `^[A-Za-z0-9_-]{1,48}$` → 400 `{"error":"设备标识无效"}`（`:105`） |
+| `X-YouYuan-Device-Key` | 是 | 设备密钥，只用于 `/auth/<path>` 白名单转发 | `worker.mjs:51-52` | 401 `{"error":"设备密钥不正确"}` |
+| `Authorization: Bearer <CONSOLE_TOKEN>` | 是 | 云端控制台共享密钥（`env.CONSOLE_TOKEN`） | `worker.mjs:92` | 401 `{"ok":false,"error":"登录状态已失效，请重新登录","code":"AUTH_REQUIRED"}` |
+| `Authorization: Bearer <DEVICE_TOKEN>` | 是 | 遗留设备令牌（`env.DEVICE_TOKEN`），可直通 `/api/library/*` | `worker.mjs:43,94` | 同上 |
+| `Authorization: Bearer <identity session>` | 是 | 账号体系登录态，Worker 内部拿它请求 `/api/identity/me` 换取 `identity.user` | `worker.mjs:119` | 同上；`/mcp*` 改为 `mcpChallenge` 挑战响应 |
+
+两条附加闸门，与「有没有 token」是**独立**的两回事：
+
+1. **订阅闸门**：`protectedPath && identity && !identity.user.cloud_allowed` → 403
+   `{"ok":false,"error":"云端工具箱仅限管理员或有效订阅用户","code":"SUBSCRIPTION_REQUIRED"}`（`worker.mjs:88`）。
+   即「登录成功」不等于「能用云端执行」。
+2. **能力型下载**：`capDownload`（`worker.mjs:85`）= 路径为 `/api/youyuan/exports/download`
+   + `token` 长度 ≥ 8 + `id` 为 32 位 hex → 完全跳过 Bearer 校验（box 侧另有 id 校验）。
+
+转发到执行端时，Worker 会**删掉** `X-YouYuan-Device`（`worker.mjs:29,38`）并注入
+`X-YouYuan-Actor` / `X-YouYuan-Actor-Signature` / `X-YouYuan-Trace-ID`（`:192`），
+执行端据此认人而不是认设备头——所以**伪造设备头不会提权**，只会把请求打到另一台机器。
+
+---
+
+## 5. 前端实际在调哪些接口（与后端表做差集）
+
+### 5.1 口径
+
+| 项 | 值 |
+|---|---|
+| 扫描范围 | `upstream/frontend/js/**/*.js`（含 `features/` `pages/` `vendor/` 三个子目录），排除 `.js.esb` 打包副本 |
+| 文件数 | 顶层 76 个 `.js` + `features/` 30 + `pages/` 5 + `vendor/` 3 |
+| 提取方式 | 正则抓 `/api/...` 字符串字面量（单/双/反引号），去 `?query`，去重 |
+| 结果 | **309** 个唯一字面量（含 `/api/`、`/api/...` 两个占位） |
+| 匹配规则 | 完全相等；或后端为前缀路由（`/api/x/`）；或后端含 `{param}` / `<param>` 时按段通配；或前端只写到父路径（`/api/x` 对 `/api/x/list`） |
+
+### 5.2 结论一：前端在调、后端没有 → **0 条**
+
+307 个有效字面量**全部**能对到 `upstream/*.go` 里的 `mux.HandleFunc` 注册。
+这条结论很重要：**不存在「前端点了按钮但接口根本不存在」的现网死链**。
+
+### 5.3 结论二：后端有、前端没调 → 17 条，且全部不是 `/api`
+
+| 路径 | 性质 | 前端实际用法 |
+|---|---|---|
+| `/` `/draw` `/piano` | 页面 | 浏览器直接导航 |
+| `/images/` `/css/` `/js/` `/blocks/` `/sounds/` `/uploads/` `/web/` | 静态目录 | `<link>` / `<script src>` / `<img>` |
+| `/wizard.css` `/wizard.js` `/mcf-syntax.mtsx` | 单文件静态 | 同上 |
+| `/stream` | SSE | `EventSource`（`sse.js`），不是 `fetch` |
+| `/ws` | WebSocket | `new WebSocket`（悬浮窗） |
+| `/health` | 探活 | 云端 / 运维脚本调，前端不用 |
+| `/mcp` `/mcp/` | MCP JSON-RPC | 外部 AI 客户端调，前端只展示配置 |
+
+即：**`/api/*` 范围内，「后端注册了但前端从不调」的条数是 0**。
+
+### 5.4 结论三：8 条「源码里注册了、运行时 404」的死路由
+
+有 3 个 `yy*Routes` 函数**全仓库零调用点**（只在 `_test.go` 里被调），它们注册的 8 条路径线上永远是 404：
+
+| 注册函数 | 文件 | 覆盖路径 |
+|---|---|---|
+| `yyLevelRoutes` | `youyuan_qq_level.go` | `/api/qq/level`、`/api/qq/level/top` |
+| `yyQQRagRoutes` | `youyuan_qq_rag.go` | `/api/qq/rag/docs`、`/api/qq/rag/reindex`、`/api/qq/rag/search`、`/api/qq/rag/stats` |
+| `yyQQUsageRoutes` | `youyuan_qq_usage.go` | `/api/qq/usage`、`/api/qq/usage/context` |
+
+好消息：**前端也没在调这 8 条**（5.1 的 309 个字面量里没有任何 `/api/qq/level` 或 `/api/qq/usage`），
+所以是纯死代码，不会造成现网报错；但表里已按源码如实列出并标「未接线」，不要当成可用能力。
+
+### 5.5 结论四：表外还有 4 条真实入口（源码不是字面量）
+
+| 入口 | 文件:行 | 说明 |
+|---|---|---|
+| `/api/chains/list` | `main.go:5015-5022` | `for alias, target := range map[...]` 循环注册，内部 `r.Clone` + 改 `u.Path` 后回灌 mux，等价 301 内部重写 |
+| `/api/youyuan/skills` | 同上 | 别名 → `/api/ai/skills` |
+| `/api/youyuan/skills/list` | 同上 | 别名 → `/api/ai/skills` |
+| `/api/youyuan/accounts/invoke/` | `youyuan_accounts.go:45`（`yyAccountsPrefix`），注册在 `:318` | 子树路由（结尾带 `/`），匹配该前缀下任意子路径 |
+
+因此**运行时实际注册数** = 384 条字面量 − 1（`plugin-outputs` 那条在 `for range` 里，展开 3 条，净 +2）
++ 3（别名）+ 1（前缀）= **390 条**。
+
+---
+
+## 6. 覆盖对账
+
+- `grep -h 'mux\.HandleFunc(' upstream/*.go`（排除 `_test.go`）= **386** 个调用点
+  - 其中 384 个是路径字面量 → 第 2 节表里 384 条，一一对应
+  - 2 个不是字面量：`main.go:5016`（别名循环，展开 3 条）、`youyuan_accounts.go:318`（子树前缀，1 条）
+  - 384 条字面量里 `youyuan_plugin_outputs.go:127` 在 `for range` 中，展开 3 条（净 +2）
+- Cloudflare Worker 侧另计 33 条（第 3 节）
+
+**源码共 384 处注册，本表 384 条**；连同 4 条非字面量入口，运行时共 390 条。

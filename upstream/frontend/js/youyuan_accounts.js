@@ -835,7 +835,10 @@ function yyEditAccountProfileRow(index) {
   delete subPageCache["\u8D26\u53F7\u8D44\u6599"];
   openSubPage("\u8D26\u53F7\u8D44\u6599", yyIntro("\u8BBE\u5907\u5907\u6CE8\u4E0E\u5206\u7C7B", "\u4EC5\u4FEE\u6539\u5F53\u524D\u8BBE\u5907\u7684\u663E\u793A\u8D44\u6599\uFF1B\u4E3B\u8FDE\u63A5\u4E0E\u5B98\u65B9\u8D26\u53F7\u8D44\u6599\u5728\u5404\u81EA\u5165\u53E3\u914D\u7F6E\u3002") + '<section class="card"><div id="yy-profile-preview" class="yy-profile-preview" aria-live="polite"></div><input type="file" id="yy-profile-avatar" accept="image/png,image/jpeg" onchange="yyPickAccountAvatar.call(this)" hidden><button type="button" class="btn-s" onclick="yyPickAvatarDialog()">\u9009\u62E9\u5934\u50CF</button><label>\u8BBE\u5907\u5907\u6CE8</label><input id="yy-profile-name" value="' + yyEscape(row.name || "") + '"><label>\u5DE5\u5177\u7BB1\u5206\u7C7B</label><select id="yy-profile-role"><option value="bot">\u673A\u5668\u4EBA\u8D26\u53F7</option><option value="owner">\u4E3B\u63A7\u5206\u7C7B \xB7 \u4E0D\u5207\u6362\u4E3B\u8FDE\u63A5</option></select><p class="yy-hint">\u6B64\u5206\u7C7B\u4E0D\u4EE3\u8868\u7F51\u6613\u670D\u4E3B\uFF0C\u4E5F\u4E0D\u4F1A\u8FC1\u79FB\u6B63\u5728\u8FD0\u884C\u7684\u4EFB\u52A1\u3002</p><button class="btn" onclick="yySaveAccountProfileUI.call(this)">\u4FDD\u5B58\u8BBE\u5907\u8D44\u6599</button><p id="yy-profile-result" class="yy-hint" role="status"></p></section>');
   document.getElementById("yy-profile-role").value = row.profile_role || "bot";
-  yyDrawProfilePreview(row.avatar || "");
+  // 预览要显示这个账号「当前真正在用的头像」，不是只看手工上传的那张。
+  // row.avatar 只存手工上传的 base64，没上传过就是空字符串，于是预览永远是个通用人形图标——
+  // 玩家会以为「头像没了」。走 yyAcctAvatarURL 才能拿到网易官方头像或本机裁的皮肤头。
+  yyDrawProfilePreview(yyAcctAvatarURL(row) || "");
 }
 function yyDrawProfilePreview(value) {
   const host = document.getElementById("yy-profile-preview");
@@ -843,8 +846,14 @@ function yyDrawProfilePreview(value) {
   host.textContent = "";
   if (value) {
     const img = document.createElement("img");
-    img.src = value;
     img.alt = "\u8D26\u53F7\u5934\u50CF\u9884\u89C8";
+    // 取不到图就退回图标：接口对「玩家不在线/没皮肤缓存」会返回 JSON，<img> 解码失败，
+    // 不挂 onerror 会留一个裂图，比没有还难看。
+    img.onerror = function () {
+      this.remove();
+      if (host) host.innerHTML = yyIcon("user");
+    };
+    img.src = value;
     host.append(img);
   } else host.innerHTML = yyIcon("user");
 }
@@ -2405,7 +2414,28 @@ function yyAcctAvatarURL(acct, profile) {
     var guess = yyPoolAvatarURL(item);
     if (guess) return guess;
   }
+  // 名字猜不出来时，按账号 ID 精确取：/api/skin/account-head 直接读该账号自己的皮肤纹理，
+  // 既不依赖玩家名，也不需要内核在线。这条接口早就注册了（main.go:5197）却一直没有调用点。
+  for (var idItem of rows) {
+    var byID = yyAcctHeadByID(idItem);
+    if (byID) return byID;
+  }
   return "";
+}
+// 账号 ID → account-head 地址。本地账号走 ?id=，云端凭据走 ?cred=（后端约定 yy_<凭据ID>），
+// 顺带把显示名当额外候选传过去：账号还没绑定玩家名时，后端可以拿名字兜一层。
+function yyAcctHeadByID(row) {
+  if (!row) return "";
+  var id = String(row.id || "").trim(), name = yyAcctSkinName(row), parts = [];
+  if (id.indexOf("credential:") === 0) {
+    var cred = id.slice("credential:".length).trim();
+    if (cred) parts.push("cred=" + encodeURIComponent(cred));
+  } else if (id) {
+    parts.push("id=" + encodeURIComponent(id));
+    if (id.indexOf("yy_") === 0) parts.push("cred=" + encodeURIComponent(id.slice(3)));
+  }
+  if (name) parts.push("name=" + encodeURIComponent(name));
+  return parts.length ? "/api/skin/account-head?" + parts.join("&") : "";
 }
 // 完整皮肤纹理候选链：只用玩家自己的皮肤（本机内核按玩家名返回原始纹理 PNG）。
 // 不再用 crafatar / minotar 的身体渲染——那条链按名字查会给陌生人立绘，

@@ -52,3 +52,44 @@
 - 不把密码、Token、云密钥、身份证、私有配置写入公开网页、日志、文档、测试截图或交接消息。
 - 多机器人观测必须排除已知机器人身份；未知身份不得触发递归投放。观测/伤害等样本计数不能冒充唯一网络包或全局覆盖率。
 - 当前服务器、账号、配置与业务插件状态以当次读回为准；测试前准备和测量期间行为分别记载，清理仅限本次建立的临时资源。
+
+# 游园项目共用约定（三端）
+
+> 2026-10-26 18:05 由 WorkBuddy 总统筹统一写入。Codex / DeepSeek Harness / WorkBuddy 读同一份，**任何一端不许再建第二份**。
+> 用户原话：「你们三个都把要备份的这些回滚的内容全部共用 以及一些 RAG 数据库啊也是 RAG 数据库 命名为 游园数据记忆库 不要占用太多的资源 你们共用即可，记得打好日志，谁干了这些」
+
+**唯一共用根：`D:/游园/`。开工前先读 `D:/游园/README.md` 和 `D:/游园/协作入口.md`。**
+
+| 用途 | 唯一路径 | 说明 |
+|---|---|---|
+| 备份库 | `D:/游园/备份库/snapshots/YYYYMMDD-HHMM/` | 含 `manifest.json` 逐文件 sha256；保留最近 8 个 |
+| RAG 记忆库 | `D:/游园/游园数据记忆库/` | `youyuan.db` = SQLite+FTS5（15,062 块）；`index.jsonl`；`chat/` 48 份。**名字固定，不许改名** |
+| 统一日志 | `D:/游园/LOG.md` | 只增不改 |
+| 本端接入说明 | `D:/游园/输入/codex/接入说明.md` | Codex 端专用命令与格式 |
+
+**改动源码前必须建快照（没有快照不许改）：**
+
+```bash
+cd C:/Users/Lenovo/Documents/Codex/2026-09-28/apk/project
+python maintenance/backup_snapshot.py "<这次要干什么>"      # 建快照，自动写 D:/游园/LOG.md
+python maintenance/backup_restore.py --list                 # 看快照
+python maintenance/backup_restore.py 20261026-1712          # dry-run 预览
+python maintenance/backup_restore.py 20261026-1712 --apply  # 真回滚（先自动建回滚前快照）
+```
+
+**检索共用记忆（不要另建索引）：**
+
+```powershell
+D:/游园/工具/memory.ps1 -Action search -Agent codex -Query "关键词"
+```
+
+**每完成一件事往 `D:/游园/LOG.md` 追加，端名写 `Codex`：**
+
+```
+## YYYY-MM-DD HH:MM · Codex · <动作>
+- 改了什么：<文件:行 + 一句话>
+- 怎么验证：<命令 + 结果数字>
+- 回滚点：<快照名>
+```
+
+**红线：** 不覆盖别人的快照；不删别人的快照；不在文档/日志写真实密码或 Token（只写凭据位置）；不替其他端代写「已接通」日志——每端只写自己真做过的。

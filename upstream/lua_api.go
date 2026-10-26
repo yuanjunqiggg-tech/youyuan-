@@ -245,7 +245,13 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 		optTbl := L.CheckTable(3)
 		menu := &ChatMenu{Title: title}
 		optTbl.ForEach(func(_, v lua.LValue) { menu.Options = append(menu.Options, MenuOption{Label: lua.LVAsString(v)}) })
-		abot(L).ShowMenu(player, menu)
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) {
+			bm.ShowMenu(player, menu)
+			return true, nil
+		}); err != nil {
+			L.RaiseError("showMenu: %v", err)
+		}
 		return 0
 	}))
 	// game.promptChoice(player, title, optionsTable, timeoutSec) → number(index)
@@ -433,21 +439,24 @@ func registerGameAPI(L *lua.LState, bm *BotManager) {
 	// ---- 展示类 ----
 	L.SetField(g, "sendTitle", L.NewFunction(func(L *lua.LState) int {
 		target, title, sub := L.CheckString(1), L.CheckString(2), L.CheckString(3)
-		if err := abot(L).SendTitle(target, title, sub); err != nil {
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) { return true, bm.SendTitle(target, title, sub) }); err != nil {
 			L.RaiseError("sendTitle: %v", err)
 		}
 		return 0
 	}))
 	L.SetField(g, "sendActionbar", L.NewFunction(func(L *lua.LState) int {
 		target, text := L.CheckString(1), L.CheckString(2)
-		if err := abot(L).SendActionbar(target, text); err != nil {
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) { return true, bm.SendActionbar(target, text) }); err != nil {
 			L.RaiseError("sendActionbar: %v", err)
 		}
 		return 0
 	}))
 	L.SetField(g, "sendRichTellraw", L.NewFunction(func(L *lua.LState) int {
 		msg := L.CheckString(1)
-		if err := abot(L).SendRichTellraw(msg); err != nil {
+		bm := abot(L)
+		if _, err := yyLuaWaitValue(L, func(_ context.Context) (bool, error) { return true, bm.SendRichTellraw(msg) }); err != nil {
 			L.RaiseError("sendRichTellraw: %v", err)
 		}
 		return 0

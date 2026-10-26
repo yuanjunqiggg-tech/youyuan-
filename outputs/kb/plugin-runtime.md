@@ -127,7 +127,7 @@ ZIP 内命名与磁盘命名不同（导入器改名，**两段流程，不算�
 | 事件钩子 | `events.onChat/onJoin/...` 注册**全局函数名**（`lua_events.go:124-152`）；`events.on`/`onXxx` 走感知钩子（`youyuan_sense_api.go:173-235`） | `events.onChat(handler)` 传可调用对象，宿主转成 `py_callback_N`（`youyuan_plugins.py:26,76-81`）；未命中时回落到 `on_event(event, host)`（`youyuan_plugins.py:102-103`） | `on("handler", callback)` + `client.events.onChat("handler")`（`sdk/cpp_seed.cpp:7,13`）；未命中时走 `Plugin::event()`（`sdk/cpp/youyuan.hpp:365`） |
 | 卸载钩子 | 全局 `on_stop()`，**不传参**，2 秒超时（`youyuan_resident.go:245-253`） | `on_stop(host)`，可 async，结束后 `close_async()` 关 asyncio 循环（`youyuan_plugins.py:203-205`） | 析构函数（`yy_destroy` → `delete`，`sdk/cpp/youyuan.hpp:381`） |
 | 能拿到的 API | 25 个命名空间直接挂全局表（`lua_api.go:15-53`），另有 `game.*` 旧兼容函数（`lua_game_legacy.go:20`） | `host.<ns>` 或模块级 `<ns>`，同样是 25 个命名空间（`youyuan_plugins.py:71,191-193`）；调用经 HTTP 回宿主（`youyuan_plugins.py:83-85`） | `client.<ns>`，内部同样走 `/api/youyuan/sdk/call`（`sdk/cpp/youyuan.hpp:340-343`） |
-| API 命名空间清单 | 25 个，与 `yySDKNames` 完全一致：game, system, api, plugin, util, bot, building, media, world, player, events, http, web, chains, packet, storage, accounts, accountsPool, entities, entity, diagnostics, hud, scoreboard, observerBridge（`youyuan_sdk.go:20`） | 同上（`youyuan_plugins.py:71`） | 同上（`sdk/cpp/youyuan.hpp` 的 `Client` 动态命名空间） |
+| API 命名空间清单 | 25 个：game, system, api, plugin, util, bot, building, media, world, player, events, http, web, chains, packet, storage, accounts, accountsPool, **mcp**, entities, entity, diagnostics, hud, scoreboard, observerBridge（`yySDKNames` 静态字面量是 24 个，`youyuan_sdk.go:20`；`mcp` 由 `youyuan_plugin_mcp.go:21` 的 `init()` 追加，故运行时 25 个，见 7.3） | 同上（`youyuan_plugins.py:71,191`，字面量里含 `mcp`） | 同上（`sdk/cpp/youyuan.hpp:327,329` 的 `Client` 动态命名空间，含 `mcp`） |
 | 执行隔离 | 进程内 goroutine，共享进程 | Android 进程内（Chaquopy）；Linux/桌面独立子进程（`youyuan_runtime_desktop.go:84-98`） | Android 进程内 dlopen（`youyuan_runtime_android.go:18`）；Linux 由 Python worker 子进程 ctypes 加载（`youyuan_native_desktop.go:66-67`） |
 | 并发模型 | 每账号每插件一个 LState，`r.mu` 串行（`youyuan_resident.go:273`），回调可复用 idle thread（`youyuan_resident.go:287-296`） | 每实例一个 asyncio 事件循环线程（`youyuan_plugins.py:59-70`），事件串行；批量最多 16 条一次投递（`youyuan_runtime.go:359-368`） | 每实例一个 worker 进程，`p.mu` 串行（`youyuan_native_desktop.go:98-99`） |
 | 单次调用上限 | 2 分钟（`lua_botctx.go:14` `luaExecTimeout`） | 120 秒（`youyuan_plugins.py:109` await 超时） | 120 秒，可用 `YY_NATIVE_TIMEOUT` 覆盖（`youyuan_native_desktop.go:120-123`） |
@@ -441,3 +441,142 @@ ZIP 内命名与磁盘命名不同（导入器改名，**两段流程，不算�
 | `util.scheduleHz` / `scheduleSeconds` / `scheduleTick` | 频率/秒/tick, 回调 | 统一宿主时钟调度 | `youyuan_scheduler.go:13-15` |
 | `util.listJobs` / `pauseJob` / `resumeJob` | id | 任务管理 | `youyuan_scheduler.go:16-18` |
 | `util.monotonicMs` / `serverTick` | — | 单调时钟 / 服务器 tick | `youyuan_entity_observations.go:48-49` |
+
+---
+
+## 6. 命令链：不是插件，但总被当插件问
+
+命令链是**内核内建能力**（`youyuan_commands.go`），不是插件：没有 manifest、不经过 `PluginController`、也不经过 `yyRuntime`。
+插件只能通过 `chains.*` API 去操作它（`lua_api.go` 的 chains 命名空间）。
+
+### 6.1 TXT 放哪、叫什么
+
+| 项 | 事实 | 源码 |
+|---|---|---|
+| 根目录 | `<dataDir>/插件数据文件/ds_ai_agent/command_txt/`，进程启动时 `MkdirAll 0755` | `youyuan_commands.go:722-723` |
+| 扩展名 | 只认 `.txt` 与 `.mcfunction`（大小写不敏感） | `youyuan_commands.go:341-342` |
+| 命名约束 | 必须是**直接文件名**：`filepath.Base(name) == name`、不含 `/ \ :`、不以 `.` 开头 | `youyuan_commands.go:337-339` |
+| 配置文件 | 同名 `<name>.json`（与 txt 同目录），存 `yyChainConfig` | `youyuan_commands.go:346-349` |
+| 数据归属 | 每个账号的内核有独立 dataDir；同一内核下多机器人按 `config.account` 过滤，互相控制不到 | `youyuan_commands.go:737`（默认 `Account:"main"`） |
+
+### 6.2 文件格式（mcfunction 兼容 + `#` 指令）
+
+解析器 `yyParseChains`（`youyuan_commands.go:124`）：
+
+| 语法 | 含义 | 源码 |
+|---|---|---|
+| 普通行 | 一条命令；**行首 `/` 会被去掉**再下发 | `:147-152`（`TrimPrefix(command, "/")` 在 `:152`） |
+| `类型,条件,红石[,Hz]` | 节点头：类型 0/1/2、条件 0/1、红石 0/1，可选第 4 段为频率 | `:122`（正则）、`:262-267`（赋值） |
+| `# 组：<参数>` / `# 群：` / `# 分区：` / `# 类别：` | 分组头，可带前缀/频道/速度/循环次数（循环 >1000 直接报错） | `:283`（正则）、`:169-182` |
+| `# 定义：<名>` / `# 测试：` / `# 规定：` | 定义一段可复用的测试命令 | `:284` |
+| `# 执行：<名> <参数>` | 展开上面定义的测试；找不到就报「找不到测试 X」 | `:285`（正则）、`:183-205` |
+| 其它 `#` 行 | 注释，跳过 | `:168-182` |
+| BOM / CRLF | 行首 `\ufeff` 被剥掉，`\r\n` 归一成 `\n` | `:163-164` |
+| 空文件 | 报错「文件没有命令」 | `:277` |
+
+注意：**这不是命令方块 NBT 的完整语义**，不翻译方块朝向、`clone` 接线等；它只负责按序下发命令。
+
+### 6.3 怎么启动 / 怎么重载（最容易踩的一节）
+
+`POST /api/youyuan/chains`，body `{action, name, config, content, redstone}`（`youyuan_commands.go:859-866`，body 上限 16MB）。
+`action` 只有 8 个值，**没有 `scan`**：`preview` / `save` / `delete` / `start` / `stop` / `trigger` / `redstone` / `reload`（`:912,924,987,1019`）。
+
+启动时机决定了「为什么我放了 txt 却没跑」：
+
+| 场景 | 实际行为 | 源码 |
+|---|---|---|
+| 进程启动 | `yyCommandRoutes` 扫一次目录，**只把 `config.enabled == true` 的链自动拉起**，其余只建实例（状态「已停止」） | `youyuan_commands.go:724-745` |
+| 启动后新放进来的 txt | **不会被自动发现**。目录只在启动时扫一次，没有运行态实例 | `youyuan_commands.go:763-765` 源码注释原文：「旧实现只遍历 yyChains.items，而目录只在进程启动时扫一次；启动后上传/拷贝进来的 TXT 永远不会出现在列表里」 |
+| 但列表里能看到它 | `GET /api/youyuan/chains` 已改成「磁盘目录 ∪ 内存运行态」，新文件以 `state:"未启动"`、`loaded:false` 出现 | `youyuan_commands.go:763-870`（`diskRow` 在 `:789`） |
+| 让它跑起来 | 必须显式 `{"action":"start","name":"x.txt"}`；`start` 分支里有 `loadFromDisk()`，现场读文件 + 解析 + 建实例 | `youyuan_commands.go:1020-1025`、`:885-913` |
+| 已装载的链被改文件 | `yyStartChainWatcher` 每秒 `Stat` 一次（mtime + size），变了就重解析；解析失败**保留原 IR** 并在 `last_error` 里报 | `youyuan_chain_watch.go:44-76`、`:23-42` |
+| 想立刻生效 | `{"action":"reload"}` 直接调 `yyReloadChainResource` | `youyuan_commands.go:1046-1047` |
+
+**关键边界**：watcher 只遍历 `yyChains.items`（已加载实例，`youyuan_chain_watch.go:46-51`），
+所以「新 txt 自动热加载」是不成立的——**新增必须 start，改动才会自动重载**。
+
+`start` 成功后立刻把 `Enabled=true` 写进 `<name>.json`（`youyuan_commands.go:419`），
+所以下次进程启动会被自动拉起；状态先置「等待连接」（`:410`），等机器人连上才真正发命令（`run` 在 `:428`）。
+
+### 6.4 状态字段怎么读
+
+`GET /api/youyuan/chains` 每行都带一句 `counter_semantics` 原文（`youyuan_commands.go:774`，磁盘行在 `:811`）：
+
+> `executed=attempted nodes; submitted=host accepted; cycles=file rounds or sum of independent segment rounds, not proof of server execution`
+
+即：`executed` 是「尝试下发的节点数」，`submitted` 是「宿主接受了」，`cycles` 是「文件轮次」。
+**三者都不等于服务器真的执行了**。`results_confirmed` 在 `mode=="fast"` 时为 `false`（`:774`），
+因为快速模式不等回执。
+
+---
+
+## 7. 文档与源码不一致处
+
+逐项核对根目录官方文档（`Lua插件开发说明.md` / `Python插件开发说明.md` / `C++插件开发说明.md` / `命令链插件API.md` / `插件生成文件下载说明.md`）
+与 `upstream/*.go` 实现，**发现 6 处需要按源码为准的地方**。
+
+### 7.1 命令链「自动同步」的边界被读宽了
+
+文档原话（`命令链插件API.md:200`）：「加载/修改时预解析成常驻IR；一秒检查资源mtime，未变化不读文件。显式reload立即检查。」
+
+源码事实：这一秒一次的检查只覆盖**已经有运行态实例**的链（`youyuan_chain_watch.go:46-51` 遍历 `yyChains.items`）。
+启动后才放进目录的 txt 没有实例，watcher 永远不会看到它，**必须 `action:"start"`**（`youyuan_commands.go:1020-1025`）。
+
+→ 文档读起来像「目录级自动同步」，实际是「已加载链的文件级热重载」。
+
+### 7.2 `manifest.json` 里的 `id` 在扫描时被忽略
+
+文档示例（`Lua插件开发说明.md:10`）把 `id` 当唯一标识写进清单。
+源码：真实 id 由**文件名**推导（`plugin_scan.go:63-68`，去掉扩展名、再去掉「词库」后缀），
+`pluginManifest.ID`（`plugin_scan.go:13`）只参与 ZIP 导入时的安装目录与代码文件名（`plugin_pack.go:127-136,141`）。
+
+→ 手工把 `插件文件/foo.lua` 的清单 id 改成 `bar`，插件在列表里**仍然叫 foo**。
+
+### 7.3 `mcp` 命名空间：静态清单是 24 个，运行时是 25 个
+
+`yySDKNames` 的字面量只有 24 项（`youyuan_sdk.go:20`，到 `observerBridge` 为止）。
+`mcp` 是 `init()` 里追加进去的：`yySDKNames = append(yySDKNames, "mcp")`（`youyuan_plugin_mcp.go:21`），
+方法文档也在同一个 `init()` 注册进 `yyExtraMethods`（`youyuan_plugin_mcp.go:11-20`）。
+
+→ 读 `youyuan_sdk.go:20` 会误判「没有 mcp」；三语言宿主都注入了 25 个（`youyuan_plugins.py:71,191`、`sdk/cpp/youyuan.hpp:327,329`），
+但 Go 侧 `未知命名空间` 的判定（`youyuan_sdk.go:637,654`）是在 `init()` 之后跑的，所以 `mcp.*` 实际可用。
+本节 §3 的命名空间枚举已按此修正。
+
+### 7.4 裸文件布局：文档只讲目录，源码也认单文件
+
+文档只描述 `插件文件/<id>/<id>.lua` 这种目录布局。源码额外允许**裸文件** `插件文件/<id>.lua`（历史布局），
+但裸文件**不能删除、不能导出**（`plugin_paths.go:32-70`、`:74-84`）。
+
+→ 用裸文件放进去能跑，用户在 UI 里点删除/导出会失败，容易当成 bug。
+
+### 7.5 数据目录的账号隔离：Lua 不隔离，Python/C++ 隔离
+
+- Lua：`DataDir(id)` = `插件数据文件/<id>/`，**与账号无关**（`plugin_config.go:15-19`）。
+- Python/C++：`data/<account>/`，按账号分开（`youyuan_runtime.go:131`）。
+
+三份语言文档都在讲「插件数据目录」，但只有 Python 文档提到多账号时行为不同；
+Lua 文档没有明说「多开账号时两个机器人共用同一份数据」。这会在多开场景下直接串数据。
+
+### 7.6 `author` 字段：解析了，然后丢掉
+
+`pluginManifest` 有 `Author` 字段（`plugin_scan.go:18`），但：
+
+- `PluginDef` 结构体里**没有** Author 字段（`plugin_defs.go:4-15`，只有 ID/Name/Version/Type/Description/Docs/PrePlugins/SourceDir/SourceFile/Load）；
+- 全仓库 `grep "\.Author"` 在非测试代码里**零命中**——读出来就没再用过。
+
+→ 清单里写 `"author": "xxx"` 不会有任何效果，插件列表/详情里也拿不到作者名。
+
+### 7.7 核对后确认一致的部分（避免只报问题）
+
+| 文档说法 | 源码位置 | 结论 |
+|---|---|---|
+| 命令链 txt 目录 `插件数据文件/ds_ai_agent/command_txt/` | `youyuan_commands.go:722` | 一致 |
+| 生成文件下载三个 GET：`/api/youyuan/plugin-outputs`、`/info`、`/download`（`插件生成文件下载说明.md:34-36`） | `youyuan_plugin_outputs.go:124-127` 的 `for _, suffix := range []string{"", "/info", "/download"}` | 一致 |
+| `plugin.exportFile` / `plugin.listOutputs` / `plugin.dataDir` 真实存在 | `youyuan_resource.go:23-24,59-64`、`lua_api.go:319` | 一致 |
+| Python `on_init(host)` 可为 async | `android/app/src/main/python/youyuan_plugins.py:195`（`host._resolve(module.on_init(host))`） | 一致 |
+| C++ 入口优先 `yy_create_v2`、回退 `yy_create` | `sdk/native_worker.py:66-72`、`sdk/cpp/youyuan.hpp:379` | 一致 |
+| Lua 单次调用上限 2 分钟 | `lua_botctx.go:14`（`luaExecTimeout`） | 一致 |
+
+> 引用路径提醒：`youyuan_plugins.py` 不在 `upstream/` 根，真实路径是
+> `upstream/android/app/src/main/python/youyuan_plugins.py`（`build/` 下是同一份的构建副本）；
+> `sdk/*.py` 与 `sdk/cpp/youyuan.hpp` 在 `upstream/sdk/`。本文其余小节沿用简写，查证时按此基准补全。

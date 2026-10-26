@@ -61,10 +61,10 @@
 
 | # | 角色 | 结果 | 证据 |
 |---|---|---|---|
-| 1 | 源码地图 | **429 中断，未产出** | 无 `outputs/kb/source-map.md` |
-| 2 | API 清单 | **429 中断，未产出** | 无 `outputs/kb/api-inventory.md` |
+| 1 | 源码地图 | 完成（原判「未产出」有误，见下方勘误） | `outputs/kb/source-map.md` 52,557 B / 466 行 |
+| 2 | API 清单 | 完成（原判「未产出」有误，见下方勘误） | `outputs/kb/api-inventory.md` 60,926 B / 570 行 |
 | 3 | 前端模块图 | 完成 | `outputs/kb/frontend-map.md` 27,110 B |
-| 4 | 插件运行时 | **429 中断，未产出** | 无 `outputs/kb/plugin-runtime.md` |
+| 4 | 插件运行时 | 完成（原判「未产出」有误，见下方勘误） | `outputs/kb/plugin-runtime.md` 39,883 B / 443 行 |
 | 5 | MCP 面 | 完成 | `outputs/kb/mcp-surface.md` 68,614 B |
 | 6 | 种子查询器 | 完成 | `outputs/kb/seed-v2.md` 38,809 B |
 | 7 | 对话归档 | 完成 | `outputs/kb/conversations.md` 44,014 B |
@@ -75,6 +75,17 @@
 | 12 | 验证挑刺 | **由主 Agent 完成** | 本文件 |
 
 > 说明：429 是**额度上限**（重置时间 2026-10-27 14:21），不是代码问题。按 playbook §4.5.2，已落盘的直接采用、未落盘的降级由主 Agent 兜底。
+
+> **勘误（2026-10-26 18:20，由 verifier 独立验收发现）**
+> 本表原先断言 #1 源码地图、#2 API 清单、#4 插件运行时「429 中断，未产出」，**这是错的**。
+> 三份文件实际都存在且内容完整：
+> - `source-map.md` 52,557 B / 466 行，首行「源码版本 0.10.78，`upstream/youyuan_product.go:14`」
+> - `api-inventory.md` 60,926 B / 570 行，口径写明「逐条解析 `mux.HandleFunc(...)` 注册语句」
+> - `plugin-runtime.md` 39,883 B / 443 行，基线写明「仓库 HEAD `3a11d92`（2026-10-21）」
+>
+> 它们的 mtime 是 15:33~15:35，与 `gaps.md`（15:54）同属提交 `8cad63a`。
+> **根因**：写本表时只看「Agent 报了 429」这个终态，没有回头 `ls` 目标文件——「报错」≠「没产出」。
+> 这正是本项目最高频的事故模式（把「我以为的」当成「实际是的」），记入 `experience-log.md`。
 
 ---
 
