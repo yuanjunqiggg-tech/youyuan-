@@ -2288,7 +2288,12 @@ function yySkinStagePrelude(row) {
       clearInterval(timer);
       return;
     }
-    if (live.querySelector("canvas")) {
+    // YYSkinViewer 产出的是 CSS 立方体（.yy-skin-model + 72 个 .yy-skin-face），
+    // 根本没有 <canvas>。原来只认 canvas，骨架屏就永远撤不掉——而骨架屏是
+    // z-index:2、opacity 从 .7 涨到 1、盖满整块的遮罩，于是模型明明建好了却被
+    // 整块盖住，玩家看到的就是「皮肤不显示」；它还是 pointer-events:auto，
+    // 连拖动都拖不动。这里认模型节点本身和渲染器自己打的 loaded 标记。
+    if (live.dataset.loaded === "true" || live.querySelector(".yy-skin-model") || live.querySelector("canvas")) {
       const skeleton = live.querySelector(".yy-skin-skeleton");
       if (skeleton) skeleton.remove();
       clearInterval(timer);
