@@ -1,0 +1,88 @@
+# 雪球菜单综合FUNCTION R20G：菜单 + 互传倒计时 + 区域限制 + 在线时间。
+# 语法：状态三元组后可直接写 Hz，例如 2,0,0 10 = 10Hz；2,0,0 0.1 = 每10秒一轮。
+# 默认频率20Hz；频率属于整条独立链，`.` 开新链。
+# 普通节点一轮内连续 game.sendCommand，不走MCP，不逐条等待回包。
+1,0,0
+/scoreboard objectives add 雪球菜单 dummy
+/scoreboard objectives add 互传 dummy
+/scoreboard objectives add 在线时间 dummy
+.
+2,0,0 20
+/give @r[hasitem={item=snowball,quantity=..2,data=1}] snowball 13 1 {"minecraft:keep_on_death":{},"minecraft:item_lock":{"mode":"lock_in_inventory"}}
+0,0,0
+/execute at @e[type=snowball] as @p[r=3] run scoreboard players add @s 雪球菜单 1
+/execute at @e[type=snowball] run playsound block.end_portal_frame.fill @p[r=3]
+/execute as @r[scores={雪球菜单=1..6}] at @s run titleraw @s actionbar {"rawtext":[{"text":"§9╭──────── §b✧ §f疣螈 · 雪境终端 §b✧ §9────────╮\n"},{"text":"§9│ §7导航进度  "},{"text":""},{"text":""},{"text":""},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=1}]"},{"text":"§b━§7━§7━§7━§7━§7━"}]}},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=2}]"},{"text":"§7━§b━§7━§7━§7━§7━"}]}},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=3}]"},{"text":"§7━§7━§b━§7━§7━§7━"}]}},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=4}]"},{"text":"§7━§7━§7━§b━§7━§7━"}]}},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=5}]"},{"text":"§7━§7━§7━§7━§b━§7━"}]}},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=6}]"},{"text":"§7━§7━§7━§7━§7━§b━"}]}},{"text":"\n§9├─ §b快捷操作 §9────────────────┤\n§9│ "},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=1}]"},{"text":"§f"},{"text":"§7"}]}},{"text":"▸ 主城传送  "},{"text":"§9│ "},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=2}]"},{"text":"§f"},{"text":"§7"}]}},{"text":"▸ 返回地面\n§9│ "},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=3}]"},{"text":"§f"},{"text":"§7"}]}},{"text":"▸ 返回重生  "},{"text":"§9│ "},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=4}]"},{"text":"§f"},{"text":"§7"}]}},{"text":"▸ 设置重生\n§9│ "},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=5}]"},{"text":"§f"},{"text":"§7"}]}},{"text":"▸ 发起互传  "},{"text":"§9│ "},{"translate":"%%2","with":{"rawtext":[{"selector":"@s[scores={雪球菜单=6}]"},{"text":"§f"},{"text":"§7"}]}},{"text":"▸ 接受互传\n"},{"text":"§9├─ §b游玩记录 §9────────────────┤\n§9│ §7在线 §f"},{"score":{"name":"@s","objective":"在线时间"}},{"text":"§7 分钟     §7复活 §f"},{"score":{"name":"@s","objective":"复活次数"}},{"text":"§7 次"},{"text":"\n§9╰──── §a抬头确认 §8· §c低头取消 §9────╯\n"}]}
+/execute as @r[scores={雪球菜单=1..},rx=-89] run playsound random.levelup @s
+/execute as @a at @s run kill @n[type=snowball,r=3]
+/title @r[scores={雪球菜单=1..},rxm=89] actionbar §o§7║║║§c已关闭§7║║║
+/playsound random.chestclosed @r[scores={雪球菜单=0..},rxm=89]
+/scoreboard players reset @r[scores={雪球菜单=0..},rxm=89] 雪球菜单
+/scoreboard players set @r[scores={雪球菜单=7}] 雪球菜单 1
+/execute as @r[scores={雪球菜单=1},rx=-89] in overworld run tp @s 10181.54 128.00 10206.50
+/execute unless entity @a[tag=yy_surface_active] in overworld run kill @e[type=armor_stand,tag=yy_surface_owned]
+/execute unless entity @a[tag=yy_surface_active] in nether run kill @e[type=armor_stand,tag=yy_surface_owned]
+/execute unless entity @a[tag=yy_surface_active] in the_end run kill @e[type=armor_stand,tag=yy_surface_owned]
+/execute as @a[scores={雪球菜单=2},tag=!return_surface,rx=-88] run tag @s add return_surface
+/execute as @r[tag=return_surface,tag=!yy_surface_active] unless entity @a[tag=yy_surface_active] run tag @s add yy_surface_active
+/execute as @a[tag=yy_surface_active,tag=!yy_surface_started] at @s run summon armor_stand ~~~
+/execute as @a[tag=yy_surface_active,tag=!yy_surface_started] at @s run tag @n[type=armor_stand,tag=!yy_surface_owned,r=3,c=1] add yy_surface_owned
+/execute as @a[tag=yy_surface_active,tag=!yy_surface_started] at @s run execute in overworld run tp @n[type=armor_stand,tag=yy_surface_owned,r=3] ~ 320 ~
+/execute as @a[tag=yy_surface_active,tag=!yy_surface_started] at @s run execute in nether run tp @n[type=armor_stand,tag=yy_surface_owned,r=3] ~ 129 ~
+/execute as @a[tag=yy_surface_active,tag=!yy_surface_started] at @s run execute in the_end run tp @n[type=armor_stand,tag=yy_surface_owned,r=3] ~ 256 ~
+/execute as @a[tag=yy_surface_active,tag=!yy_surface_started] run tellraw @s {"rawtext":[{"text":"§b正在查找地面，请稍候。"}]}
+/tag @a[tag=yy_surface_active,tag=!yy_surface_started] add yy_surface_started
+/scoreboard players reset @a[tag=return_surface,scores={雪球菜单=2}] 雪球菜单
+/execute in the_end as @r[scores={雪球菜单=3},rx=-89] run tp @s 5 200.00 5
+/execute as @r[scores={雪球菜单=4},rx=-89] at @s run spawnpoint @s
+/title @r[scores={雪球菜单=1..,雪球菜单=!5..6},rx=-89] actionbar §l | | | §a执行成功§f | | |
+/scoreboard players reset @r[scores={雪球菜单=1..,雪球菜单=!5..6,雪球菜单=!2},rx=-89] 雪球菜单
+/execute if entity @r[scores={互传=1}] run title @a[scores={雪球菜单=5},rx=-89] actionbar §c互传通道占用中，请稍候§f
+/execute if entity @r[scores={互传=1}] run playsound random.anvil_land @r[scores={雪球菜单=5},rx=-89]
+/execute if entity @r[scores={互传=1}] run scoreboard players reset @r[scores={雪球菜单=5},rx=-89] 雪球菜单
+/scoreboard players set @r[scores={雪球菜单=5},rx=-89] 互传 1
+/execute as @r[scores={雪球菜单=5},rx=-89] at @s run tellraw @a {"rawtext":[{"text":"[§d播报§f] §f玩家§b➢"},{"selector":"@s"},{"text":"§a发起了玩家互传\n§f在30秒内打开雪球雪球菜单同意传送即可接受传送。"}]}
+/execute as @r[scores={雪球菜单=5},rx=-89] run playsound random.orb @a
+/execute if entity @r[scores={雪球菜单=5},rx=-89] run scoreboard players set 时间 互传 30
+/scoreboard players set @r[scores={雪球菜单=5},rx=-89] 雪球菜单 0
+/titleraw @r[scores={互传=1}] actionbar {"rawtext":[{"text":"您已发起玩家互传  §b剩余时长§f "},{"score":{"name":"时间","objective":"互传"}},{"text":" §as\n§f=========§a低头取消互传§f========="}]}
+/execute if entity @a[scores={互传=1}] as @a[scores={雪球菜单=6},rx=-88] run tellraw @a {"rawtext":[{"text":"§l§f〉〉§5〉 §r §r§b"},{"selector":"@a[scores={互传=1}]"},{"text":"§r 已传送至 §b"},{"selector":"@s"}]}
+/execute as @r[scores={互传=0..},rxm=89] run tellraw @a {"rawtext":[{"selector":"@s"},{"text":"§l§b 已取消互传"}]}
+/execute as @r[scores={互传=1},rxm=89] run scoreboard players reset @s 雪球菜单
+/execute as @r[scores={互传=1},rxm=89] run scoreboard players reset @s 互传
+/execute unless entity @r[scores={互传=1}] run scoreboard players reset 时间 互传
+/execute if score 时间 互传 matches ..0 run tellraw @a {"rawtext":[{"text":"§f[§d播报§f] 时间已到，无人接受互传同意，已重置互传通道"}]}
+/execute if score 时间 互传 matches ..0 run scoreboard players reset @r[scores={雪球菜单=..0}] 雪球菜单
+/execute if score 时间 互传 matches ..0 run scoreboard players reset * 互传
+/execute unless entity @r[scores={互传=1}] run title @a[scores={雪球菜单=6},rx=-89] actionbar §c无人开启互传通道
+/execute at @r[scores={雪球菜单=6},rx=-89] run tp @r[scores={互传=1}] ~ ~ ~
+/execute if entity @r[scores={互传=1}] at @a[scores={雪球菜单=6},rx=-89] run title @a[scores={雪球菜单=!1..5},c=2] actionbar §l | | | §a传送成功§f | | |
+/execute at @r[scores={雪球菜单=6},rx=-89] run scoreboard players reset * 互传
+/execute at @r[scores={雪球菜单=6},rx=-89] run scoreboard players reset @a[scores={雪球菜单=0}] 雪球菜单
+/scoreboard players reset @r[scores={雪球菜单=6},rx=-89] 雪球菜单
+
+.
+# 互传倒计时：1Hz，每秒减1。
+2,0,0 1
+/execute if score 时间 互传 matches 1.. run scoreboard players remove 时间 互传 1
+0,0,0
+/execute if score 时间 互传 matches 1.. run playsound random.orb @a[scores={互传=1}]
+
+.
+# 未开放区域限制：默认20Hz，实时把越界玩家送回。
+2,0,0 20
+/execute as @r at @s unless entity @s[x=200000,z=200000,dx=-400000,dz=-400000] in overworld run tp @s 10062.41 157.00 10062.56
+0,0,0
+/execute as @r at @s unless entity @s[x=200000,z=200000,dx=-400000,dz=-400000] run tellraw @s {"rawtext":[{"text":"§e前方的区域暂不开放\n请以后再来探索吧~~"}]}
+
+.
+# 在线时间：1/60Hz，即每60秒整轮执行一次。
+2,0,0 0.016666667
+/scoreboard players add @a 在线时间 1
+
+# 扫地机原稿暂不自动启用：用户原稿要求改到 dm/其他维度，但目标维度尚未明确，避免误清实体。
+!
+.
+# 地面查找按需运行，主菜单仍为20Hz。
+2,0,0 4
+@branch {"command": "testfor @a[tag=yy_surface_active,tag=yy_surface_started]", "then": "雪球菜单_返回地面子模块.txt"}

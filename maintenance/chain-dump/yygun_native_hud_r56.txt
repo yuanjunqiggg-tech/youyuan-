@@ -1,0 +1,14 @@
+1,0,0
+/scoreboard objectives add yygun_mag dummy
+/scoreboard objectives add yygun_cap dummy
+/scoreboard objectives add yygun_type dummy
+.
+2,0,0 1
+/execute as @a[scores={yygun_type=1},hasitem={item=fishing_rod,location=slot.weapon.mainhand}] if entity @s[hasitem={item=leather_horse_armor}] run titleraw @s actionbar {"rawtext":[{"text":"§9▰╾━ §b皮革马铠手枪 §8┃ §f弹药 §e"},{"score":{"name":"@s","objective":"yygun_mag"}},{"text":"§7/"},{"score":{"name":"@s","objective":"yygun_cap"}}]}
+0,0,0
+/execute as @a[scores={yygun_type=2},hasitem={item=fishing_rod,location=slot.weapon.mainhand}] if entity @s[hasitem={item=iron_horse_armor}] run titleraw @s actionbar {"rawtext":[{"text":"§9▰╾━ §b铁马铠步枪 §8┃ §f弹药 §e"},{"score":{"name":"@s","objective":"yygun_mag"}},{"text":"§7/"},{"score":{"name":"@s","objective":"yygun_cap"}}]}
+0,0,0
+/execute as @a[scores={yygun_type=3},hasitem={item=fishing_rod,location=slot.weapon.mainhand}] if entity @s[hasitem={item=golden_horse_armor}] run titleraw @s actionbar {"rawtext":[{"text":"§9▰╾━ §b金马铠霰弹枪 §8┃ §f弹药 §e"},{"score":{"name":"@s","objective":"yygun_mag"}},{"text":"§7/"},{"score":{"name":"@s","objective":"yygun_cap"}}]}
+0,0,0
+/execute as @a[scores={yygun_type=4},hasitem={item=fishing_rod,location=slot.weapon.mainhand}] if entity @s[hasitem={item=diamond_horse_armor}] run titleraw @s actionbar {"rawtext":[{"text":"§9▰╾━ §b钻石马铠狙击枪 §8┃ §f弹药 §e"},{"score":{"name":"@s","objective":"yygun_mag"}},{"text":"§7/"},{"score":{"name":"@s","objective":"yygun_cap"}}]}
+!

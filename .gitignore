@@ -27,3 +27,11 @@ cloudflare/.wrangler/
 **/插件数据文件/
 **/youyuan_config.json
 **/cloud-keys.json
+
+# 2026-10-26: wasm 构建产物不进库（13MB×2，可由源码重建）
+**/*.wasm
+**/*.wasm.bak
+# RAG 产物已迁到 D:/游园/游园数据记忆库（三端共用），不在仓库里存副本
+outputs/rag/*.jsonl
+outputs/rag/*.db
+outputs/rag/chat/

@@ -1,0 +1,9 @@
+{
+  "original_sha256": "490e7fea238aca5bb509720699638315628b75d993cf5f2ef31f1fd0f713f36e",
+  "main_commands": 59,
+  "child_commands": 119,
+  "files": {
+    "雪球菜单_综合功能.txt": "4f4f8102366d9e315e25059516dda43a7d31d6360221325397a95a386a9e49e9",
+    "雪球菜单_返回地面子模块.txt": "c0c0a6cdfda3b0c85925e5a9ed47104462e58e627fdb020492e96dfd7f5705e6"
+  }
+}

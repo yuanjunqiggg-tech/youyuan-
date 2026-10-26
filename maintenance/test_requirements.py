@@ -22,5 +22,13 @@ class LedgerTests(unittest.TestCase):
   data=json.loads(self.path.read_text('utf8'));data['requirements'][1]['id']='A01';self.path.write_text(json.dumps(data),encoding='utf8')
   with self.assertRaises(ValueError):render(self.project)
   self.assertFalse((self.project/'项目待办.md').exists())
+ def test_canonical_document_keeps_rules_focus_and_closed_history(self):
+  data=json.loads(self.path.read_text('utf8'));data['execution_rules']=['压缩后读取同一文档','真实验收前不得关闭'];data['current_focus']='命令链与导入稳定性';self.path.write_text(json.dumps(data),encoding='utf8')
+  (self.root/'outputs/proof.json').write_text('{"passed":true}')
+  close(self.project,'A01',['outputs/proof.json'],'端到端通过','fixture acceptance')
+  before=self.path.read_bytes();render(self.project)
+  full=(self.project/'需求逐项总清单.md').read_text('utf8')
+  for text in ['压缩后读取同一文档','真实验收前不得关闭','命令链与导入稳定性','Keep original requirement','Keep pending item','fixture acceptance']:self.assertIn(text,full)
+  self.assertEqual(before,self.path.read_bytes())
 
 if __name__=='__main__':unittest.main()

@@ -1,0 +1,10 @@
+{
+  "entity_hurt_info.lua": {
+    "before_sha256": "cb163a4d708d756e14b1968cf42f488715d8b0d4f1b6a4bb15e48b9f8ad7259b",
+    "after_sha256": "2e457ec7e9a2e15ce17623b0da4db3e653000a964e417abb4e3b3ed179f8c60a"
+  },
+  "health_display.lua": {
+    "before_sha256": "cbb0c028fb0b72702722aea9bcc046722ff860cfbb8deff2bab654e4c34f787d",
+    "after_sha256": "54a84c7e0e70d8026ef34781ed74dd6d025c479d3ba293ada7284914cc146979"
+  }
+}

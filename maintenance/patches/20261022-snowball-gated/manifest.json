@@ -1,0 +1,12 @@
+{
+  "source_sha256": "490e7fea238aca5bb509720699638315628b75d993cf5f2ef31f1fd0f713f36e",
+  "core_commands": 38,
+  "return_commands": 125,
+  "descent_repeats": 111,
+  "files": {
+    "雪球菜单_综合功能.txt": "e5a305f6826f51e51f7c3f3eb8f499549dd3a596dbe007ede4787fd638670789",
+    "_雪球菜单_活动模块.txt": "ecf8457d566aefbe5a312439ff4e68fec1cf29b01bb7d8054cb8913c1f40ba07",
+    "_雪球菜单_回地表模块.txt": "6e1f4d524bf2ad7402c83402768e00d879035409e4e2021c57621412b19509ef",
+    "_雪球菜单_互传计时模块.txt": "1b68b3d328612492d87fbb81b82d62b1e0e9a74f2ef3a55d2af2b22bb57bcc3c"
+  }
+}

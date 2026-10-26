@@ -1,0 +1,20 @@
+# 雪球菜单：常驻条件检测，活动段按需20Hz，完成后回收。
+1,0,0
+/scoreboard objectives add 雪球菜单 dummy
+/scoreboard objectives add 互传 dummy
+/scoreboard objectives add 在线时间 dummy
+/give @a[hasitem={item=snowball,quantity=..2,data=1}] snowball 13 1 {"minecraft:keep_on_death":{},"minecraft:item_lock":{"mode":"lock_in_inventory"}}
+.
+2,0,0 20
+@gate {"command": "execute unless entity @a[hasitem={item=snowball,data=1,location=slot.weapon.mainhand}] unless entity @a[scores={雪球菜单=1..6}] unless entity @a[scores={互传=1}] unless entity @a[tag=return_surface] unless entity @e[type=snowball] run testfor @s", "poll_ms": 200, "else": "_雪球菜单_活动模块.txt"}
+.
+# 补给/区域/在线计时保持独立，不因菜单关闭而丢失。
+2,0,0 1
+/give @a[hasitem={item=snowball,quantity=..2,data=1}] snowball 13 1 {"minecraft:keep_on_death":{},"minecraft:item_lock":{"mode":"lock_in_inventory"}}
+.
+2,0,0 20
+/execute as @r at @s unless entity @s[x=200000,z=200000,dx=-400000,dz=-400000] in overworld run tp @s 10062.41 157.00 10062.56
+/execute as @r at @s unless entity @s[x=200000,z=200000,dx=-400000,dz=-400000] run tellraw @s {"rawtext":[{"text":"§e前方的区域暂不开放\n请以后再来探索吧~~"}]}
+.
+2,0,0 0.016666667
+/scoreboard players add @a 在线时间 1

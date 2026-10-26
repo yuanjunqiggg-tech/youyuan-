@@ -30,9 +30,14 @@ def render(project):
     pending=[r for r in rows if category(r)=='pending'];closed=[r for r in rows if category(r)=='closed'];withdrawn=[r for r in rows if category(r)=='withdrawn']
     stamp=data.get('updated_at','未记录')
     header=f'更新时间：{stamp}。共 {len(rows)} 项；待办 {len(pending)} 项；已验收归档 {len(closed)} 项；已撤回 {len(withdrawn)} 项。\n\n'
-    full='# 游园工具箱：原始需求逐项总清单\n\n'+header+'**没有全部完成。** 本表来自同一个JSON；旧要求和证据不删除。仅验收关闭的条目从活动待办移入归档，不以构建或阶段交付宣称整体完成。未取得的外部聊天/仓库正文不声称已经阅读。\n\n'
+    full='# 游园工具箱：统一需求与执行记录\n\n'+header+'**没有全部完成。** 本文是用户要求的固定阅读入口，由同一个JSON增量维护；旧要求和证据不删除。每次继续、上下文压缩后先读本文的执行约束、当前重点和相关原编号，不能仅靠最后一条消息恢复工作。仅验收关闭的条目从活动待办移入归档，不以构建或阶段交付宣称整体完成。未取得的外部聊天/仓库正文不声称已经阅读。\n\n'
+    if data.get('execution_rules'):
+        full+='## 执行约束\n\n'+'\n'.join('- '+rule for rule in data['execution_rules'])+'\n\n'
+    if data.get('current_focus'):
+        full+='## 当前重点\n\n'+data['current_focus']+'\n\n'
     for module in dict.fromkeys(r['module'] for r in rows):full+='## '+module+'\n\n'+table([r for r in rows if r['module']==module])+'\n\n'
     full+='活动清单见[项目待办](项目待办.md)，关闭记录见[已完成与撤回归档](已完成与撤回归档.md)。\n'
+    (project/'需求逐项总清单.md').write_text(full,encoding='utf-8')
     (project/'需求逐项总清单-2026-10-17.md').write_text(full,encoding='utf-8')
     (project/'项目待办.md').write_text('# 游园工具箱：每次继续先读\n\n'+header+'完成并验收的任务已从此活动列表移除；原始要求及证据仍在总账和归档中。不能只凭状态文字关闭，需 closed_at 与 evidence。\n\n'+table(pending)+'\n',encoding='utf-8')
     (project/'已完成与撤回归档.md').write_text('# 已完成与撤回归档\n\n'+header+'## 已验收关闭\n\n'+table(closed)+'\n\n## 已撤回，不执行\n\n'+table(withdrawn)+'\n',encoding='utf-8')

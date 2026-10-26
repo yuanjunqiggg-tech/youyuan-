@@ -1,0 +1,127 @@
+# 保留原始最近盔甲架与连续111次下探，条件结束自动回收。
+2,0,0 20
+/execute as @a[scores={雪球菜单=2},tag=!return_surface,rx=-88] at @s run tag @s add return_surface
+/execute as @a[tag=return_surface,scores={雪球菜单=2},rx=-88] at @s run summon armor_stand ~~~
+/execute as @a[tag=return_surface,scores={雪球菜单=2},rx=-88] at @s run tag @n[type=armor_stand,tag=!surface_tp,r=3,c=1] add surface_tp
+/execute as @a[tag=return_surface,scores={雪球菜单=2},rx=-88] at @s run execute in overworld as @s run tp @n[type=armor_stand,tag=surface_tp,r=3] ~ 320 ~
+/execute as @a[tag=return_surface,scores={雪球菜单=2},rx=-88] at @s run execute in nether as @s run tp @n[type=armor_stand,tag=surface_tp,r=3] ~ 129 ~
+/execute as @a[tag=return_surface,scores={雪球菜单=2},rx=-88] at @s run execute in the_end as @s run tp @n[type=armor_stand,tag=surface_tp,r=3] ~ 256 ~
+/execute as @r[scores={雪球菜单=2},rx=-89] run tellraw @s {"rawtext":[{"text":"§l提示 ➜ §l请待在原地耐心等待3秒"}]}
+/execute as @a[tag=return_surface,scores={雪球菜单=2},rx=-88] at @s run scoreboard players reset @s 雪球菜单
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-2000000,dx=4000000,y=-114514,dy=320000000,z=-2000000,dz=4000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp,x=-20000000,dx=4000000000000,y=-114514,dy=320000000,z=-200000000,dz=40000000000] at @s if block ~ ~-1 ~ air run tp @s ~ ~-1 ~
+/execute as @a[tag=return_surface] at @s run execute as @n[type=armor_stand,tag=surface_tp] at @s unless block ~~-1~ air run tag @p[tag=return_surface] add 返回地面
+/execute as @a[tag=返回地面] at @s run tp @s @n[type=armor_stand,tag=surface_tp,r=1000]
+/titleraw @a[tag=return_surface,tag=返回地面] actionbar {"rawtext":[{"text":"§l§b---- 已成功返回地面 ----"}]}
+/execute as @a[tag=返回地面] at @s run kill @n[type=armor_stand,tag=surface_tp]
+/execute as @a[tag=返回地面] at @s run tag @a[tag=return_surface] remove return_surface
+/tag @a[tag=返回地面] remove 返回地面
