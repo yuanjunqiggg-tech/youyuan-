@@ -67,6 +67,18 @@ func currentDrawSession() *DrawSession {
 	return drawSess
 }
 
+// yyTaskBusy 报告是否有导入/导出/修补类重作业在跑。
+//
+// 单独抽成函数是为了让 taskMu 只在函数内部持有、返回前释放。调用方（画板
+// handler）在此之前已经拿过 drawSessMu，如果直接内联加锁就成了「先画板锁后
+// 作业锁」，而 /api/task 入口是「先画板锁、释放、再作业锁」——内联写法会
+// 和反方向的检查形成 AB-BA 死锁。这里保证两把锁永不嵌套。
+func yyTaskBusy() bool {
+	taskMu.Lock()
+	defer taskMu.Unlock()
+	return activeTask != nil && activeTask.Running()
+}
+
 // setCurrentDrawSession 设置/清空当前会话。
 func setCurrentDrawSession(s *DrawSession) {
 	drawSessMu.Lock()
@@ -208,6 +220,12 @@ func handleDrawApply(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "未创建画板"})
 		return
 	}
+	// 作业串行：导入/导出正在跑时不接受画板落地，否则两边同时往服务器发指令
+	// 会互相覆盖。反方向（画板放置中拒绝起新作业）在 /api/task 入口。
+	if yyTaskBusy() {
+		writeJSON(w, map[string]any{"ok": false, "error": "有导入/导出作业正在进行，请等待完成后再落地"})
+		return
+	}
 	sess.Apply()
 	writeJSON(w, map[string]any{"ok": true, "state": sess.State()})
 }
@@ -222,6 +240,11 @@ func handleDrawSync(w http.ResponseWriter, r *http.Request) {
 	sess := currentDrawSession()
 	if sess == nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "未创建画板"})
+		return
+	}
+	// 同步平面要逐格读服务器方块，属于重作业，同样不能在导入/导出进行中启动。
+	if yyTaskBusy() {
+		writeJSON(w, map[string]any{"ok": false, "error": "有导入/导出作业正在进行，请等待完成后再同步"})
 		return
 	}
 	bm := getBotManagerLocked()

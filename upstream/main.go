@@ -327,6 +327,14 @@ func handleTaskStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "检测到新版本，请更新后再使用导入/导出功能"})
 		return
 	}
+	// 作业串行（用户要求「上一个任务彻底结束后才允许启动下一个」）：
+	// 画板正在往服务器落方块时，不允许再起导入/导出/修补这类重作业，否则两边
+	// 同时发指令会互相覆盖。锁顺序：先拿 drawSessMu / sess.mu 并在返回前释放，
+	// 之后才 taskMu.Lock()，两把锁不嵌套，不会和画板侧形成 AB-BA 死锁。
+	if ds := currentDrawSession(); ds != nil && ds.Placing() {
+		writeJSON(w, map[string]any{"ok": false, "error": "画板正在放置方块，请等待完成后再开始新作业"})
+		return
+	}
 	taskMu.Lock()
 	defer taskMu.Unlock()
 	if activeTask != nil {
@@ -522,6 +530,14 @@ func handleTaskResume(w http.ResponseWriter, r *http.Request) {
 	updateBlockedMu.RUnlock()
 	if blocked {
 		writeJSON(w, map[string]any{"ok": false, "error": "检测到新版本，请更新后再使用导入/导出功能"})
+		return
+	}
+	// 作业串行（用户要求「上一个任务彻底结束后才允许启动下一个」）：
+	// 画板正在往服务器落方块时，不允许再起导入/导出/修补这类重作业，否则两边
+	// 同时发指令会互相覆盖。锁顺序：先拿 drawSessMu / sess.mu 并在返回前释放，
+	// 之后才 taskMu.Lock()，两把锁不嵌套，不会和画板侧形成 AB-BA 死锁。
+	if ds := currentDrawSession(); ds != nil && ds.Placing() {
+		writeJSON(w, map[string]any{"ok": false, "error": "画板正在放置方块，请等待完成后再开始新作业"})
 		return
 	}
 	taskMu.Lock()
