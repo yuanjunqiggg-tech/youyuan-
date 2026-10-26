@@ -1,0 +1,43 @@
+/* 连接诊断面板（/api/youyuan/connection-diagnostics 的可视化）。
+   只服务 #yy-conn-diag，沿用设置页既有变量与圆角语言，不引入新色板。
+
+   2026-10-23 整改：面板从「蹭房间发现宽幅 hero」改为普通折叠卡片 .yy-conn-diag-card
+   ——12~14px 圆角、细边框、无大阴影、无渐变底；摘要行常驻（徽章 + 今日掉线 + 展开详情），
+   详情默认收起。390px 手机宽度下 grid 2 列、操作行允许换行，绝不出错位。 */
+#tab-settings #yy-conn-diag.yy-conn-diag-card{margin:0 0 20px;min-width:0;border:1px solid var(--phx-border);border-radius:14px;background:var(--phx-bg-card)}
+
+/* 摘要行：标题 + 在线徽章 + 今日掉线次数 + 展开详情，窄屏允许换行不溢出 */
+#tab-settings #yy-conn-diag.yy-conn-diag-card>summary{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:11px 14px;min-width:0;cursor:pointer;list-style:none}
+#tab-settings #yy-conn-diag.yy-conn-diag-card>summary::-webkit-details-marker{display:none}
+#tab-settings #yy-conn-diag.yy-conn-diag-card>summary:hover{background:var(--phx-bg-secondary)}
+#tab-settings #yy-conn-diag .yy-conn-diag-title{flex:0 0 auto;font-size:13px;font-weight:650;white-space:nowrap}
+#tab-settings #yy-conn-diag .yy-conn-diag-count{flex:1 1 auto;min-width:0;font-size:11px;color:var(--phx-text-secondary,#8a949c);overflow-wrap:anywhere}
+#tab-settings #yy-conn-diag .yy-conn-diag-count b{color:var(--phx-text-primary,#1d2329);font-weight:600}
+#tab-settings #yy-conn-diag .yy-conn-diag-caret{flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--phx-text-secondary,#8a949c);white-space:nowrap}
+#tab-settings #yy-conn-diag .yy-conn-diag-caret i{display:inline-block;width:0;height:0;border:4px solid transparent;border-top:5px solid currentColor;transition:transform .15s}
+#tab-settings #yy-conn-diag.yy-conn-diag-card[open] .yy-conn-diag-caret i{transform:rotate(180deg)}
+
+/* 详情区 */
+#tab-settings #yy-conn-diag .yy-conn-diag-body{padding:0 14px 12px;min-width:0}
+#tab-settings #yy-conn-diag .yy-conn-diag-body>.yy-hint{margin:8px 0 0}
+#tab-settings #yy-conn-diag .yy-diag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 4px}
+#tab-settings #yy-conn-diag .yy-diag-stat{min-width:0;padding:12px 14px;border:1px solid var(--phx-border);border-radius:12px;background:var(--phx-bg-card)}
+#tab-settings #yy-conn-diag .yy-diag-stat label{display:block;margin:0 0 6px;font-size:12px;color:var(--phx-text-muted,#8a949c)}
+#tab-settings #yy-conn-diag .yy-diag-stat strong{display:block;font-size:18px;line-height:1.25;overflow-wrap:anywhere}
+#tab-settings #yy-conn-diag .yy-diag-stat small{display:block;margin-top:4px;font-size:12px;color:var(--phx-text-muted,#8a949c);overflow-wrap:anywhere}
+#tab-settings #yy-conn-diag .yy-diag-list{margin:10px 0 4px;border:1px solid var(--phx-border);border-radius:12px;overflow:hidden}
+#tab-settings #yy-conn-diag .yy-diag-row{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border-top:1px solid var(--phx-border)}
+#tab-settings #yy-conn-diag .yy-diag-row:first-child{border-top:0}
+#tab-settings #yy-conn-diag .yy-diag-row.tone-e{background:color-mix(in srgb,var(--phx-danger,#d64545) 8%,var(--phx-bg-card))}
+#tab-settings #yy-conn-diag .yy-diag-row.tone-w{background:color-mix(in srgb,var(--phx-warning,#c8862a) 7%,var(--phx-bg-card))}
+#tab-settings #yy-conn-diag .yy-diag-time{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:12px;color:var(--phx-text-muted,#8a949c);padding-top:2px}
+#tab-settings #yy-conn-diag .yy-diag-body{min-width:0;display:block}
+#tab-settings #yy-conn-diag .yy-diag-body strong{display:block;font-size:14px}
+#tab-settings #yy-conn-diag .yy-diag-body small{display:block;margin-top:2px;font-size:12px;color:var(--phx-text-muted,#8a949c);overflow-wrap:anywhere}
+#tab-settings #yy-conn-diag .yy-diag-hintline{color:var(--phx-text,#1d2329)!important}
+
+/* 操作行：按钮 + 日志路径。必须允许换行——以前靠 hero 的 nowrap 才会在窄屏被裁切。 */
+#tab-settings #yy-conn-diag .yy-conn-diag-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px;min-width:0}
+#tab-settings #yy-conn-diag .yy-conn-diag-log{flex:1 1 100%;min-width:0;margin:0;font-size:10px;line-height:1.6;overflow-wrap:anywhere}
+
+@media(max-width:600px){#tab-settings #yy-conn-diag .yy-diag-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#tab-settings #yy-conn-diag .yy-diag-row{flex-direction:column;gap:4px}}

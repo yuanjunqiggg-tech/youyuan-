@@ -1,0 +1,102 @@
+{
+  "desktop": {
+    "metrics": {
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "contentInner": null,
+      "content": null,
+      "heading": null,
+      "toolbar": null,
+      "overview": null,
+      "centerTabs": null,
+      "projects": null,
+      "searchbar": null,
+      "grid": null,
+      "firstCard": null,
+      "hero": null,
+      "heroFigure": null,
+      "heroFacts": null,
+      "rows": [],
+      "hiddenNote": null,
+      "poolPanel": {
+        "x": 407,
+        "y": 261.6,
+        "w": 850,
+        "h": 738.3
+      },
+      "poolRow": {
+        "x": 438,
+        "y": 670.4,
+        "w": 788,
+        "h": 66
+      },
+      "poolHit": {
+        "x": 451,
+        "y": 684.1,
+        "w": 617.9,
+        "h": 38.6
+      },
+      "poolSide": {
+        "x": 1078.9,
+        "y": 681.4,
+        "w": 134.1,
+        "h": 44
+      },
+      "docScrollW": 1440,
+      "docClientW": 1440
+    },
+    "errors": []
+  },
+  "mobile": {
+    "metrics": {
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "contentInner": null,
+      "content": null,
+      "heading": null,
+      "toolbar": null,
+      "overview": null,
+      "centerTabs": null,
+      "projects": null,
+      "searchbar": null,
+      "grid": null,
+      "firstCard": null,
+      "hero": null,
+      "heroFigure": null,
+      "heroFacts": null,
+      "rows": [],
+      "hiddenNote": null,
+      "poolPanel": {
+        "x": 18,
+        "y": 232.6,
+        "w": 354,
+        "h": 906.8
+      },
+      "poolRow": {
+        "x": 46,
+        "y": 818.9,
+        "w": 298,
+        "h": 64
+      },
+      "poolHit": {
+        "x": 57,
+        "y": 831.6,
+        "w": 133.9,
+        "h": 38.6
+      },
+      "poolSide": {
+        "x": 198.9,
+        "y": 828.9,
+        "w": 134.1,
+        "h": 44
+      },
+      "docScrollW": 390,
+      "docClientW": 390
+    },
+    "errors": []
+  }
+}

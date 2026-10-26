@@ -1,0 +1,846 @@
+/* 游园 · AI 帮写移动端
+   目标：手机上不再是「三栏硬塞」，而是一次一屏 + 底部页签 + 输入区贴底。
+   断点 720px：桌面（>720）完全沿用原三栏，不在这里改。
+   同时提供「危险操作授权」底部抽屉（桌面/移动通用，见文件末尾）。 */
+
+@media (max-width:720px) {
+  /* ── 1. 页面骨架：sub-page 固定高度，body 不再整体滚动 ─────────────
+     sub-page 是 position:fixed inset:0，sp-body 用 flex:1 撑满，
+     等效于 100dvh − 头部；min-height:0 让内部 pane 自己滚，不再顶出屏幕。 */
+  .yy-agent-page .sp-header {
+    height: auto;
+    min-height: 48px;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 6px;
+    border-bottom-width: 1px;
+  }
+  .yy-agent-page .sp-header .sp-back { width: 40px; height: 40px; }
+  .yy-agent-page .sp-header .sp-title { font-size: 15px; }
+
+  .yy-agent-page .sp-body {
+    display: flex;
+    flex-direction: column;
+    padding: 0 !important;
+    margin: 0;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
+    max-height: 100dvh;
+    gap: 0;
+    box-sizing: border-box;
+  }
+
+  /* 顶部运行条：只留一行按钮，标题与账号输入收起，省出聊天高度 */
+  .yy-agent-page .yy-workspace-top {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin: 0 !important;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--phx-border-light);
+  }
+  .yy-agent-page .yy-workspace-top .yy-page-intro { display: none; }
+  .yy-agent-page .yy-workspace-top #yy-source-binding { display: none; }
+  .yy-agent-page .yy-workspace-top .yy-actions {
+    margin: 0 !important;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-width: 0;
+  }
+  .yy-agent-page .yy-workspace-top .yy-actions::-webkit-scrollbar { display: none; }
+  .yy-agent-page .yy-workspace-top .yy-actions input { display: none !important; }
+  .yy-agent-page .yy-workspace-top .yy-actions button {
+    min-height: 44px;
+    font-size: 13px;
+    padding: 0 12px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  /* ── 2. 单栏：工作区变竖向 flex，一次只显示一个 pane ─────────────── */
+  .yy-agent-page #yy-agent-studio-shell {
+    order: 1;
+    display: flex !important;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    max-width: none;
+  }
+  /* 会话条压缩成一条横向 44px，标题与侧边链接收起 */
+  .yy-agent-page .yy-studio-sessions {
+    flex: 0 0 auto;
+    max-height: 46px;
+    padding: 3px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--phx-border-light);
+    scrollbar-width: none;
+  }
+  .yy-agent-page .yy-studio-sessions::-webkit-scrollbar { display: none; }
+  .yy-agent-page .yy-studio-side-title,
+  .yy-agent-page .yy-studio-side-links { display: none; }
+  .yy-agent-page #yy-open-agent-tabs {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    padding: 0;
+    margin: 0;
+    min-height: 0;
+    gap: 6px;
+  }
+  .yy-agent-page .yy-session-tab { width: auto; max-width: 150px; flex: 0 0 auto; }
+  .yy-agent-page .yy-session-tab button { min-height: 36px; }
+  .yy-agent-page .yy-session-tab button:first-child { max-width: 105px; }
+  .yy-agent-page .yy-session-actions { flex-direction: row; margin: 0; gap: 4px; flex: 0 0 auto; }
+  .yy-agent-page .yy-session-actions button { min-height: 36px; width: auto; padding: 4px 8px; font-size: 12px; }
+
+  .yy-agent-page .yy-workspace {
+    order: 1;
+    display: flex !important;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    gap: 0;
+    margin: 0 !important;
+    overflow: hidden;
+    align-items: stretch;
+  }
+  /* 历史 / MCP 页签：整个工作区让位给上下文面板（必须排在上一条之后，同为 !important） */
+  .yy-agent-page .yy-workspace[data-pane="context"],
+  .yy-agent-page.yy-agent-studio[data-studio-pane="context"] .yy-workspace { display: none !important; }
+
+  /* 底部页签：用 order 把页签挪到内容下方，纯 CSS，不动 DOM */
+  .yy-agent-page .yy-workspace-tabs {
+    order: 3;
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    margin: 0 !important;
+    padding: 4px 8px max(4px, env(safe-area-inset-bottom)) !important;
+    border-top: 1px solid var(--phx-border);
+    border-bottom: 0;
+    background: var(--phx-bg-card);
+    position: relative;
+    z-index: 6;
+  }
+  .yy-agent-page .yy-workspace-tabs button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 4px;
+    font-size: 13px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .yy-agent-page .yy-workspace-tabs button.active {
+    background: var(--phx-primary-bg);
+    color: var(--phx-primary);
+    font-weight: 650;
+  }
+
+  /* ── 3. 各 pane：内部滚动，输入区贴底 ───────────────────────────── */
+  .yy-agent-page .yy-code-pane,
+  .yy-agent-page .yy-agent-pane {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    flex: 1 1 auto;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    box-shadow: none;
+    overflow: hidden;
+    background: var(--phx-bg-card);
+  }
+  .yy-agent-page .yy-code-pane { display: block; overflow-y: auto; }
+  .yy-agent-page .yy-agent-pane { display: flex; flex-direction: column; }
+
+  .yy-agent-page .yy-editor-toolbar { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
+  .yy-agent-page .yy-editor-toolbar select,
+  .yy-agent-page .yy-editor-toolbar button { min-height: 44px; font-size: 13px; }
+  .yy-agent-page .yy-code-editor { height: auto; min-height: 320px; }
+  .yy-agent-page .yy-editor-footer { font-size: 12px; padding: 8px 12px; }
+  .yy-agent-page .yy-editor-footer .yy-text-btn { min-height: 44px; font-size: 13px; }
+  .yy-agent-page .yy-project-search { padding: 8px 12px; }
+  .yy-agent-page .yy-project-search .yy-search { min-height: 44px; }
+  .yy-agent-page .yy-project-search button { min-height: 44px; font-size: 13px; }
+
+  /* 对话头 + 模型行：压到两行，字号不低于 13px */
+  .yy-agent-page .yy-agent-header { padding: 6px 12px; flex: 0 0 auto; }
+  .yy-agent-page .yy-agent-header strong { font-size: 14px; }
+  .yy-agent-page .yy-agent-header .yy-badge { font-size: 12px; }
+  .yy-agent-page .yy-agent-scroll-controls { padding: 0 12px; min-height: 36px; font-size: 12px; }
+  .yy-agent-page .yy-agent-scroll-controls button { min-height: 36px; font-size: 12px; padding: 0 8px; }
+  /* 消息里的「复制 / 编辑 / 重发」是行内次要动作：36px 触摸高度，不再 26px */
+  .yy-agent-page .yy-message-action {
+    min-height: 36px;
+    padding: 0 10px;
+    margin: 6px 6px 0 0;
+    font-size: 12.5px !important;
+    border: 1px solid var(--phx-border-light);
+    border-radius: 8px;
+    background: var(--phx-bg-card);
+  }
+
+  /* 消息流：左对齐、14px 圆角、助手不带底色（参照 iOS 备忘录 / Claude 移动端） */
+  .yy-agent-page .yy-agent-chat,
+  .yy-agent-page .yy-agent-pane #yy-agent-chat {
+    flex: 1 1 auto;
+    min-height: 0 !important;
+    max-width: none;
+    margin: 0;
+    padding: 10px 14px 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    font-size: 15px;
+    background: var(--phx-bg-card);
+  }
+  .yy-agent-page .yy-agent-message,
+  .yy-agent-page .yy-agent-studio .yy-agent-message {
+    max-width: 100%;
+    margin: 0 0 12px;
+    padding: 0 2px;
+    font-size: 15px;
+    line-height: 1.75;
+    border-radius: 14px;
+    background: transparent;
+    border: 0;
+  }
+  .yy-agent-page .yy-agent-message.assistant { background: transparent; border: 0; padding: 0 2px; }
+  .yy-agent-page .yy-agent-message.user {
+    background: var(--phx-primary-bg);
+    color: var(--phx-text);
+    margin-left: 0;
+    margin-right: 8%;
+    padding: 10px 13px;
+    border-radius: 14px 14px 14px 4px;
+  }
+  .yy-agent-page .yy-agent-message.status { font-size: 12px; padding: 4px 0; text-align: left; }
+  /* 工具调用：一行可折叠小条，展开才看参数与结果 */
+  .yy-agent-page .yy-agent-message.tool_start,
+  .yy-agent-page .yy-agent-message.tool_result {
+    display: block;
+    font: 12.5px/1.6 ui-monospace, Consolas, monospace;
+    background: var(--phx-bg-secondary);
+    border: 1px solid var(--phx-border-light);
+    border-radius: 999px;
+    padding: 7px 12px;
+    margin: 0 0 10px;
+  }
+  .yy-agent-page .yy-agent-message.tool_start[open],
+  .yy-agent-page .yy-agent-message.tool_result[open] { border-radius: 12px; padding-bottom: 4px; }
+  .yy-agent-page .yy-agent-message summary {
+    list-style: none;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--phx-text-secondary);
+  }
+  .yy-agent-page .yy-agent-message summary::-webkit-details-marker { display: none; }
+  .yy-agent-page .yy-agent-message.tool_start.risk,
+  .yy-agent-page .yy-agent-message.tool_result.risk {
+    border-color: var(--phx-error);
+    color: var(--phx-error);
+  }
+  .yy-agent-page .yy-agent-message.tool_start.risk summary { color: var(--phx-error); }
+  .yy-agent-page .yy-agent-message pre {
+    max-height: 40dvh;
+    overflow: auto;
+    margin: 8px 0 4px;
+    font: 12px/1.6 ui-monospace, Consolas, monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .yy-agent-page .yy-agent-welcome { padding: 26px 4px; }
+  .yy-agent-page .yy-agent-welcome strong { font-size: 19px; }
+  .yy-agent-page .yy-agent-welcome p { font-size: 13px; line-height: 1.7; }
+  .yy-agent-page #yy-agent-latest {
+    height: auto;
+    min-height: 38px;
+    font-size: 12.5px;
+    align-self: center;
+    margin: 0 auto 4px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--phx-border);
+    background: var(--phx-bg-card);
+  }
+
+  /* 输入区：固定在这一屏底部，避开 home 指示条 */
+  .yy-agent-page .yy-agent-compose,
+  .yy-agent-page .yy-agent-studio .yy-agent-compose {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+    margin: 0 !important;
+    padding: 6px 12px max(6px, env(safe-area-inset-bottom)) !important;
+    border: 0;
+    border-top: 1px solid var(--phx-border-light);
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--phx-bg-card);
+    display: flex;
+    flex-direction: column;
+  }
+  .yy-agent-page .yy-agent-compose textarea,
+  .yy-agent-page .yy-agent-studio #yy-agent-message {
+    width: 100%;
+    min-height: 48px !important;
+    /* 高度交给 JS 随内容增高（yy_agent_workspace_ui.js）：这里不能再写 !important 固定高度，
+       否则行内 style 会被压回去，输入框永远只有一行。 */
+    max-height: 132px;
+    font-size: 15px;
+    line-height: 1.5;
+    border-radius: 12px;
+    padding: 12px;
+    box-sizing: border-box;
+    resize: none;
+    overflow-y: auto;
+  }
+  .yy-agent-page .yy-agent-compose-actions { margin-top: 6px; flex-wrap: nowrap; gap: 6px; align-items: center; }
+  .yy-agent-page .yy-agent-compose-actions > div { gap: 4px; flex: 0 0 auto; }
+  .yy-agent-page .yy-agent-compose-actions .yy-primary {
+    min-height: 44px;
+    min-width: 88px;
+    font-size: 14px;
+    padding: 0 14px;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+  .yy-agent-page .yy-agent-compose-actions .yy-text-btn {
+    min-height: 44px;
+    padding: 0 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .yy-agent-page .yy-model-toolbar { padding: 6px 0 0; margin: 6px 0 0; gap: 6px; flex-wrap: nowrap; }
+  .yy-agent-page .yy-model-toolbar select,
+  .yy-agent-page .yy-agent-studio #yy-agent-model {
+    min-height: 40px;
+    height: 40px;
+    font-size: 13px;
+    max-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .yy-agent-page .yy-model-toolbar button,
+  .yy-agent-page .yy-studio-options summary { min-height: 40px; font-size: 13px; display: flex; align-items: center; }
+  .yy-agent-page .yy-studio-options-menu { bottom: 46px; width: min(260px, 86vw); }
+  .yy-agent-page .yy-studio-options-menu button { min-height: 44px; font-size: 13px; }
+  .yy-agent-page .yy-studio-input-hint { display: none; }
+  .yy-agent-page .yy-attachment-toolbar { gap: 6px; padding: 0 0 4px !important; margin: 0 !important; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .yy-agent-page .yy-attachment-toolbar::-webkit-scrollbar { display: none; }
+  .yy-agent-page .yy-attachment-toolbar small { display: none; }
+  .yy-agent-page .yy-attachment-toolbar button { min-height: 36px !important; font-size: 12px !important; padding: 0 8px !important; white-space: nowrap; }
+
+  /* ── 4. 历史 / MCP 页签：单列卡片，输入全部 44px ────────────────── */
+  .yy-agent-page #yy-workspace-context {
+    order: 2;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 12px 18px;
+    box-sizing: border-box;
+    margin: 0 !important;
+    grid-column: auto;
+  }
+  .yy-agent-page #yy-workspace-context .yy-form-grid { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+  .yy-agent-page #yy-workspace-context .card,
+  .yy-agent-page #yy-workspace-context .yy-studio-config-group { padding: 12px; border-radius: 12px; }
+  .yy-agent-page #yy-workspace-context label { font-size: 13px; }
+  .yy-agent-page #yy-workspace-context input,
+  .yy-agent-page #yy-workspace-context select,
+  .yy-agent-page #yy-workspace-context textarea { min-height: 44px; font-size: 14px; box-sizing: border-box; }
+  .yy-agent-page #yy-workspace-context textarea { min-height: 76px; }
+  .yy-agent-page #yy-workspace-context .yy-actions button,
+  .yy-agent-page #yy-workspace-context .btn,
+  .yy-agent-page #yy-workspace-context .btn-s,
+  .yy-agent-page #yy-workspace-context .yy-text-btn { min-height: 44px; font-size: 13px; }
+  .yy-agent-page #yy-workspace-context .yy-readout { max-height: 34dvh; overflow: auto; font-size: 12px; }
+  /* 设计稿里的 .yy-search 是 36px/11px，移动端撑到 44px/14px */
+  .yy-agent-page .yy-search { height: auto !important; min-height: 44px; padding: 0 12px; }
+  .yy-agent-page .yy-search input { height: 44px !important; min-height: 44px !important; font-size: 14px !important; }
+  .yy-agent-page .yy-studio-config-group > summary { min-height: 44px; display: flex; align-items: center; font-size: 13px; }
+}
+
+/* ── 5. 键盘弹出 / 横屏：可视高度不足时先让对话活下来 ───────────── */
+@media (max-width:720px) and (max-height:560px) {
+  .yy-agent-page .yy-attachment-toolbar,
+  .yy-agent-page .yy-model-toolbar,
+  .yy-agent-page .yy-agent-header,
+  .yy-agent-page .yy-agent-usage,
+  .yy-agent-page .yy-agent-scroll-controls,
+  .yy-agent-page .yy-studio-sessions { display: none !important; }
+  .yy-agent-page .yy-agent-compose { padding-top: 6px !important; }
+  .yy-agent-page .yy-agent-compose textarea,
+  .yy-agent-page .yy-agent-studio #yy-agent-message { height: 42px !important; min-height: 42px !important; }
+}
+
+/* ── 6. 工具箱 / MCP 分组（桌面与移动共用）──────────────────────── */
+.yy-mcp-card .yy-mcp-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+.yy-mcp-card .yy-mcp-group-head strong { font-size: 13px; }
+.yy-mcp-card .yy-mcp-builtin { border: 1px solid var(--phx-border-light); border-radius: 10px; padding: 10px 12px; background: var(--phx-bg); }
+.yy-mcp-card .yy-mcp-builtin .yy-mcp-group-head { margin-top: 0; }
+.yy-mcp-builtin-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 10px;
+}
+.yy-mcp-builtin-list li { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 11px; color: var(--phx-text-secondary); }
+.yy-mcp-builtin-list code {
+  font: 11px/1.6 ui-monospace, Consolas, monospace;
+  color: var(--phx-primary);
+  background: var(--phx-primary-bg);
+  border-radius: 5px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.yy-badge.yy-badge-risk { background: transparent; border: 1px solid var(--phx-error); color: var(--phx-error); }
+.yy-mcp-row.external strong { display: flex; align-items: center; gap: 6px; }
+.yy-mcp-row.external .yy-badge-risk { font-size: 10px; padding: 1px 6px; }
+.yy-mcp-warn {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--phx-warning);
+  background: var(--phx-bg);
+  border-radius: 0 8px 8px 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--phx-text-secondary);
+}
+.yy-mcp-ack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 10px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.yy-mcp-ack input { width: 18px; height: 18px; min-height: 0 !important; margin: 0; flex: 0 0 18px; }
+.yy-mcp-external > summary { cursor: pointer; font-size: 12px; color: var(--phx-text-secondary); min-height: 34px; display: flex; align-items: center; white-space: normal; line-height: 1.6; padding: 6px 0; overflow-wrap: anywhere; }
+.yy-mcp-external[open] > summary { color: var(--phx-text); font-weight: 600; }
+/* 未勾选「已知晓」时按钮置灰，不再靠点了才弹提示 */
+.yy-mcp-card button[disabled],
+.yy-mcp-card button:disabled { opacity: .45; cursor: not-allowed; }
+.yy-mcp-ack input:checked + span { color: var(--phx-text); font-weight: 600; }
+
+/* ── 7. 危险操作授权：底部抽屉 + 模糊遮罩（桌面/移动通用）────────── */
+.yy-risk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(10, 24, 22, .38);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.yy-risk-overlay.open { opacity: 1; }
+.yy-risk-sheet {
+  width: min(560px, 100%);
+  max-height: 88dvh;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, .22);
+  transform: translateY(16px);
+  transition: transform .22s cubic-bezier(.22, 1, .36, 1);
+  touch-action: pan-y;
+}
+.yy-risk-overlay.open .yy-risk-sheet { transform: none; }
+.yy-risk-grab {
+  width: 46px;
+  height: 4px;
+  border-radius: 2px;
+  margin: 2px auto 12px;
+  background: var(--phx-border);
+  cursor: grab;
+  touch-action: none;
+}
+.yy-risk-sheet h3 { margin: 0 0 6px; font-size: 16px; }
+.yy-risk-why { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: var(--phx-text-secondary); }
+.yy-risk-code {
+  border: 1px solid var(--phx-border);
+  border-left: 3px solid var(--phx-error);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--phx-bg);
+}
+.yy-risk-code span {
+  display: block;
+  margin-bottom: 4px;
+  font: 12px/1.4 ui-monospace, Consolas, monospace;
+  color: var(--phx-error);
+}
+.yy-risk-code pre {
+  margin: 0;
+  max-height: 34dvh;
+  overflow: auto;
+  font: 12px/1.6 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.yy-risk-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.yy-risk-remember input { width: 20px; height: 20px; min-height: 0; margin: 0; flex: 0 0 20px; }
+.yy-risk-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.yy-risk-actions button {
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid var(--phx-border);
+  background: var(--phx-bg-secondary);
+  color: var(--phx-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.yy-risk-actions .yy-risk-once { order: 1; background: var(--phx-primary); border-color: var(--phx-primary); color: var(--phx-on-primary); }
+.yy-risk-actions .yy-risk-all { order: 2; background: var(--phx-bg); color: var(--phx-text-secondary); }
+.yy-risk-actions .yy-risk-deny { order: 3; background: transparent; border-color: var(--phx-error); color: var(--phx-error); }
+
+/* ── 8. 手机端补齐：把「被 display:none 藏掉的功能」改回能看见能点 ──────
+   用户反馈「手机打开的网页和电脑完全不一样，有些功能显示不了，也没有」。
+   排查后不是没做移动端，而是多个断点直接把控件 display:none 了——
+   在手机上，藏起来的控件 = 这个功能不存在，用户只会说「没有」。
+   原则：不隐藏，只换形态（换行 / 横向滚动 / 两行状态条 / 胶囊条）。 */
+
+@media (max-width: 1023px) {
+  /* 8.1 首页侧栏的提示卡（.yy-tip）在窄屏被整块藏掉。
+     移动端已经改成单列，横向空间足够，恢复成占满一行的卡片。 */
+  .yy-dashboard-aside .yy-aside-panel.yy-tip { display: block; grid-column: 1 / -1; }
+
+  /* 8.2 顶栏的主题切换按钮在窄屏被藏掉。
+     设置页虽然也有配色入口，但顶栏这颗才是随手能按的；34px 放得下。 */
+  .conn-bar .yy-top-icon { display: flex; flex: 0 0 34px; }
+
+  /* 8.3 插件工作室的概览说明文字在 ≤1100px 被藏，只剩数字没有解释 */
+  .yps-overview-note > span { display: inline; }
+}
+
+@media (max-width: 720px) {
+  /* 8.4 工作区顶栏：运行账号输入框（#yy-workspace-account）与源码绑定条
+     （#yy-source-binding，Lua 的「同步已安装源码」按钮就挂在里面）被整块藏掉。
+     手机上别处没有改运行账号的地方，藏了等于「换号运行」这个功能消失。
+     改法：顶栏允许换行，输入框独占一行，三个按钮继续横排。 */
+  .yy-agent-page .yy-workspace-top { flex-wrap: wrap; row-gap: 6px; }
+  .yy-agent-page .yy-workspace-top .yy-actions { flex-wrap: wrap; overflow: visible; }
+  .yy-agent-page .yy-workspace-top .yy-actions input,
+  .yy-agent-page .yy-workspace-top .yy-actions #yy-workspace-account {
+    display: block !important;
+    flex: 1 1 100%;
+    width: 100% !important;
+    min-height: 40px !important;
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+    box-sizing: border-box;
+  }
+  .yy-agent-page .yy-workspace-top #yy-source-binding {
+    display: flex !important;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  /* 绑定条里的「同步已安装源码」原本是裸文字按钮，手机上看不出能点 */
+  .yy-agent-page .yy-workspace-top #yy-source-binding .yy-text-btn {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--phx-border-light);
+    border-radius: 8px;
+    background: var(--phx-bg-card);
+    color: var(--phx-primary);
+  }
+
+  /* 8.5 附件工具条里的「已附加 N 个」被藏；这是状态信息，不是装饰，
+     藏了用户不知道附件到底有没有挂上。改成窄胶囊，超长省略。 */
+  .yy-agent-page .yy-attachment-toolbar small {
+    display: inline;
+    flex: 0 0 auto;
+    max-width: 46vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 8.6 AI 工作室的项目文件树在 ≤700px 被 display:none。
+     工具栏虽有一个下拉能切文件，但看不出「项目里到底有哪些文件」。
+     改法：变成编辑器上方一条可左右滑的文件胶囊条。 */
+  .yy-agent-studio .yy-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .yy-agent-studio .yy-studio-explorer {
+    display: block;
+    padding: 8px 10px 6px;
+    border-right: 0;
+    border-bottom: 1px solid var(--phx-border-light);
+    overflow: visible;
+  }
+  .yy-agent-studio .yy-studio-explorer > strong {
+    display: block;
+    padding: 0 0 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--phx-text-secondary);
+  }
+  .yy-agent-studio #yy-studio-file-list {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .yy-agent-studio #yy-studio-file-list::-webkit-scrollbar { display: none; }
+  .yy-agent-studio .yy-studio-file {
+    display: block;
+    width: auto;
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 12px;
+    border: 1px solid var(--phx-border-light);
+    border-radius: 999px;
+    background: var(--phx-bg-card);
+    color: var(--phx-text-secondary);
+  }
+  .yy-agent-studio .yy-studio-file.active {
+    border-color: var(--phx-primary);
+    background: var(--phx-primary-bg);
+    color: var(--phx-primary);
+  }
+
+  /* 8.7 插件工作室的分组标题在 ≤700px 被藏，列表看不出分组边界 */
+  .yps-section-label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: .6px;
+    color: var(--phx-text-secondary);
+    margin: 10px 0 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  /* 8.8 QQ 控制台顶部状态带里的元信息（接入方式 / 群数量 / 最近消息时间）
+     在 ≤560px 被 display:none。这三项正是「机器人还活着吗」的判断依据，
+     藏了之后手机只剩一个状态词。改法：状态带变两行，元信息落到第二行。 */
+  .yyq-status {
+    height: auto;
+    min-height: 52px;
+    flex-wrap: wrap;
+    padding: 6px 8px 6px 12px;
+  }
+  .yyq-status-meta {
+    display: block;
+    order: 9;
+    flex: 1 1 100%;
+    padding-left: 16px;
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+
+  /* 8.9 能力面板的说明句（点开能改冷却 / 每日次数 / 最低角色）被藏，
+     用户不知道这些行可以点开，看起来就像「只有开关」 */
+  .yyq-caps-note {
+    display: block;
+    margin: 0 0 10px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  /* 8.10 终端页的提示语与角标被藏；它们说明当前执行环境与操作方式，
+     藏了会让「为什么命令没反应」无从判断 */
+  .yy-terminal-hint,
+  .yy-terminal-kicker {
+    display: block;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  /* 8.11 工作室侧栏的「技能与工具 / 技能加载库」在手机上被藏。
+     这两项在输入框上方的「配置」菜单里没有（那边只有提示词入口和 MCP、预算），
+     所以藏掉就真的没有了。改法：并进会话条，做成两枚可横滑的胶囊。 */
+  .yy-agent-page .yy-studio-side-links {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    margin: 0;
+    padding: 0 0 0 8px;
+    border-top: 0;
+    border-left: 1px solid var(--phx-border-light);
+  }
+  .yy-agent-page .yy-studio-side-links button {
+    width: auto;
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    text-align: center;
+    border: 1px solid var(--phx-border-light);
+    border-radius: 999px;
+    background: var(--phx-bg-card);
+    color: var(--phx-text-secondary);
+  }
+}
+
+/* ── 9. 手机二级导航（≤768px）────────────────────────────────────────
+   子页面是 position:fixed 全屏覆盖层，打开后底部主导航被盖住，
+   9~10 个二级页在手机上就变成「进得去、出不来、也去不了别处」。
+   这条 56px 的四格跳转条只在子页面打开时出现，桌面端不参与。 */
+.yy-sub-nav { display: none; }
+
+.yy-sub-hub-desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--phx-text-secondary);
+}
+.yy-sub-hub { display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+.yy-sub-hub-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  border: 1px solid var(--phx-border-light);
+  border-radius: 14px;
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+  text-align: left;
+  cursor: pointer;
+}
+.yy-sub-hub-row:active { background: var(--phx-bg-secondary); }
+.yy-sub-hub-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: var(--phx-primary-bg);
+  color: var(--phx-primary);
+}
+.yy-sub-hub-ico .yy-icon { width: 18px; height: 18px; }
+.yy-sub-hub-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.yy-sub-hub-txt strong { font-size: 14px; font-weight: 600; }
+.yy-sub-hub-txt small { font-size: 11px; line-height: 1.5; color: var(--phx-text-secondary); }
+.yy-sub-hub-go { flex: 0 0 auto; font-size: 18px; color: var(--phx-text-disabled); }
+
+@media (max-width: 768px) {
+  .yy-sub-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding: 0 4px env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+    background: var(--phx-bg-card);
+    border-top: 1px solid var(--phx-border-light);
+    box-shadow: 0 -6px 20px rgba(20, 50, 50, .06);
+  }
+  body.sp-open .yy-sub-nav { display: flex; align-items: stretch; }
+  .yy-sub-nav button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--phx-text-secondary);
+    font-size: 11px;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  .yy-sub-nav button .ni { display: grid; place-items: center; width: 22px; height: 22px; }
+  .yy-sub-nav button .ni svg { width: 22px; height: 22px; }
+  .yy-sub-nav button.is-on {
+    color: var(--phx-primary);
+    background: var(--phx-primary-bg);
+    font-weight: 650;
+  }
+
+  /* 让出这条 bar 的高度，否则最后一行按钮永远压在它下面 */
+  .sub-page .sp-body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .yy-agent-page .sp-body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+/* ── 10. 横屏 / 键盘弹出（≤720 且高≤560）──────────────────────────────
+   原来这里把模型选择器、会话条、消息头、用量条、滚动控件、附件条
+   一次性 display:none——横屏时「换模型」就没了，属于用隐藏换空间。
+   改成压成 34px 单行、可横滑；聊天区仍然优先，但控件一个都不消失。 */
+@media (max-width: 720px) and (max-height: 560px) {
+  .yy-agent-page .yy-agent-header,
+  .yy-agent-page .yy-model-toolbar,
+  .yy-agent-page .yy-agent-scroll-controls,
+  .yy-agent-page .yy-attachment-toolbar,
+  .yy-agent-page .yy-studio-sessions {
+    display: flex !important;
+    min-height: 0 !important;
+    max-height: 34px;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .yy-agent-page .yy-agent-header strong { font-size: 12px; }
+  .yy-agent-page .yy-agent-usage {
+    display: block !important;
+    max-height: 18px;
+    overflow: hidden;
+  }
+  .yy-agent-page .yy-agent-compose textarea,
+  .yy-agent-page .yy-agent-studio #yy-agent-message {
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+  .yy-agent-page .yy-agent-chat { min-height: 88px; }
+}

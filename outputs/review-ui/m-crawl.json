@@ -1,0 +1,154 @@
+{
+ "boot": {
+  "ms": 10055,
+  "reqs": [
+   "/api/youyuan/events?after=0",
+   "/api/config",
+   "/api/youyuan/appearance",
+   "/api/identity/me",
+   "/api/youyuan/accounts?view=summary",
+   "/api/youyuan/snapshot",
+   "/api/identity/turnstile-config",
+   "/api/bot/status",
+   "/api/youyuan/remote",
+   "/api/youyuan/runtime/list",
+   "/api/task/list",
+   "/api/plugin/list",
+   "/api/qq/status",
+   "/api/youyuan/connection-diagnostics",
+   "/api/version/check",
+   "/api/youyuan/events?after=0"
+  ]
+ },
+ "results": [
+  {
+   "tab": "工具总览",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "插件中心",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "终端",
+   "ms": 2073,
+   "reqs": [
+    "/api/youyuan/events?after=0"
+   ],
+   "reqCount": 1,
+   "scrollH": 844,
+   "viewH": 844,
+   "overflowX": false,
+   "title": "工作台",
+   "crumb": "终端",
+   "activeNav": "终端",
+   "textLen": 279,
+   "textHead": "游园\n未连接\nyouyuan@console\n·\n主账号\n游戏未连接\n0 / 0 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n日志会显示在这里。输入 help 查看全部程序，/ 开头是游戏指令。\n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "smallCount": 14,
+   "smallSample": [
+    {
+     "h": 34,
+     "w": 38,
+     "txt": "切换明暗主题"
+    },
+    {
+     "h": 30,
+     "w": 38,
+     "txt": "状态悬浮窗"
+    },
+    {
+     "h": 30,
+     "w": 44,
+     "txt": "复制"
+    },
+    {
+     "h": 30,
+     "w": 44,
+     "txt": "清空"
+    },
+    {
+     "h": 42,
+     "w": 194,
+     "txt": ""
+    },
+    {
+     "h": 30,
+     "w": 92,
+     "txt": "全部类型\n错误\n指令\n聊天\n结果\n事件"
+    },
+    {
+     "h": 30,
+     "w": 64,
+     "txt": "停止滚动"
+    },
+    {
+     "h": 34,
+     "w": 56,
+     "txt": "help"
+    },
+    {
+     "h": 34,
+     "w": 70,
+     "txt": "status"
+    },
+    {
+     "h": 34,
+     "w": 70,
+     "txt": "chains"
+    }
+   ],
+   "fonts": {
+    "14px": 35,
+    "10px": 9,
+    "16px": 3,
+    "11px": 10,
+    "9px": 2,
+    "13px": 2,
+    "12px": 10,
+    "17px": 1,
+    "16.38px": 1,
+    "18px": 20,
+    "23px": 1
+   },
+   "cards": 8,
+   "shifts": 0,
+   "shiftCount": 0,
+   "loadingText": false,
+   "errorText": true,
+   "emptyText": true,
+   "toast": []
+  },
+  {
+   "tab": "导入建筑",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "导出建筑",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "命令链",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "连接与设置",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "游戏账号",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "群服互通",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "远程设备",
+   "error": "入口找不到"
+  }
+ ],
+ "navs": [
+  "https://toolbox.youyuanqi.dpdns.org/",
+  "https://toolbox.youyuanqi.dpdns.org/?device=linux-server"
+ ]
+}

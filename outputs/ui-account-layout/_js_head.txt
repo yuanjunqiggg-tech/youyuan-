@@ -1,0 +1,140 @@
+1: var yyAccountPage = 1, yyAccountPageSize = 15, yyCredMainOnly = true, yyAccountFocusID = "", yyAccountRows = [], yyMonitorID = "main", yyAccountTimer = null, yyObservations = null;
+2: async function yyRootAPI(method, path, body) {
+3:   try {
+4:     var r = await yyRootFetch(path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : void 0 });
+5:     return await r.json();
+6:   } catch (e) {
+7:     return { ok: false, error: e.message };
+8:   }
+9: }
+10: function yyAccountName(id) {
+11:   var row = (typeof yyAllAccountRows !== "undefined" ? yyAllAccountRows : yyAccountRows).find((a) => a.id === id);
+12:   return row ? row.name : "\主\账\号";
+13: }
+14: async function Raccounts() {
+15:   document.getElementById("tab-accounts").innerHTML = '<div class="content-inner">' + yyHeading("\账\号\与\项\目", "\游\戏\账\号\与\服\务\器\项\目\，\统\一\管\理\。") + `<div class="yy-actions yy-account-toolbar yy-cred-toolbar"><button class="yy-primary" onclick="yyEditAccount()">\添\加\账\号</button><button class="yy-secondary" onclick="yyCenterRefresh()">\刷\新\账\号</button><button class="yy-secondary" onclick="yySkinLibraryOpen()">\皮\肤\库</button><button class="yy-secondary yy-acct-toolbar-wide" hidden onclick="yyEnterAccount('main')">\进\入\主\账\号</button></div><p class="yy-hint">\第 5 \个\工\作\空\间 \xB7 \当\前\操\作\：<b id="yy-current-account"></b>\。\选\择\账\号\后\，\可\连\接\服\务\器\并\管\理\对\应\的\机\器\人\。</p><div id="yy-account-overview" class="yy-account-overview"></div><div class="yy-center-tabs"><button class="btn-s" onclick="yyAccountPanel('accounts')">\游\戏\账\号</button><button class="btn-s" id="yy-admin-pool-entry" hidden onclick="yyPoolPanel(true)">\管\理\员\托\管\池</button><button class="btn-s" onclick="yyGameAuthPage()">\注\册\与\认\证\任\务</button></div><div id="yy-pool-panel" hidden></div><div id="yy-game-accounts-panel"><div id="yy-projects" class="yy-projects"></div><div class="yy-account-toolbar"><input id="yy-account-search" aria-label="\搜\索\账\号" placeholder="\搜\索\昵\称\、UID\或\服\务\器" oninput="yyAccountPage=1;yyRenderAccountCards()"><select id="yy-account-page-size" aria-label="\每\页\账\号\数" onchange="yyAccountPageSize=Number(this.value);yyAccountPage=1;yyRenderAccountCards()"><option value="15" selected>\每\页 15 \个</option><option value="30">\每\页 30 \个</option><option value="50">\每\页 50 \个</option></select><label class="yy-cred-mainonly"><input type="checkbox" id="yy-cred-main-only" checked onchange="yyCredMainOnlySet(this.checked)"><span>\只\显\示\主\令\牌</span></label></div><div id="yy-accounts-grid" class="yy-form-grid yy-account-list"></div><div id="yy-account-pages" class="yy-pagination"></div><p id="yy-account-cloud-status" class="yy-hint" role="status">\正\在\同\步\已\授\权\游\戏\凭\据\…</p></div><section class="card yy-monitor"><div class="yy-form-head"><h3>` + yyIcon("connection") + '\运\行\记\录</h3><select id="yy-monitor-account" aria-label="\查\看\账\号" hidden onchange="yyMonitorID=this.value;yyRefreshMonitor()"></select><button type="button" class="yy-acct-picker-trigger yy-monitor-picker" onclick="yyAcctPickerOpen(\'yy-monitor-account\')"><span data-acct-picker-label="yy-monitor-account">\选\择\账\号</span><i aria-hidden="true">\▾</i></button></div><div class="yy-metrics" id="yy-monitor-metrics"></div><p class="yy-hint" id="yy-online-source"></p><details class="yy-monitor-trends"><summary>\在\线\人\数\趋\势\与\分\布</summary><h4>\在\线\人\数 \xB7 \时\间\线</h4><div id="yy-online-chart" class="yy-chart"></div><h4>\每\小\时\人\数\分\布 \xB7 \观\测\均\值</h4><div id="yy-distribution-chart" class="yy-chart"></div></details><div class="yy-section-head"><h3>\聊\天\记\录</h3></div><div class="yy-chat-filters"><label>\搜\索\消\息<input id="yy-chat-filter" aria-label="\搜\索\聊\天\记\录" placeholder="\输\入\消\息\关\键\词" oninput="yyChatFilterChanged()"></label><label>\玩\家<select id="yy-chat-player" aria-label="\按\玩\家\筛\选\聊\天" onchange="yyChatFilterChanged()"><option value="">\所\有\玩\家</option></select></label><label>\开\始\时\间<input id="yy-chat-start" type="datetime-local" aria-label="\聊\天\开\始\时\间" onchange="yyChatFilterChanged()"></label><label>\结\束\时\间\（\含\此\分\钟\）<input id="yy-chat-end" type="datetime-local" aria-label="\聊\天\结\束\时\间" onchange="yyChatFilterChanged()"></label><label>\汇\总\间\隔<select id="yy-chat-interval" aria-label="\聊\天\汇\总\间\隔" onchange="yyChatFilterChanged()"><option value="3600000">\每\小\时</option><option value="900000">\每 15 \分\钟</option><option value="86400000">\每\天</option></select></label><button class="btn-s" onclick="yyChatResetFilters()">\清\空\筛\选</button></div><div class="yy-section-head"><h4>\时\段\消\息\量 \xB7 \点\击\查\看</h4><button class="btn-s" id="yy-chat-all-buckets" onclick="yyChatChooseBucket(null,null)" hidden>\全\部\时\段</button></div><div id="yy-chat-bars" class="yy-chat-bars"></div><p id="yy-chat-summary" class="yy-hint" role="status"></p><div id="yy-chat-table" class="yy-chat-messages"></div><div id="yy-chat-pages" class="yy-pagination"></div><p class="yy-hint">\聊\天\按\最\新\时\间\排\序\；\筛\选\与\时\段\统\计\仅\针\对\当\前\账\号\实\际\保\留\的\记\录\，\内\核\最\多\保\存\最\近 10,000 \条\。\时\间\按\本\设\备\时\区\显\示\。</p></section></div>';
+16:   yyUpdateAdminPoolEntry();
+17:   yyRenderAccountSnapshot();
+18:   clearInterval(yyAccountTimer);
+19:   yyAccountTimer = setInterval(function() {
+20:     // 不可见的标签页不刷新：这里每轮是 3 个 /api 请求，全部经过 Worker 计费。
+21:     if (curTab === "accounts" && !subPageOpen && !document.hidden) yyRefreshAccounts();
+22:   }, 1e4);
+23:   activeRenderers.push(function() {
+24:     clearInterval(yyAccountTimer);
+25:   });
+26:   await Promise.all([yyRefreshAccounts(), yyCenterClo�ounts()]);
+27: }
+28: var yyAccountSnapshot = null, yyAccountRead = null, yyAccountRefreshEpoch = 0, yyAccountRowsScope = "", yyAccountMainConfigured = null;
+29: function yyAccountControllerScope() {
+30:   try {
+31:     return JSON.stringify([typeof yyPlatformUser !== "undefined" && yyPlatformUser ? yyPlatformUser.id || yyPlatformUser.username || "" : "", typeof sessionStorage !== "undefined" ? sessionStorage.getItem("yy-cloud-key") || "" : ""]);
+32:   } catch (e) {
+33:     return "";
+34:   }
+35: }
+36: async function yyReadAccountList(force) {
+37:   const scope = yyAccountControllerScope();
+38:   if (!force && (yyAccountRead == null ? void 0 : yyAccountRead.scope) === scope) return yyAccountRead.promise;
+39:   const pending = { scope, promise: null };
+40:   pending.promise = yyRootAPI("GET", "/api/youyuan/accounts?view=summary").then((r) => {
+41:     if (r.ok && scope === yyAccountControllerScope() && yyAccountRead === pending) yyAccountSnapshot = { scope, result: r };
+42:     return r;
+43:   }).finally(() => {
+44:     if (yyAccountRead === pending) yyAccountRead = null;
+45:   });
+46:   yyAccountRead = pending;
+47:   return pending.promise;
+48: }
+49: function yySetAccountRows(r) {
+50:   var _a, _b;
+51:   yyAccountRowsScope = yyAccountControllerScope();
+52:   yyAccountRows = (r.accounts || []).map((a) => ({ ...a }));
+53:   yyAllAccountRows = yyAccountRows.slice();
+54:   yyAccountMainConfigured = (_b = (_a = r.main) == null ? void 0 : _a.configured) != null ? _b : null;
+55:   if (r.main && r.main.configured !== false) yyAllAccountRows.unshift({ ...r.main, id: "main", name: r.main.name || "\主\账\号", profile_role: r.main.profile_role || "owner" });
+56: }
+57: function yyAccountStatusLabel(account) {
+58:   if (account.connection_known === false || account.connected == null) return "\状\态\待\查\询";
+59:   return account.connected ? "\已\连\接" : account.engine_ready ? "\内\核\在\线 \xB7 \游\戏\未\连\接" : "\内\核\未\启\动";
+60: }
+61: function yyDrawAccountRows() {
+62:   var _a;
+63:   if (!document.getElementById("yy-accounts-grid")) return;
+64:   const rows = yyAllAccountRows;
+65:   yyRenderProjects();
+66:   const current = document.getElementById("yy-current-account");
+67:   if (current) current.textContent = yyAllAccountRows.some((a) => a.id === yyActiveAccount) ? yyAccountName(yyActiveAccount) : "\未\添\加\主\机\器\人";
+68:   yyRenderAccountCards();
+69:   const el = document.getElementById("yy-monitor-account");
+70:   if (el) {
+71:     el.innerHTML = rows.map((a) => '<option value="' + yyEscape(a.id) + '">' + yyEscape(a.name) + "</option>").join("");
+72:     if (!rows.some((a) => a.id === yyMonitorID)) yyMonitorID = ((_a = rows[0]) == null ? void 0 : _a.id) || "";
+73:     el.value = yyMonitorID;
+74:     yyAcctPickerSync("yy-monitor-account");
+75:   }
+76:   const mainButton = document.querySelector(`[onclick="yyEnterAccount('main')"]`);
+77:   if (mainButton) {
+78:     mainButton.disabled = !rows.some((a) => a.id === "main");
+79:     mainButton.hidden = mainButton.disabled;
+80:   }
+81: }
+82: function yyRenderAccountSnapshot() {
+83:   if ((yyAccountSnapshot == null ? void 0 : yyAccountSnapshot.scope) === yyAccountControllerScope()) {
+84:     yySetAccountRows(yyAccountSnapshot.result);
+85:     yyDrawAccountRows();
+86:   } else {
+87:     const host = document.getElementById("yy-accounts-grid");
+88:     if (host) host.innerHTML = '<p class="yy-hint" role="status">\正\在\读\取\本\设\备\账\号\…</p>';
+89:   }
+90: }
+91: async function yyRefreshAccounts(force) {
+92:   const epoch = ++yyAccountRefreshEpoch, scope = yyAccountControllerScope(), host = document.getElementById("yy-accounts-grid");
+93:   const live = () => scope === yyAccountControllerScope() && epoch === yyAccountRefreshEpoch && host && document.getElementById("yy-accounts-grid") === host;
+94:   const r = await yyReadAccountList(!!force);
+95:   if (!live()) return;
+96:   if (!r.ok) {
+97:     host.innerHTML = '<p class="yy-hint" role="status">' + yyEscape(r.error || "\账\号\读\取\失\败") + ' <button class="btn-s" onclick="yyCenterRefresh()">\重\试</button></p>';
+98:     return;
+99:   }
+100:   yySetAccountRows(r);
+101:   yyDrawAccountRows();
+102:   if (yyMonitorID) await yyRefreshMonitor();
+103: }
+104: async function yyWarmAccountList() {
+105:   const r = await yyReadAccountList(true);
+106:   if (r.ok && (yyAccountSnapshot == null ? void 0 : yyAccountSnapshot.scope) === yyAccountControllerScope() && !document.getElementById("yy-accounts-grid")) yySetAccountRows(r);
+107: }
+108: document.addEventListener("yy-identity-ready", function() {
+109:   if (typeof yyUpdateAdminPoolEntry === "function") yyUpdateAdminPoolEntry();
+110:   yyAccountSnapshot = null;
+111:   yyAllAccountRows = [];
+112:   yyAccountRows = [];
+113:   yyAccountRowsScope = "";
+114:   yyAccountMainConfigured = null;
+115:   yyCenterCloudRows = [];
+116:   yyWarmAccountList();
+117: });
+118: setTimeout(function() {
+119:   yyWarmAccountList();
+120: }, 0);
+121: function yyEnterRow(index) {
+122:   const row = yyAllAccountRows[index];
+123:   if (row) yyEnterAccount(row.id);
+124: }
+125: function yyMonitorRow(index) {
+126:   const row = yyAllAccountRows[index];
+127:   if (!row) return;
+128:   yyMonitorID = row.id;
+129:   document.getElementById("yy-monitor-account").value = yyMonitorID;
+130:   yyRefreshMonitor();
+131:   document.querySelector(".yy-monitor").scrollIntoView({ behavior: "smooth" });
+132: }
+133: async function yyEnterAccount(id, tab) {
+134:   if (yyEditorDirty && yyWorkspaceEditor && !await yySaveProjectFile()) return;
+135:   if (id !== "main") {
+136:     var result = await yyRootAPI("POST", "/api/youyuan/accounts", { action: "engine_start", id });
+137:     if (!result.ok) {
+138:       T(result.error, "e");
+139:       return;
+140:     }

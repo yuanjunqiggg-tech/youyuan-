@@ -1,0 +1,249 @@
+/* 种子查询 · 独立页面样式
+ *
+ * 目标：手机上一屏就能看到「版本 + 种子 + 结构类型 + 地图」，
+ * 地图占主要面积，手指拖得动、双指缩得动，不用横向滚动页面。
+ */
+
+.yy-seed { display: flex; flex-direction: column; gap: 14px; padding-bottom: 24px; }
+
+.yy-seed-panel {
+  background: var(--phx-bg-card, #fff);
+  border: 1px solid var(--phx-border-light, #e2e8ea);
+  border-radius: 14px;
+  padding: 14px;
+}
+.yy-seed-panel h3 { margin: 0; font-size: 15px; }
+
+/* ── 版本行 ─────────────────────────────────────────────────────── */
+.yy-seed-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.yy-seed-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--phx-bg, #f2f5f6);
+  border: 1px solid var(--phx-border-light, #e2e8ea);
+}
+.yy-seed-seg button {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--phx-text-secondary, #667);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.yy-seed-seg button.on {
+  background: var(--phx-bg-card, #fff);
+  color: var(--phx-text, #222);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+.yy-seed-row select {
+  flex: 1 1 140px;
+  min-height: 40px;
+  min-width: 120px;
+  padding: 0 10px;
+  border: 1px solid var(--phx-border, #ccd5d8);
+  border-radius: 10px;
+  background: var(--phx-bg-card, #fff);
+  color: var(--phx-text, #222);
+  font-size: 14px;
+}
+
+.yy-seed-verdict {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--phx-text-secondary, #667);
+}
+.yy-seed-verdict.bad { color: #b3261e; }
+
+/* ── 种子输入 ───────────────────────────────────────────────────── */
+.yy-seed-seedrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.yy-seed-seedrow input {
+  flex: 1 1 190px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--phx-border, #ccd5d8);
+  border-radius: 10px;
+  background: var(--phx-bg-card, #fff);
+  color: var(--phx-text, #222);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.yy-seed-seedrow input:focus { outline: none; border-color: var(--phx-primary, #2697a8); }
+.yy-seed-seedrow .btn-s { min-height: 44px; white-space: nowrap; }
+
+/* ── 基岩提示 ───────────────────────────────────────────────────── */
+.yy-seed-banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #f0d9a8;
+  background: #fdf6e6;
+  color: #7a5310;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.yy-seed-banner[hidden] { display: none; }
+.yy-seed-banner .btn-s { margin-top: 8px; }
+
+/* ── 结构类型 chips ─────────────────────────────────────────────── */
+.yy-seed-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.yy-seed-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 46px;
+  padding: 7px 12px;
+  border: 1px solid var(--phx-border, #ccd5d8);
+  border-radius: 10px;
+  background: var(--phx-bg-card, #fff);
+  color: var(--phx-text, #222);
+  cursor: pointer;
+  text-align: left;
+}
+.yy-seed-chip-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.yy-seed-chip-sub { font-size: 10px; color: var(--phx-text-secondary, #889); line-height: 1.3; }
+.yy-seed-chip.on {
+  border-color: var(--phx-primary, #2697a8);
+  background: var(--phx-primary-bg, #e8f5f7);
+  color: var(--phx-primary, #167a8b);
+}
+.yy-seed-chip.on .yy-seed-chip-sub { color: var(--phx-primary, #167a8b); }
+.yy-seed-chip.off { opacity: .5; cursor: not-allowed; background: var(--phx-bg, #f2f5f6); }
+
+/* ── 地图 ───────────────────────────────────────────────────────── */
+.yy-seed-mapcard {
+  background: var(--phx-bg-card, #fff);
+  border: 1px solid var(--phx-border-light, #e2e8ea);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.yy-seed-mapwrap { position: relative; width: 100%; height: clamp(320px, 56vh, 640px); }
+.yy-seed-mapwrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;          /* 手指拖动交给 canvas，不滚动页面 */
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.yy-seed-mapwrap canvas:active { cursor: grabbing; }
+
+.yy-seed-mapnote {
+  position: absolute;
+  left: 8px;
+  right: 56px;
+  top: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(253, 246, 230, .95);
+  border: 1px solid #f0d9a8;
+  color: #7a5310;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.yy-seed-mapnote[hidden] { display: none; }
+
+.yy-seed-tools {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.yy-seed-tools button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--phx-border, #ccd5d8);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .92);
+  color: var(--phx-text, #222);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+.yy-seed-tools button:last-child { font-size: 11px; font-weight: 600; }
+
+.yy-seed-legend {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-width: calc(100% - 16px);
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid var(--phx-border-light, #e2e8ea);
+  font-size: 10px;
+  color: var(--phx-text-secondary, #667);
+}
+.yy-seed-legend[hidden] { display: none; }
+.yy-seed-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.yy-seed-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ── 读数条 ─────────────────────────────────────────────────────── */
+.yy-seed-readout {
+  border-top: 1px solid var(--phx-border-light, #e2e8ea);
+  padding: 8px 12px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.yy-seed-read-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 3px 0;
+}
+.yy-seed-read-row b { font-variant-numeric: tabular-nums; font-size: 13px; }
+.yy-seed-read-row .btn-s { min-height: 30px; padding: 0 10px; font-size: 11px; }
+.yy-seed-dim { color: var(--phx-text-secondary, #889); }
+
+/* ── 命中列表 ───────────────────────────────────────────────────── */
+.yy-seed-listhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.yy-seed-listhead .yy-hint { margin: 0; font-size: 11px; }
+.yy-seed-list { margin-top: 10px; }
+.yy-seed-hits { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; }
+.yy-seed-hit {
+  display: grid;
+  grid-template-columns: 10px minmax(70px, 1.1fr) minmax(78px, 1fr) minmax(96px, 1.2fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--phx-border-light, #e2e8ea);
+  border-radius: 9px;
+  background: var(--phx-bg-card, #fff);
+  color: var(--phx-text, #222);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.yy-seed-hit:hover { border-color: var(--phx-primary, #2697a8); }
+.yy-seed-hit i { width: 10px; height: 10px; border-radius: 50%; }
+.yy-seed-hit-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yy-seed-hit-pos { color: var(--phx-text-secondary, #667); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.yy-seed-hit-go { color: var(--phx-primary, #167a8b); font-weight: 600; white-space: nowrap; }
+
+.yy-seed-about { margin-top: 14px; }
+.yy-seed-about summary { font-size: 12px; color: var(--phx-text-secondary, #667); cursor: pointer; }
+.yy-seed-about ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.75; }
+.yy-seed-about li { margin-bottom: 4px; }
+
+@media (max-width: 520px) {
+  .yy-seed-panel { padding: 12px; }
+  .yy-seed-mapwrap { height: 52vh; min-height: 300px; }
+  .yy-seed-hit { grid-template-columns: 10px minmax(64px, 1fr) minmax(84px, 1.1fr) auto; }
+  .yy-seed-hit-block { display: none; } /* 窄屏先省掉方块坐标，区块坐标够用 */
+}

@@ -1,0 +1,20 @@
+const http=require('http'),fs=require('fs'),path=require('path');
+const ROOT='C:/Users/Lenovo/Documents/Codex/2026-09-28/apk/project/upstream/frontend';
+const MIME={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css'};
+const server=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.split('?')[0]);if(p==='/')p='/index.html';fs.readFile(path.join(ROOT,p),(e,b)=>{if(e){res.writeHead(404);return res.end('nf')}res.writeHead(200,{'Content-Type':MIME[path.extname(p)]||'application/octet-stream'});res.end(b)})});
+function mockFor(url){const u=url.split('?')[0];
+if(u==='/api/youyuan/snapshot')return{ok:true,snapshot:true,game:{ok:true,connected:false},remote:{ok:true,state:'x',config:{}},runtime:{ok:true,instances:[]},tasks:{ok:true,tasks:[]},plugins:{ok:true,plugins:[]},qq:{ok:true,state:'y'},diag:{ok:true}};
+if(u==='/api/youyuan/events')return{ok:true,cursor:0,events:[]};
+if(u==='/api/config')return{ok:true,config:{}};
+return{ok:true}}
+(async()=>{await new Promise(r=>server.listen(8126,r));
+const {chromium}=require('playwright-core');
+const b=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--no-sandbox']});
+const p=await b.newPage();
+await p.route('**/api/**',async r=>{await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(mockFor(r.request().url()))})});
+await p.goto('http://127.0.0.1:8126/index.html',{waitUntil:'domcontentloaded'});
+await p.waitForTimeout(2500);
+const res=await p.evaluate(async()=>{const s=await A('GET','/api/youyuan/snapshot');return JSON.stringify(s)});
+console.log('snapshot=',res);
+console.log('unsupported=',await p.evaluate(()=>yySnapshotUnsupported));
+await b.close();server.close()})();

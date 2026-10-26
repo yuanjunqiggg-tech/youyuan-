@@ -1,0 +1,134 @@
+/* 群服互通助手面板扩展：提示词工具 chips / 指令格式自定义 / 主动搭话。
+   与 youyuan_qq_member_ui.css 同范式：--phx-* 设计变量 + 局部作用域类名，
+   360px 窄屏无横向溢出，点击区不小于 44px。 */
+
+.yy-a-tools,
+.yy-a-alias,
+.yy-a-proactive {
+  margin: 10px 0 4px;
+  border: 1px solid var(--phx-border-light, #e8e2d6);
+  border-radius: var(--phx-radius-sm, 12px);
+  background: var(--phx-bg-card, #fffcf4);
+}
+.yy-a-tools > summary,
+.yy-a-alias > summary,
+.yy-a-proactive > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--phx-text, #794f27);
+  cursor: pointer;
+  list-style: none;
+}
+.yy-a-tools > summary::-webkit-details-marker,
+.yy-a-alias > summary::-webkit-details-marker,
+.yy-a-proactive > summary::-webkit-details-marker { display: none; }
+.yy-a-tools-body,
+.yy-a-alias-body,
+.yy-a-proactive-body { padding: 0 12px 12px; }
+
+/* ---------- 插入工具 chips ---------- */
+.yy-a-chips-lab {
+  margin: 8px 0 6px;
+  font-size: 11px;
+  color: var(--phx-text-secondary, #9f927d);
+}
+.yy-a-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.yy-a-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--phx-border, #ddd6c8);
+  border-radius: 999px;
+  background: var(--phx-bg-card, #fffcf4);
+  color: var(--phx-text, #794f27);
+  font-size: 12px;
+  cursor: pointer;
+}
+.yy-a-chip b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--phx-primary, #d48a0e);
+  word-break: break-all;
+}
+.yy-a-chip i {
+  font-style: normal;
+  white-space: nowrap;
+  color: var(--phx-text-secondary, #9f927d);
+}
+.yy-a-chip:hover { border-color: var(--phx-primary, #d48a0e); }
+.yy-a-chip:active { background: var(--phx-primary-bg, #fef7e6); }
+.yy-a-chip.is-off { opacity: .55; }
+.yy-a-chip.is-off b { color: var(--phx-text-secondary, #9f927d); }
+
+/* ---------- 指令格式自定义 ---------- */
+.yy-a-alias-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+.yy-a-alias-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.yy-a-alias-name {
+  flex: 0 0 60px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--phx-text-secondary, #9f927d);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yy-a-alias-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--phx-border, #ddd6c8);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--phx-text, #794f27);
+  font-size: 13px;
+}
+.yy-a-alias-input:focus {
+  outline: none;
+  border-color: var(--phx-primary, #d48a0e);
+}
+.yy-a-alias-reset {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.yy-a-alias-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.yy-a-alias-status {
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--phx-text-secondary, #9f927d);
+}
+#yy-a-alias-more { min-height: 36px; margin: 2px 0; font-size: 12px; }
+
+@media (max-width: 480px) {
+  .yy-a-alias-name { flex: 0 0 52px; }
+  .yy-a-alias-reset { padding: 4px 8px; }
+}

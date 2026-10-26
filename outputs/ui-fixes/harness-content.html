@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>账号卡片复刻结构</title>
+<!-- 直接引用线上同一份样式，保证量到的是真实规则，不是复刻值 -->
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_accounts.css">
+<style>
+  :root{
+    --phx-primary:#3f8f86;--phx-primary-bg:#e6f2f0;--phx-bg-card:#fff;--phx-bg-secondary:#f4f6f7;
+    --phx-border:#dfe5e8;--phx-border-light:#e9eef0;--phx-text:#1d2b30;--phx-text-secondary:#6b7a82;
+    --phx-success:#2f8f5b;--phx-warning:#b57b1a;--yy-acct-w:1120px;--yy-acct-row:36px;--yy-acct-gap:8px;
+  }
+  html,body{margin:0;background:#eef1f3;color:var(--phx-text);font:14px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .content-inner{max-width:var(--yy-acct-w);margin:0 auto;padding:12px 0}
+  .card{background:#fff;border:1px solid var(--phx-border);border-radius:14px}
+  .yy-account-summary{display:block;font-weight:600}
+  .ph-avatar{display:inline-grid;place-items:center;width:48px;height:48px;border-radius:13px;background:#dbe8e6;font-weight:700}
+</style>
+</head>
+<body>
+<div class="content-inner">
+<div id="yy-accounts-grid" class="yy-account-list">
+  <details class="card yy-account-card" open>
+    <summary class="yy-account-summary">测试账号 · 结构复刻</summary>
+    <div class="yy-account-detail" id="detail">
+      <div class="yy-acct-hero">
+        <div class="yy-acct-figure-col">
+          <div class="yy-acct-figure" role="img" aria-label="测试账号的皮肤形象">
+            <svg class="yy-acct-figure-ph" viewBox="0 0 24 34" aria-hidden="true" fill="currentColor"><rect x="4" y="2" width="16" height="16" rx="2" opacity=".5"/></svg>
+            <div class="yy-acct-figure-stage"></div>
+            <span class="yy-acct-figure-tip">皮肤加载中…</span>
+          </div>
+          <div class="yy-acct-skin-bar" data-skin-acct="acct-test">
+            <button type="button" class="yy-acct-skin-btn" data-skin-act="walk" data-on="1">走动</button>
+            <button type="button" class="yy-acct-skin-btn" data-skin-act="slim" data-on="0">纤细</button>
+            <button type="button" class="yy-acct-skin-btn" data-skin-act="reset">正视角</button>
+            <span class="yy-acct-skin-hint">拖动旋转 · 双击复位</span>
+          </div>
+        </div>
+        <div class="yy-acct-hero-main">
+          <div class="yy-acct-hero-line">
+            <span class="yy-compact-avatar ph-avatar">测</span>
+            <div class="yy-acct-hero-text">
+              <strong>测试账号</strong>
+              <span class="yy-acct-hero-tags"><em class="yy-acct-chip" data-role="bot"><span>机器人账号</span></em><em class="yy-acct-live" data-online="on">在线</em></span>
+              <div class="yy-acct-hero-facts">
+                <div><span>服务器</span><b>susu.bot.cd</b></div>
+                <div><span>游戏 UID</span><b>未绑定</b></div>
+                <div><span>连接</span><b>在线</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="yy-acct-hero-acts">
+            <button class="btn">切换到此账号</button>
+            <button class="btn-s">查看令牌</button>
+            <button class="btn-s">解绑玩家</button>
+          </div>
+          <div class="yy-acct-token">
+            <span class="yy-acct-token-label">令牌</span>
+            <code data-masked="已隐藏 · 点查看显示" data-shown="0">已隐藏 · 点查看显示</code>
+            <button class="btn-s">复制</button>
+          </div>
+        </div>
+      </div>
+      <div class="yy-account-meta">
+        <span>游戏 UID <b>未绑定</b></span>
+        <span>服务器 <b>susu.bot.cd</b></span>
+        <span>连接状态 <b>在线</b></span>
+        <span>账号凭据 <b>已保存令牌</b></span>
+        <span>自动重连 <b>已启用</b></span>
+        <span>账号标识 <b class="yy-acct-secret" data-ident-shown="0">已隐藏 · 点查看显示</b><button type="button" class="btn-s yy-acct-ident-btn">查看</button></span>
+      </div>
+      <section class="yy-linked-local"><h4>主连接</h4></section>
+    </div>
+  </details>
+</div>
+</div>
+</body>
+</html>

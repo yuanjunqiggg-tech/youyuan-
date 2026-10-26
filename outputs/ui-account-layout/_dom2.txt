@@ -1,0 +1,106 @@
+490:   return '<span class="yy-compact-avatar yy-avatar-frame ' + (src ? "yy-avatar-skeleton" : "yy-avatar-fallback") + '" role="img" aria-label="' + yyEscape(label) + '"><span class="yy-avatar-initial" aria-hidden="true">' + initial + "</span>" + img + "</span>";
+491: }
+492: function yyAccountAvatarHTML(account) {
+493:   // 账号组里优先用「账号资料」里上传的头像（data:），其次网易官方头像；
+494:   // 两者都没有时按玩家名取本机裁的头像（/api/skin/online-head），最后是等距三面头占位。
+495:   const url = yyAcctAvatarURL(account);
+496:   return yyAvatarMarkup(account, url, url ? "\账\号\头\像" : "\暂\无\头\像");
+497: }
+498: // 托管账号头像：官方（网易）头像优先，其次用玩家自己的皮肤在本机裁出头。
+499: // 只用游戏内真实皮肤（/api/skin/online-head），不再查 crafatar / minotar：
+500: // 按名字查会返回同名陌生玩家的脸（这就是账号页冒出「儒雅猎杀者」这类怪头像的原因），
+501: // 而且这两家境外源在国内经常 500 / 超时，加载半天最后只剩空块。
+502: function yyPoolAvatarURL(account) {
+503:   const name = yyAcctSkinName(account);
+504:   if (yyAcctNameRe.test(name)) return "/api/skin/online-head?player=" + encodeURIComponent(name);
+505:   return "";
+506: }
+507: function yyPoolAvatarInitial(account) {
+508:   const text = String((account == null ? void 0 : account.name) || (account == null ? void 0 : account.id) || "?").trim();
+509:   return (text.slice(0, 1) || "?").toUpperCase();
+510: }
+511: function yyPoolAvatarHTML(account, profile) {
+512:   const url = yyAccountPortrait(profile || account) || yyPoolAvatarURL(account);
+513:   return yyAvatarMarkup(account, url, "托管账号头像", "yyPoolAvatarError(this)");
+514: }
+515: // 头像取不到时只退首字占位，并把原因收进 title，界面上不写解释性长句。
+516: function yyPoolAvatarError(image) {
+517:   yyAvatarFailed(image);
+518:   const frame = image.parentElement;
+519:   if (frame) frame.setAttribute("title", "使用默认头像");
+520: }
+---
+2423: function yyAcctProfileHTML(acct, opts) {
+2424:   opts = opts || {};
+2425:   var pooled = !!opts.pooled;
+2426:   var state = yyAcctOnlineState(acct, pooled);
+2427:   var chain = yyAcctSkinChain(acct);
+2428:   var avatarURL = yyAcctAvatarURL(acct);
+2429:   // 立体皮肤：拿到整张纹理后由 YYSkinViewer 拼 3D 人形，展开详情就能直接转。
+2430:   // 以前这里是一张 crafatar/minotar 的静态立绘——境外源、离开缓存就空，
+2431:   // 按名字查还会给出陌生人的身体。纹理改由本机内核按玩家名提供，同一个人不会错。
+2432:   // 挂载由 yyAcctMountViewers 统一做：收起状态的 details 里 clientWidth 为 0，
+2433:   // 提前建 3D 会算不出单位尺寸，所以只在「已展开且可见」时才初始化。
+2434:   var figure = chain.length
+2435:     ? '<div class="yy-acct-figure-stage" data-skin-src="' + yyEscape(chain[0]) + '" role="img" aria-label="' + yyEscape((acct.name || "账号") + " 的立体皮肤") + '"></div>'
+2436:     : "";
+2437:   var tokenRowData = yyAcctTokenRow(acct);
+2438:   var tokenId = opts.tokenId || (tokenRowData && tokenRowData.id) || acct.id;
+2439:   var canToken = opts.token !== false && !!tokenRowData;
+2440:   var canEnter = !pooled && acct.id !== "main" && !!acct.local_accounts;
+2441:   var lease = yyAcctLease(acct);
+2442:   var bound = lease ? String(lease.player || "") : "";
+2443:   var actions = [];
+2444:   if (canEnter) actions.push('<button class="btn" onclick="yyEnterAccount(' + yyEscape(JSON.stringify(acct.id)) + ')">切换到此账号</button>');
+2445:   if (pooled) actions.push('<button class="btn" onclick="yyPoolEnter(' + yyEscape(JSON.stringify(acct.id)) + ')">切换到此账号</button>');
+2446:   if (bound) actions.push('<button class="btn-s" onclick="yyAcctUnbind(' + yyEscape(JSON.stringify(acct.id)) + ',' + (pooled ? "true" : "false") + ')">解绑玩家</button>');
+2447:   if (canToken) actions.push('<button class="btn-s" onclick="yyAcctTokenToggle(' + yyEscape(JSON.stringify(tokenId)) + ')">查看令牌</button>');
+2448:   var tokenRow = canToken ? '<div class="yy-acct-token" data-acct-token-row="' + yyEscape(String(tokenId)) + '"><span class="yy-acct-token-label">令牌</span><code data-acct-token="' + yyEscape(String(tokenId)) + '" data-masked="' + yyEscape("已保存 · 默认打码") + '" data-shown="0">已保存 · 默认打码</code><button class="btn-s" onclick="yyAcctTokenCopy(' + yyEscape(JSON.stringify(tokenId)) + ')">复制</button></div>' : "";
+2449:   return '<div class="yy-acct-hero">' +
+2450:       '<div class="yy-acct-figure" role="img" aria-label="' + yyEscape((acct.name || "账号") + " 的皮肤形象") + '">' +
+2451:         yyAcctFigureSVG + figure +
+2452:         '<span class="yy-acct-figure-tip">' + (chain.length ? "皮肤加载中…" : "还没有可用的游戏身份") + "</span>" +
+2453:       '</div>' +
+2454:       '<div class="yy-acct-hero-main">' +
+2455:         '<div class="yy-acct-hero-line">' + yyAvatarMarkup(acct, avatarURL, "账号头像") +
+2456:           '<div class="yy-acct-hero-text"><strong>' + yyEscape(acct.name || acct.id) + '</strong>' +
+2457:           '<span class="yy-acct-hero-tags">' + yyAcctRoleChip(acct, pooled) +
+2458:           '<em class="yy-acct-live" data-online="' + state + '">' + yyEscape(yyAcctOnlineText(state)) + '</em></span>' +
+2459:           yyAcctHeroFacts(acct, pooled) + '</div>' +
+2460:         '</div>' +
+2461:         (actions.length ? '<div class="yy-acct-hero-acts">' + actions.join("") + "</div>" : "") +
+2462:         tokenRow +
+2463:       '</div>' +
+2464:     '</div>' +
+2465:     (chain.length ? yyAcctSkinBarHTML(acct) : '');
+2466: }
+2467: function yyAcctCardFacts(acct, pooled) {
+2468:   var lease = yyAcctLease(acct);
+2469:   var bound = lease ? String(lease.player || "") : "";
+2470:   var rows = [
+---
+2671: function yyAccountFactsGridHTML(account, options) {
+2672:   var _a, _b;
+2673:   const pooled = !!(options && options.pooled);
+2674:   const facts = [
+2675:     ["游戏 UID", account.game_id || "未绑定"],
+2676:     ["服务器", account.server || "尚未配置服务器"],
+2677:     ["连接状态", yyAccountFactsStatus(account, pooled)],
+2678:     ["账号凭据", account.has_token ? "已保存令牌" : "缺少令牌"],
+2679:     ["自动重连", account.keep_alive ? "已启用" : "未启用"],
+2680:     ["账号标识", account.id]
+2681:   ];
+2682:   if (pooled) {
+2683:     // 令牌不在这里重复一遍：托管账号详情下面有单独的令牌行（显示 / 复制）。
+2684:     facts.push(["绑定玩家", (((_a = account.lease) == null ? void 0 : _a.phase) === "bound" && ((_b = account.lease) == null ? void 0 : _b.player)) || "未绑定"]);
+2685:   }
+2686:   return '<div class="yy-account-meta">' + facts.map(([label, value]) => "<span>" + yyEscape(label) + " <b>" + yyEscape(String(value)) + "</b></span>").join("") + "</div>";
+2687: }
+2688: function yyAccountFactsHTML(account, options) {
+2689:   const pooled = !!(options && options.pooled);
+2690:   const status = yyAccountFactsStatus(account, pooled);
+2691:   // compact：详情页顶部已经有形象区（大头像 + 名字 + 身份），这里不再重复一遍身份行。
+2692:   const head = options && options.compact ? "" : '<div class="yy-detail-identity">' + yyAvatarMarkup(account, yyAccountPortrait(account) || yyPoolAvatarURL(account), pooled ? "托管账号头像" : "游戏账号头像") + '<div><strong>' + yyEscape(account.name || account.id) + '</strong><p class="yy-hint">' + yyEscape((account.game_id ? "UID " + account.game_id + " · " : "") + (account.server || "尚未配置服务器")) + '</p></div><span class="yy-badge">' + yyEscape(status) + "</span></div>";
+2693:   return head +
+2694:     '<div class="yy-account-detail yy-pool-facts">' + yyAccountFactsGridHTML(account, options) + "</div>";
+2695: }

@@ -1,0 +1,127 @@
+/* 更多工具 — 搜索 + 分类 + 紧凑列表（任务书第 4 部分）
+   取消原来的 grid-2 大卡片：两列并排、图标居中、标题居中、副标题居中，
+   一屏放不下几个工具，低频工具和常用工具同等抢位置。
+   现在一行一个工具：图标退到 32px，名称是主信息，描述是次要信息，
+   靠行距与细分隔线分组，不再给每个工具包一层卡片。 */
+
+.yyt { display: flex; flex-direction: column; gap: 14px; padding: 2px 0 24px; }
+
+/* 顶部搜索：与页面两侧保持 16px 安全边距，高度够点，字号 15px 防止 iOS 聚焦缩放 */
+.yyt-search {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  background: var(--phx-bg-card);
+  color: var(--phx-text);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.yyt-search::placeholder { color: var(--phx-text-secondary, #8a949c); }
+.yyt-search:focus { outline: none; border-color: var(--phx-primary); }
+.yyt-search::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* 分类标题：轻量，不抢工具名 */
+.yyt-cat { display: block; }
+.yyt-cat-title {
+  margin: 0 0 4px 2px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  color: var(--phx-text-secondary, #8a949c);
+}
+
+/* 行：图标 + 名称/描述 + 箭头。整行可点，最小高度 52px（触摸目标） */
+.yyt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 9px 12px;
+  border: 0;
+  border-top: 1px solid var(--phx-border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.yyt-cat .yyt-row:first-of-type { border-top: 0; }
+.yyt-row:hover, .yyt-row:active { background: var(--phx-bg-secondary); }
+.yyt-row:last-child { border-bottom: 1px solid var(--phx-border); }
+
+.yyt-ico {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(20, 126, 130, .09);
+  color: var(--phx-primary);
+}
+@supports (background: color-mix(in srgb, red 10%, transparent)) {
+  .yyt-ico { background: color-mix(in srgb, var(--phx-primary) 9%, transparent); }
+}
+/* 原卡片图标 26×26，列表行里缩到 19×19；描边用 currentColor 跟随主题 */
+.yyt-ico svg { width: 19px; height: 19px; display: block; }
+
+.yyt-txt { flex: 1 1 auto; min-width: 0; display: block; }
+.yyt-name {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--phx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.yyt-desc {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--phx-text-secondary, #8a949c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.yyt-go {
+  flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--phx-text-secondary, #8a949c);
+  opacity: .55;
+}
+.yyt-empty {
+  margin: 8px 2px;
+  padding: 18px 4px;
+  font-size: 13px;
+  color: var(--phx-text-secondary, #8a949c);
+}
+
+/* 最近使用：和分类同一套行，靠标题区分即可，不额外加背景块 */
+.yyt-recent .yyt-row { opacity: .96; }
+
+/* 深色主题：图标底色换成透明度更低的品牌色，行分隔线跟随主题 */
+[data-theme="dark"] .yyt-ico { background: rgba(20, 126, 130, .16); }
+@media (prefers-color-scheme: dark) {
+  .yyt-ico { background: rgba(20, 126, 130, .16); }
+}
+
+/* 小屏（320px）：描述允许换两行，但不许撑破宽度 */
+@media (max-width: 359px) {
+  .yyt-row { gap: 10px; padding: 9px 10px; }
+  .yyt-ico { flex-basis: 30px; width: 30px; height: 30px; }
+  .yyt-ico svg { width: 17px; height: 17px; }
+  .yyt-desc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+}

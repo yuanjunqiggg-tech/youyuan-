@@ -1,0 +1,286 @@
+{
+  "tag": "before",
+  "url": "https://toolbox.youyuanqi.dpdns.org/",
+  "domContentLoadedMs": 1740,
+  "cls": 0.0652,
+  "clsEntries": [
+    {
+      "value": 0.022710386246230105,
+      "t": 1906,
+      "sources": [
+        {
+          "node": "yy-identity-card",
+          "prev": [
+            101,
+            752
+          ],
+          "cur": [
+            78,
+            800
+          ]
+        }
+      ]
+    },
+    {
+      "value": 0.04247245364149422,
+      "t": 2856,
+      "sources": [
+        {
+          "node": "yy-identity-card",
+          "prev": [
+            78,
+            800
+          ],
+          "cur": [
+            37,
+            878
+          ]
+        }
+      ]
+    }
+  ],
+  "scrollHeightJumps": [],
+  "jumpCount": 0,
+  "finalScrollHeight": 915,
+  "apiRequestCount": 25,
+  "apiRequests": [
+    {
+      "url": "/api/config",
+      "start": 1394,
+      "ms": 241,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/appearance",
+      "start": 1524,
+      "ms": 238,
+      "status": 401
+    },
+    {
+      "url": "/api/identity/me",
+      "start": 1524,
+      "ms": 374,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 1524,
+      "ms": 238,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/accounts?view=summary",
+      "start": 1527,
+      "ms": 235,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/snapshot",
+      "start": 1544,
+      "ms": 218,
+      "status": 401
+    },
+    {
+      "url": "/api/identity/turnstile-config",
+      "start": 1764,
+      "ms": 135,
+      "status": 200
+    },
+    {
+      "url": "/api/bot/status",
+      "start": 1785,
+      "ms": 127,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/remote",
+      "start": 1787,
+      "ms": 143,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/runtime/list",
+      "start": 1787,
+      "ms": 155,
+      "status": 401
+    },
+    {
+      "url": "/api/task/list",
+      "start": 1787,
+      "ms": 158,
+      "status": 401
+    },
+    {
+      "url": "/api/plugin/list",
+      "start": 1787,
+      "ms": 158,
+      "status": 401
+    },
+    {
+      "url": "/api/qq/status",
+      "start": 1787,
+      "ms": 158,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/connection-diagnostics",
+      "start": 1787,
+      "ms": 155,
+      "status": 401
+    },
+    {
+      "url": "/api/identity/turnstile-config",
+      "start": 1900,
+      "ms": 2,
+      "status": 200
+    },
+    {
+      "url": "/api/version/check",
+      "start": 4392,
+      "ms": 133,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 4889,
+      "ms": 133,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 8128,
+      "ms": 131,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 11362,
+      "ms": 131,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 14613,
+      "ms": 135,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 17856,
+      "ms": 127,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 21088,
+      "ms": 131,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 24334,
+      "ms": 216,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 27656,
+      "ms": 137,
+      "status": 401
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 30925,
+      "ms": null
+    }
+  ],
+  "duplicateRequests": [
+    {
+      "url": "/api/youyuan/events",
+      "count": 10
+    },
+    {
+      "url": "/api/identity/turnstile-config",
+      "count": 2
+    }
+  ],
+  "slowRequests": [
+    {
+      "url": "/api/identity/me",
+      "ms": 374,
+      "start": 1524
+    },
+    {
+      "url": "/api/config",
+      "ms": 241,
+      "start": 1394
+    },
+    {
+      "url": "/api/youyuan/appearance",
+      "ms": 238,
+      "start": 1524
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "ms": 238,
+      "start": 1524
+    },
+    {
+      "url": "/api/youyuan/accounts?view=summary",
+      "ms": 235,
+      "start": 1527
+    },
+    {
+      "url": "/api/youyuan/snapshot",
+      "ms": 218,
+      "start": 1544
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "ms": 216,
+      "start": 24334
+    },
+    {
+      "url": "/api/task/list",
+      "ms": 158,
+      "start": 1787
+    },
+    {
+      "url": "/api/plugin/list",
+      "ms": 158,
+      "start": 1787
+    },
+    {
+      "url": "/api/qq/status",
+      "ms": 158,
+      "start": 1787
+    },
+    {
+      "url": "/api/youyuan/runtime/list",
+      "ms": 155,
+      "start": 1787
+    },
+    {
+      "url": "/api/youyuan/connection-diagnostics",
+      "ms": 155,
+      "start": 1787
+    },
+    {
+      "url": "/api/youyuan/remote",
+      "ms": 143,
+      "start": 1787
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "ms": 137,
+      "start": 27656
+    },
+    {
+      "url": "/api/identity/turnstile-config",
+      "ms": 135,
+      "start": 1764
+    }
+  ],
+  "allRequestCount": 190,
+  "homeTextSample": "工作台\n\n从创作到管理，把所有工具放在顺手的位置。\n\n10月25日周日\nYOUR CREATIVE SPACE\n让创作，更有条理。\n\n建筑、插件与服务器，在这里有序管理。\n\n连接游戏\n‹\n自定义封面\n›\n游戏连接\n设备离线\n连接服务器后开始作业\n公网远控\n设备离线\n独立的设备连接状态\n运行中的插件\n—\nPython / C++ / Lua\n进行中的任务\n—\n建筑与创作任务\n常用工具\n点击星标调整\n建筑导入\n地图画\n音乐工坊\n命令链条\n全局抓包\n全部工具\n15\n调整顺序\n按分类排序\n按名称排序\n按最近使用\n自定义顺序\n全部\n建筑工具\n创意工坊\n插件与自动化\n实用工具\n种子与地图\n建筑工具 · 4\n建筑导入\n导入结构与建筑文件\n建筑导出\n保存选区中的建筑\n建筑文件\n文件管理与批量预览\n结构与指令转换\n格式转换、结构分析与命令生成\n创意工坊 · 4\n地图画\n把图片变成方块画\n视频方块化\n图片与视"
+}

@@ -1,0 +1,295 @@
+/* 种子查询器 — 群系地图 · 结构定位 · 全维度
+   配套 js/features/seed_map.js（Canvas 本机渲染）。
+   设计约束：
+   - 手机优先（390px 单列，320px 不横向溢出），点击区 ≥44px；
+   - 只用现有 --phx-* 设计变量，跟随深浅主题；
+   - 地图区域必须能占满可视高度的一段，拖动/缩放由 canvas 自己处理，
+     容器只负责裁切与叠层定位。 */
+
+.ysm { display: flex; flex-direction: column; gap: 12px; padding: 2px 0 24px; }
+
+/* ── 顶部参数面板 ── */
+.ysm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 13px;
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  background: var(--phx-bg-card);
+}
+.ysm-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ysm-row-ver { flex-wrap: wrap; }
+
+.ysm-input,
+.ysm-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--phx-border);
+  border-radius: 10px;
+  background: var(--phx-bg);
+  color: var(--phx-text);
+  font-size: 15px; /* ≥15px 防止 iOS 聚焦缩放 */
+  line-height: 1.35;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.ysm-input::placeholder { color: var(--phx-text-secondary, #8a949c); }
+.ysm-input:focus,
+.ysm-select:focus { outline: none; border-color: var(--phx-primary); }
+.ysm-select {
+  flex: 0 1 132px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--phx-text-secondary, #8a949c) 50%),
+                    linear-gradient(135deg, var(--phx-text-secondary, #8a949c) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 20px, calc(100% - 10px) 20px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+.ysm-readbtn { flex: 0 0 auto; min-height: 44px; }
+
+/* 版本徽章：标注「默认版本列表」等诚实状态 */
+.ysm-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(245, 166, 35, .14);
+  color: var(--phx-warning);
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+/* 维度 tab：三格等宽，选中态实心 */
+.ysm-tabs {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 6px;
+  min-width: 0;
+}
+.ysm-tabs button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 4px;
+  border: 1px solid var(--phx-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--phx-text-secondary, #8a949c);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.ysm-tabs button:hover { border-color: var(--phx-primary); color: var(--phx-primary); }
+.ysm-tabs button:focus-visible { outline: 2px solid var(--phx-primary); outline-offset: 2px; }
+.ysm-tabs button.on {
+  background: var(--phx-primary-bg, rgba(20, 126, 130, .12));
+  border-color: var(--phx-primary);
+  color: var(--phx-primary);
+}
+
+.ysm-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--phx-text-secondary, #8a949c);
+}
+.ysm-dim { color: var(--phx-text-secondary, #8a949c); font-size: 11.5px; }
+
+/* ── 地图卡 ── */
+.ysm-mapcard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ysm-mapwrap {
+  position: relative;
+  width: 100%;
+  /* 手机竖屏给足高度：60vh 但不低于 320px、不高于 520px */
+  height: clamp(320px, 60vh, 520px);
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--phx-bg-card);
+  /* 阻止浏览器把拖动解释成页面滚动/缩放 */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ysm-mapwrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+.ysm-mapwrap canvas:active { cursor: grabbing; }
+
+/* 顶部状态叠层（加载中 / 错误 / 精度提示） */
+.ysm-overlay {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.ysm-overlay-box {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 7px 11px;
+  border-radius: 9px;
+  background: rgba(18, 22, 25, .82);
+  color: #f2f5f7;
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ysm-overlay-box strong { display: block; font-size: 12.5px; font-weight: 650; }
+
+/* 右侧浮动工具：放大 / 缩小 / 复位 */
+.ysm-tools {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ysm-tools button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--phx-border);
+  border-radius: 10px;
+  background: rgba(18, 22, 25, .78);
+  color: #f2f5f7;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ysm-tools button[data-act="reset"] { font-size: 11px; }
+.ysm-tools button:hover { border-color: var(--phx-primary); color: #7fd7d9; }
+.ysm-tools button:active { transform: scale(.95); }
+.ysm-tools button:focus-visible { outline: 2px solid var(--phx-primary); outline-offset: 2px; }
+
+/* 结构图钉详情卡 */
+.ysm-pincard {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  right: 64px;
+  box-sizing: border-box;
+  max-width: 300px;
+  padding: 10px 12px;
+  border: 1px solid var(--phx-border);
+  border-radius: 11px;
+  background: var(--phx-bg-card);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .22);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--phx-text);
+}
+.ysm-pincard-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.ysm-pincard-head i {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.ysm-pincard-head span { min-width: 0; overflow-wrap: anywhere; }
+.ysm-pincard-x {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--phx-text-secondary, #8a949c);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ysm-pincard-x:hover { background: var(--phx-border); color: var(--phx-text); }
+.ysm-pincard-row { color: var(--phx-text-secondary, #8a949c); }
+.ysm-pincard-row b { color: var(--phx-text); font-weight: 650; }
+
+/* 底部读数条 */
+.ysm-readout {
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--phx-bg-card);
+  border: 1px solid var(--phx-border);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--phx-text-secondary, #8a949c);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ── 图例 ── */
+.ysm-legend-title {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--phx-text);
+}
+.ysm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+}
+.ysm-lgi {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--phx-text-secondary, #8a949c);
+  white-space: nowrap;
+}
+.ysm-lgi i {
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, .12);
+}
+.ysm-slegend { margin-top: 2px; }
+.ysm-pin-dot {
+  border-radius: 50% !important;
+  border: none !important;
+}
+
+/* ── 320px 收窄 ── */
+@media (max-width: 359px) {
+  .ysm-panel { padding: 10px 11px; }
+  .ysm-select { flex: 1 1 100%; }
+  .ysm-tabs button { font-size: 12px; }
+  .ysm-mapwrap { height: clamp(280px, 52vh, 420px); }
+  .ysm-pincard { right: 8px; max-width: none; }
+}
+
+/* ── 桌面加宽：地图更高 ── */
+@media (min-width: 900px) {
+  .ysm-mapwrap { height: clamp(420px, 62vh, 640px); }
+}

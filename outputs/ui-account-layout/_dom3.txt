@@ -1,0 +1,55 @@
+2349: function yyAcctRoleChip(acct, pooled) {
+2350:   var key = yyAcctRoleKey(acct, pooled);
+2351:   return '<em class="yy-acct-chip" data-role="' + key + '">' + yyAcctRoleIcon(key) + "<span>" + yyEscape(yyAcctRoleLabel(acct, pooled)) + "</span></em>";
+2352: }
+2353: // 默认形象：一只等距三面的方块头，立在同名方块台座上——没有皮肤时就该是它。
+2354: // 以前这里是一座「空盔甲架」：台基 + 木杆 + 躯干 + 四肢全用矩形堆，
+2355: // 手机上一缩小就变成「几个方块套方块」，像占位图临时拼的。
+2356: // 现在只留一个主体（头）+ 一个台座，两个形状、三档明暗，缩到 64px 也读得出是 Minecraft。
+2357: // 构图借 mineatar-io/skin-render 的等距头，台座用同一光位（顶亮、左暗、右中）。
+2358: // 内联 SVG 而不是 data URI，才能用 currentColor 跟着深浅主题走。
+2359: var yyAcctFigureSVG = '<svg class="yy-acct-figure-ph" viewBox="0 0 24 34" aria-hidden="true" fill="currentColor">' +
+2360:   '<ellipse cx="12" cy="32.6" rx="7.6" ry="1.2" opacity=".1"/>' +
+2361:   '<path opacity=".26" d="M3.5 25 12 20.5 20.5 25 12 29.5Z"/>' +
+2362:   '<path opacity=".14" d="M3.5 25 12 29.5 12 32 3.5 27.5Z"/>' +
+2363:   '<path opacity=".2" d="M20.5 25 12 29.5 12 32 20.5 27.5Z"/>' +
+2364:   '<path opacity=".34" d="M13.89 21.5 13.89 11.65 3.82 8.13 3.82 17.98Z"/>' +
+2365:   '<path opacity=".9" d="M20.18 6.02 13.89 11.65 3.82 8.13 10.11 2.5Z"/>' +
+2366:   '<path fill-rule="evenodd" opacity=".62" d="M20.18 15.87 13.89 21.5 13.89 11.65 20.18 6.02Z M19.4 11.65 17.82 13.06 17.82 11.82 19.4 10.42Z M16.25 14.46 14.68 15.87 14.68 14.64 16.25 13.23Z M17.82 16.75 16.25 18.16 16.25 16.93 17.82 15.52Z"/>' +
+2367:   '<path opacity=".95" d="M20.18 6.02 13.89 11.65 13.89 14.11 20.18 8.48Z"/>' +
+2368:   '<path opacity=".95" d="M20.18 8.48 18.61 9.89 18.61 12.35 20.18 10.94Z"/>' +
+2369:   '<path opacity=".95" d="M15.46 12.71 13.89 14.11 13.89 16.58 15.46 15.17Z"/></svg>';
+2370: // 头像右侧那一栏以前只有名字和徽标，右边空一大块。这里把最该一眼看到的
+2371: // 三项（服务器 / 游戏 UID / 连接）压成等宽小格填进去，信息密度上来了也不挤。
+2372: function yyAcctHeroFacts(acct, pooled) {
+2373:   var state = yyAcctOnlineState(acct, pooled);
+2374:   var lease = yyAcctLease(acct);
+2375:   var server = acct.server || (lease && lease.server) || "未配置";
+2376:   var uid = acct.game_id || "未绑定";
+2377:   var rows = [["服务器", server], ["游戏 UID", uid], ["连接", yyAcctOnlineText(state)]];
+2378:   return '<div class="yy-acct-hero-facts">' + rows.map(function (row) {
+2379:     return '<div><span>' + yyEscape(row[0]) + '</span><b>' + yyEscape(String(row[1])) + '</b></div>';
+2380:   }).join("") + "</div>";
+2381: }
+2382: // 皮肤控制条：走动 / 纤细 / 重置。
+2383: // 以前这三件事全靠用户自己猜——模型在转但看不出是"走动"，纤细版也只能
+2384: // 靠皮肤本身决定。这里给成显式按钮，点了立刻在 3D 上生效。
+2385: function yyAcctSkinBarHTML(acct) {
+2386:   var id = yyEscape(String(acct.id || ""));
+2387:   return '<div class="yy-acct-skin-bar" data-skin-acct="' + id + '">' +
+2388:     '<button type="button" class="yy-acct-skin-btn" data-skin-act="walk" data-on="1" onclick="yyAcctSkinMode(this)">走动</button>' +
+2389:     '<button type="button" class="yy-acct-skin-btn" data-skin-act="slim" data-on="0" onclick="yyAcctSkinMode(this)">纤细</button>' +
+2390:     '<button type="button" class="yy-acct-skin-btn" data-skin-act="reset" onclick="yyAcctSkinMode(this)">正视角</button>' +
+2391:     '<span class="yy-acct-skin-hint">拖动旋转 · 双击复位</span>' +
+2392:     "</div>";
+2393: }
+2394: function yyAcctSkinMode(button) {
+2395:   if (!button) return;
+2396:   var bar = button.closest(".yy-acct-skin-bar");
+2397:   var card = button.closest(".yy-account-card") || document;
+2398:   var host = card.querySelector(".yy-acct-figure-stage");
+2399:   var viewer = host && host.__yyViewer;
+2400:   var act = button.getAttribute("data-skin-act");
+--- heroFacts ---
+2372: function yyAcctHeroFacts(acct, pooled) {
+2459:           yyAcctHeroFacts(acct, pooled) + '</div>' +

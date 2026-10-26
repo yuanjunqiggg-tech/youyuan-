@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>群服互通 · 视觉验收（CSS 静态复刻）</title>
+<!-- 真实样式：顺序与 index.html + 后端注入一致，直接 file:// 打开即可验收 -->
+<link rel="stylesheet" href="../../upstream/frontend/css/base.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_design.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_qq_console.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_qq_console_quicknav.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_qq_serverinfo.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_qq_member_ui.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_qq_assistant_tools.css">
+<!-- 主题框架最后加载，与后端注入位置一致 -->
+<link rel="stylesheet" href="../../upstream/frontend/css/mcort_theme.css">
+<style>
+  /* 只服务验收页本身，不参与业务样式 */
+  /* base.css 给 body 定了 height:100vh + overflow:hidden（正式页有 #app 承担滚动），
+     验收页要整页滚动，这里覆盖掉。 */
+  html, body { margin: 0; height: auto; min-height: 100%; overflow: auto; }
+  body { background: var(--phx-bg); color: var(--phx-text); font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+  .pv-bar {
+    position: sticky; top: 0; z-index: 60;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 16px;
+    background: color-mix(in srgb, var(--phx-bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--phx-border);
+    font-size: 12px; color: var(--phx-text-secondary);
+  }
+  .pv-bar b { color: var(--phx-text); font-size: 12px; letter-spacing: .04em; }
+  .pv-bar button {
+    height: 28px; padding: 0 12px; border-radius: 999px;
+    border: 1px solid var(--phx-border); background: var(--phx-bg-card);
+    color: var(--phx-text); font-size: 12px; cursor: pointer;
+  }
+  .pv-bar button.on { border-color: var(--phx-primary); color: var(--phx-primary); background: var(--phx-primary-bg); font-weight: 600; }
+  .pv-wrap { max-width: 1180px; margin: 0 auto; padding: 14px 16px 80px; }
+  .pv-sec { margin: 34px 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--phx-text-secondary); text-transform: uppercase; }
+  .pv-note {
+    max-width: 1180px; margin: 0 auto; padding: 14px 16px 60px;
+    font-size: 12px; line-height: 1.7; color: var(--phx-text-secondary);
+  }
+  .pv-note code { font-family: Consolas, monospace; font-size: 11px; background: var(--phx-bg-secondary); padding: 1px 5px; border-radius: 4px; }
+  .pv-note h3 { margin: 18px 0 6px; font-size: 13px; color: var(--phx-text); }
+  .pv-note ul { margin: 0; padding-left: 18px; }
+  .pv-note li { margin: 3px 0; }
+</style>
+<script>
+  /* 支持 ?theme=light|dark|mcort 直接以某套主题打开（截图/验收用） */
+  (function () {
+    try {
+      var t = (new URLSearchParams(location.search).get('theme') || '').toLowerCase();
+      if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      if (t === 'mcort') document.documentElement.setAttribute('data-mcort-theme', 'amber');
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-robot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 5v3M9 13h.01M15 13h.01M9.5 16h5"/>
+  </symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>
+  </symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h12M20 17h0"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="17" r="2"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l2.2 5.6L20 11l-5.8 2.4L12 19l-2.2-5.6L4 11l5.8-2.4z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 15l4.5-4.5 4 4 2.5-2.5L20 16"/><circle cx="9" cy="9.5" r="1.3"/></symbol>
+  <symbol id="i-connection" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9.5 14.5l5-5"/><path d="M7 17a3.5 3.5 0 0 1 0-5l2-2a3.5 3.5 0 0 1 5 0"/><path d="M17 7a3.5 3.5 0 0 1 0 5l-2 2a3.5 3.5 0 0 1-5 0"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M20 12a7 7 0 0 1-7 7H8l-4 3v-6.5A7 7 0 0 1 11 5h2a7 7 0 0 1 7 7z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M20 4L4 11l6 2 2 6z"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+</svg>
+
+<div class="pv-bar">
+  <b>MCORT · 群服互通</b>
+  <span>视觉验收页（静态复刻，读的是真实 CSS）</span>
+  <button type="button" class="on" data-theme-btn="light">浅色</button>
+  <button type="button" data-theme-btn="dark">深色</button>
+  <button type="button" data-theme-btn="mcort">主题包（橙）</button>
+</div>
+
+<div class="pv-wrap">
+<div class="yyq-root" id="yyq-root">
+
+  <!-- 0 状态条：一屏第一行只给结论 -->
+  <div class="yyq-status" id="yyq-status" data-state="ok" data-drop="0">
+    <span class="yyq-dot"></span>
+    <span class="yyq-status-text">运行中</span>
+    <span class="yyq-status-meta">NapCat · 最近消息 2 分钟前</span>
+    <button type="button" class="yyq-iconbtn" title="刷新状态"><svg class="yy-icon"><use href="#i-refresh"/></svg></button>
+    <button type="button" class="yyq-iconbtn" title="更多"><svg class="yy-icon"><use href="#i-more"/></svg></button>
+  </div>
+
+  <nav class="yyq-quicknav" aria-label="快捷跳转">
+    <button type="button" class="yyq-quicknav-chip">状态</button>
+    <button type="button" class="yyq-quicknav-chip">能力</button>
+    <button type="button" class="yyq-quicknav-chip">消息</button>
+    <button type="button" class="yyq-quicknav-chip">接入</button>
+    <button type="button" class="yyq-quicknav-chip">人设</button>
+    <button type="button" class="yyq-quicknav-chip">表情</button>
+    <button type="button" class="yyq-quicknav-chip">助手</button>
+  </nav>
+
+  <!-- 1 身份卡：品牌位 + 名字 + 两项事实 -->
+  <section class="yyq-hero" id="yyq-hero" data-state="ok">
+    <div class="yyq-hero-main">
+      <div class="yyq-brand">MCORT</div>
+      <div class="yyq-hero-id">
+        <span class="yyq-avatar-wrap">
+          <span class="yyq-avatar-fb"><svg class="yy-icon"><use href="#i-robot"/></svg></span>
+        </span>
+        <div class="yyq-hero-name">
+          <strong>疣螈的接待机器人</strong>
+          <div class="yyq-hero-sub">
+            <span>QQ 12****34</span>
+            <span class="yyq-statechip" data-state="ok">已连通</span>
+          </div>
+        </div>
+      </div>
+      <dl class="yyq-facts">
+        <div><dt>游戏身份</dt><dd>Steve</dd></div>
+        <div><dt>今日动作</dt><dd>12 <small>失败 1</small></dd></div>
+      </dl>
+      <p class="yyq-hero-hint">上一次心跳在 12 秒前；如果这里超过两分钟没有变化，说明 NapCat 与本机的 WebSocket 已经断开，需要到「接入与互通群」里重新点一次保存并重连。</p>
+    </div>
+    <div class="yyq-modes is-compact">
+      <div class="yyq-wd" data-tone="is-ok">
+        <span class="yyq-wd-dot"></span>
+        <div class="yyq-wd-main"><b>掉线自愈</b><span>已开启 · 连续失败 3 次自动重启 NapCat</span></div>
+        <button type="button" class="btn-s">设置</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2+3 主工作台 -->
+  <div class="yyq-grid">
+
+    <!-- 能力矩阵 -->
+    <section class="yyq-caps" id="yyq-caps" aria-label="机器人能力">
+      <div class="yyq-caps-head">
+        <h3><svg class="yy-icon"><use href="#i-sliders"/></svg>能力<span>12</span></h3>
+        <p class="yyq-caps-note">点开任意一项可改冷却、每日次数、最低角色；关掉就等于禁用这条能力</p>
+      </div>
+      <div class="yyq-tabs" role="tablist">
+        <button type="button" class="is-on" role="tab" aria-selected="true">全部<small>12</small></button>
+        <button type="button" role="tab">群聊<small>5</small></button>
+        <button type="button" role="tab">游戏<small>4</small></button>
+        <button type="button" role="tab">管理<small>3</small></button>
+      </div>
+
+      <ul class="yyq-cap-list">
+        <li class="yyq-cap" data-on="1" data-open="0" tabindex="0">
+          <span class="yyq-cap-ico"><svg class="yy-icon"><use href="#i-chat"/></svg></span>
+          <span class="yyq-cap-body">
+            <strong>群聊回复</strong>
+            <small>@机器人 后由模型生成回复，官方适配器只在下发消息时可用</small>
+          </span>
+          <span class="yyq-cap-meta">冷却 10 秒</span>
+          <label class="yyq-sw"><input type="checkbox" checked aria-label="群聊回复 开关"><span></span></label>
+          <span class="yyq-cap-more">
+            <span class="yyq-cap-lv">成员起可用</span>
+            <code class="yyq-cap-cmd">.聊</code>
+            <span class="yyq-cap-state">运行中</span>
+          </span>
+          <div class="yyq-cap-edit">
+            <label class="yyq-cap-f"><span>冷却（秒）</span><input type="text" value="10"></label>
+            <label class="yyq-cap-f"><span>每日次数</span><input type="text" value="不限"></label>
+            <p class="yyq-cap-edit-note">留空表示沿用服务端默认值；改动即时生效，不需要重启机器人。</p>
+            <div class="yyq-cap-edit-act"><button type="button" class="btn-s">保存</button><button type="button" class="btn-s">恢复默认</button></div>
+          </div>
+        </li>
+        <li class="yyq-cap" data-on="1" data-open="0" tabindex="0">
+          <span class="yyq-cap-ico"><svg class="yy-icon"><use href="#i-spark"/></svg></span>
+          <span class="yyq-cap-body">
+            <strong>AI 主动接话</strong>
+            <small>连续无新消息后结束会话；只有被 @ 或服主回复时才继续</small>
+          </span>
+          <span class="yyq-cap-meta">间隔 30 秒</span>
+          <label class="yyq-sw"><input type="checkbox" checked aria-label="AI 主动接话 开关"><span></span></label>
+          <span class="yyq-cap-more"><span class="yyq-cap-lv">管理员起可用</span><span class="yyq-cap-state">运行中</span></span>
+        </li>
+        <li class="yyq-cap" data-on="1" data-open="0" tabindex="0">
+          <span class="yyq-cap-ico"><svg class="yy-icon"><use href="#i-connection"/></svg></span>
+          <span class="yyq-cap-body">
+            <strong>游戏内广播</strong>
+            <small>群消息同步到服务器内，仅互通群生效</small>
+          </span>
+          <span class="yyq-cap-meta">不限流</span>
+          <label class="yyq-sw"><input type="checkbox" checked aria-label="游戏内广播 开关"><span></span></label>
+          <span class="yyq-cap-more"><span class="yyq-cap-lv">成员起可用</span><span class="yyq-cap-state">运行中</span></span>
+        </li>
+        <li class="yyq-cap" data-on="0" data-open="0" tabindex="0">
+          <span class="yyq-cap-ico"><svg class="yy-icon"><use href="#i-image"/></svg></span>
+          <span class="yyq-cap-body">
+            <strong>表情包</strong>
+            <small>从收藏表情里挑一张发出去，需要先在下面读取收藏</small>
+          </span>
+          <span class="yyq-cap-meta"><i class="yyq-cap-nb" data-pending="1">待定</i></span>
+          <label class="yyq-sw"><input type="checkbox" aria-label="表情包 开关"><span></span></label>
+          <span class="yyq-cap-more"><span class="yyq-cap-lv">成员起可用</span><span class="yyq-cap-state">已停用</span></span>
+        </li>
+        <li class="yyq-cap" data-on="0" data-open="0" data-unsupported="1" tabindex="0">
+          <span class="yyq-cap-ico"><svg class="yy-icon"><use href="#i-ban"/></svg></span>
+          <span class="yyq-cap-body">
+            <strong>点赞 / 改头像</strong>
+            <small>官方适配器没有这个接口，切到 NapCat 才能用</small>
+          </span>
+          <span class="yyq-cap-meta"><i class="yyq-cap-nb">不支持</i></span>
+          <label class="yyq-sw" data-busy="0"><input type="checkbox" disabled aria-label="点赞 开关"><span></span></label>
+          <span class="yyq-cap-more"><span class="yyq-cap-lv">成员起可用</span><span class="yyq-cap-state">当前适配器不可用</span></span>
+        </li>
+      </ul>
+      <p class="yyq-cap-foot">开关与参数即时生效 · 所有动作均留痕</p>
+    </section>
+
+    <!-- 消息终端 -->
+    <aside class="yyq-stream" id="yyq-stream" aria-label="消息时间线">
+      <div class="yyq-stream-head">
+        <div class="yyq-gtabs" role="tablist" aria-label="互通群">
+          <button type="button" role="tab" class="yyq-gtab" data-on="1" aria-selected="true">
+            <span class="yyq-gtab-name">生存服 · 主群</span><em class="yyq-gtab-n">3</em>
+          </button>
+          <button type="button" role="tab" class="yyq-gtab" data-on="0"><span class="yyq-gtab-name">创造服</span></button>
+          <button type="button" role="tab" class="yyq-gtab" data-on="0"><span class="yyq-gtab-name">管理内群</span></button>
+        </div>
+        <span class="yyq-live" data-on="1"><i></i>实时</span>
+      </div>
+
+      <ol class="yyq-tl">
+        <li class="yyq-sys" data-bad="0">
+          <svg class="yy-icon"><use href="#i-connection"/></svg>
+          <b>接入</b><small>NapCat 已连接，读到 3 个互通群</small><time>21:04</time>
+        </li>
+        <li class="yyq-msg" data-mine="0">
+          <div class="yyq-msg-meta"><b>阿离</b><time>21:05</time></div>
+          <div class="yyq-msg-b">主城传送点能不能挪一下，现在正好压在刷怪笼上面</div>
+        </li>
+        <li class="yyq-msg" data-mine="1">
+          <div class="yyq-msg-meta"><em class="yyq-msg-tag">机器人</em><b>接待机器人</b><time>21:05</time></div>
+          <div class="yyq-msg-b">已经记下来了，坐标 (-128, 64, 340) 的传送点会在下次重启后挪到 (-132, 64, 336)。</div>
+        </li>
+        <li class="yyq-sys" data-bad="0">
+          <svg class="yy-icon"><use href="#i-send"/></svg>
+          <b>游戏广播</b><small>已发往 3 个群</small><time>21:06</time>
+        </li>
+        <li class="yyq-msg" data-mine="0">
+          <div class="yyq-msg-meta"><b>小林</b><time>21:07</time></div>
+          <div class="yyq-msg-b">今天还有双倍经验吗</div>
+        </li>
+        <li class="yyq-sys" data-bad="1">
+          <svg class="yy-icon"><use href="#i-ban"/></svg>
+          <b>识图</b><small>图片下载失败：403</small><time>21:08</time>
+        </li>
+      </ol>
+
+      <div class="yyq-stream-foot"><button type="button" class="yyq-ghost"><svg class="yy-icon"><use href="#i-refresh"/></svg>刷新</button></div>
+
+      <div class="yyq-term">
+        <div class="yyq-term-head"><span>以机器人身份说话</span><small>发到：生存服 · 主群</small></div>
+        <div class="yyq-term-row">
+          <input type="text" placeholder="输入要发送的内容…" aria-label="发送内容">
+          <button type="button" class="yyq-term-btn">发送</button>
+        </div>
+        <p class="yyq-term-msg"></p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 4+5 折叠区：默认只露一行结论 -->
+  <div class="yyq-fold-grid">
+
+    <details class="yyq-fold" id="yyq-access" open>
+      <summary>
+        <span class="yyq-fold-ico"><svg class="yy-icon"><use href="#i-connection"/></svg></span>
+        <span class="yyq-fold-t">接入与互通群</span>
+        <span class="yyq-fold-sum">NapCat · 3 个群</span>
+        <span class="yyq-fold-caret"><svg class="yy-icon"><use href="#i-arrow"/></svg></span>
+      </summary>
+      <div class="yyq-fold-body">
+        <div class="yyq-seg yyq-seg-wide">
+          <button type="button" class="is-on">NapCat（OneBot）</button>
+          <button type="button">QQ 官方机器人</button>
+        </div>
+        <div class="yyq-fields" data-mode="onebot">
+          <label class="yyq-field"><span>WebSocket 地址</span><input type="text" value="ws://127.0.0.1:3001"></label>
+          <label class="yyq-field"><span>访问令牌</span><input type="password" value="········"></label>
+        </div>
+
+        <!-- 互通端信息：名片已在上方身份卡出现过，这里只剩数据格 -->
+        <div class="yyq-block-head"><h4>互通端信息</h4><button type="button" class="yyq-textbtn">重新读取</button></div>
+        <div class="yysi-hero">
+          <span class="yysi-face yysi-face-hero"><i>疣</i></span>
+          <div class="yysi-hero-txt">
+            <strong>疣螈的接待机器人</strong>
+            <small>QQ 12****34</small>
+            <em data-on="1">已启用 · 游戏已连接</em>
+          </div>
+          <button type="button" class="btn-s yysi-refresh">刷新</button>
+        </div>
+        <div class="yysi-cards">
+          <div class="yysi-card"><span>服务器</span><strong>生存服</strong></div>
+          <div class="yysi-card"><span>群号</span><strong>1024***88</strong></div>
+          <div class="yysi-card"><span>在线</span><strong>7 人</strong></div>
+          <div class="yysi-card"><span>已绑定</span><strong>23 人</strong></div>
+          <div class="yysi-card"><span>适配器</span><strong>NapCat</strong></div>
+        </div>
+
+        <div class="yyq-block-head"><h4>互通群</h4><span class="yyq-tagline">群名与未读数在右侧消息区顶部</span></div>
+        <div class="yyq-group-list">
+          <button type="button" class="yyq-group-card" data-on="1">
+            <span class="yyq-group-name">生存服 · 主群</span><small>1024***88</small>
+            <span class="yyq-group-check"><svg class="yy-icon"><use href="#i-check"/></svg></span>
+          </button>
+          <button type="button" class="yyq-group-card" data-on="1">
+            <span class="yyq-group-name">创造服</span><small>1024***91</small>
+            <span class="yyq-group-check"><svg class="yy-icon"><use href="#i-check"/></svg></span>
+          </button>
+          <button type="button" class="yyq-group-card" data-on="0">
+            <span class="yyq-group-name">管理内群</span><small>1024***02</small>
+            <span class="yyq-group-check"><svg class="yy-icon"><use href="#i-check"/></svg></span>
+          </button>
+        </div>
+
+        <p class="yy-hint">群名与未读数已经在上方消息区顶部展示，这里只负责「哪些群算互通群」。如果你改了群名，右侧标签会在 30 秒内跟着刷新：标签来自 /api/qq/groups 的缓存，改完不用手动重启；只有勾选状态变了才会触发 reconnect，所以别在这里反复点保存。</p>
+
+        <div class="yyq-switchrow">
+          <div class="yyq-switchrow-text">
+            <strong>启动时自动重连</strong>
+            <small>系统重启后自动拉起 NapCat，失败三次后停止并记录原因</small>
+          </div>
+          <label class="yyq-sw"><input type="checkbox" checked aria-label="自动重连"><span></span></label>
+        </div>
+
+        <div class="yyq-fold-actions">
+          <button type="button" class="btn">保存并重连</button>
+          <button type="button" class="btn-s">只保存</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="yyq-fold" id="yyq-persona">
+      <summary>
+        <span class="yyq-fold-ico"><svg class="yy-icon"><use href="#i-spark"/></svg></span>
+        <span class="yyq-fold-t">人设与试跑</span>
+        <span class="yyq-fold-sum">未设置提示词</span>
+        <span class="yyq-fold-caret"><svg class="yy-icon"><use href="#i-arrow"/></svg></span>
+      </summary>
+      <div class="yyq-fold-body">
+        <p class="yy-hint">提示词决定它在群里的说话方式；保存后下一次收到消息就生效，不需要重启。</p>
+        <textarea class="yyq-textarea" placeholder="例如：你是本服务器的助手，负责解答玩法与管理问题。"></textarea>
+        <div class="yyq-fold-actions"><button type="button" class="btn">保存人设</button></div>
+      </div>
+    </details>
+
+    <details class="yyq-fold" id="yyq-skills">
+      <summary>
+        <span class="yyq-fold-ico"><svg class="yy-icon"><use href="#i-spark"/></svg></span>
+        <span class="yyq-fold-t">技能</span>
+        <span class="yyq-fold-sum">6 项</span>
+        <span class="yyq-fold-caret"><svg class="yy-icon"><use href="#i-arrow"/></svg></span>
+      </summary>
+      <div class="yyq-fold-body">
+        <p class="yy-hint">技能是 AI 自己能用的能力，它在回复里写 [meme] 这种功能词就会触发。</p>
+      </div>
+    </details>
+
+    <details class="yyq-fold" id="yyq-faces">
+      <summary>
+        <span class="yyq-fold-ico"><svg class="yy-icon"><use href="#i-image"/></svg></span>
+        <span class="yyq-fold-t">收藏表情</span>
+        <span class="yyq-fold-sum">42 个</span>
+        <span class="yyq-fold-caret"><svg class="yy-icon"><use href="#i-arrow"/></svg></span>
+      </summary>
+      <div class="yyq-fold-body">
+        <div class="yyq-face-grid">
+          <figure class="yyq-face"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23dfe9e6'/%3E%3C/svg%3E"><figcaption>猫猫头</figcaption></figure>
+          <figure class="yyq-face"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e9e2df'/%3E%3C/svg%3E"><figcaption>摊手</figcaption></figure>
+          <figure class="yyq-face is-broken"><img alt="" src=""><figcaption>失效</figcaption></figure>
+        </div>
+      </div>
+    </details>
+
+    <details class="yyq-fold" id="yyq-member">
+      <summary>
+        <span class="yyq-fold-ico"><svg class="yy-icon"><use href="#i-chat"/></svg></span>
+        <span class="yyq-fold-t">成员目录</span>
+        <span class="yyq-fold-sum">在线 7 · 共 23</span>
+        <span class="yyq-fold-caret"><svg class="yy-icon"><use href="#i-arrow"/></svg></span>
+      </summary>
+      <div class="yyq-fold-body">
+        <div class="yyqd">
+          <div class="yyqd-tools">
+            <label class="yyqd-search"><span class="yyqd-visually-hidden">搜索成员</span><input type="search" placeholder="搜索昵称或群名片"></label>
+            <div class="yyqd-chips">
+              <button type="button" class="yyqd-chip is-on">全部<b>23</b></button>
+              <button type="button" class="yyqd-chip">在线<b>7</b></button>
+              <button type="button" class="yyqd-chip">管理<b>3</b></button>
+            </div>
+          </div>
+          <p class="yyqd-count">共 23 人 · 在线 7</p>
+          <div class="yyqd-list">
+            <button type="button" class="yyqd-row">
+              <span class="yyqd-avatar">疣</span>
+              <span class="yyqd-main"><b>疣螈</b><small>服主 · 在线</small></span>
+              <span class="yyqd-role" data-role="owner">服主</span>
+              <span class="yyqd-chevron">›</span>
+            </button>
+            <button type="button" class="yyqd-row">
+              <span class="yyqd-avatar">阿</span>
+              <span class="yyqd-main"><b>阿离</b><small>在线 · 最近 21:05</small></span>
+              <span class="yyqd-role" data-role="admin">管理员</span>
+              <span class="yyqd-chevron">›</span>
+            </button>
+            <button type="button" class="yyqd-row">
+              <span class="yyqd-avatar">小</span>
+              <span class="yyqd-main"><b>小林</b><small>离线 · 3 小时前</small></span>
+              <span class="yyqd-role">成员</span>
+              <span class="yyqd-chevron">›</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="yyq-fold" id="yyq-assistant">
+      <summary>
+        <span class="yyq-fold-ico"><svg class="yy-icon"><use href="#i-spark"/></svg></span>
+        <span class="yyq-fold-t">助手面板（.yy-a-* 样式）</span>
+        <span class="yyq-fold-sum">工具 8 · 别名 3</span>
+        <span class="yyq-fold-caret"><svg class="yy-icon"><use href="#i-arrow"/></svg></span>
+      </summary>
+      <div class="yyq-fold-body">
+        <details class="yy-a-tools">
+          <summary>＋ 插入工具（8）</summary>
+          <div class="yy-a-tools-body">
+            <p class="yy-a-chips-lab">点一下写进提示词，AI 就知道能用它</p>
+            <div class="yy-a-chips">
+              <button type="button" class="yy-a-chip"><b>[meme]</b><i>发表情</i></button>
+              <button type="button" class="yy-a-chip"><b>[online]</b><i>在线名单</i></button>
+              <button type="button" class="yy-a-chip is-off"><b>[seed]</b><i>查种子</i></button>
+            </div>
+          </div>
+        </details>
+        <details class="yy-a-alias">
+          <summary>指令格式自定义</summary>
+          <div class="yy-a-alias-body">
+            <div class="yy-a-alias-rows">
+              <div class="yy-a-alias-row"><span class="yy-a-alias-name">聊天</span><input class="yy-a-alias-input" value=".聊"><button type="button" class="btn-s yy-a-alias-reset">默认</button></div>
+              <div class="yy-a-alias-row"><span class="yy-a-alias-name">在线</span><input class="yy-a-alias-input" value=".在线"><button type="button" class="btn-s yy-a-alias-reset">默认</button></div>
+            </div>
+            <p class="yy-a-alias-status">留空保存 = 恢复内置默认</p>
+          </div>
+        </details>
+      </div>
+    </details>
+  </div>
+
+</div>
+</div>
+
+<div class="pv-note">
+  <h3>这一页在验收什么</h3>
+  <ul>
+    <li>第一屏：状态条（48px）→ 群标签 + 消息区 → 折叠块只露一行结论。能力列表压到 52px/行，说明只留一行。</li>
+    <li>说明降权：<code>.yy-hint</code> 统一 11px / 次要色 / 行高 1.5，默认 2 行折起；展开所在折叠块后自动给全文。</li>
+    <li>去重：上方身份卡的品牌位、机器人名、QQ、连接状态只出现一次；「互通端信息」里的重复名片已隐藏（本页里那行 <code>.yysi-hero</code> 应该看不见，只剩 4 个数据格）。</li>
+    <li>主题：切「深色」看全部变量是否跟随；切「主题包（橙）」看 <code>--mcort-theme-*</code> 是否能整包换掉主色与圆角。</li>
+    <li>折叠结构本身由 JS 控制 <code>open</code>，本页只验证样式：展开时标题条变色 + 手机下吸顶。</li>
+  </ul>
+</div>
+
+<script>
+  // 只服务验收页：切主题。业务代码里由 theme.js 负责，这一段不进项目。
+  var btns = document.querySelectorAll('[data-theme-btn]');
+  function apply(kind) {
+    var root = document.documentElement;
+    root.removeAttribute('data-mcort-theme');
+    if (kind === 'mcort') {
+      root.setAttribute('data-theme', 'light');
+      root.setAttribute('data-mcort-theme', 'amber');
+    } else {
+      root.setAttribute('data-theme', kind);
+    }
+    btns.forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-theme-btn') === kind); });
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.getAttribute('data-theme-btn')); });
+  });
+</script>
+</body>
+</html>

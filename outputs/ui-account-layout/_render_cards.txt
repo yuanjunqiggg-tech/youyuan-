@@ -1,0 +1,214 @@
+587: function yyRenderAccountCards() {
+588:   var _a, _b;
+589:   const host = document.getElementById("yy-accounts-grid");
+590:   if (!host) return;
+591:   // A4：工具栏每次进页面都会重建，把「只显示主令牌」与每页条数按当前状态摆正。
+592:   const mainOnlyBox = document.getElementById("yy-cred-main-only");
+593:   if (mainOnlyBox) mainOnlyBox.checked = yyCredMainOnly;
+594:   const sizeBox = document.getElementById("yy-account-page-size");
+595:   if (sizeBox) sizeBox.value = String(yyAccountPageSize);
+596:   const open = new Set(Array.from(((_a = host.querySelectorAll) == null ? void 0 : _a.call(host, "details[open]")) || [], (row) => row.getAttribute("data-account-key") || row.getAttribute("data-account-id")).filter(Boolean)), needle = (((_b = document.getElementById("yy-account-search")) == null ? void 0 : _b.value) || "").toLowerCase();
+597:   // 账号页每 10 秒自动刷新一次、整块列表重画；把已经调出来的「牌」按账号 id 记下来再还原，
+598:   // 否则用户正看着牌就被收起，体验像"点了没反应"。
+599:   const openCards = new Set(Array.from(host.querySelectorAll(".yy-acct-cardwrap[open]") || [], (row) => row.getAttribute("data-acct-card")).filter(Boolean));
+600:   let filtered = yyMergedAccountRows().filter((a) => (!yyProjectFilter || a.local_accounts.some((local) => local.server === yyProjectFilter)) && [a.name, a.game_id, ...a.local_accounts.map((local) => local.name + " " + local.server + " " + local.id), ...a.cloud_accounts.map((row) => row.name)].join(" ").toLowerCase().includes(needle));
+601:   // A4：只显示主令牌时收成一条；没有可判定的主令牌就退回完整列表，避免整页空掉。
+602:   if (yyCredMainOnly) {
+603:     const primaryRows = filtered.filter(yyCredIsPrimary);
+604:     if (primaryRows.length) filtered = primaryRows;
+605:   }
+606:   // 先把这一屏账号的头像预热掉，再渲染，避免逐张等境外 CDN。
+607:   yySkinWarm([].concat(filtered, filtered.flatMap((a) => a.local_accounts)));
+608:   if (yyAccountFocusID) {
+609:     const index = filtered.findIndex((a) => a.id === yyAccountFocusID || a.local_accounts.some((local) => local.id === yyAccountFocusID));
+610:     if (index >= 0) {
+611:       yyAccountPage = Math.floor(index / yyAccountPageSize) + 1;
+612:       open.add(filtered[index].key);
+613:     }
+614:     yyAccountFocusID = "";
+615:   }
+616:   const pages = Math.max(1, Math.ceil(filtered.length / yyAccountPageSize));
+617:   yyAccountPage = Math.min(pages, Math.max(1, yyAccountPage));
+618:   const shown = filtered.slice((yyAccountPage - 1) * yyAccountPageSize, yyAccountPage * yyAccountPageSize);
+619:   // 皮肤立绘比头像大得多，只预热当前页的前几个；点开详情时命中缓存，直接「打开就有」。
+620:   yyAcctWarmFigures(shown);
+621:   host.innerHTML = shown.map(function(a) {
+622:     const localDetails = a.local_accounts.map((local) => '<section class="yy-linked-local"><h4>' + yyEscape(local.id === "main" ? "\主\连\接" : local.name || local.id) + "</h4>" + yyAccountFactsGridHTML(local) + '<p class="yy-hint">\插\件\：' + yyEscape((local.plugins || []).map((p) => p.name || p.id).join("\、") || (local.telemetry_loaded === false ? "\进\入\工\作\区\查\看\已\安\装\插\件" : "\进\入\工\作\区\后\添\加\插\件")) + '</p><div class="yy-actions">' + yyAccountLocalActionsHTML(local) + "</div></section>").join("");
+623:     const cloudDetails = a.cloud_accounts.map((row) => '<section class="yy-linked-credential"><h4>\官\方\账\号\资\料\与\凭\据</h4>' + yyAccountCredentialActionsHTML(row, a.local_accounts.length > 0) + "</section>").join("");
+624:     // 列表行只留：头像 / 名字（+身份徽章+在线点）/ 服务器或托管状态 / 箭头。
+625:     // UID 这类内部标识不再挂在列表上（详情字段里有「游戏 UID」），列表越短越容易扫。
+626:     const onlineState = yyAcctOnlineState(a, false);
+627:     return '<details class="card yy-account-card" data-account-id="' + yyEscape(a.id) + '" data-account-key="' + yyEscape(a.key) + '"' + (open.has(a.key) || open.has(a.id) ? " open" : "") + '><summary class="yy-account-summary">' + yyAccountAvatarHTML(a) + '<span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="' + onlineState + '" aria-hidden="true"></i><strong>' + yyEscape(a.name) + '</strong>' + yyAcctRoleChip(a, false) + "</span><small>" + yyEscape(a.local_accounts.length ? a.server || "\尚\未\配\置\服\务\器" : "\仅\云\端\保\存 \xB7 \未\托\管") + '</small></span><span class="yy-compact-status">' + yyEscape(a.local_accounts.length ? yyAccountStatusLabel(a) : "\未\托\管") + '</span><span class="yy-row-chevron" aria-hidden="true">\›</span></summary><div class="yy-account-detail">' + yyAcctProfileHTML(a, { token: a.local_accounts.length > 0 }) + localDetails + cloudDetails + "</div></details>";
+628:   }).join("") || '<div class="yy-empty">\尚\无\匹\配\的\游\戏\账\号\；\可\添\加\本\地\令\牌\或\注\册\、\接\入\官\方\账\号\。</div>';
+629:   if (openCards.size) {
+630:     host.querySelectorAll(".yy-acct-cardwrap").forEach(function(wrap) {
+631:       if (openCards.has(wrap.getAttribute("data-acct-card"))) wrap.open = true;
+632:     });
+633:   }
+634:   document.getElementById("yy-account-pages").innerHTML = '<button class="btn-s" ' + (yyAccountPage === 1 ? "disabled" : "") + ' onclick="yyAccountPage--;yyRenderAccountCards()">\上\一\页</button><span>\第 ' + yyAccountPage + " / " + pages + " \页 \xB7 " + filtered.length + ' \个\账\号' + (yyCredMainOnly ? " \xB7 \只\显\示\主\令\牌" : "") + '</span><button class="btn-s" ' + (yyAccountPage === pages ? "disabled" : "") + ' onclick="yyAccountPage++;yyRenderAccountCards()">\下\一\页</button>';
+635:   // 展开的卡片立刻挂 3D 皮肤；收起的等用户点开再挂（由卡片 toggle 事件调这里）。
+636:   yyAcctMountViewers(host);
+637: }
+638: var yyCredentialOperations = /* @__PURE__ */ new Set();
+639: async function yyUnifiedCredentialAction(index, action) {
+640:   const row = yyCenterCloudRows[index], scope = yyAccountControllerScope();
+641:   if (!row) return;
+642:   const operation = scope + "|" + row.id + "|" + action;
+643:   if (yyCredentialOperations.has(operation)) return;
+644:   yyCredentialOperations.add(operation);
+645:   try {
+646:     if (action === "skin") {
+647:       await yyGameAccountSkin(row);
+648:       return;
+649:     }
+650:     if (action === "relogin") {
+651:       await yyRelogGameAccount(row.id);
+652:       return;
+653:     }
+654:     let body = { action: action === "host" ? "token" : action, id: row.id };
+655:     if (action === "nickname") {
+656:       const nickname = prompt("\修\改\此\游\戏\账\号\的\官\方\昵\称", row.nickname || "");
+657:       if (nickname === null) return;
+658:       body.nickname = nickname;
+659:     }
+660:     if (action === "configure") body.keep_alive = !row.keep_alive;
+661:     if (action === "delete" && !confirm("\撤\销\此\云\端\游\戏\凭\据\？\使\用\它\的\连\接\可\能\受\影\响\；\本\地\账\号\配\置\不\会\自\动\删\除\。")) return;
+662:     const r = await yyGameAuthAPI("POST", body);
+663:     if (scope !== yyAccountControllerScope()) return;
+664:     if (!r.ok) {
+665:       T(r.error || "\账\号\操\作\失\败", "e");
+666:       return;
+667:     }
+668:     if (action === "token") {
+669:       if (!r.login_token) {
+670:         T("\未\返\回\此\账\号\令\牌", "e");
+671:         return;
+672:       }
+673:       yyShowTokenDialog(r.login_token);
+674:       return;
+675:     }
+676:     if (action === "host") {
+677:       if (!r.login_token) {
+678:         T("\未\返\回\可\托\管\的\游\戏\令\牌", "e");
+679:         return;
+680:       }
+681:       await yyAutoHostCredential({ ...r, account: row });
+682:       if (scope !== yyAccountControllerScope()) return;
+683:       await yyRefreshAccounts(true);
+684:       if (scope !== yyAccountControllerScope()) return;
+685:       await yyCenterClo�ounts();
+686:       if (scope !== yyAccountControllerScope()) return;
+687:       const localIndex = yyAccountRows.findIndex((a) => a.id === "yy_" + row.id);
+688:       if (localIndex >= 0) yyEditAccount(localIndex);
+689:       T("\已\托\管\到\此\设\备\，\请\填\写\服\务\器\并\保\存\；\尚\未\启\用\连\接", "o");
+690:       return;
+691:     }
+692:     await yyCenterClo�ounts();
+693:   } catch (error) {
+694:     if (scope === yyAccountControllerScope()) T(error.message || "\账\号\操\作\失\败", "e");
+695:   } finally {
+696:     yyCredentialOperations.delete(operation);
+697:   }
+698: }
+699: var yyEditingProfile = null, yyEditingProfileAvatar = null;
+700: function yyEditAccountProfileRow(index) {
+701:   const row = yyAllAccountRows[index];
+702:   if (!row) return;
+703:   yyEditingProfile = row;
+704:   yyEditingProfileAvatar = null;
+705:   delete subPageCache["\账\号\资\料"];
+706:   openSubPage("\账\号\资\料", yyIntro("\设\备\备\注\与\分\类", "\仅\修\改\当\前\设\备\的\显\示\资\料\；\主\连\接\与\官\方\账\号\资\料\在\各\自\入\口\配\置\。") + '<section class="card"><label>\设\备\备\注</label><input id="yy-profile-name" value="' + yyEscape(row.name || "") + '"><label>\工\具\箱\分\类</label><select id="yy-profile-role"><option value="bot">\机\器\人\账\号</option><option value="owner">\主\控\分\类 \xB7 \不\切\换\主\连\接</option></select><p class="yy-hint">\此\分\类\不\代\表\网\易\服\主\，\也\不\会\迁\移\正\在\运\行\的\任\务\。</p><button class="btn" onclick="yySaveAccountProfileUI.call(this)">\保\存\设\备\资\料</button><p id="yy-profile-result" class="yy-hint" role="status"></p></section>');
+707:   document.getElementById("yy-profile-role").value = row.profile_role || "bot";
+708: }
+709: function yyDrawProfilePreview(value) {
+710:   const host = document.getElementById("yy-profile-preview");
+711:   if (!host) return;
+712:   host.textContent = "";
+713:   if (value) {
+714:     const img = document.createElement("img");
+715:     img.src = value;
+716:     img.alt = "\账\号\头\像\预\览";
+717:     host.append(img);
+718:   } else host.innerHTML = yyIcon("user");
+719: }
+720: async function yyPickAccountAvatar() {
+721:   const file = this.files[0];
+722:   if (!file) return;
+723:   const out = document.getElementById("yy-profile-result");
+724:   if (file.size > 5 * 1024 * 1024 || !["image/png", "image/jpeg"].includes(file.type)) {
+725:     out.textContent = "\请\选\择5MB\以\内\的PNG\或JPEG\图\片\。";
+726:     return;
+727:   }
+728:   const url = URL.createObjectURL(file);
+729:   try {
+730:     const img = new Image();
+731:     img.src = url;
+732:     await img.decode();
+733:     const canvas = document.createElement("canvas");
+734:     canvas.width = canvas.height = 144;
+735:     const ctx = canvas.getContext("2d");
+736:     const size = Math.min(img.width, img.height);
+737:     ctx.drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, 144, 144);
+738:     yyEditingProfileAvatar = canvas.toDataURL("image/png");
+739:     yyDrawProfilePreview(yyEditingProfileAvatar);
+740:     out.textContent = "\头\像\已\准\备\，\保\存\资\料\后\生\效\。";
+741:   } catch {
+742:     out.textContent = "\图\片\无\法\读\取\，\请\重\新\选\择\。";
+743:   } finally {
+744:     URL.revokeObjectURL(url);
+745:   }
+746: }
+747: async function yySaveAccountProfileUI() {
+748:   const b = this;
+749:   b.disabled = true;
+750:   try {
+751:     const body = { action: "profile", id: yyEditingProfile.id, name: document.getElementById("yy-profile-name").value, profile_role: document.getElementById("yy-profile-role").value };
+752:     if (yyEditingProfileAvatar !== null) body.avatar = yyEditingProfileAvatar;
+753:     const r = await yyRootAPI("POST", "/api/youyuan/accounts", body);
+754:     if (!r.ok) {
+755:       document.getElementById("yy-profile-result").textContent = r.error;
+756:       return;
+757:     }
+758:     yyAccountFocusID = yyEditingProfile.id;
+759:     yyNavigate("accounts");
+760:     T("\账\号\资\料\已\保\存", "o");
+761:   } finally {
+762:     b.disabled = false;
+763:   }
+764: }
+765: var yyProjectFilter = "", yyCenterCloudRows = [], yyCloudReadEpoch = 0;
+766: function yyRenderProjects() {
+767:   const host = document.getElementById("yy-projects");
+768:   if (!host) return;
+769:   const servers = [...new Set(yyAllAccountRows.map((a) => a.server).filter(Boolean))];
+770:   host.innerHTML = `<span>\游\戏\项\目</span><button class="btn-s" onclick="yyChooseProject('')">\全\部\账\号</button>`;
+771:   for (const server of servers) {
+772:     const b = document.createElement("button");
+773:     b.className = "btn-s" + (yyProjectFilter === server ? " selected" : "");
+774:     b.textContent = server + " \xB7 " + yyAllAccountRows.filter((a) => a.server === server).length + " \个";
+775:     b.onclick = () => yyChooseProject(server);
+776:     host.append(b);
+777:   }
+778:   const overview = document.getElementById("yy-account-overview");
+779:   if (overview) overview.innerHTML = "<div><strong>" + yyMergedAccountRows().length + "</strong><span>\游\戏\账\号</span></div><div><strong>" + yyAllAccountRows.filter((a) => a.connected === true).length + "</strong><span>\已\确\认\连\接 \xB7 \待\查\询 " + yyAllAccountRows.filter((a) => a.connection_known === false || a.connected == null).length + "</span></div><div><strong>" + servers.length + "</strong><span>\服\务\器\项\目</span></div><div><strong>" + yyAllAccountRows.filter((a) => {
+780:     var _a;
+781:     return ((_a = a.pool_binding) == null ? void 0 : _a.phase) === "bound";
+782:   }).length + "</strong><span>\绑\定\中\的\机\器\人</span></div>";
+783: }
+784: function yyChooseProject(server) {
+785:   yyProjectFilter = server;
+786:   yyAccountPage = 1;
+787:   yyRenderProjects();
+788:   yyRenderAccountCards();
+789: }
+790: function yyAccountAdmin() {
+791:   return typeof yyPlatformUser !== "undefined" && !!yyPlatformUser && (yyPlatformUser.role === "admin" || yyPlatformUser.legacy_owner === true);
+792: }
+793: function yyUpdateAdminPoolEntry() {
+794:   const button2 = document.getElementById("yy-admin-pool-entry");
+795:   if (button2) button2.hidden = !yyAccountAdmin();
+796: }
+797: async function yyAccountPanel(name) {
+798:   if (name === "pool") {
+799:     await yyPoolPanel(true);
+800:     return;

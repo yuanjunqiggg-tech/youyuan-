@@ -1,0 +1,152 @@
+[
+ {
+  "tab": "工具总览",
+  "clicked": false,
+  "ms": 5175,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 986,
+   "textHead": "游园\n已连接(OP)\n工作台\n\n从创作到管理，把所有工具放在顺手的位置。\n\n10月25日周日\nYOUR CREATIVE SPACE\n让创作，更有条理。\n\n建筑、插件与服务器，在这里有序管理。\n\n连接游戏\n‹\n自定义封面\n›\n游戏连接\n已连接\n98014267\n公网远控\n已连接\n独立的设备连接状态\n运行中的插件\n1\nPython / C++ / Lua\n进行中的任务\n0\n建筑与创作任务\n常用工具\n点击星标调整\n建筑导入\n地图画\n音乐工坊\n命令链条\n全局抓包\n全部工具\n15\n调整顺序\n按分类排序\n按名称排序\n按最近使用\n自定义顺序\n全部\n建筑工具\n创意工坊\n插件与自动化\n实用工具\n种子与地图\n建筑工具 · 4\n建筑导入\n导入结构与建筑文件\n建筑导出\n保存选区中的建筑\n建筑文件\n文件管理与批量预览\n结构与指令转换\n格式转换、结构分析与命令生成\n创意工坊 · 4\n地图画\n把图片变成方块画\n视频方块化\n图片与视频 → 世界方块动画\n音乐工坊\nMIDI 播放与钢琴\n皮肤雕像\n从皮肤生成立体雕像\n插件与自动化 · 2\n命令链条\nTXT 实例与条件链调度\n插件市场\n浏览、安装与发布插件\n实用工具 ·",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-工具总览.png"
+ },
+ {
+  "tab": "插件中心",
+  "clicked": false,
+  "ms": 5144,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 983,
+   "textHead": "游园\n已连接(OP)\n工作台\n\n从创作到管理，把所有工具放在顺手的位置。\n\n10月25日周日\nYOUR CREATIVE SPACE\n让创作，更有条理。\n\n建筑、插件与服务器，在这里有序管理。\n\n连接游戏\n‹\n自定义封面\n›\n游戏连接\n已连接\n98014267\n公网远控\n已连接\n独立的设备连接状态\n运行中的插件\n1\nPython / C++ / Lua\n进行中的任务\n0\n建筑与创作任务\n常用工具\n点击星标调整\n建筑导入\n地图画\n音乐工坊\n命令链条\n全局抓包\n全部工具\n15\n调整顺序\n按分类排序\n按名称排序\n按最近使用\n自定义顺序\n全部\n建筑工具\n创意工坊\n插件与自动化\n实用工具\n种子与地图\n建筑工具 · 4\n建筑导入\n导入结构与建筑文件\n建筑导出\n保存选区中的建筑\n建筑文件\n文件管理与批量预览\n结构与指令转换\n格式转换、结构分析与命令生成\n创意工坊 · 4\n地图画\n把图片变成方块画\n视频方块化\n图片与视频 → 世界方块动画\n音乐工坊\nMIDI 播放与钢琴\n皮肤雕像\n从皮肤生成立体雕像\n插件与自动化 · 2\n命令链条\nTXT 实例与条件链调度\n插件市场\n浏览、安装与发布插件\n实用工具 ·",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-插件中心.png"
+ },
+ {
+  "tab": "终端",
+  "clicked": true,
+  "ms": 5242,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 288,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n0 / 0 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n日志会显示在这里。输入 help 查看全部程序，/ 开头是游戏指令。\n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-终端.png"
+ },
+ {
+  "tab": "导入建筑",
+  "clicked": false,
+  "ms": 5117,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 288,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n0 / 0 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n日志会显示在这里。输入 help 查看全部程序，/ 开头是游戏指令。\n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-导入建筑.png"
+ },
+ {
+  "tab": "导出建筑",
+  "clicked": false,
+  "ms": 5099,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 288,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n0 / 0 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n日志会显示在这里。输入 help 查看全部程序，/ 开头是游戏指令。\n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-导出建筑.png"
+ },
+ {
+  "tab": "命令链",
+  "clicked": false,
+  "ms": 5107,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 288,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n0 / 0 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n日志会显示在这里。输入 help 查看全部程序，/ 开头是游戏指令。\n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-命令链.png"
+ },
+ {
+  "tab": "连接与设置",
+  "clicked": false,
+  "ms": 5109,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 288,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n0 / 0 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n日志会显示在这里。输入 help 查看全部程序，/ 开头是游戏指令。\n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-连接与设置.png"
+ },
+ {
+  "tab": "游戏账号",
+  "clicked": false,
+  "ms": 5104,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 264,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n1 / 1 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n事件\n[聊天] : \n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-游戏账号.png"
+ },
+ {
+  "tab": "群服互通",
+  "clicked": false,
+  "ms": 5112,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 264,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n1 / 1 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n事件\n[聊天] : \n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-群服互通.png"
+ },
+ {
+  "tab": "远程设备",
+  "clicked": false,
+  "ms": 5231,
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "textLen": 264,
+   "textHead": "游园\n已连接(OP)\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n1 / 1 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n事件\n[聊天] : \n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史\n\n总览\n插件\n终端\n互通\n连接\n♙\n账号",
+   "overflowX": false,
+   "scrollW": 390,
+   "clientW": 390,
+   "bottomNav": []
+  },
+  "shot": "m-远程设备.png"
+ }
+]

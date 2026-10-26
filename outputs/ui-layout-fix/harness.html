@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MCORT 账号卡布局量测台</title>
+<!-- 真实样式：相对路径直连上游，量到的就是线上值 -->
+<link rel="stylesheet" href="../../upstream/frontend/css/base.css">
+<link rel="stylesheet" href="../../upstream/frontend/css/youyuan_accounts.css">
+<script>
+  if (location.search.indexOf('theme=dark') >= 0) document.documentElement.setAttribute('data-theme', 'dark');
+</script>
+<style>
+  /* 量测台自身的最小外壳，不参与被量对象 */
+  body{margin:0}
+  .harness-shell{padding:16px}
+  @media(max-width:600px){.harness-shell{padding:12px}}
+  .harness-note{font:12px/1.6 system-ui;margin:0 0 12px;color:#888}
+</style>
+</head>
+<body>
+<div class="harness-shell">
+  <p class="harness-note">MCORT 账号卡布局量测台 · 6 行同构 · 结构同 youyuan_accounts.js</p>
+  <div class="content">
+    <div class="content-inner">
+      <section id="tab-accounts">
+        <div id="yy-accounts-grid" class="yy-account-list"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="../../upstream/frontend/js/youyuan_skin_viewer.js"></script>
+<script>
+(function () {
+  var SKIN = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='32'>" +
+    "<rect width='64' height='32' fill='#5b8fa8'/>" +
+    "<rect x='8' y='8' width='8' height='8' fill='#e8c9a0'/>" +
+    "<rect x='20' y='20' width='8' height='12' fill='#3f6f86'/></svg>");
+  var AVATAR = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44'><rect width='44' height='44' fill='#8a6f4a'/><circle cx='22' cy='17' r='7' fill='#f0dfc0'/></svg>");
+
+  var PH = '<svg class="yy-acct-figure-ph" viewBox="0 0 24 34" aria-hidden="true" fill="currentColor">' +
+    '<circle cx="12" cy="7" r="5"/><rect x="6" y="14" width="12" height="12" rx="3"/>' +
+    '<rect x="7" y="26" width="4" height="8" rx="2"/><rect x="13" y="26" width="4" height="8" rx="2"/></svg>';
+
+  // 六行：状态文本长短刻意不同，用来暴露 auto 列宽造成的左缘漂移
+  var ROWS = [
+    { name: '主账号 · 暮色林地', server: 'mc.mcort.example:25565', status: '内核在线 · 游戏未连接', online: 'on', chip: '主' },
+    { name: '小号A', server: 'mc.mcort.example:25565', status: '已连接', online: 'on', chip: '' },
+    { name: '云端存档号', server: '尚未配置服务器', status: '未托管', online: 'unknown', chip: '云' },
+    { name: '小号B · 很长的名字用来压测省略号', server: 'play.long-domain-name.example:25565', status: '内核未启动', online: 'unknown', chip: '' },
+    { name: '建造号', server: 'mc.mcort.example:25565', status: '状态待查询', online: 'unknown', chip: '' },
+    { name: '红石测试号', server: 'mc.mcort.example:25565', status: '已连接', online: 'on', chip: '从' }
+  ];
+
+  function skinBar() {
+    return '<div class="yy-acct-skin-bar">' +
+      '<button type="button" class="yy-acct-skin-btn is-on" data-skin-act="walk">走动</button>' +
+      '<button type="button" class="yy-acct-skin-btn" data-skin-act="slim">纤细</button>' +
+      '<button type="button" class="yy-acct-skin-btn" data-skin-act="reset">正视角</button>' +
+      '</div>';
+  }
+
+  function facts() {
+    return '<div class="yy-acct-hero-facts">' +
+      '<div><span>服务器</span><b>mc.mcort.example</b></div>' +
+      '<div><span>游戏 UID</span><b>1145141919</b></div>' +
+      '<div><span>连接</span><b>已连接</b></div></div>';
+  }
+
+  function card(row, index) {
+    var chip = row.chip ? '<em class="yy-acct-chip" data-role="main"><svg class="yy-acct-chip-icon" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5"/></svg>' + row.chip + '</em>' : '';
+    return '<details class="card yy-account-card"' + (index === 0 ? ' open' : '') + '>' +
+      '<summary class="yy-account-summary">' +
+        '<img class="yy-compact-avatar" alt="" src="' + AVATAR + '">' +
+        '<span class="yy-compact-identity">' +
+          '<span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="' + row.online + '" aria-hidden="true"></i>' +
+          '<strong>' + row.name + '</strong>' + chip + '</span>' +
+          '<small>' + row.server + '</small>' +
+        '</span>' +
+        '<span class="yy-compact-status">' + row.status + '</span>' +
+        '<span class="yy-row-chevron" aria-hidden="true">›</span>' +
+      '</summary>' +
+      '<div class="yy-account-detail">' +
+        '<div class="yy-acct-hero">' +
+          '<div class="yy-acct-figure-col">' +
+            '<div class="yy-acct-figure" role="img" aria-label="皮肤形象">' + PH +
+              '<div class="yy-acct-figure-stage" data-skin-src="1"></div>' +
+              '<span class="yy-acct-figure-tip">皮肤加载中…</span>' +
+            '</div>' + skinBar() +
+          '</div>' +
+          '<div class="yy-acct-hero-main">' +
+            '<div class="yy-acct-hero-line">' +
+              '<img class="yy-compact-avatar" alt="" src="' + AVATAR + '">' +
+              '<div class="yy-acct-hero-text"><strong>' + row.name + '</strong>' +
+                '<span class="yy-acct-hero-tags"><em class="yy-acct-chip">主</em>' +
+                '<em class="yy-acct-live" data-online="' + row.online + '">在线</em></span>' + facts() +
+              '</div>' +
+            '</div>' +
+            '<div class="yy-acct-hero-acts">' +
+              '<button class="btn">切换到此账号</button>' +
+              '<button class="btn-s">解绑玩家</button>' +
+              '<button class="btn-s">查看令牌</button>' +
+            '</div>' +
+            '<div class="yy-acct-token"><span class="yy-acct-token-label">令牌</span>' +
+              '<code>已隐藏 · 点查看显示</code><button class="btn-s">复制</button></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</details>';
+  }
+
+  var grid = document.getElementById('yy-accounts-grid');
+  grid.innerHTML = ROWS.map(card).join('');
+
+  // 真实组件：把 3D 皮肤挂到 stage 上（等价于 yyAcctMountSkins）
+  document.querySelectorAll('.yy-acct-figure-stage').forEach(function (host) {
+    if (window.YYSkinViewer) window.YYSkinViewer(host, SKIN, false);
+  });
+
+  function box(el) { var b = el.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height }; }
+  function r1(v) { return Math.round(v * 10) / 10; }
+
+  window.__measure = function () {
+    document.querySelectorAll('details.yy-account-card').forEach(function (d) { d.open = true; });
+    var rows = Array.prototype.map.call(document.querySelectorAll('.yy-account-summary'), function (s) {
+      var cells = Array.prototype.map.call(s.children, function (c) { return box(c); });
+      var st = s.querySelector('.yy-compact-status');
+      var cs = getComputedStyle(st);
+      return {
+        name: s.querySelector('.yy-compact-identity strong').textContent.slice(0, 6),
+        h: r1(box(s).h),
+        statusText: st.textContent,
+        statusLines: Math.round(st.getBoundingClientRect().height / parseFloat(cs.lineHeight)),
+        statusOverflow: Math.round(st.scrollWidth - st.clientWidth),
+        cells: cells.map(function (c) { return { l: r1(c.l), r: r1(c.r), w: r1(c.w) }; })
+      };
+    });
+
+    var fig = document.querySelector('.yy-acct-figure');
+    var bar = document.querySelector('.yy-acct-skin-bar');
+    var stage = document.querySelector('.yy-acct-figure-stage');
+    // 让模特处于「用户从顶部滚到卡片」的真实视口位置
+    window.scrollTo(0, fig.getBoundingClientRect().top + window.scrollY - 8);
+
+    var fb = box(fig), bb = box(bar), sb = box(stage);
+    var firstCard = document.querySelector('details.yy-account-card');
+    var faces = Array.prototype.map.call(firstCard.querySelectorAll('.yy-skin-face'), function (f) { return box(f); });
+    var first = faces.filter(function (f) { return f.w > 0 && f.h > 0; });
+    var model = null;
+    if (first.length) {
+      var top = Math.min.apply(null, first.map(function (f) { return f.t; }));
+      var bot = Math.max.apply(null, first.map(function (f) { return f.b; }));
+      model = { t: r1(top), b: r1(bot), h: r1(bot - top) };
+    }
+
+    return {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      rows: rows,
+      statusX: rows.map(function (r) { return r.cells[2].l; }),
+      chevronX: rows.map(function (r) { return r.cells[3].l; }),
+      statusDrift: r1(Math.max.apply(null, rows.map(function (r) { return r.cells[2].l; })) - Math.min.apply(null, rows.map(function (r) { return r.cells[2].l; }))),
+      chevronDrift: r1(Math.max.apply(null, rows.map(function (r) { return r.cells[3].l; })) - Math.min.apply(null, rows.map(function (r) { return r.cells[3].l; }))),
+      figure: { l: r1(fb.l), t: r1(fb.t), r: r1(fb.r), b: r1(fb.b), w: r1(fb.w), h: r1(fb.h) },
+      stage: { l: r1(sb.l), t: r1(sb.t), w: r1(sb.w), h: r1(sb.h) },
+      bar: { l: r1(bb.l), t: r1(bb.t), r: r1(bb.r), b: r1(bb.b), w: r1(bb.w), h: r1(bb.h) },
+      barRows: Math.round(bb.h / 32),
+      model: model,
+      modelGapBelow: model ? r1(fb.b - model.b) : null,
+      barInViewport: (bb.b <= window.innerHeight + 0.5) && (bb.r <= window.innerWidth + 0.5) && (bb.l >= -0.5) && (bb.t >= -0.5),
+      barInsideFigureCol: (bb.r <= fb.r + 0.5) && (bb.l >= fb.l - 0.5),
+      overflowX: document.documentElement.scrollWidth - window.innerWidth
+    };
+  };
+})();
+</script>
+</body>
+</html>

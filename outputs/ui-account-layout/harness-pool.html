@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>托管池验证</title>
+<link rel="stylesheet" href="/css/base.css?v=2026102301">
+<link rel="stylesheet" href="/css/layout.css?v=2026102301">
+<link rel="stylesheet" href="/css/components.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_design.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_accounts.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_account_pool.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_skin_library.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_usability.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_agent_scroll.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_agent_layout.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_reference.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_connection_policy.css?v=2026102520">
+<link rel="stylesheet" href="/css/youyuan_connection_diagnostics.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_room_discovery.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_seed_page.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_hq_query.css?v=2026102520">
+<link rel="stylesheet" href="/css/yy_seed_map.css?v=2026102540">
+<link rel="stylesheet" href="/css/youyuan_qq_console.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_qq_console_quicknav.css?v=2026102546">
+<link rel="stylesheet" href="/css/youyuan_model_brand.css?v=2026102540">
+<link rel="stylesheet" href="/css/youyuan_qq_serverinfo.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_settings_groups.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_studio.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_terminal.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_agent_studio.css?v=2026102301">
+<link rel="stylesheet" href="/css/yy_agent_workspace.css?v=2026102821">
+<link rel="stylesheet" href="/css/yy_file_browser.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_plugin_studio.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_game_controls.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_navigation.css?v=2026102301">
+<link rel="stylesheet" href="/css/youyuan_chain_center.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_agent_mobile.css?v=2026102821">
+<link rel="stylesheet" href="/css/yy_tools_browser.css?v=2026102821">
+<link rel="stylesheet" href="/css/yy_home_workbench.css?v=2026102522">
+<link rel="stylesheet" href="/css/yy_building_deploy.css?v=2026102821">
+<link rel="stylesheet" href="/css/youyuan_qq_member_ui.css?v=2026102545">
+<link rel="stylesheet" href="/css/youyuan_qq_assistant_tools.css?v=2026102501">
+<link rel="stylesheet" href="/css/youyuan_market.css?v=2026102823">
+<style>
+  html,body{height:auto!important}
+  #app{height:auto!important;display:flex;flex-direction:column;min-height:100vh}
+  .sub-page{position:static!important;display:flex!important;overflow:visible!important;height:auto!important}
+  .sp-body{overflow:visible!important;flex:1!important}
+  .content{display:none!important}
+  .nav{display:none!important}
+</style>
+</head><body class="sp-open">
+<div id="app">
+<div class="conn-bar" id="conn-bar">
+  <div class="cb-left"><h1>游园工具箱</h1></div>
+  <div class="cb-center"><span class="cb-dot" id="gdot"></span><span class="cb-status" id="conn-st">已连接 · 本机内核</span></div>
+  <div class="cb-right"><span class="cb-server" id="conn-srv">mc.yoyuan.example</span></div>
+</div>
+<div class="sub-page show" id="sub-page"><div class="sp-header"><button class="sp-back">‹</button><span class="sp-title">机器人托管池</span></div><div class="sp-body"><div class="yy-page-intro"><h2>机器人托管池</h2><p>统一查看多台机器人，按时间、身份和玩家筛选。</p></div><section class="card yy-admin-list-panel yy-pool-panel"><div class="yy-pool-searchbar"><label class="yy-search"><input type="search" placeholder="搜索昵称、UID、备注或玩家"></label><button class="btn-s" type="button">刷新</button></div><div class="yy-pool-facet"><span class="yy-pool-facet-label">最近上线</span><span class="yy-pool-chips"><button type="button" class="yy-pool-chip" data-on="1">全部</button><button type="button" class="yy-pool-chip" data-on="0">今天</button><button type="button" class="yy-pool-chip" data-on="0">7 天</button><button type="button" class="yy-pool-chip" data-on="0">30 天</button></span></div><div class="yy-pool-facet"><span class="yy-pool-facet-label">分组</span><span class="yy-pool-chips"><button type="button" class="yy-pool-chip" data-on="1">平铺</button><button type="button" class="yy-pool-chip" data-on="0">按玩家</button></span></div><div class="yy-pool-facet"><span class="yy-pool-facet-label">状态</span><span class="yy-pool-chips"><button type="button" class="yy-pool-chip" data-on="1">全部</button><button type="button" class="yy-pool-chip" data-on="0">已启用</button><button type="button" class="yy-pool-chip" data-on="0">未启用</button><button type="button" class="yy-pool-chip" data-on="0">已绑定</button><button type="button" class="yy-pool-chip" data-on="0">空闲</button><button type="button" class="yy-pool-chip" data-on="0">缺令牌</button></span></div><div class="yy-pool-facet"><span class="yy-pool-facet-label">身份</span><span class="yy-pool-chips"><button type="button" class="yy-pool-chip" data-on="1">全部</button><button type="button" class="yy-pool-chip" data-on="0">主账号</button><button type="button" class="yy-pool-chip" data-on="0">主控</button><button type="button" class="yy-pool-chip" data-on="0">机器人</button></span></div><div class="yy-pool-facet"><span class="yy-pool-facet-label">玩家</span><span class="yy-pool-chips"><button type="button" class="yy-pool-chip" data-on="1">雨落青山 · 2</button><button type="button" class="yy-pool-chip" data-on="0">半盏灯 · 1</button></span></div><p class="yy-hint" role="status">共 3 个托管账号</p><div id="yy-pool-list" class="yy-compact-list"><details class="yy-pool-group" open><summary class="yy-pool-group-sum"><strong>雨落青山</strong><span class="yy-pool-group-meta">2 个账号</span><span class="yy-row-chevron" aria-hidden="true">›</span></summary><div class="yy-pool-group-body"><div class="yy-pool-row" data-pool-row="巡"><button type="button" class="yy-pool-hit"><span class="yy-compact-avatar yy-avatar-frame yy-avatar-fallback " role="img" aria-label="账号头像"><span class="yy-avatar-initial" aria-hidden="true">巡</span></span><span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="on" aria-hidden="true"></i><strong>巡逻甲</strong><em class="yy-acct-chip" data-role="bot"><svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg><span>机器人账号</span></em></span><small>mc.yoyuan.example:19132 · UID 2947 1183 5520 4410 · 玩家 雨落青山</small></span></button><span class="yy-pool-side"><span class="yy-pool-live">已启用<em>3 分钟前</em></span><button type="button" class="yy-pool-act" aria-label="刷新状态"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.7-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13.4 2.2v3.2H10.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="yy-pool-act" aria-label="查看详情"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 8S4.1 3.9 8 3.9 14.4 8 14.4 8 11.9 12.1 8 12.1 1.6 8 1.6 8Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg></button></span></div><div class="yy-pool-row" data-pool-row="逻"><button type="button" class="yy-pool-hit"><span class="yy-compact-avatar yy-avatar-frame yy-avatar-fallback " role="img" aria-label="账号头像"><span class="yy-avatar-initial" aria-hidden="true">逻</span></span><span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="off" aria-hidden="true"></i><strong>巡逻乙</strong><em class="yy-acct-chip" data-role="bot"><svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg><span>机器人账号</span></em></span><small>mc.yoyuan.example:19132 · UID 2947 1183 5520 4411 · 玩家 雨落青山</small></span></button><span class="yy-pool-side"><span class="yy-pool-live">未启用<em>2 小时前</em></span><button type="button" class="yy-pool-act" aria-label="刷新状态"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.7-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13.4 2.2v3.2H10.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="yy-pool-act" aria-label="查看详情"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 8S4.1 3.9 8 3.9 14.4 8 14.4 8 11.9 12.1 8 12.1 1.6 8 1.6 8Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg></button></span></div></div></details><details class="yy-pool-group"><summary class="yy-pool-group-sum"><strong>半盏灯</strong><span class="yy-pool-group-meta">1 个账号</span><span class="yy-row-chevron" aria-hidden="true">›</span></summary><div class="yy-pool-group-body"><div class="yy-pool-row" data-pool-row="挖"><button type="button" class="yy-pool-hit"><span class="yy-compact-avatar yy-avatar-frame yy-avatar-fallback " role="img" aria-label="账号头像"><span class="yy-avatar-initial" aria-hidden="true">挖</span></span><span class="yy-compact-identity"><span class="yy-acct-nameline"><i class="yy-acct-dot" data-online="unknown" aria-hidden="true"></i><strong>挖石机</strong><em class="yy-acct-chip" data-role="bot"><svg class="yy-acct-chip-icon" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg><span>机器人账号</span></em></span><small>survival.yoyuan.example:19133 · UID 未绑定 · 玩家 半盏灯</small></span></button><span class="yy-pool-side"><span class="yy-pool-live">缺少令牌</span><button type="button" class="yy-pool-act" aria-label="刷新状态"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.7-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13.4 2.2v3.2H10.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="yy-pool-act" aria-label="查看详情"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 8S4.1 3.9 8 3.9 14.4 8 14.4 8 11.9 12.1 8 12.1 1.6 8 1.6 8Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg></button></span></div></div></details></div><div class="yy-pagination"><button class="btn-s" disabled>上一页</button><span>第 1 / 1 页 · 3 个账号</span><button class="btn-s" disabled>下一页</button></div></section></div></div>
+</div>
+</body></html>

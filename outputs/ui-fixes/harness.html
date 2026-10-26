@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MCORT 账号形象区量测台 · 320/360/390/430/768/1440</title>
+<style>
+  body{margin:0;background:#e8ecee;font:13px/1.5 "Microsoft YaHei",sans-serif;color:#1d2b30}
+  h1{font-size:15px;margin:12px 16px 4px}
+  p.hint{margin:0 16px 10px;font-size:12px;color:#5c6b73}
+  #stage{border-top:1px solid #cfd8dc;padding:12px 0;overflow:auto}
+  iframe{display:block;border:0;background:#fff;margin:0 auto;height:1100px}
+  #out{white-space:pre-wrap;font:11px/1.45 ui-monospace,Consolas,monospace;background:#fff;border:1px solid #cfd8dc;border-radius:10px;padding:10px;margin:12px 16px}
+</style>
+</head>
+<body>
+<h1>账号卡形象区量测台（结构与样式取自 upstream 真实文件）</h1>
+<p class="hint">每换一个宽度就在 iframe 里重新加载一次，媒体查询按 iframe 宽度生效；按钮位置相对 iframe 视口量测。</p>
+<div id="stage"><iframe id="frame" src="harness-content.html" width="360"></iframe></div>
+<pre id="out">measuring…</pre>
+<script>
+var WIDTHS = [320, 360, 390, 430, 768, 1440];
+var frame = document.getElementById('frame'), out = document.getElementById('out');
+function r(el) {
+  var b = el.getBoundingClientRect();
+  return { top: Math.round(b.top), left: Math.round(b.left), right: Math.round(b.right), bottom: Math.round(b.bottom), width: Math.round(b.width), height: Math.round(b.height) };
+}
+function load(width) {
+  return new Promise(function (resolve) {
+    frame.style.width = width + 'px';
+    frame.onload = function () { setTimeout(resolve, 120); };
+    frame.src = 'harness-content.html?v=' + width;
+  });
+}
+function measure(width) {
+  var d = frame.contentDocument, w = frame.contentWindow;
+  var detail = r(d.getElementById('detail'));
+  var card = d.querySelector('.yy-account-card').getBoundingClientRect();
+  var fig = r(d.querySelector('.yy-acct-figure'));
+  var bar = r(d.querySelector('.yy-acct-skin-bar'));
+  var btns = [].map.call(d.querySelectorAll('.yy-acct-skin-btn'), function (b) {
+    var x = r(b); return { label: b.textContent.trim(), left: x.left, right: x.right, top: x.top, bottom: x.bottom, width: x.width, height: x.height };
+  });
+  var minLeft = Math.min.apply(null, btns.map(function (b) { return b.left; }));
+  var maxRight = Math.max.apply(null, btns.map(function (b) { return b.right; }));
+  var minTop = Math.min.apply(null, btns.map(function (b) { return b.top; }));
+  var maxBottom = Math.max.apply(null, btns.map(function (b) { return b.bottom; }));
+  var scrollW = d.documentElement.scrollWidth;
+  var ident = r(d.querySelector('.yy-acct-secret'));
+  var identBtn = r(d.querySelector('.yy-acct-ident-btn'));
+  return {
+    width: width,
+    viewport: [w.innerWidth, w.innerHeight],
+    skinBar: { top: bar.top, bottom: bar.bottom, left: bar.left, right: bar.right, width: bar.width, height: bar.height },
+    figure: { top: fig.top, bottom: fig.bottom, left: fig.left, right: fig.right },
+    buttons: btns,
+    buttonBox: { top: minTop, left: minLeft, right: maxRight, bottom: maxBottom },
+    gapFigureToBar: bar.top - fig.bottom,
+    pageOverflowX: scrollW > w.innerWidth + 1,
+    scrollWidth: scrollW,
+    barClippedRight: bar.right > Math.round(card.right) + 1,
+    buttonsClippedRight: maxRight > Math.round(detail.right) + 1,
+    barVisible: bar.top >= 0 && bar.bottom <= w.innerHeight,
+    buttonsInsideBar: minTop >= bar.top - 1 && maxBottom <= bar.bottom + 1,
+    identMask: ident, identButton: identBtn,
+    identButtonClipped: identBtn.right > Math.round(detail.right) + 1
+  };
+}
+(async function () {
+  var results = [];
+  for (var i = 0; i < WIDTHS.length; i++) {
+    await load(WIDTHS[i]);
+    results.push(measure(WIDTHS[i]));
+  }
+  window.__RESULT__ = results;
+  out.textContent = JSON.stringify(results, null, 1);
+  document.title = 'MEASURED';
+})();
+</script>
+</body>
+</html>

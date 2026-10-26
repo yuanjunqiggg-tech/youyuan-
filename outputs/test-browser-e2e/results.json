@@ -1,0 +1,883 @@
+{
+ "desktop": [
+  {
+   "id": "01",
+   "name": "首页工作台",
+   "target": "工具总览",
+   "timing": {
+    "firstContent": 992,
+    "blank": 0,
+    "stable": 1130,
+    "reloaded": false
+   },
+   "len": 1103,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 1103,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 2,
+   "req": 2,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "02",
+   "name": "插件管理",
+   "target": "插件中心",
+   "timing": {
+    "firstContent": 723,
+    "blank": 0,
+    "stable": 206,
+    "reloaded": false
+   },
+   "len": 540,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 540,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 5,
+   "req": 5,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "03",
+   "name": "终端日志",
+   "target": "终端",
+   "timing": {
+    "firstContent": 150,
+    "blank": 0,
+    "stable": 291,
+    "reloaded": false
+   },
+   "len": 401,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 377,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 1,
+   "req": 1,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "04",
+   "name": "游戏账号",
+   "target": "游戏账号",
+   "timing": {
+    "firstContent": 198,
+    "blank": 0,
+    "stable": 338,
+    "reloaded": false
+   },
+   "len": 738,
+   "title": "游园",
+   "expand": {
+    "ok": true,
+    "delta": 218
+   },
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 5342,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()"
+   ],
+   "api": 39,
+   "req": 55,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "05",
+   "name": "群服互通",
+   "target": "群服互通",
+   "timing": {
+    "firstContent": 97,
+    "blank": 10,
+    "stable": 765,
+    "reloaded": false
+   },
+   "len": 187,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 6140,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 56,
+   "req": 29,
+   "bad": [],
+   "navs": 0,
+   "tabs": [
+    {
+     "t": "状态",
+     "len": 6140,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "能力",
+     "len": 6140,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "技能",
+     "len": 6779,
+     "sy": 0,
+     "api": 1,
+     "errs": 0
+    },
+    {
+     "t": "AI 工具",
+     "len": 8164,
+     "sy": 0,
+     "api": 1,
+     "errs": 0
+    },
+    {
+     "t": "助手",
+     "len": 9492,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "接入",
+     "len": 9657,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "人设",
+     "len": 9957,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "表情",
+     "len": 9989,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    }
+   ]
+  },
+  {
+   "id": "06",
+   "name": "全局抓包",
+   "target": "全局抓包",
+   "fail": "locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '全局抓包', exact: true }).first()\u001b[22m\n",
+   "len": 10009,
+   "errs": [],
+   "api": 2,
+   "bad": []
+  },
+  {
+   "id": "07",
+   "name": "连接诊断与在线玩家",
+   "target": "连接与设置",
+   "timing": {
+    "firstContent": 139,
+    "blank": 0,
+    "stable": 653,
+    "reloaded": false
+   },
+   "len": 1743,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 1298,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()"
+   ],
+   "api": 20,
+   "req": 22,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "08",
+   "name": "导入建筑",
+   "target": "导入建筑",
+   "timing": {
+    "firstContent": 76,
+    "blank": 0,
+    "stable": 753,
+    "reloaded": false
+   },
+   "len": 350,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 350,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 0,
+   "req": 0,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "09",
+   "name": "导出建筑",
+   "target": "导出建筑",
+   "timing": {
+    "firstContent": 99,
+    "blank": 0,
+    "stable": 238,
+    "reloaded": false
+   },
+   "len": 411,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 411,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 0,
+   "req": 0,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "10",
+   "name": "命令链",
+   "target": "命令链",
+   "timing": {
+    "firstContent": 68,
+    "blank": 0,
+    "stable": 207,
+    "reloaded": false
+   },
+   "len": 2058,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 2058,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 2,
+   "req": 2,
+   "bad": [],
+   "navs": 0
+  }
+ ],
+ "mobile": [
+  {
+   "id": "01",
+   "name": "首页工作台",
+   "target": "工具总览",
+   "timing": {
+    "firstContent": 1559,
+    "blank": 0,
+    "stable": 1692,
+    "reloaded": false
+   },
+   "len": 987,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 987,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [],
+   "api": 1,
+   "req": 1,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "02",
+   "name": "插件管理",
+   "target": "插件中心",
+   "timing": {
+    "firstContent": 1529,
+    "blank": 0,
+    "stable": 1664,
+    "reloaded": false
+   },
+   "len": 410,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 410,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 2,
+    "off": [
+     "BUTTON",
+     "B"
+    ]
+   },
+   "errs": [],
+   "api": 5,
+   "req": 5,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "03",
+   "name": "终端日志",
+   "target": "终端",
+   "timing": {
+    "firstContent": 1619,
+    "blank": 0,
+    "stable": 1752,
+    "reloaded": false
+   },
+   "len": 264,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 264,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 2,
+    "off": [
+     "BUTTON",
+     "BUTTON"
+    ]
+   },
+   "errs": [],
+   "api": 2,
+   "req": 2,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "04",
+   "name": "游戏账号",
+   "target": "游戏账号",
+   "timing": {
+    "firstContent": 1702,
+    "blank": 0,
+    "stable": 1834,
+    "reloaded": false
+   },
+   "len": 616,
+   "title": "游园",
+   "expand": {
+    "ok": true,
+    "delta": 0
+   },
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 4940,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 0,
+    "off": []
+   },
+   "errs": [
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()",
+    "[console] Failed to load resource: the server responded with a status of 401 ()"
+   ],
+   "api": 38,
+   "req": 54,
+   "bad": [],
+   "navs": 0
+  },
+  {
+   "id": "05",
+   "name": "群服互通",
+   "target": "群服互通",
+   "timing": {
+    "firstContent": 1734,
+    "blank": 0,
+    "stable": 2658,
+    "reloaded": false
+   },
+   "len": 4192,
+   "title": "游园",
+   "jitter": 0,
+   "samples": 49,
+   "seq": [],
+   "lenEnd": 4192,
+   "overflow": {
+    "docOver": 0,
+    "offCount": 5,
+    "off": [
+     "yyq-quicknav-chip",
+     "yyq-quicknav-chip",
+     "yyq-quicknav-chip"
+    ]
+   },
+   "errs": [],
+   "api": 54,
+   "req": 27,
+   "bad": [],
+   "navs": 0,
+   "tabs": [
+    {
+     "t": "状态",
+     "len": 4192,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "能力",
+     "len": 4192,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "技能",
+     "len": 4831,
+     "sy": 0,
+     "api": 1,
+     "errs": 0
+    },
+    {
+     "t": "AI 工具",
+     "len": 6216,
+     "sy": 0,
+     "api": 1,
+     "errs": 0
+    },
+    {
+     "t": "助手",
+     "len": 7544,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "接入",
+     "len": 7709,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    },
+    {
+     "t": "人设",
+     "len": 8009,
+     "sy": 0,
+     "api": 2,
+     "errs": 0
+    },
+    {
+     "t": "表情",
+     "len": 8042,
+     "sy": 0,
+     "api": 0,
+     "errs": 0
+    }
+   ]
+  },
+  {
+   "id": "06",
+   "name": "全局抓包",
+   "target": "全局抓包",
+   "fail": "locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('.yy-player-navigation button, .yy-player-navigation a').first()\u001b[22m\n\u001b[2m    - loca",
+   "len": 8042,
+   "errs": [],
+   "api": 0,
+   "bad": []
+  },
+  {
+   "id": "07",
+   "name": "连接诊断与在线玩家",
+   "target": "连接与设置",
+   "fail": "locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('.yy-player-navigation button, .yy-player-navigation a').nth(4)\u001b[22m\n\u001b[2m    - locat",
+   "len": 8042,
+   "errs": [],
+   "api": 0,
+   "bad": []
+  },
+  {
+   "id": "08",
+   "name": "导入建筑",
+   "target": "导入建筑",
+   "fail": "locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('.yy-player-navigation button, .yy-player-navigation a').first()\u001b[22m\n\u001b[2m    - loca",
+   "len": 8042,
+   "errs": [],
+   "api": 0,
+   "bad": []
+  },
+  {
+   "id": "09",
+   "name": "导出建筑",
+   "target": "导出建筑",
+   "fail": "locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('.yy-player-navigation button, .yy-player-navigation a').first()\u001b[22m\n\u001b[2m    - loca",
+   "len": 8042,
+   "errs": [],
+   "api": 0,
+   "bad": []
+  },
+  {
+   "id": "10",
+   "name": "命令链",
+   "target": "命令链",
+   "fail": "locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('.yy-player-navigation button, .yy-player-navigation a').first()\u001b[22m\n\u001b[2m    - loca",
+   "len": 8042,
+   "errs": [],
+   "api": 0,
+   "bad": []
+  }
+ ],
+ "auth": {
+  "desktop": [
+   {
+    "id": "A1",
+    "name": "入口",
+    "timing": {
+     "firstContent": null,
+     "blank": 0,
+     "stable": 1003,
+     "reloaded": true
+    },
+    "len": 166,
+    "jitter": 0,
+    "overflow": {
+     "docOver": 0,
+     "offCount": 0,
+     "off": []
+    },
+    "errs": [
+     "[console] Failed to load resource: the server responded with a status of 404 ()",
+     "[console] Connecting to 'data:,' violates the following Content Security Policy directive: \"connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.al",
+     "[console] Connecting to 'data:,' violates the following Content Security Policy directive: \"connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.al",
+     "[console] Fetch API cannot load data:,. Refused to connect because it violates the document's Content Security Policy.",
+     "[console] Connecting to 'data:,' violates the following Content Security Policy directive: \"connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.al",
+     "[console] Connecting to 'data:,' violates the following Content Security Policy directive: \"connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.al"
+    ],
+    "api": 1,
+    "bad": [
+     {
+      "s": 401,
+      "u": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a504350079182c1c/1792962617001/31f4e6b88b1478cdba9916aaab0d4e65b8e9de9a6fdc2a30fa"
+     },
+     {
+      "s": 401,
+      "u": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a5043500791d2c1c/1792962617067/2d4f4f417e1f38823fb8dd1967476d73215bc18b69fc4323a1"
+     },
+     {
+      "s": 401,
+      "u": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a504350079212c1c/1792962617101/056f928da15e5d370ae29022462e59e233960e3c0d30e806cc"
+     }
+    ],
+    "navs": 1
+   },
+   {
+    "id": "A2",
+    "name": "注册",
+    "timing": {
+     "firstContent": 52,
+     "blank": 0,
+     "stable": 191,
+     "reloaded": false
+    },
+    "len": 215,
+    "jitter": 0,
+    "overflow": {
+     "docOver": 0,
+     "offCount": 0,
+     "off": []
+    },
+    "errs": [],
+    "api": 0,
+    "bad": [],
+    "navs": 0
+   },
+   {
+    "id": "A3",
+    "name": "控制台",
+    "consoleInfo": {
+     "found": true,
+     "chain": [
+      {
+       "tag": "BUTTON",
+       "id": "",
+       "cls": "secondary",
+       "hidden": false
+      },
+      {
+       "tag": "HEADER",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      },
+      {
+       "tag": "DIV",
+       "id": "workspace",
+       "cls": "",
+       "hidden": true
+      },
+      {
+       "tag": "MAIN",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      },
+      {
+       "tag": "BODY",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      },
+      {
+       "tag": "HTML",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      }
+     ]
+    }
+   },
+   {
+    "id": "A3b",
+    "name": "控制台深链",
+    "deep": [
+     {
+      "url": "https://auth.youyuanqi.dpdns.org/console",
+      "len": 29,
+      "txt": "{\"ok\":false,\"error\":\"未知认证接口\"}"
+     },
+     {
+      "url": "https://auth.youyuanqi.dpdns.org/dashboard",
+      "len": 29,
+      "txt": "{\"ok\":false,\"error\":\"未知认证接口\"}"
+     }
+    ]
+   }
+  ],
+  "mobile": [
+   {
+    "id": "A1",
+    "name": "入口",
+    "timing": {
+     "firstContent": null,
+     "blank": 0,
+     "stable": 941,
+     "reloaded": true
+    },
+    "len": 166,
+    "jitter": 0,
+    "overflow": {
+     "docOver": 0,
+     "offCount": 0,
+     "off": []
+    },
+    "errs": [
+     "[console] Connecting to 'data:,' violates the following Content Security Policy directive: \"connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.al",
+     "[console] Connecting to 'data:,' violates the following Content Security Policy directive: \"connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.al",
+     "[console] Fetch API cannot load data:,. Refused to connect because it violates the document's Content Security Policy.",
+     "[console] %c%d font-size:0;color:transparent NaN",
+     "[console] %c%d font-size:0;color:transparent NaN",
+     "[console] %c%d font-size:0;color:transparent NaN"
+    ],
+    "api": 1,
+    "bad": [
+     {
+      "s": 401,
+      "u": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a50438700a7225ca/1792962757796/4259df74e050c80fe94ce3714cf8f6d0bdafc6e54c0a71f330"
+     },
+     {
+      "s": 401,
+      "u": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a50438700a7025ca/1792962757980/5044ebf4b689d8e3b20238a4e358bba2ac06b8eed60f87d838"
+     },
+     {
+      "s": 401,
+      "u": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a50438700a7425ca/1792962757870/ec676d0382ebdb3ee9d2876d7bcb74e508012bcfb62bbadcea"
+     }
+    ],
+    "navs": 1
+   },
+   {
+    "id": "A2",
+    "name": "注册",
+    "timing": {
+     "firstContent": 49,
+     "blank": 0,
+     "stable": 180,
+     "reloaded": false
+    },
+    "len": 215,
+    "jitter": 0,
+    "overflow": {
+     "docOver": 0,
+     "offCount": 0,
+     "off": []
+    },
+    "errs": [],
+    "api": 0,
+    "bad": [],
+    "navs": 0
+   },
+   {
+    "id": "A3",
+    "name": "控制台",
+    "consoleInfo": {
+     "found": true,
+     "chain": [
+      {
+       "tag": "BUTTON",
+       "id": "",
+       "cls": "secondary",
+       "hidden": false
+      },
+      {
+       "tag": "HEADER",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      },
+      {
+       "tag": "DIV",
+       "id": "workspace",
+       "cls": "",
+       "hidden": true
+      },
+      {
+       "tag": "MAIN",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      },
+      {
+       "tag": "BODY",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      },
+      {
+       "tag": "HTML",
+       "id": "",
+       "cls": "",
+       "hidden": false
+      }
+     ]
+    }
+   },
+   {
+    "id": "A3b",
+    "name": "控制台深链",
+    "deep": [
+     {
+      "url": "https://auth.youyuanqi.dpdns.org/console",
+      "len": 29,
+      "txt": "{\"ok\":false,\"error\":\"未知认证接口\"}"
+     },
+     {
+      "url": "https://auth.youyuanqi.dpdns.org/dashboard",
+      "len": 29,
+      "txt": "{\"ok\":false,\"error\":\"未知认证接口\"}"
+     }
+    ]
+   }
+  ]
+ },
+ "meta": {
+  "ts": "2026-10-25T21:12:56.913Z",
+  "distinct4xx": [
+   "401 https://toolbox.youyuanqi.dpdns.org/api/config",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/events?after=0",
+   "401 https://toolbox.youyuanqi.dpdns.org/health",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/appearance",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/accounts?view=summary",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/snapshot",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/bot/status",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/remote",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/runtime/list",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/qq/status",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/task/list",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/plugin/list",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/youyuan/connection-diagnostics",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%84%92%E9%9B%85%E7%8C%8E%E6%9D%80%E8%80%85",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%86%B7%E9%85%B7%E6%B8%85%E7%BA%AF%E8%BD%A6%E9%80%9F",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E7%81%AB%E7%A5%9E%E9%9D%A0%E8%B0%B1%E5%86%9B%E5%9B%A2",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-texture?player=%E4%B8%BB%E8%B4%A6%E5%8F%B7",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/proxy?url=https%3A%2F%2Fq1.qlogo.cn%2Fg%3Fb%3Dqq%26nk%3D3199053371%26s%3D640",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%B8%83%E6%B1%B2%E5%B2%9B",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%A2%A8%E6%9E%ABpwp",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E7%96%A3%E8%9E%88",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E6%97%A7%E7%9A%84%E7%A9%BF%E9%BB%91%E8%A1%A3",
+   "401 https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=AfraidMuffin",
+   "401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a504350079182c1c/1792962617001/31f4e6b88b1478cdba9916aaab0d4e65b8e9de9a6fdc2a30fa811dac1d9476fc/yGNYqNDNQNEfKSm9_MICr7bWCBUG5tpUKbrp6_0eRXY-1792962617-1.3.1.1-7N.uqRlSYRzSE.AydDe_7KVDpzuqJRjwZo1wN._OznBdGisNJSlmTnobJst4xLvJY1qGMJo9vcQZ3WPjS2tsul2w7zE_J2NVgWLzfeYI.XPovhfmUjbCINIMFnx75hLYSW2OGuNWc54LbdtsrKPGj9DPoglVFQr8H2RMKtKSUugtFetq.9KBNCLGrrg3sqUURScmPgKTniLIqkrt.k1fr7n_cosj0fbqlbU7UQKK4uES_BAtp2hIrX3AMIREt.bOeXLqeLgJStd05odOHwC.8dw3XPeGbM.VprrG25WbmW09qamVIalxdjhjZruOF2A1KOFV6hUftvD5vbNGC_14t6veskR3MILcLdIw25BG14.0fpqZNu5ym__UD04bkp7gW1Gjt1lDXMr.nE.KLoxXLi0ekHhfdep.Qw.gSjaPOVn4AyvQpCx.GjTIu5eCRAcTa31LokS4LM6z6zsIQSTc7IkLPDBMrjJpkSLnOWWgOUaUg2BP0YY_YOXcx1H55H.3TPvc.klLBBO9BTNhQ8EhXvUwb_FsMoy7nhUtkHf71PR_JE.DW_vB44wbvcY5TFKqnPK1MiqK48sZnv9jln4ElqjVO6Yn_0q44m_.DJjY5LyN8JfCs2TtAM1UHpuDPaiOMFeSsRqn0CPSvr15uIBqWNs7E.HAhWxYyrM_N5qpLNLO0R6O3dCe35hPDZ0xX0YzOYpFoq9lFLHUVq22luWJFh0mqZSzPAy9PPxvk_x6vK3lsv8L1lVY8etLjeKXPy10MnA4H4nSeWwba54p7xvsZFTivcSoBb7qt.JFlMer..TTMPNFTkL9EnBLA0AybHwIZFs10KGqvXgMWlthaSt9vQ",
+   "401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a5043500791d2c1c/1792962617067/2d4f4f417e1f38823fb8dd1967476d73215bc18b69fc4323a1743ac68ac9b0ca/B7LFt3uOln5eND4WFTkjVzZUpYLNzFKm4ketAaztgdU-1792962617-1.3.1.1-..nyKVSlKT2rAIYKLqfVa5QqhNuKKw19RQVMoS0GEWSqY7OnqZu7JkkBeo4ZOq3kn_RZ85cDlLXJL.iRNEwMBnPNsDNJin4nDZprYlHUPHfyDcu6qhKrmXMNfWS34ciMSzpmmwxtSEj9DihVhycGjM8P2Tm3uFH5pfVYxAFgHiaEBRgPYD3lCqCGJbelH2Vio9N8aCwpi6m0zhntVUOEjId8_L1QI2GeIgMifF.qJ8zieVF1WMVaLVqXIrLQnjamkjIR.2mc2rcO4MJKmhKuKe4EHIzFMQSkUBhLJ9LntF904FJW6TmEL0VysfjiP804TmreUEkDkitrIJxHBaP7dkzZOtYjSnnwSLOlJ8cZpiXAGX9nlctSL10tqGX3efx0SjJvR2f1R9lcTyRE9H2QeTNYZoITVjkwi6TMxxjDPlr99kNDaIDJdYrvBjOA8E5XLZayNguzeFCQpI7XSt9To_yHGZaMu5VQBbqUWmtDjZgRjUxLl3UnNsa4snlJczrIr4V06PTOMoj8xwul0sBNkP8.1a3IMVXMWsV83sAcZJOVef2EgezuxQNF.KoypHFv7kK.Wh6Br4NobzIUwfqhoegkSrB23QnJFWucQBzSaYZNVJjmm3zneViFVfPT.917qJ1lD2zj4f8TVkkXpKi3UFDMBYcdM8.pVMXtbOJkEQG6g8itDokVZcoNWE3wTz3duqiT9Bm_MNGA01VBuToKU8RaET6Pyo7HTd7EpewivX.Np7EsuKKCw8zqdBncFX5uear6Ha5bwhFMIU8lw4ctG..AfcfUtZpVMfI7wUvGSFRrx96sH_v2QEz0_GYvdpr5zcCBtipNr21TF6QjHNqiRw",
+   "401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a504350079212c1c/1792962617101/056f928da15e5d370ae29022462e59e233960e3c0d30e806ccb9531757de505f/Tw.8VxM1PBwCiIaMNg07Ud5ZYFa2OC6YdXn4jH03i1U-1792962617-1.3.1.1-4B79p9lfCQ4q8.ioLDptGtl5b.RcFEUwuFVcRm310Y9FINDwL4031G9aRO78ZazaOFmZHv4uYNN37TvrWficvtNieDjXT27mhABRedig8lNwTsvGlMmUBf_yVYDVrhvJiffIoxX7a1fap595fXKSQYxPbJXzPKSjL5kPGACTGmMS89ai7J1rHz5Iphh6VyS3VsbRtGfufxHmL0d3f2ynNmUVnbgSG6AUBeu8jBYOzvG7Oj0RjHnoa3OHnWEGnM5vCsvHl5CCq2dkUggMXEMW9eB5RdIZlAhLq7dLsiOdEYiEsFfmnBdtVoMPTK0JK3_L9p48dDnX5wP.9Xs278voY4X0Jid7oFrWz.BCwgW8_66l6uCcOqRfJs0CF9TG.mYPnpqrc5buqdE_.VetEQit5jf4VltmBT9x4UclRdSPHFuS3M.dnp.CNPPNEfFonV_jR_v9hCgp2gg_d..szGR31DwXZRnTqaoDYo9DMlDuHr1D9orjU1C5nvo.XsGZGNWNlJEWFq9XsUbwjOpdNgZ839ZdkfiilrxACrBdSEvR6.DeTcaFmVZdCZljQiaYSrJNGCO.mCCSFfltnG3tnnokrFgD9X2Zc_KKIkHU4S5D28Ml3rrBJbPNvZUcQhri2iomSFp7d0D0BLXmPFjgyOloyHJlEMVJFacE2qFPv.3Acc2XnAnQoMNAB6QGhjKIIodCcBNri5qUk6CEqm7pzPWN_qlCkHreB1NAK4dNOcXn3B78DDeWV6YoOcAal914FlsnheqZDwTE5Ayy9bE2Y4sJXLRusZzM_mHmrNPaPrPal1M2ZYY5.HCvSiN7Wvn7bwxTRsa0l0ksPPuursUnDlPRUw",
+   "404 https://auth.youyuanqi.dpdns.org/console",
+   "404 https://auth.youyuanqi.dpdns.org/dashboard",
+   "401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a50438700a7225ca/1792962757796/4259df74e050c80fe94ce3714cf8f6d0bdafc6e54c0a71f330dcd40e821cf597/m2OrDe9KhWcegIxTfduDy3Ccpyfkaan4FwG7ZoVlShc-1792962757-1.3.1.1-oyU8LZ0MYzRe3EE8OXDMrahksXh6reia8WJN90ZAv3ohzdyM4FYevOQeEbq8GM1vnEsOFz6sHxBCgecsJUFlVY1uoa37q3Jl2Ywy4h7VCQuFw94yL3TlBJ1UAVUYl8JG8qbORJoK5G4bl038hX2a.QKnZMY9.AkaFPoI4xJcw9.4.8qIevWK50oJHbhvGi5ho_FcXRvjxRypLpEe6cscJj_WJ5CXayMmliSbNJUniwEPqz9LMInepOiXF92Pexz7JcjzjpNXXqGfZgGnjpIenBD.sAHH_WZW8gbte1FpOEdLl6s3XxylBfTGWeX696hXXcl4azStGJPzgK9RrULrVlpJra44FzBW0Hl6G_juH3fl8yRwgfRX2okzLXRwrBTxcPXeOp_mBdNHchS8M5gDZiYIqJCH90qLeuuBYq4bUGT60OfvyViKODqJ6ILoao_H9liM1s5ExX8KZWGWjXU9uSJJ8OBa_YWyep2e3o59oa.AAQm9wVBaC7M.sLB3g_8t83Xaq4DPYK0We2OjGn.I_Q1VAeaz.RTzKCbV9w8YdCO_8IULsTomoJ92Z6aoqwzIMXPIjUP4_JZ93_DucuZCZz3GRWnxJ9xgMk2_5uy2SJsDE_fbmwagC4YAceNpaTo37YhcnhtHl8ZiNGM7ISFQcwG2sLu0CJZFYjA6WBepqTEeUWCFE6g6uevJNp_xy8iyj3mIazDuJoLYgCDaR0irz3tlAkEVJzaNNErYFfurqeBUEFQytx76k.xWftKXWEK28oFWX1p9O.cP1Gu3uqhbJWeFhrORXsqoZp1HG4J.bUlDfh.ORtWa.RPOhkcgKfP3quyQ1jLQnEX1yOS4DUdSmA",
+   "401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a50438700a7025ca/1792962757980/5044ebf4b689d8e3b20238a4e358bba2ac06b8eed60f87d838de9c9bf86b12b8/5Ck0B5A9hLtakj.xChEbc7.SotvSOlvxeC14Wh_bFk8-1792962757-1.3.1.1-faOYG.lHzYEu__TXq.mDeX3Myimlk0ZsfhdwvyB5a4pi5QpF7vsM49zykddjXUuc3HvIPuF7Zvums72P9AZcLT6_B_dgOh_j1Tbt6puTwJCQ6mh7onzH62JSfsX.yOTJ.4GCE2JBtxLIkSvMM6J5Is8.2h0P.Vy5AeX_UxK.wlcsKjxQ.VGVFTHEnR5kwu7mXb6ea7IDDLL694Cle9wFivg9sowi9yVOTzbDYAYUgv6ikHWzjraIoT2Kan5WtmYv9riVm6PQ97os45LLieA_BPVfO2DTcDry_66AEGCqVrMjaDL2bSEg1uFtL9Imu7l7RXpj6zUkVmnPKc0zxl8O5q4vbf8RFxBPLP7nbj64hqE0Hl3UGa98PSi1aVIHfrO9jaM.tbBrXk9ci.AqQDWRHwtu0XHrSg5ODv46aqCajBWckCtNb2QumDFVPymAo7CsAR5CZACQLu1lEIvhN92.9_GbJZYnj87DLC.ckL2dHJRUkuMzkN_TW7dxMb4wpd6OjsE7NlJQKnJybc6sOKzaRBHQtLX2gCnd0tMehHKWuQLHJmcuQIkThJUCFLP6pdiD9DZe_Nc5uzC6QkZKdTaRGqhzxHD7B_44veFL3kffJv9bzZB9wXnw9DlXdOzu.b3tUB6O20c0HTPFKvt1uqSsdiCKDf.M0GDb6R5DqaOcFEqGbHf_JXYgmABBa7sD9IgaB9bJ1GuaEWEmtkjp9ILdkBCm_vwJU8ct0sDbyGCNBy2dt3.d7Q_Vt9PC.7YGI_M25PDMToydEyz6VaGxeZOO5ZVVC9OgTcxKNE..ESaN6xawTf508DKcUrrxFN.BvjS7ogaj6kKr21HUa7.zTMOckQ",
+   "401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a50438700a7425ca/1792962757870/ec676d0382ebdb3ee9d2876d7bcb74e508012bcfb62bbadceadb217e87ac7d4b/1VIFDXGWYgKQ93uqO1xaGRO4Qm1VkHpgsOTKrul8XTE-1792962757-1.3.1.1-0LtYDX69rO1uUgOf90HSp6.IZW.U.m0z2WCk4ylRJcJhVNAwqkkuz3CEg9AsKL_zMez7cshRjeaS6l38i58BYmaE.LfO8jZ9eGFs90UKX.bHwMpNlyRoXpD56o6Qe5ftvCdYGC2EtlF7ZjwSoXQ9OMk1WgnUYf.nVTeHVzJob0hfDCc6mF9Bsh_z1vE9tdN1hRqrIlhr.DVFGAyXwr9TBP1_yugTM0BnMva4STTxFMAAhnSbryebSdwDvzlY9LlFfRWF1uSY0xzS69JyEXSDS8imKhtklIGfkWK2hh7tOmGMA7a.1vhQkKUR6_iKcQFrkn2cyJlnspP_PTMB9MG5ahk1NKGVGHqtm1hd9WjfMlaprfEX4Ezprr2sBSXjlN4wfWu2qpC4Gvhek6Tep4aGpYDk2MDW04cTf9abPzf8ePr4PNxBs73ckmQgpafLpnf0eTHiLmWnKgNYH4OyCuyeUHR0bBDVeTtMQh2irp3alrvyJirSc60VLBfs.eAIlIdqIpM174gafb5S_9CzkLEe48rlEQasBt2NHlYYmt_PC0vmthnTRsxpaO4xHdtdHCHp4vK4f33DO3iqCYqq8vrJGiwhy8TS.5KJ7dB3xXtscKtkCff2Jcq3cE6ZGHVixWh4CmB5Qeq_32VcTrvcjPiLGzotLUq20WOCEAzXO5JfY2PULm7LS1eFiLNLpBwFCriRtlhsROiAv0m0FH1I0UBmWGT3NeuOTSUyJMFyHWKEmXsU7319AjJq7DC9HQCBPcUSf0qkYpHMzI9hitYAFQCMvvbovF_5LaZN57KD_xM5201RX3BK2WeE.9a_3p6JQyh594YF.X0OkewI4yh6_8IMPA"
+  ]
+ }
+}

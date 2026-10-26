@@ -1,0 +1,203 @@
+{
+ "desktop": [
+  {
+   "id": "04b",
+   "name": "游戏账号(401定位)",
+   "len": 729,
+   "api": 26,
+   "req": 370,
+   "errs": [
+    {
+     "msg": "Failed to load resource: the server responded with a status of 401 ()",
+     "url": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%86%B7%E9%85%B7%E6%B8%85%E7%BA%AF%E8%BD%A6%E9%80%9F"
+    },
+    {
+     "msg": "Failed to load resource: the server responded with a status of 401 ()",
+     "url": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%84%92%E9%9B%85%E7%8C%8E%E6%9D%80%E8%80%85"
+    },
+    {
+     "msg": "Failed to load resource: the server responded with a status of 401 ()",
+     "url": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E7%81%AB%E7%A5%9E%E9%9D%A0%E8%B0%B1%E5%86%9B%E5%9B%A2"
+    },
+    {
+     "msg": "Failed to load resource: the server responded with a status of 401 ()",
+     "url": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-texture?player=%E4%B8%BB%E8%B4%A6%E5%8F%B7"
+    }
+   ],
+   "bad": [
+    {
+     "s": 401,
+     "u": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%86%B7%E9%85%B7%E6%B8%85%E7%BA%AF%E8%BD%A6%E9%80%9F"
+    },
+    {
+     "s": 401,
+     "u": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E5%84%92%E9%9B%85%E7%8C%8E%E6%9D%80%E8%80%85"
+    },
+    {
+     "s": 401,
+     "u": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-head?player=%E7%81%AB%E7%A5%9E%E9%9D%A0%E8%B0%B1%E5%86%9B%E5%9B%A2"
+    },
+    {
+     "s": 401,
+     "u": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-texture?player=%E4%B8%BB%E8%B4%A6%E5%8F%B7"
+    }
+   ]
+  },
+  {
+   "id": "07b",
+   "name": "连接与设置(401定位)",
+   "len": 1267,
+   "api": 17,
+   "req": 392,
+   "errs": [
+    {
+     "msg": "Failed to load resource: the server responded with a status of 401 ()",
+     "url": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-texture?player=%E5%B8%83%E6%B1%B2%E5%B2%9B"
+    }
+   ],
+   "bad": [
+    {
+     "s": 401,
+     "u": "https://toolbox.youyuanqi.dpdns.org/api/skin/online-texture?player=%E5%B8%83%E6%B1%B2%E5%B2%9B"
+    }
+   ]
+  },
+  {
+   "id": "06",
+   "name": "全局抓包",
+   "cardFound": 1,
+   "cardText": "全局抓包|观测在线玩家周围的服务器事件",
+   "timing": {
+    "firstContent": 92,
+    "blank": 0,
+    "stable": 230
+   },
+   "jitter": 0,
+   "len": 1861,
+   "head": "游园|YOUYUAN TOOLBOX|主账号|工作空间|工具总览|插件中心|终端|快捷操作|导入建筑|导出建筑|命令链|连接与资料|连接与设置|游戏账号|群服互通|远程设备|把想法，放进世界|游园工具箱 · v0.10.78 · 独立服务器运行环境|全局抓包|全局抓包|默认自动包含所有在线玩家；不同维度由自己的常驻机器人负责。|启用全局抓包|机器人游戏模式|保持当前模式|生存|创造|冒险|旁观",
+   "overflow": 0,
+   "api": 4,
+   "req": 396,
+   "errs": [],
+   "bad": []
+  }
+ ],
+ "mobile": [
+  {
+   "id": "06",
+   "name": "全局抓包",
+   "navMode": "ok",
+   "firstContent": 1685,
+   "len": 978,
+   "jitter": 0,
+   "lenEnd": 1748,
+   "overflow": {
+    "over": 0,
+    "off": []
+   },
+   "api": 3,
+   "req": 3,
+   "errs": [],
+   "bad": []
+  },
+  {
+   "id": "07",
+   "name": "连接诊断与在线玩家",
+   "navMode": "subnav",
+   "firstContent": 57,
+   "len": 1307,
+   "jitter": 0,
+   "lenEnd": 1190,
+   "overflow": {
+    "over": 0,
+    "off": []
+   },
+   "api": 14,
+   "req": 15,
+   "errs": [],
+   "bad": []
+  },
+  {
+   "id": "08",
+   "name": "导入建筑",
+   "navMode": "ok",
+   "firstContent": 1681,
+   "len": 237,
+   "jitter": 0,
+   "lenEnd": 237,
+   "overflow": {
+    "over": 0,
+    "off": []
+   },
+   "api": 1,
+   "req": 1,
+   "errs": [],
+   "bad": []
+  },
+  {
+   "id": "09",
+   "name": "导出建筑",
+   "navMode": "subnav",
+   "firstContent": 1674,
+   "len": 298,
+   "jitter": 0,
+   "lenEnd": 298,
+   "overflow": {
+    "over": 0,
+    "off": []
+   },
+   "api": 2,
+   "req": 2,
+   "errs": [],
+   "bad": []
+  },
+  {
+   "id": "10",
+   "name": "命令链",
+   "navMode": "subnav",
+   "firstContent": 1723,
+   "len": 1945,
+   "jitter": 0,
+   "lenEnd": 1945,
+   "overflow": {
+    "over": 0,
+    "off": []
+   },
+   "api": 2,
+   "req": 2,
+   "errs": [],
+   "bad": []
+  }
+ ],
+ "notes": {
+  "chipRow": {
+   "found": true,
+   "info": [
+    {
+     "cls": "yyq-quicknav",
+     "ox": "auto",
+     "sw": 507,
+     "cw": 354
+    },
+    {
+     "cls": "yyq-root",
+     "ox": "visible",
+     "sw": 354,
+     "cw": 354
+    },
+    {
+     "cls": "sp-body",
+     "ox": "auto",
+     "sw": 390,
+     "cw": 390
+    }
+   ],
+   "chipRect": {
+    "x": 20,
+    "right": 74,
+    "w": 54
+   },
+   "iw": 390
+  }
+ }
+}

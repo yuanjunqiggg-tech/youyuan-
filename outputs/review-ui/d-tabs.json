@@ -1,0 +1,273 @@
+[
+ {
+  "tab": "工具总览",
+  "clicked": true,
+  "ms": 6122,
+  "apis": [
+   "/api/youyuan/snapshot:200",
+   "/api/youyuan/events:200",
+   "/api/youyuan/events:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 1099,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n工具总览\n已连接(OP)\n98014267\n工作台\n\n从创作到管理，把所有工具放在顺手的位置。\n\n10月25日周日\nYOUR CREATIVE SPACE\n让创作，更有条理。\n\n建筑、插件与服务器，在这里有序管理。\n\n连接游戏\n‹\n自定义封面\n›\n游戏连接\n已连接\n98014267\n公网远控\n已连接\n独立的设备连接状态\n运行中的插件\n1\nPython / C++ / Lua\n进行中的任务\n0\n建筑与创作任务\n常用工具\n点击星标调整\n建筑导入\n地图画\n音乐工坊\n命令链条\n全局抓包\n全部工具\n15\n调整顺序\n按分类排序\n按名称排序\n按最近使用\n自定义顺序\n全部\n建筑工具\n创意工坊\n插件与自动化\n实用工具\n种子与地图\n建筑工具 · 4\n建筑导入\n导入结构与建筑文件\n建筑导出\n保存选区中的建筑\n建筑文件\n文件管理与批量预览\n结构与指令转换\n格式转换、结构分析与命令生成\n创意工坊 · 4\n地图画\n把图片变成方块画\n视频方块化\n图片与视频 → 世界方块动画\n音乐工坊\nMIDI 播放与钢琴\n皮肤雕像\n从皮肤生成立体雕像\n插件与自动化 · 2\n命令链条\nTXT 实例与条件链调度\n插件市场\n浏览、安装与发布插件\n实用工具 · 4\n云端资料库\n插件、建筑与音乐文件\n更多工具\n位置、背包与其他操作\n服务器搜索\n查找服务器与管理投放队列\n全局抓包\n观测在线玩家周围的服务器事件\n种子与地图 · 1\n种子查询\n地图式看史莱姆与结构，全部本机计算\n连接状态\n游戏服务器\n98014267 · 今日掉线 3 次 · 最近：连接被关闭\n公网设备\n已连接\n群服互通\nreconnecting\n管理账号与连接\n最近使用\n使用过的工具会显示在这里。\n 小提示\n\n点亮工具右上角的星标，可以加入常用工具。\n\n调整顺序后会自动保存，下次打开仍然在原来的位置。\n\n最近任务\ny",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 2,
+   "buttons": 74
+  },
+  "shot": "d-工具总览.png"
+ },
+ {
+  "tab": "插件中心",
+  "clicked": true,
+  "ms": 6091,
+  "apis": [
+   "/api/youyuan/agent/workspaces:200",
+   "/api/youyuan/runtime/list:200",
+   "/api/plugin/list:200",
+   "/api/youyuan/events:200",
+   "/api/config:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 540,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n插件中心\n已连接(OP)\n98014267\n我的插件\n\n常用插件随手启动，代码、配置与文件一处管理。\n\n导入插件\n创建插件\n1\n运行中\n1\n已安装\n3\n草稿\n随连接自动启动\n刷新\n插件库\n全部项目\n3\n已安装\n1\n已关联更新\n0\n创作草稿\n2\n搜索插件\n语言\n全部语言\nLua\n词库\nPython\nC++\n状态\n全部状态\n运行中\n等待连接\n未启动\n已停用\n异常\n创作草稿\n分组\n按运行状态\n按语言\n按来源\n3 / 3 项\n运行中\n1\n›\nLu\nR21B有限功能验收\nLua 插件 · v1.0.74-R21B-Yo… · 已关联草稿\n运行中\n停止\n创作草稿\n2\n›\nPy\n添加Agent\n继续编写，完成后发布为插件\n创作草稿\n等待发布\nAI 帮写\n›\nPy\n添加Agent · 新会话\n继续编写，完成后发布为插件\n创作草稿\n等待发布\nAI 帮写\n来源与更新\n检查版本 · 管理关联\n发现与工具\n浏览插件市场\n命令链工具\n资料与开发",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 8,
+   "buttons": 112
+  },
+  "shot": "d-插件中心.png"
+ },
+ {
+  "tab": "终端",
+  "clicked": true,
+  "ms": 6195,
+  "apis": [
+   "/api/youyuan/events:200",
+   "/api/youyuan/events:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 377,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n终端\n已连接(OP)\n98014267\nyouyuan@console\n·\n主账号\n游戏已连接 · OP\n1 / 1 条\n复制\n清空\n全部类型\n错误\n指令\n聊天\n结果\n事件\n停止滚动\n事件\n[聊天] : \n最近 2,000 条 · 停止滚动时仍接收日志\nhelp\nstatus\nchains\nplugins\ntasks\nping\nclear\n❯\n游戏指令、终端程序或聊天消息\n发送\n游戏指令、终端程序与聊天\n等待输入\n\nEnter 执行 · Shift+Enter 换行 · Tab 补全 · ↑↓ 历史",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 11,
+   "buttons": 124
+  },
+  "shot": "d-终端.png"
+ },
+ {
+  "tab": "导入建筑",
+  "clicked": true,
+  "ms": 6102,
+  "apis": [
+   "/api/youyuan/events:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 350,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n建筑导入\n游园 / 建筑写入\n把建筑带入世界\n\n文件、参数、执行状态分区呈现；导入、多机器人与修补功能完整保留。\n\n▦\n01\n建筑源文件\n\n先选文件，再查看解析结果。\n\n选择建筑文件\n.mcstructure .schematic .schem .mcworld .bdx\n›\n02\n放置与执行\n\n设置位置、写入规则和参与账号。\n\n选择并解析源文件后，这里将显示位置、写入规则和执行选项。\n\n游园 · 建筑写入\n工具箱设备读取文件 → 当前游戏服务器",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 50,
+   "buttons": 134
+  },
+  "shot": "d-导入建筑.png"
+ },
+ {
+  "tab": "导出建筑",
+  "clicked": true,
+  "ms": 6097,
+  "apis": [
+   "/api/youyuan/events:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 411,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n建筑导出\n游园 / 建筑读取\n保存世界里的作品\n\n选择范围与格式，将原始建筑文件保存到当前执行设备。\n\n▦\n01\n框选读取区域\n\n输入两个对角坐标，保留原格式和协作选项。\n\n起点\n终点\n格式\nMCStructure\n▾\n协作机器人数量\n使用已配置的同服多机器人；单账号保持顺序读取，缺块时中止。\n文件名\n开始导出\n游园 · 建筑读取\n当前游戏服务器 → 工具箱设备文件\n导出说明\n从世界，到文件。\n确认当前连接的服务器与账号。\n填写区域和文件名，选择需要的格式。\n等待任务完成后下载原文件。\n\n缺块、断线或失败时以任务实际结果为准；开始任务不等于导出完成。\n\n打开文件下载",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 19,
+   "buttons": 130
+  },
+  "shot": "d-导出建筑.png"
+ },
+ {
+  "tab": "命令链",
+  "clicked": true,
+  "ms": 6093,
+  "apis": [
+   "/api/youyuan/chains:200",
+   "/api/youyuan/events:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 2069,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n命令链条\n命令链条\n\n一个文件一行，直接启动、停止、编辑或删除；列表就是磁盘目录本身。\n\n命令链文件\n24 个文件 · 1 个运行中\n目录：插件数据文件/ds_ai_agent/command_txt/\n刷新\n新建命令链\n导入 TXT\nAI 帮写\n全部停止\n_R100_备份_回地表60步_不启动.txt\n已停止\n193 条命令 · 1.00 Hz · 0 ms/命令 · 28 KB · 22 小时前修改\n启动\n编辑\n删除\n_R102_备份_返回地面_111级1Hz_不启动.txt\n已停止\n295 条命令 · 1.00 Hz · 0 ms/命令 · 45 KB · 22 小时前修改\n启动\n编辑\n删除\n_R98_备份_回地表_不启动.txt\n已停止\n296 条命令 · 1.00 Hz · 0 ms/命令 · 45 KB · 23 小时前修改\n启动\n编辑\n删除\n_R98_备份_雪球主链_不启动.txt\n已停止\n18 条命令 · 20 Hz · 0 ms/命令 · 2.3 KB · 23 小时前修改\n启动\n编辑\n删除\n_违禁收纳袋独立清除20Hz.txt\n运行中\n18 条命令 · 1.00 Hz · 0 ms/命令 · 621 B · 8 小时前修改\n尝试 157068 · 提交 157068 · 跳过 0 · 完成 8726 轮 · 实际 0.98 轮/秒\n停止\n编辑\n删除\n_雪球菜单_互传计时模块.txt\n已停止\n1 条命令 · 20 Hz · 0 ms/命令 · 177 B · 2 天前修改\n启动\n编辑\n删除\n_雪球菜单_回地表模块.txt\n已停止\n296 条命令 · 20 Hz · 0 ms/命令 · 45 KB · 21 小时前修改\n启动\n编辑\n删除\n_雪球菜单_常驻补给1Hz.txt\n已停止\n3 条命令 · 1.00 H",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 11,
+   "buttons": 205
+  },
+  "shot": "d-命令链.png"
+ },
+ {
+  "tab": "连接与设置",
+  "clicked": true,
+  "ms": 6136,
+  "apis": [
+   "/api/config:200",
+   "/api/bot/status:200",
+   "/api/youyuan/events:200",
+   "/api/qq/status:200",
+   "/api/youyuan/remote:200",
+   "/api/fleet/status:200",
+   "/api/youyuan/notices:200",
+   "/api/youyuan/global-capture:200",
+   "/api/youyuan/connection-policy:200",
+   "/api/bot/status:200",
+   "/api/youyuan/rooms:200",
+   "/api/youyuan/events:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 1259,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n连接与设置\n已连接(OP)\n98014267\n打开终端\n角色等级与经验\n账号与设置\n\n服务器连接、群服互通与公网控制，统一在这里管理。\n\n10月25日周日\n9\n服务器 98014267\n服务器\n服务器\n98014267\n服主\n未公开\n在线玩家\n未知 / 未知\n版本\n未知\n\n游戏已连接 · 自动重连开启 · 保留当前模式\n\n正在更新服务器信息…\n\n刷新\n在线玩家 · 每 60 秒自动刷新 · 58 秒后\n连接诊断\n未读取\n今日掉线 — 次\n展开详情\n连接与账号\n服务器、凭据、保活与多机器人\n游园平台账号\n服务器连接\n服务器连接\n已连接\n服务器 / 分享链接\n如何填写？\n\n直接填房间号即可：自动识别租赁服、联机房间与本地房间，有多个结果时让你选一次。\n\n连接服务器\n断开连接\n全局抓包设置\n应用启动时自动连接\n检测到断开后自动重连\n自动维护创造模式与飞行（建筑作业可选）\n\n默认开启创造与飞行维护；受伤、死亡或生存测试时请关闭。\n\n收包缓存 · 包数量\n\n默认4096，保存后下次连接生效。这是待处理包的缓存，不限制命令条数或每秒发送量；增大会占用更多内存。\n\n重连间隔 · 秒\n保存\n\n默认 10 秒；改完立即保存，下次打开仍是这个值。手动断开会暂停重连，点击连接后恢复。\n\n设置后台电池保护管理游园凭证 / 一键游客注册\n服务器真人人数规则\n验证服务器与账号\n多机器人作业\n多机器人作业\n0/4 子机器人在线\n\n主机器人连接后，子机器人用各自的令牌加入同一服务器；主机器人拥有 OP 时，子机器人权限自动授予。\n\n连接子机器人\n断开\n跨账号联通\n刷新状态\n主\n主机器人 · 布汲岛\nOP\n服务器 98014267\n1\n子机器人 1\n未连接\n2\n子机器人 2\n未连接\n3\n子机器人 3\n未连接\n4\n子机器人 4\n未连接\n机器人提示与游戏广播\n全",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 45,
+   "buttons": 259
+  },
+  "shot": "d-连接与设置.png"
+ },
+ {
+  "tab": "游戏账号",
+  "clicked": true,
+  "ms": 6169,
+  "apis": [
+   "/api/youyuan/accounts:200",
+   "/api/skin/online-texture:200",
+   "/api/game-auth/accounts:200",
+   "/api/skin/online-head:200",
+   "/api/youyuan/accounts/invoke/main/api/bot/status:200",
+   "/api/youyuan/accounts/invoke/main/api/youyuan/observations:200",
+   "/api/youyuan/events:200",
+   "/api/skin/proxy:400",
+   "/api/skin/online-texture:200",
+   "/api/skin/online-texture:200",
+   "/api/skin/online-texture:401"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 599,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n工作空间 / 账号管理\n已连接(OP)\n98014267\n账号与项目\n\n游戏账号与服务器项目，统一管理。\n\n10月25日周日\n添加账号\n刷新账号\n皮肤库\n进入主账号\n\n第 5 个工作空间 · 当前操作：主账号。选择账号后，可连接服务器并管理对应的机器人。\n\n6\n游戏账号\n0\n已确认连接 · 待查询 6\n1\n服务器项目\n0\n绑定中的机器人\n游戏账号\n注册与认证任务\n游戏项目\n全部账号\n98014267 · 3 个\n每页 15 个\n每页 30 个\n每页 50 个\n只显示主令牌\n布\n布汲岛\n主账号\n尚未配置服务器\n状态待查询\n›\n上一页\n第 1 / 1 页 · 1 个账号 · 只显示主令牌\n下一页\n\n官方资料已合并到上方账号列表。\n\n运行记录\n主账号\n▾\n\n在线人数趋势与分布\n聊天记录\n搜索消息\n玩家\n所有玩家\n开始时间\n结束时间（含此分钟）\n汇总间隔\n每小时\n每 15 分钟\n每天\n清空筛选\n时段消息量 · 点击查看\n\n聊天按最新时间排序；筛选与时段统计仅针对当前账号实际保留的记录，内核最多保存最近 10,000 条。时间按本设备时区显示。",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 54,
+   "buttons": 289
+  },
+  "shot": "d-游戏账号.png"
+ },
+ {
+  "tab": "群服互通",
+  "clicked": true,
+  "ms": 6275,
+  "apis": [
+   "/api/qq/caps:200",
+   "/api/qq/login:200",
+   "/api/qq/config:200",
+   "/api/qq/status:200",
+   "/api/qq/actions:200",
+   "/api/qq/messages:200",
+   "/api/youyuan/rooms:200",
+   "/api/youyuan/events:200",
+   "/api/qq/server/players:200",
+   "/api/ai/models:200",
+   "/api/qq/config:200",
+   "/api/qq/moderation:200",
+   "/api/qq/server/logs:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 8389,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n群服互通\nQQ 未登录\nNapCat · 3 个群 · 最近消息 1 小时前\n去接入\n状态\n能力\n技能\n助手\n接入\n人设\n表情\n机器人资料未读取\nQQ 未登录\n3199053371\n切换群\n互通群\n服务器游戏交流群、互通群、互通群\n游戏身份\n布汲岛\n好友 / 群\n— / —\n今日动作\n1\nNapCat\nws://127.0.0.1:3001\nOneBot 桥接\nQQ 未登录\n3 个群\n\nQQ 未登录。系统会自动重启协议端尝试快速登录（保留登录态，通常不用扫码）；等 2~3 分钟仍不恢复，再用手机 QQ 扫下方二维码。\n\n二维码 42 秒前生成\n\n手机 QQ 扫一扫\n在手机上确认登录\n机器人自动上线\n登录方式\n扫码登录当前\n\n手机 QQ 扫一下完成授权。首次登录、或登录态已经失效时走这个。\n\n快速登录\n\n复用已保存的登录态，协议端重启后免扫码自动上线。这就是「记住密码」的等价物，也是长期不掉线的关键。\n\n账号密码登录不可用\n\n协议端不支持：Linux 版 QQ（NT 内核）没有明文密码登录接口，只有扫码和快速登录两种。填密码没有可提交的入口，所以不做假按钮；长期在线靠上面的快速登录 + 掉线自愈。\n\n掉线自愈\n暂停中，还需 16 分钟：一小时内已自动重启 3 次仍未恢复，登录态可能已失效，需要人工扫码登录\n已开启\n重连次数上限\n间隔（秒）\n保存\n后端待支持：当前由服务端固定为每小时 3 次、60 秒探测一次；上面的开关即时生效。\n能力\n16\n\n点开任意一项可改冷却、每日次数、最低角色；关掉就等于禁用这条能力\n\n全部\n16\n互动\n4\n形象\n5\n管理\n7\n点赞\n给群友的名片点赞，每人每天次数有限\n待定\n表情回应\n对消息贴上表情回应，可自定义表情 ID\n待定\n收藏表情\n读取机器人 QQ 的收藏表情包，看清图片再决定发哪个\n待定\n发动",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 240,
+   "buttons": 414
+  },
+  "shot": "d-群服互通.png"
+ },
+ {
+  "tab": "远程设备",
+  "clicked": true,
+  "ms": 6128,
+  "apis": [
+   "/api/qq/groups:200",
+   "/api/qq/login:200",
+   "/api/qq/assistant:200",
+   "/api/qq/config:200",
+   "/api/cloud/linux-direct:200",
+   "/api/qq/status:200",
+   "/api/qq/login:200",
+   "/api/qq/actions:200",
+   "/api/qq/caps:200",
+   "/api/youyuan/accounts/invoke/main/api/youyuan/observations:200",
+   "/api/ai/models:200",
+   "/api/youyuan/remote:200",
+   "/api/youyuan/accounts/invoke/main/api/bot/status:200",
+   "/api/qq/assistant:200",
+   "/api/youyuan/events:200",
+   "/api/identity/mcp-links:401",
+   "/api/youyuan/remote:200",
+   "/api/qq/messages:200",
+   "/api/youyuan/remote:200",
+   "/api/qq/bot/profile:200",
+   "/api/youyuan/tunnel:200"
+  ],
+  "snap": {
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server",
+   "title": "游园工具箱",
+   "textLen": 635,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱 · v0.10.78 · 独立服务器运行环境\n公网远控\n随时连接你的设备\n\n配置公网设备连接，在自己的域名下管理工具与插件。\n\nMCP接入教程\n\n地址、密钥、临时公网隧道、外部工具与故障排查。\n\n打开内置教程\n设备连接\n已连接\n连接地址\n设备密钥\n启用公网连接\n保存并连接\nMCP 接入\n\n通过公网 MCP 接口接入外部助手，使用云端控制密钥认证。\n\n公网 MCP 地址\nhttps://toolbox.youyuanqi.dpdns.org/mcp/?device=linux-server\n当前账号的本机 MCP 密钥 · main\n复制密钥\n显示 / 隐藏\n\n本机密钥用于直接连接 APK 的 MCP 服务。公网连接使用独立的云端控制密钥。\n\nhttp://127.0.0.1:19429/mcp/。公网设备连接由主控制端维护；公网 MCP 使用游园平台账号的云端控制密钥，api_call 可以选择自己的子账号。\n\nMCP 专用连接\n\n给 Grok、Cursor、Cherry Studio 这类只能填服务器网址的客户端用的免密钥网址，可单独设权限与有效期，随时撤销。\n\n管理 MCP 专用连接\n刷新已授权连接\n\n读取失败：登录状态已失效，请重新登录游园账号",
+   "overflowX": false,
+   "scrollW": 1440,
+   "clientW": 1440,
+   "cls": 0,
+   "inputs": 64,
+   "buttons": 278
+  },
+  "shot": "d-远程设备.png"
+ }
+]

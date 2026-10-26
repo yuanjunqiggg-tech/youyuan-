@@ -1,0 +1,79 @@
+/* 群服互通 · 手机端快捷跳转 + 助手面板输入框尺寸
+   与 youyuan_qq_console.css 共用 --phx-* 变量；只作用于 #yyq-root 与
+   #yy-qq-assistant-panel，不动全局 input/textarea。 */
+
+/* ---------- 快捷跳转 chips（状态带下面一行，横滑） ---------- */
+.yyq-quicknav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  margin: -6px 0 -4px;
+  padding: 0 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.yyq-quicknav::-webkit-scrollbar { display: none; }
+.yyq-quicknav[hidden] { display: none; }
+.yyq-quicknav-chip {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--phx-border-light, #e8e2d6);
+  border-radius: 17px;
+  background: var(--phx-bg-card, #fffcf4);
+  color: var(--phx-text-secondary, #9f927d);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.yyq-quicknav-chip[hidden] { display: none; }
+.yyq-quicknav-chip:hover,
+.yyq-quicknav-chip:focus-visible {
+  border-color: var(--phx-primary, #2f7d64);
+  color: var(--phx-primary, #2f7d64);
+  outline: none;
+}
+.yyq-quicknav-chip:active { transform: scale(.97); }
+
+/* 状态带是 sticky 的（top 6-8px，高 52-56px），跳过去别被它盖住 */
+#yyq-status,
+#yyq-caps,
+#yyq-skills,
+#yyq-access,
+#yyq-persona,
+#yyq-faces,
+#yyq-assistant { scroll-margin-top: 76px; }
+
+/* 技能等折叠块是「展开后才异步拉数据」，行是后插进来的。Chrome 的滚动锚定
+   会为了稳住视口里的锚点把 scrollTop 往上推 500px，导致点 chip 跳过去又被顶走。
+   折叠体内部不做锚定，内容只往下长，落点就停在 scroll-margin-top。 */
+#yyq-root .yyq-fold-body { overflow-anchor: none; }
+
+/* ---------- 助手面板输入框 ---------- */
+/* 原生 textarea 不写 width 就按 cols=20 排版，手机上只剩 150px 宽。
+   这里统一撑满面板宽度，并给一个能写人设的最小高度。 */
+#yy-qq-assistant-panel textarea {
+  width: 100%;
+  min-height: 88px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+#yy-qq-assistant-panel #yy-qq-ai-prompt { min-height: 140px; }
+
+@media (max-width: 560px) {
+  #yyq-status,
+  #yyq-caps,
+  #yyq-skills,
+  #yyq-access,
+  #yyq-persona,
+  #yyq-faces,
+  #yyq-assistant { scroll-margin-top: 68px; }
+}

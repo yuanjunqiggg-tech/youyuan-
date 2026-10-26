@@ -1,0 +1,98 @@
+  document.getElementById("tab-accounts").innerHTML = '<div class="content-inner">' + yyHeading("\账\号\与\项\目", "\游\戏\账\号\与\服\务\器\项\目\，\统\一\管\理\。") + `<div class="yy-actions yy-account-toolbar yy-cred-toolbar">
+<button class="yy-primary" onclick="yyEditAccount()">\添\加\账\号</button>
+<button class="yy-secondary" onclick="yyCenterRefresh()">\刷\新\账\号</button>
+<button class="yy-secondary" onclick="yySkinLibraryOpen()">\皮\肤\库</button>
+<button class="yy-secondary yy-acct-toolbar-wide" hidden onclick="yyEnterAccount('main')">\进\入\主\账\号</button>
+</div>
+<p class="yy-hint">\第 5 \个\工\作\空\间 \xB7 \当\前\操\作\：<b id="yy-current-account">
+</b>\。\选\择\账\号\后\，\可\连\接\服\务\器\并\管\理\对\应\的\机\器\人\。</p>
+<div id="yy-account-overview" class="yy-account-overview">
+</div>
+<div class="yy-center-tabs">
+<button class="btn-s" onclick="yyAccountPanel('accounts')">\游\戏\账\号</button>
+<button class="btn-s" id="yy-admin-pool-entry" hidden onclick="yyPoolPanel(true)">\管\理\员\托\管\池</button>
+<button class="btn-s" onclick="yyGameAuthPage()">\注\册\与\认\证\任\务</button>
+</div>
+<div id="yy-pool-panel" hidden>
+</div>
+<div id="yy-game-accounts-panel">
+<div id="yy-projects" class="yy-projects">
+</div>
+<div class="yy-account-toolbar">
+<input id="yy-account-search" aria-label="\搜\索\账\号" placeholder="\搜\索\昵\称\、UID\或\服\务\器" oninput="yyAccountPage=1;yyRenderAccountCards()">
+<select id="yy-account-page-size" aria-label="\每\页\账\号\数" onchange="yyAccountPageSize=Number(this.value);yyAccountPage=1;yyRenderAccountCards()">
+<option value="15" selected>\每\页 15 \个</option>
+<option value="30">\每\页 30 \个</option>
+<option value="50">\每\页 50 \个</option>
+</select>
+<label class="yy-cred-mainonly">
+<input type="checkbox" id="yy-cred-main-only" checked onchange="yyCredMainOnlySet(this.checked)">
+<span>\只\显\示\主\令\牌</span>
+</label>
+</div>
+<div id="yy-accounts-grid" class="yy-form-grid yy-account-list">
+</div>
+<div id="yy-account-pages" class="yy-pagination">
+</div>
+<p id="yy-account-cloud-status" class="yy-hint" role="status">\正\在\同\步\已\授\权\游\戏\凭\据\…</p>
+</div>
+<section class="card yy-monitor">
+<div class="yy-form-head">
+<h3>` + yyIcon("connection") + '\运\行\记\录</h3>
+<select id="yy-monitor-account" aria-label="\查\看\账\号" hidden onchange="yyMonitorID=this.value;yyRefreshMonitor()">
+</select>
+<button type="button" class="yy-acct-picker-trigger yy-monitor-picker" onclick="yyAcctPickerOpen(\'yy-monitor-account\')">
+<span data-acct-picker-label="yy-monitor-account">\选\择\账\号</span>
+<i aria-hidden="true">\▾</i>
+</button>
+</div>
+<div class="yy-metrics" id="yy-monitor-metrics">
+</div>
+<p class="yy-hint" id="yy-online-source">
+</p>
+<details class="yy-monitor-trends">
+<summary>\在\线\人\数\趋\势\与\分\布</summary>
+<h4>\在\线\人\数 \xB7 \时\间\线</h4>
+<div id="yy-online-chart" class="yy-chart">
+</div>
+<h4>\每\小\时\人\数\分\布 \xB7 \观\测\均\值</h4>
+<div id="yy-distribution-chart" class="yy-chart">
+</div>
+</details>
+<div class="yy-section-head">
+<h3>\聊\天\记\录</h3>
+</div>
+<div class="yy-chat-filters">
+<label>\搜\索\消\息<input id="yy-chat-filter" aria-label="\搜\索\聊\天\记\录" placeholder="\输\入\消\息\关\键\词" oninput="yyChatFilterChanged()">
+</label>
+<label>\玩\家<select id="yy-chat-player" aria-label="\按\玩\家\筛\选\聊\天" onchange="yyChatFilterChanged()">
+<option value="">\所\有\玩\家</option>
+</select>
+</label>
+<label>\开\始\时\间<input id="yy-chat-start" type="datetime-local" aria-label="\聊\天\开\始\时\间" onchange="yyChatFilterChanged()">
+</label>
+<label>\结\束\时\间\（\含\此\分\钟\）<input id="yy-chat-end" type="datetime-local" aria-label="\聊\天\结\束\时\间" onchange="yyChatFilterChanged()">
+</label>
+<label>\汇\总\间\隔<select id="yy-chat-interval" aria-label="\聊\天\汇\总\间\隔" onchange="yyChatFilterChanged()">
+<option value="3600000">\每\小\时</option>
+<option value="900000">\每 15 \分\钟</option>
+<option value="86400000">\每\天</option>
+</select>
+</label>
+<button class="btn-s" onclick="yyChatResetFilters()">\清\空\筛\选</button>
+</div>
+<div class="yy-section-head">
+<h4>\时\段\消\息\量 \xB7 \点\击\查\看</h4>
+<button class="btn-s" id="yy-chat-all-buckets" onclick="yyChatChooseBucket(null,null)" hidden>\全\部\时\段</button>
+</div>
+<div id="yy-chat-bars" class="yy-chat-bars">
+</div>
+<p id="yy-chat-summary" class="yy-hint" role="status">
+</p>
+<div id="yy-chat-table" class="yy-chat-messages">
+</div>
+<div id="yy-chat-pages" class="yy-pagination">
+</div>
+<p class="yy-hint">\聊\天\按\最\新\时\间\排\序\；\筛\选\与\时\段\统\计\仅\针\对\当\前\账\号\实\际\保\留\的\记\录\，\内\核\最\多\保\存\最\近 10,000 \条\。\时\间\按\本\设\备\时\区\显\示\。</p>
+</section>
+</div>';

@@ -1,0 +1,5274 @@
+{
+  "extra": {
+    "accounts.callPlugin": "target,pluginID,function,args数组；调用目标常驻插件的导出函数，不重跑源码。禁止跨账号递归调用。",
+    "accounts.list": "无参数；列出本控制端的账号 ID、名称，不返回令牌。",
+    "accounts.sendCommandsFast": "target,commands,options?；在目标账号顺序提交完整命令数组，不等待逐条回包。",
+    "accounts.sendMessage": "target,text；授权后由目标机器人发游戏聊天，不伪装玩家。",
+    "accounts.status": "target；按定向授权读取目标账号连接状态。",
+    "accountsPool.acquire": "options；预留空闲机器人并绑定player/server，不自动创建游戏账号。",
+    "accountsPool.add": "account；保存自己账号的Token/auth_url/server，owner_id由宿主绑定。",
+    "accountsPool.bind": "id, options；player/server，持久绑定；不自动传送。",
+    "accountsPool.bindings": "options?；只读自己的绑定状态；管理员all=true。",
+    "accountsPool.captureConfigure": "patch对象；统一保存enabled/accounts/auto_fleet/auto_provision/account_limit/fleet_steps/idle_seconds/player_limit/enforce_player_limit和镜头参数。本人或明确shared_capture账号可选；自动1/2/3、\u003e10为5、\u003e=15为6台，数量非0为人工基础投入；fleet_steps=[{min_players:1,observers:1},...]可自定义递增人数阶梯，最多32台子进程，不限双机器人；无真人停镜头，专用采集进程60秒回收。分维度回防/借调/错峰，失败冷却替补。修改会影响本设备统一观察，不创建插件。 dimension_landings按0/1/2配置{x,y,z}（其他维度标识暂不支持落点坐标）；仅配置过的维度启用上线前救援，实际坐标及子连接确认后停止TP；无确认60秒停止子连接，states中landing:\u003cid\u003e可核对结果。 game_mode设默认模式，dimension_game_modes按维度标识覆盖；keep保持当前。invisible/quick_tp/auto_respawn分别选择隐身、自动靠近和死亡自动重生；省略或auto_respawn=null沿用账号设置。 dimension_accounts与dimension_game_modes支持字符串维度标识：0主世界/1下界/2末地老配置照旧，也接受 dm、minecraft:overworld 等自定义标识，最多8条，格式限1～40位小写字母数字与 _ : . -。当前运行时只能调度主世界/下界/末地，映射不到的维度保留配置、跳过并记一条warn，不会崩溃也不会猜维度。",
+    "accountsPool.captureRoster": "options={include_bots:false}；只读本服当前名单和原生querytarget真实维度，用于诊断。include_bots=true仅诊断受管机器人，不改变生产观察排除规则，不传送/发镜头；维度缺失标unknown。",
+    "accountsPool.captureStatus": "无参数；读取宿主全局抓包config/plan/states/candidates。真实玩家维度未知不会猜测；active/submitted不是全局无漏包证明。",
+    "accountsPool.handoff": "incoming_id,outgoing_id,options={player,mode:camera|follow|hybrid,interval_seconds:2,timeout_seconds:3,next_player?}；先让接替机器人观察同一目标，收到对应的新区域更新后才停止原观察，超时保留原观察。可让原观察者接着观察next_player；两端均须在自己的授权池。返回真实ready/old_released，不等于零漏包。",
+    "accountsPool.invoke": "id, options；method/path/query/body，通过该机器人真实API执行，path仅/api。",
+    "accountsPool.list": "options?；普通用户只列自己的机器人，管理员可 all=true。无凭据返回。",
+    "accountsPool.observationPlan": "options={accounts:[账号ID，main可选],players:[真实在线名，可空],dwell_seconds:0.5,radius_blocks:48,include_bots:false}；返回错峰路线、内部机器人标签和排除名单。普通用户只用自己的池，管理员可用授权池。只是规划，不启动或传送；48格是参考，不是必达半径。",
+    "accountsPool.release": "id, options?；解除绑定；idle_seconds默认60，期间可再次acquire；到期停用。",
+    "accountsPool.start": "id, options?；真实启动独立内核并请求连接指定server，成功请求不等于进服。",
+    "accountsPool.status": "id；读取该机器人真实连接和插件状态。",
+    "accountsPool.stop": "id；断开并停用此机器人，取消保活。",
+    "bot.attack": "runtime_id 字符串,slot=0；真实近战库存交易，只允许当前服务器观测的六格内实体；slot 为 0..8。返回 submitted，伤害必须由服务器事件确认。",
+    "bot.lookAt": "x,y,z 世界坐标。由已观测机器人位置计算 yaw/pitch，启用心跳发送视角；返回请求状态，无自动寻路/穿墙保证。",
+    "bot.requestViewDistance": "chunks,timeout_ms=5000；chunks=1..2147483647协议整数，不附加32区块上限。发送RequestChunkRadius（同时设置MaxChunkRadius）并等待服务器ChunkRadiusUpdated；服务器可调小或不回复。confirmed仅表示收到半径响应，不保证远方血量/挥臂广播；超时返回confirmed=false，不冒充生效。",
+    "bot.self": "无参数。读取当前账号机器人的服务器观测状态，health/position/dead 可未知。AI Agent 使用此机器人，不自行拥有一个游戏位置。",
+    "bot.startMovement": "dx,dy,dz 玩家输入方向，每轴 -1..1；以 50ms PlayerAuthInput 心跳交给服务器驱动运动。dx 左右，dz=-1 前进，dy 上下，不是世界坐标路径规划；返回 submitted=true,confirmed=false。",
+    "bot.stopMovement": "无参数。清理当前机器人移动输入，仍需要服务器回包确认最终位置。",
+    "bot.swingAir": "无参数；在下一正常PlayerAuthInput心跳提交一次MissedSwing，复用当前位置/视角与递增输入Tick，不发旧式Animate。重复未发送请求合并；submitted=false表示仅排队；服务器广播/处理另行观察。",
+    "bot.teleport": "x,y,z 世界坐标。执行服务器 tp @s 并等待真实命令结果，需要对应权限；没有权限时报错或 success=false。",
+    "building.containerData": "容器名,Items数组,options?；生成经过类型/槽位检查的方块NBT，不连接游戏。options支持custom_name。",
+    "building.exportRegion": "起点,尺寸,{workers:1}?；异步按区块读取并保存mcstructure。只使用已配置的同服Fleet机器人，失败不输出缺块文件。返回job_id，用nbtJob查询本机文件路径。",
+    "building.importLimits": "{x?,z?}；返回常加载官方上限和当前导入器实际粒度；不执行游戏命令，不代表当前服务器已验收。",
+    "building.nbtCapabilities": "无参数；实际底层支持的方块/特殊物品及制作行为目录。支持表不是全服实测保证。",
+    "building.nbtJob": "job_id；读取当前账号的NBT任务状态；submitted与目标结构读回verified区分。任务内存留存，重启不恢复。",
+    "building.normalizeNBT": "NBT对象；按Bedrock物品字段恢复Count/Slot/ench/Damage等NBT类型，拒绝越界，保留未知字段。",
+    "building.placeContainer": "x,y,z,容器名,Items数组,options?；异步使用真实NBT工作台制作、铁砧改名、附魔及结构复制；返回job_id，用nbtJob查验证结果。会移动机器人、初始化时清背包。",
+    "building.placeSkull": "x,y,z,SkullType(0..6),states?；异步通过真实头颅物品放置和结构缓存复制；返回job_id，使用nbtJob读取实际SkullType。会使用NBT工作台并移动机器人。",
+    "building.planRegion": "{x,y,z},{sx,sy,sz}；按16x128x16分块，返回不重叠完整覆盖的单元。规划不等于执行。",
+    "building.resumeImport": "task_id；按保留的原坐标、文件校验和分区布局恢复。文件改变或机器人不就绪明确报错。",
+    "building.startImport": "{path,x,y,z,speed,dimension?,rotation?,region_size_chunks?,preload_size_chunks?,ticking_preload?,multi?,bot_names?}；region_size_chunks=0沿用旧档位，1..10为单机每批边长；preload_size_chunks=0沿用批次，或选择批次整数倍的大窗口复用一个常加载区。10需要X/Z对齐16。multi当前按单区块单元分工。返回提交状态；用taskList查进度。",
+    "building.stopImport": "无参数；请求停止当前账号作业，等待清理和断点落盘期间禁止启动重叠作业。",
+    "building.taskList": "无参数；列出当前账号/当前服务器的真实作业断点、原参数、进度和状态。running不等于服务器已确认所有方块。",
+    "chains.configure": "name,patch，合并并校验配置，保留 TXT；运行中会停止并按 enabled 重启。",
+    "chains.delete": "name，先停止再删除 TXT 与配置。",
+    "chains.export": "name，返回完整 TXT 与配置，插件可自行写入导出目录。",
+    "chains.get": "name，读取完整 TXT、配置和状态。",
+    "chains.handleChat": "player,text；处理 .命令选择 与 .链 列表/启动/停止/次数/频率/通道/源码/删除。修改要求玩家 OP，返回 handled。配合 events.onChat。",
+    "chains.list": "无参数，列出当前账号的链、配置、计数、错误和状态。",
+    "chains.menu": "player,page=1，仅向该玩家发分页聊天菜单；不会阻塞等待消息。",
+    "chains.reload": "name；只重新读取/编译TXT资源，当前轮使用原IR，下轮用新IR；不重启插件、保留启停与统计；无效修改保留原链。",
+    "chains.save": "name,content,config；config 支持 hz(显式修改主模块频率，慢模块保持原周期)、frequency_mode=override或cap(仅限制上限)/interval_ms(兼容毫秒周期；单独修改时同步hz)/delay_ms/run_count/channel/enabled/mode/window/rate_cps。mode=fast同账号模块串行有界提交（每批最多1024包/512KiB命令文本，业务未逐条确认；网络写失败停止本连接后续Fast链，不自动重发，重连后恢复；提交成功不代表服务器执行或TPS正常）、remote严格顺序、pipeline有界流水线、burst整批最多1024、stream动态滑动窗口1..1024（默认128，rate_cps=0不设固定CPS，回包立即补位，网络错误停止补发；正常无目标不丢弃无条件后续）；全部在机器人内运行。TXT支持 @gate {command,then,else,poll_ms} 按真实条件启动/回收子模块且保留其频率、最多一个活动子模块；@plugin {plugin_id,function,args} 调用当前账号已运行插件的plugin_api导出，不自动启用目标；@branch {command,then,else} 一次真实检测选择一个子链并返回，@call JSON 跨链源文件行号范围/次数/时限/持续，@wait JSON 条件边沿等待，@pause手动触发；读 command-chain 技能。账号固定为当前插件账号。",
+    "chains.start": "name，启用独立常驻实例；已启用不重复启动。",
+    "chains.stop": "name，停止并等待当前实例退出。",
+    "chains.trigger": "name，释放当前链的 @pause 等待点一次；没有等待点时不会自动重启已停止的链。",
+    "chains.validate": "content，预解析并返回命令/条件/通道/行号；失败含报错。",
+    "diagnostics.combat": "target；返回保留事件中的伤害/血量/死亡/击杀，含同一event_id的补充证据。",
+    "diagnostics.configure": "config?；宿主持久配置：event_queue/priority_queue/runtime_queue/async_tickets/event_history/actors各1..65536，stale_ms=1..86400000。事件队列变更在插件重载时生效，其余立即影响后续操作。不是命令CPS限速，也不是包种类上限。",
+    "diagnostics.entity": "target；同entities.get，额外完整字段来源及过期信息。",
+    "diagnostics.receiveTransport": "无参数；当前连接协商协议、真实注册包ID与解码前帧/字节/未知包计数。decode_panics是解码中断，trailing_bytes_frames是完成已知字段后剩余扩展字节，decoded_frames是完成解码的帧，returned_packets是返回上层的包数；decode_errors是旧版异常合计，不能当丢包数。只保存数字元数据，不保存认证或包内容。不依赖服务器组件。单批数量限制与业务留存容量分别报告，不冒充全服广播权限。",
+    "diagnostics.stats": "当前账号解码包计数、最后包时间、实体数、事件缓冲及配置、断线/踢出诊断和整个宿主内存/GC；非单插件内存。",
+    "diagnostics.trace": "event_id或sequence字符串；查询保留的事件及关联死亡/受伤详情；被覆盖返回known=false，不虚构历史。",
+    "diagnostics.visibility": "无参数。实际区块半径、Publisher、筛选前decoded/selected/filtered和enqueued/cancelled逐类型计数。ingress含监听阶段与登录缓存回放，login_ingress单独记录挑战回调，两者有重叠不能相加；不含解码失败。显式PyRpc抓包时记录应用事件名称、不留参数；登录目录亦只留名称，容量event_history。记录不代表可调用或全服广播。无宿主距离过滤；区块半径不等于实体广播范围。",
+    "entities.attributes": "target；返回服务器同步的属性字典，value/min/max/updated_at/source；armor仅服务器同步minecraft:armor时已知，不按穿戴猜护甲点数。",
+    "entities.get": "runtime_id十进制字符串或玩家名；服务器观测快照，含身份/位置/health结构/attributes/装备/视角/present/stale。未收到为known=false，不扫描全世界。",
+    "entities.health": "同entity.health，读取服务器UpdateAttributes/SetHealth缓存，不发送查询命令。",
+    "entities.nearby": "position=[x,y,z],radius=32,dimension?；已观测、仍存在且位置未过期的实体；不查询不可见区域。位置省略或self时使用机器人实际位置。",
+    "entity.health": "target=self或runtime_id字符串；current/max/previous/damage/known/max_known/stale/updated_at/source。最大生命未知为null，绝不假定20。",
+    "entity.onDamage": "同events.onEntityHurt；血量下降确认伤害，只有ActorEvent时数量未知，不能由最近玩家或挥臂猜攻击者。",
+    "events.captureClear": "清空当前账号抓包缓冲，保持抓包开关。",
+    "events.captureRead": "after_sequence=0,limit=256，返回记录/游标/覆盖和抽样统计。缓冲有界，单条超大小截为预览；不是手机所有 App 的网络抓包。",
+    "events.captureStart": "config={types:[包名或*],exclude:[包名],filter:{fields:{...},every_ms:...},capacity:1..65536,max_bytes:512..65536,total_bytes:留存序列化预算默认16MiB最高256MiB}。开启账号级解码入站游戏抓包；默认血量/死亡/位置/方块包，认证握手不记录，* 默认不包含大区块包。",
+    "events.captureStop": "停止记录，保留已抓数据。当前账号的多个插件共用账号级记录；使用时协调抓包开关。",
+    "events.captureSummary": "options同events.summary；抓包计数与最近元数据，返回overwritten/sampled_out。抓包必须先开启；计数范围为当前保留环，不是全服。",
+    "events.catalog": "无参数。列出真实事件类型、来源及范围；不保证未下发的数据。",
+    "events.define": "definition, handler；插件私有JSON映射：{name,packet,filter:{fields:{...},every_ms:0},fields:{输出字段:包字段路径}}。仅映射已解码的单一包，不执行代码、不伪造可信度；停止插件自动退订。",
+    "events.moduleHistory": "options={session?,after?,limit?}；当前机器人规范模块战斗事件独立历史与module_sequence游标，避免被移动事件挤掉。limit默认256、1..4096；容量沿用diagnostics.configure的event_history，重连reset，覆盖lost；不含乐器高频事件。",
+    "events.on": "kind, handler；订阅宿主统一事件，kind从events.catalog查询；Lua函数/函数名、Python回调、C++函数名。无需开启抓包。",
+    "events.onBlockChange": "handler(event)，UpdateBlock 导出 position/runtime_id/previous/cause_known=false；不能仅从方块更新认定破坏者。",
+    "events.onContainerChange": "handler(event)；真实BlockActorData容器类型变化，block.container_known/is_container/block_entity_id；不返回物品NBT、不把变化当作玩家放置证明。",
+    "events.onDamageDisplay": "handler(event)；已验证BREquipDamageEventServer/GetBroadcastData模块伤害显示；target.unique_id、damage_text、position与position_known。数字为显示文字，不是确认的HP扣血；attacker_known=false、dimension_known=false，不改血量缓存。",
+    "events.onDeath": "handler 回调接收一个事件对象，来源为 ActorEventDeath/InstantDeath 或 health\u003c=0；同一已死亡状态去重，重生后可再触发。不推测死亡原因/攻击者。",
+    "events.onDimensionChange": "handler(event)；服务器ChangeDimension，旧维度实体数据标为过期。",
+    "events.onEntityHurt": "handler(event)；真实掉血优先；ActorEventHurt等50ms关联UpdateAttributes，未同步血量时damage_known=false；hurt_signal仅诊断，不计作另一伤害。含target、damage/health/max_health、attacker_known=false（无可靠攻击者包时），event_id。",
+    "events.onEntityKill": "handler(event)；接收已验证Minecraft/vipEventSystem/PlayerKillMob\u003cUUID\u003e服务器模块击杀报告；攻击者与目标UniqueID精确字符串，名字仅由在线PlayerList关联。evidence=server_module_reported；不是PvP onPlayerKill，不补造血量/RuntimeID，模块未广播则不可用。同会话有界缓存按来源/攻击者/目标去重。",
+    "events.onEntityRemove": "handler(event)；RemoveActor下发时触发，含unique_id和已知runtime_id。消失不等于死亡，也可能是离开视距。",
+    "events.onEntitySpawn": "handler(event)；AddPlayer/AddActor/AddItemActor下发时触发，含实体类型、位置和原始fields。服务器视距内的出现，不代表世界内首次出生；血量仅取真实同步属性。",
+    "events.onEquipmentChanged": "handler(event)；服务器装备包即时缓存更新，含已更新槽位，不同步查询玩家背包。",
+    "events.onGlobalHealthChange": "handler(event)；仅模块health_changed有有限current血量和entity_id时触发；max未知保留null；与entities.health协议缓存分开。",
+    "events.onGlobalSwing": "handler(event)；仅收到转发模块swing事件且有明确player_id时触发；不把命中攻击当空挥，不扫描最近玩家。global表示转发模块不按机器人视距过滤，不承诺模块已安装。",
+    "events.onHealthChange": "handler(event)，仅在观测血量初始值或变化时入队，含 previous/health/max_health/time/source。",
+    "events.onHealthChanged": "同onHealthChange，含previous及真实max，未知max=null。",
+    "events.onHurt": "handler(event)；血量下降优先；ActorEvent等50ms关联属性包，否则提供damage_known=false提示；hurt_signal仅供诊断；未知攻击者attacker_known=false。",
+    "events.onItemPickup": "handler(event)；TakeItemActor下发时触发，含拾取实体和掉落物runtime_id、已观测item/position。拾取者可为生物；不凭RemoveActor猜拾取。",
+    "events.onMove": "handler(event)，服务器实际位置初始值/变化时触发；含 previous_known/position/dimension/source。高频事件可用抓包抽样过滤减少负担。",
+    "events.onObservedAction": "handler；统一接收swing/hurt/equipment/rotation/entity_kill/damage_display。真实挥臂只来自swing；伤害和击杀不能冒充空挥。",
+    "events.onPlayerDeath": "handler(event)；只接受玩家死亡；来自真实ActorEvent/血量归零/网易ModEventS2C OnPlayerDie，附已知最后位置、维度、timestamp；没有位置保持position_known=false。",
+    "events.onPlayerKill": "handler(event)；可信服务器death.attack翻译包提供击杀者且关联已知玩家，唯一death event_id，仅触发一次；同次death_details补充不重复计分。",
+    "events.onPlayerRespawn": "handler(event)；与session_join独立，死亡到存活/RespawnReady的生命周期去重。",
+    "events.onRespawn": "handler(event)，只处理服务端 RespawnStateReadyToSpawn，清除旧血量等待新属性。",
+    "events.onRotation": "handler(event)；服务器角度字段变化。旋转包即使位置不变也刷新时间。",
+    "events.onServerObservation": "handler(event)；YouyuanBridge/ObserverV1/Observation实际下发时回调，含模块事件、精确实体ID、收到时间和证据；需安装主动转发模块，OP不自动安装。",
+    "events.onSessionJoin": "handler(event)；真实PlayerList新增条目，不能把AddPlayer视距出现当进服。服务器不广播PlayerList则无法直接观测。",
+    "events.onSessionLeave": "handler(event)；真实PlayerList移除条目，不把RemoveActor离开视距当退服。",
+    "events.onSwing": "handler(event)；服务器AnimateActionSwingArm下发时触发，含runtime_id/player/source。挥臂不证明命中了目标，服务器未广播则无法观测。",
+    "events.packetSchema": "无参数。返回当前内核支持包类型、协议 ID、顶层字段名与类型，供 AI 根据实际协议找包而非猜字段。",
+    "events.subscribeFiltered": "packet_type 或 *，filter={fields:{字段路径:精确值},every_ms:0..60000}，handler。Python 回调接收包对象；C++/Lua 使用已注册函数名。* 接收当前账号订阅包，事件字段 _packet_type 表示真实类型，停止自动退订。",
+    "events.summary": "options={after_sequence,limit:20,types:[],entity_type,runtime_id}；只读规范事件计数和最近轻量条目，不展开装备/背包；完整事件用明确view=raw或事件游标接口。",
+    "game.commandResult": "ticket,wait_ms=0,consume=false；pending=true表示结果未到。completed=true附result/error；只可读本实例ticket，consume=true删除完成记录。超时不重发。",
+    "game.executeBatch": "commands 字符串数组，options：channel=default/ai/player/console（或0/1/2字符串），mode=ordered/pipeline/submit/burst/stream，transport=command_request/settings/pyrpc（后两者仅submit，无逐条确认），window=1..16条在途命令；burst最多1024条整批协议发送，512KiB文本，默认无固定CPS等待，不保证同Tick，timeout_ms=100..10000。支持每实例默认配置与单次覆盖。ordered 逐条等待；pipeline 仅用于互不依赖的命令，不保证服务端完成顺序；submit 不等待结果。结果逐项含 submitted/confirmed/success/error/channel，超时未知不自动重发。stream单段最多4096条/512KiB，动态在途窗口最多1024，rate_cps=0无固定CPS，网络未知停止补发，正常无目标继续无条件后续；完整说明读 command-execution 技能。",
+    "game.getBlockTileAsync": "x,y,z整数；后台执行原getBlockTileRaw的WS方块查询，不传送；立即返回ticket。game.commandResult(ticket,0,true)完成时result={block,confirmed=true}，失败返回error，不编造方块。适合事件处理器，不能用于查询未加载的全世界。",
+    "game.scene": "无参数。当前账号的机器人和已观测实体快照；含 known、stale、数据时间和来源。AI 没有独立游戏实体，bot 是当前账号控制的机器人。",
+    "game.sceneStats": "无参数。只返回已观测实体计数cached/present/fresh及packet_count/time，不复制装备与实体明细；供周期公告和监控使用。不是全服实体数量。",
+    "game.sendCommandAsync": "command,options?；立刻返回ticket，不阻塞插件回调；后台等待真实CommandOutput，使用game.commandResult读取。未读取ticket容量由diagnostics.configure的async_tickets控制，默认128，满时明确报错；Fast路径不走该窗口。",
+    "game.sendCommandConfirmed": "command, options?；game.execute别名，等待真实CommandOutput，超时为未知，不自动重发。只在依赖前条结果时使用。",
+    "game.sendCommandFast": "command, options?；无等待提交，魔法/ai 默认使用 SettingsCommand 并保持机器人 @s/相对坐标；其他通道保持来源。rate_cps 默认0，不逐条等回包。confirmed=false 不能当游戏成功。",
+    "game.sendCommandsFast": "commands数组, options?；一次插件宿主边界按顺序提交完整数组，不限整数组行数，不等待逐条回包。先校验全部命令；中途网络失败报告已提交数量，不自动重发，不保证同一服务器Tick或原子执行。",
+    "game.sendPacket": "typeNameOrId, fields?；当前账号发送完整协议包。字段名和类型通过packet.describe查询。支持嵌套对象、向量数组、hex字节、十进制字符串64位ID；联合接口类型需高级动作或完整payload_hex。submitted不代表服务器接受，登录生命周期不能重发。",
+    "hud.remove": "player,channel；删除本插件频道，下一调度恢复仍活跃频道；卸载插件自动清理。",
+    "hud.set": "player,channel,{text,kind=actionbar/title/subtitle,priority=0,duration_ms=2000}；宿主统一频道仲裁，优先级最高的活跃频道显示，文本变化更新，过期恢复下一频道。默认不重播动画。仅管理经hud接口发送的内容，无法阻止绕开管理器的原始titleraw。",
+    "hud.update": "player,channel,{text,kind=actionbar/title/subtitle,priority=0,duration_ms=2000}；宿主统一频道仲裁，优先级最高的活跃频道显示，文本变化更新，过期恢复下一频道。默认不重播动画。仅管理经hud接口发送的内容，无法阻止绕开管理器的原始titleraw。",
+    "mcp.call": "tool_name,arguments对象；使用本机真实MCP工具分发与权限，自动绑定当前账号，不允许指定别的账号。不访问旧固定云桥，不导出密钥。",
+    "mcp.connection": "无参数，读取当前实例真实本机MCP地址、远端状态与账号。密钥由宿主内部使用，不返回给模型或聊天。",
+    "mcp.readResource": "uri，按需读取真实MCP资源。",
+    "mcp.resources": "无参数，读取本机MCP资源目录。",
+    "mcp.tools": "无参数，读取本机实际MCP工具列表，不自动把全部说明塞进AI上下文。",
+    "observerBridge.assignDimension": "options={dimension:0|1|2,player?,landing?:{x,y,z},game_mode?:keep|survival|creative|adventure|spectator,invisible?:bool,auto_respawn?:bool}；仅控制本机器人，关闭auto_creative维护；未指定模式保持当前。跨维度优先靠近该维度目标玩家；无玩家时仅使用明确配置的落点，否则保留当前位置。导入导出期间暂停；ready按真实身体维度判断。需本账号OP。",
+    "observerBridge.attachSelf": "source_id,token；将当前已连接机器人的自身加密前输入接入采集桥，player_id必须匹配本机UUID/XUID/名字。异步采集、不阻塞命令发送；不等于其他玩家已接入。",
+    "observerBridge.coverage": "options={server?}；按需汇总本宿主主账号、舰队与托管子账号的实际观测覆盖、维度和错误；不表示全服覆盖。",
+    "observerBridge.create": "options={name,source:player_input|game_server,server,player_id?}；创建独立采集密钥（仅返回一次）。客户端数据不冒充服务端确认；接入不自动获得山头服模块权限。",
+    "observerBridge.detachSelf": "无参数。停止当前机器人的输入采集，游戏连接和其他来源不受影响。",
+    "observerBridge.dimensionStatus": "读取本机器人实际维度、游戏模式、连接和OP；不能将摄像机位置当身体维度。",
+    "observerBridge.events": "after=0,limit=256；读取events/cursor/overwritten，保存cursor。event.data为封装，动作字段在event.data.data。swing_input:Animate挥臂或PlayerAuthInput.missed_swing空挥；attack_input攻击提交；position_input位置/视角；health_observation本人服务器血量。只覆盖已注册且实际接入来源，不覆盖机器人权威缓存；重启清空历史。详细技能player-actions。",
+    "observerBridge.health": "runtimeId字符串,options={server?,dimension?}；读取各在线观测账号最新真实血量，附观察者/session/来源/过期状态；维度或实体身份冲突返回未知。不会覆盖本机entities缓存。",
+    "observerBridge.inputStatus": "无参数。自身输入桥运行状态、采集记录数、未投递数和错误；不代表游戏处理成功。",
+    "observerBridge.jobState": "返回当前账号导入导出等空间作业的paused/reasons；插件先检查paused再发传送，避免高频重复触发暂停错误。作业结束自动恢复，普通查询和非移动命令保持可用。",
+    "observerBridge.localView": "options={mode:coverage|health|events,target?,dimension?,session?,after?,limit?}；仅当前连接快照，供观测聚合使用；无递归，不执行游戏指令。",
+    "observerBridge.locator": "玩家名或UniqueID字符串,options={server?}；汇总真实PlayerLocation广播，即使没有AddPlayer也保留；包没有维度、血量或RuntimeID，这些字段明确未知。",
+    "observerBridge.patrolStart": "options={players:[真实在线名],interval_seconds:0.001,single_follow_seconds:2,duration_seconds:0,restore_position:true}。空players自动选择当前真人/其他玩家，排除自己；每次开启分配独立计分板编号一次，刷新需停止重开。按1..N顺序TP只发不等，单玩家使用single_follow_seconds。默认关闭；0.001是提交目标间隔，不是服务器生效保证；插件停止自动取消。",
+    "observerBridge.patrolStatus": "无参数。真实submitted/rounds、missed_intervals、position_updates、by_player事件计数、最后实际坐标、错误与清理状态；不是全局覆盖证明。",
+    "observerBridge.patrolStop": "无参数。取消当前账号轮巡，移除本次专用分数目标；默认恢复起点。插件不能关闭其他插件拥有的轮巡。",
+    "observerBridge.revoke": "source_id；撤销采集密钥。",
+    "observerBridge.rpcEvents": "after=0,limit=256；读取当前连接收到的YouyuanBridge/ObserverV1/Observation；来源server_module_reported，与协议属性缓存分开。重连清空，不代表已验证引擎事件。",
+    "observerBridge.rpcProbe": "timeout_ms=3000；向YouyuanBridge/ObserverV1发送Hello，只在对应Capabilities回复匹配request_id时confirmed=true。超时不代表其他网易模块不可用。",
+    "observerBridge.rpcQuery": "{query,target?},timeout_ms=3000；查询已安装YouyuanBridge服务端只读Provider；收到对应Reply才confirmed=true。没有Provider不会凭空读取服务端数据。",
+    "observerBridge.serverHistory": "options={session?,after?,limit?}；当前连接主动转发模块历史，带reset/lost/cursor/接收时间；不执行网络请求，不使用旧会话记录。",
+    "observerBridge.serverSnapshot": "entity_id字符串；读取当前会话最近模块health_changed/health_snapshot，返回known/current/max/previous/来源/时间/stale。未知不填20；需已收到转发模块，不覆盖本机属性缓存。",
+    "observerBridge.sources": "无参数。采集来源、绑定服务器/玩家、最后序号/时间；不返回密钥。",
+    "observerBridge.watchStart": "options={player或players:[],auto_players:false,exclude_players:[],camera_selector:false,mode:camera|follow|hybrid,interval_seconds:2,camera_height_blocks:4,camera_pitch_degrees:90,camera_yaw_degrees:0,pause_during_jobs:true,duration_seconds:0,restore_position:true,follow_radius_blocks:16,body_radius_blocks:15}；camera模式只用摄像机视角、不切旁观模式，默认可把身体保持在目标body_radius_blocks内（0关闭）；远处可见性以实际下发包核对，切换期间会有观察空档；players/auto_players或camera_selector启用原生execute at选择器相机切换，不逐次querytarget、不TP被观察玩家；间隔属于一次目标切换，一轮约目标数乘间隔，submitted不能视为收到所有包。follow/hybrid可能TP并查询位置；导入导出期间默认暂停，插件可先查jobState再传送。需OP，不保证跨维度或全局广播；停止插件自动取消。",
+    "observerBridge.watchStatus": "返回本账号常驻观察目标、真实区域发布时间、submitted、missed_intervals、错误。region_updated只是收到对应区域包，不等于零漏包。",
+    "observerBridge.watchStop": "取消本账号常驻观察，清除本次相机并恢复已确认的原位置；不会关闭其他插件拥有的观察。",
+    "observerBridge.worldEvents": "options={server?,dimension?,cursors?,limit?,stream:combat|actions}；汇总各账号规范事件，返回每账号session/sequence游标；重连标明reset，历史覆盖标明lost。再次使用返回cursors避免重复；limit是每观察者返回条数。combat独立保留真实战斗事件，区域切换的生物出现/消失不会挤掉命中。",
+    "packet.catalog": "无参数；本版本所有注册包名/ID/字段数/能否抓包，单包字段用packet.schema或/api/youyuan/packets/schema?name=Animate；schema存在不代表服务器广播。",
+    "packet.describe": "typeNameOrId；返回当前内核真实包ID、字段名和类型，字段使用返回的snake_case名称。Lua/Python/C++/公网共用；不会抓取尚未同步的数据。",
+    "player.changeExperience": "options={request_id,expected_session,operation:set_level|add_levels|add_points,amount,expected_level?}；当前机器人需游戏OP，原生xp命令，区分not_sent/outcome_unknown/rejected/accepted/verified；同request_id不重复发送。set_level需先读取并提交expected_level。",
+    "player.equipment": "name或runtime_id；head/chest/legs/feet/main_hand/off_hand/body，每槽含known/item_id/item_id_known/network_id/count/enchantments/enchantments_known/nbt/received_at/age_ms/stale。物品名来自本会话ItemRegistry；附魔来自NBT。未知槽或未同步附魔不编造。expires_at=null：装备包没有物品失效时间。",
+    "player.experience": "无参数；当前机器人实际游戏等级与经验条0–1，未同步为null，total_xp未知，不发送查询命令。",
+    "player.health": "target 为 self、玩家名或 runtime_id 字符串，默认 self。返回已观测信息含 health_known/health/max_health/health_time/stale，未知为 null，不推算其他玩家满血。仅能获取服务器给本机器人同步的属性。",
+    "player.inventory": "target=self,window_id=0；读取本机器人实际收到的InventoryContent/InventorySlot，不做同步背包查询。其他玩家背包服务器通常不广播，返回known=false；不把装备冒充整个背包。",
+    "player.nearby": "radius=0..512，默认 32；按机器人已观测位置计算同维度、仍存在的玩家距离并排序。不包括客户端不可见或未知坐标的玩家，机器人坐标未知报错。",
+    "player.position": "target 同 player.health。返回 position_known/position/position_time/dimension/stale；坐标为收到服务器包的观测，不把本地移动请求当服务器确认。",
+    "player.rotation": "name或runtime_id；pitch/yaw/head_yaw各自known、updated_at、source/stale。MovePlayer及Absolute/Delta真实角度，旋转无位移也更新。",
+    "plugin.call": "pluginID,exportedFunction,args数组；调用当前账号正在运行的常驻插件plugin_api导出函数，不重跑源码、不自动启用已停用插件。目标正在执行/循环调用明确报错，参数结果保留结构。MCP可经game/call调用。",
+    "plugin.capabilities": "无参数，当前平台可用API名称和语言运行器能力；按需读取，不自动整库塞AI上下文。",
+    "plugin.codeDir": "无参数，当前插件源码根目录。Lua模块可require，模块只在该常驻VM首次require时加载。",
+    "plugin.configDir": "无参数，当前插件配置目录。",
+    "plugin.dataDir": "无参数，当前插件持久数据目录；SDK按账号隔离。旧game.dataDir保持兼容。",
+    "plugin.existsResource": "relative_path，检查资源是否存在；非法路径报错。",
+    "plugin.exportFile": "relative_file；取得当前插件生成文件的下载信息，保持原格式/原字节，不是备份整个插件。文件须已写入plugin.dataDir。链接需登录当前账号，snapshot=false表示下载当前文件版本。",
+    "plugin.extractResource": "source_relative,destination_relative默认同源；将资源原字节复制至plugin.dataDir中的目标，创建父目录。不是解压ZIP，不写任意外部路径。",
+    "plugin.has": "method或runtime.lua/runtime.python/runtime.cpp，查询宿主API与运行器依赖；不代表服务器支持或已观测到血量。Linux C++为独立进程，需要Python3/YY_PYTHON及当前ABI的.so。",
+    "plugin.listOutputs": "relative_dir默认.；列出当前插件数据目录内生成的文件，返回path/name/bytes/modified_at/download_url，不返回文件内容。",
+    "plugin.listResources": "relative_path默认.，递归列出目录和文件，含path/dir/size；不跟随符号链接。",
+    "plugin.readResource": "relative_path,encoding=utf8；读取资源字符串；二进制跨JSON使用encoding=base64。拒绝绝对路径、越界与符号链接。",
+    "plugin.resourceDir": "无参数；有resources子目录则使用该目录，否则兼容使用代码目录。",
+    "plugin.stats": "无参数，当前常驻实例回调数、失败、墙钟耗时及队列深度/丢弃；CPU/内存/GC当前未逐实例测量，返回null，不虚构性能倍数。",
+    "plugin.tempDir": "无参数；插件数据目录下.tmp，可自行删除临时文件。",
+    "scoreboard.get": "objective,player；读取SetScore已同步条目，未广播known=false，不同步查询全服。",
+    "scoreboard.increment": "objective,player,amount整数；提交原生scoreboard add/remove，不本地读改写，避免竞态；提交不等于服务器成功。",
+    "scoreboard.set": "objective,player,value整数；提交计分板设置，submitted=true/confirmed=false，调用Confirmed命令或同步SetScore才能验证结果。",
+    "seed.biome": "{seed,version,cx,cz} 或 {seed,version,points:[[cx,cz],...]}；返回生物群系 id/key/中文名/RGB。仅主世界走气候噪声，下界/末界给代表群系并注明。",
+    "seed.manifest": "无参数；返回版本表、维度、结构清单与引擎自检（btree 是否装载）。不联网、不读用户文件。",
+    "seed.slime": "{seed,cx=0,cz=0,r=16}；Java 版史莱姆区块，exact。基岩版算法不同，明确拒绝而不是给错结果。",
+    "seed.stronghold": "{seed,version,count=128}；要塞区块坐标，cubiomes 逐位复刻，exact。",
+    "seed.structures": "{seed,version=1.21.4,edition=java,dim=overworld,types='village,mansion',cx=0,cz=0,r=256,limit=20000}；返回区块坐标的结构点。precision=exact 的结构可复现，candidate 的需要进游戏确认。范围过大自动截断并给 truncated=true。",
+    "seed.summary": "{seed,version,dim,cx,cz,r}；首屏摘要 + 最近结构，给面板/机器人回话用。",
+    "storage.atomicAdd": "key,delta=1；持锁原子加，默认从0开始；非数字报错，不发生读改写竞争。",
+    "storage.delete": "key；删除缓存键，后台持久化。",
+    "storage.flush": "无参数；同步写临时文件、Sync、原子替换storage.json；失败报真实路径错误并保留dirty。",
+    "storage.get": "key,default?；内存读取并复制值，账号/插件的数据目录独立；首次读取storage.json一次。",
+    "storage.set": "key,value；复制JSON可表示的值到内存，后台约1秒自动原子持久化；重要提交用flush或transaction。",
+    "storage.transaction": "operations数组；op=set/add/delete/check,key,value。check值不符则整批回滚；整批验证后持锁同步持久化成功才替换缓存。不是任意Lua函数/跨文件事务。",
+    "util.listJobs": "无参数，当前插件任务列表：id/handler/paused/calls/missed/failures/last_ms/max_ms/total_ms/last_error；耗时为墙钟含VM排队及回调，不是CPU时间。",
+    "util.monotonicMs": "无参数，进程启动以来单调时间毫秒，适合间隔计算；不是Unix时间。",
+    "util.pauseJob": "id，暂停该插件任务后续触发；已经执行/入队的一次不强制中断。",
+    "util.resumeJob": "id，恢复后续触发；不会补发暂停期间的积压轮次。",
+    "util.scheduleHz": "hz,handler；本地完整回调的频率，有限正数，无人为1000Hz上限。慢回调不重入、不补积压轮次；查看listJobs的missed。请求亚毫秒频率会提高CPU占用，实际完成频率受回调/系统影响；不是服务端同步Tick。",
+    "util.scheduleSeconds": "seconds,handler；schedule别名，正数秒，可小于0.001秒；必须能表示为正的宿主时间间隔，最长一年。",
+    "util.scheduleTick": "ticks,handler；ticks\u003e=1，统一宿主Tick Loop；本地名义Tick=50ms，不宣称服务端同Tick同步。",
+    "util.serverTick": "返回known/tick/source/updated_at；仅观测UpdateAttributes的真实非零tick，不以本地50ms计时冒充服务器tick。",
+    "world.blockState": "x,y,z 整数坐标。返回当前维度 layer=0 的最近 UpdateBlock 观测，未知 known=false；包含方块 runtime_id，不把任何更新都认定是玩家破坏。",
+    "world.breakBlock": "x,y,z 整数坐标，mode=command 或 creative_action，默认 command。command 用 setblock ... air destroy 等待实际结果；creative_action 发创造模式破坏动作，要求游戏模式和六格范围，不代表服务器确认。生存挖掘的装备/耗时/交易流程尚不支持。",
+    "world.containerState": "x,y,z整数。读取当前维度BlockActorData已同步的容器类型：known/is_container/block_entity_id/timestamp/stale/source，不查询网络、不返回箱内物品；新UpdateBlock使旧记录失效。未广播或过期保持未知，不证明由玩家放置。",
+    "world.mineBlock": "x,y,z,duration_ms=1000,slot=0,face=1；生存挖掘尝试，真实开始/持续/结束动作与手持库存交易，按 100ms 发送。需要最近方块观测；服务端可拒绝，返回 submitted/confirmed。硬度、工具正确与否由服务器判断。",
+    "world.placeBlock": "x,y,z 整数坐标，block 例如 minecraft:stone。用服务器 setblock 指令，返回真实结果，需要权限。",
+    "world.useBlock": "x,y,z,face=1,slot=0；真实手持物品点击指定方块面（可放置、开容器），需要已观测目标方块和六格范围。不是 setblock；返回提交状态，消耗与放置观察服务器。"
+  },
+  "namespaces": {
+    "accounts": [
+      "callPlugin",
+      "list",
+      "sendCommandsFast",
+      "sendMessage",
+      "status"
+    ],
+    "accountsPool": [
+      "acquire",
+      "add",
+      "bind",
+      "bindings",
+      "captureConfigure",
+      "captureRoster",
+      "captureStatus",
+      "handoff",
+      "invoke",
+      "list",
+      "observationPlan",
+      "release",
+      "start",
+      "status",
+      "stop"
+    ],
+    "api": [
+      "require"
+    ],
+    "bot": [
+      "attack",
+      "count",
+      "current",
+      "list",
+      "lookAt",
+      "requestViewDistance",
+      "select",
+      "self",
+      "startMovement",
+      "status",
+      "stopMovement",
+      "swingAir",
+      "teleport"
+    ],
+    "building": [
+      "closestColor",
+      "containerData",
+      "detect",
+      "exportRegion",
+      "importLimits",
+      "isAir",
+      "isCommandBlock",
+      "isLava",
+      "isWater",
+      "nbtCapabilities",
+      "nbtJob",
+      "normalizeNBT",
+      "parse",
+      "placeContainer",
+      "placeSkull",
+      "planRegion",
+      "resumeImport",
+      "startImport",
+      "stopImport",
+      "taskList"
+    ],
+    "chains": [
+      "configure",
+      "delete",
+      "export",
+      "get",
+      "handleChat",
+      "list",
+      "menu",
+      "reload",
+      "save",
+      "start",
+      "stop",
+      "trigger",
+      "validate"
+    ],
+    "diagnostics": [
+      "combat",
+      "configure",
+      "entity",
+      "receiveTransport",
+      "stats",
+      "trace",
+      "visibility"
+    ],
+    "entities": [
+      "attributes",
+      "get",
+      "health",
+      "nearby"
+    ],
+    "entity": [
+      "health",
+      "onDamage"
+    ],
+    "events": [
+      "captureClear",
+      "captureRead",
+      "captureStart",
+      "captureStop",
+      "captureSummary",
+      "catalog",
+      "define",
+      "moduleHistory",
+      "on",
+      "onBlockChange",
+      "onBotReady",
+      "onChat",
+      "onContainerChange",
+      "onDamageDisplay",
+      "onDeath",
+      "onDimensionChange",
+      "onEntityHurt",
+      "onEntityKill",
+      "onEntityRemove",
+      "onEntitySpawn",
+      "onEquipmentChanged",
+      "onGlobalHealthChange",
+      "onGlobalSwing",
+      "onHealthChange",
+      "onHealthChanged",
+      "onHurt",
+      "onItemPickup",
+      "onJoin",
+      "onLeave",
+      "onMove",
+      "onObservedAction",
+      "onPacket",
+      "onPlayerDeath",
+      "onPlayerKill",
+      "onPlayerRespawn",
+      "onRespawn",
+      "onRotation",
+      "onServerObservation",
+      "onSessionJoin",
+      "onSessionLeave",
+      "onSwing",
+      "packetSchema",
+      "subscribe",
+      "subscribeAll",
+      "subscribeFiltered",
+      "summary"
+    ],
+    "game": [
+      "commandResult",
+      "dataDir",
+      "execute",
+      "executeBatch",
+      "flyStart",
+      "flyStop",
+      "getBlockData",
+      "getBlockNBT",
+      "getBlockState",
+      "getBlockTile",
+      "getBlockTileAsync",
+      "getBlockTileRaw",
+      "getBotPos",
+      "getCommandOptions",
+      "getConfig",
+      "getMultiScore",
+      "getOnlinePlayers",
+      "getPlayerItem",
+      "getPlayerPos",
+      "getPlayerPosXYZ",
+      "getRegionBlockData",
+      "getScore",
+      "getServerTPS",
+      "getServerTickRate",
+      "getTPS",
+      "getTarget",
+      "getTickRate",
+      "getTickingAreaList",
+      "httpGet",
+      "httpPost",
+      "importBlocks",
+      "importWait",
+      "isCmdSuccess",
+      "jsonDecode",
+      "jsonEncode",
+      "jump",
+      "move",
+      "placeNBTBlock",
+      "promptChoice",
+      "queryInventory",
+      "registerTrigger",
+      "rotate",
+      "scene",
+      "sceneStats",
+      "sendActionbar",
+      "sendChat",
+      "sendCommand",
+      "sendCommandAsync",
+      "sendCommandConfirmed",
+      "sendCommandFast",
+      "sendCommandWithResp",
+      "sendCommandsFast",
+      "sendLines",
+      "sendPacket",
+      "sendRichTellraw",
+      "sendTargeted",
+      "sendTitle",
+      "serverTPS",
+      "setBlock",
+      "setBlockState",
+      "setCommandOptions",
+      "setConfigDefault",
+      "setEffect",
+      "setScore",
+      "showMenu",
+      "sneakStart",
+      "sneakStop",
+      "sprintStart",
+      "sprintStop",
+      "stopMove",
+      "teleport",
+      "waitMsg"
+    ],
+    "http": [
+      "delete",
+      "get",
+      "json_decode",
+      "json_encode",
+      "post",
+      "put",
+      "querify",
+      "request"
+    ],
+    "hud": [
+      "remove",
+      "set",
+      "update"
+    ],
+    "mcp": [
+      "call",
+      "connection",
+      "readResource",
+      "resources",
+      "tools"
+    ],
+    "media": [
+      "imageToAscii",
+      "noteToPitch",
+      "parseMidi"
+    ],
+    "observerBridge": [
+      "assignDimension",
+      "attachSelf",
+      "coverage",
+      "create",
+      "detachSelf",
+      "dimensionStatus",
+      "events",
+      "health",
+      "inputStatus",
+      "jobState",
+      "localView",
+      "locator",
+      "patrolStart",
+      "patrolStatus",
+      "patrolStop",
+      "revoke",
+      "rpcEvents",
+      "rpcProbe",
+      "rpcQuery",
+      "serverHistory",
+      "serverSnapshot",
+      "sources",
+      "watchStart",
+      "watchStatus",
+      "watchStop",
+      "worldEvents"
+    ],
+    "packet": [
+      "describe",
+      "on",
+      "onAll",
+      "schema",
+      "send"
+    ],
+    "player": [
+      "changeExperience",
+      "count",
+      "equipment",
+      "experience",
+      "get",
+      "getInventory",
+      "getUniqueID",
+      "getXUID",
+      "health",
+      "inventory",
+      "isOP",
+      "list",
+      "nearby",
+      "position",
+      "rotation"
+    ],
+    "plugin": [
+      "call",
+      "capabilities",
+      "codeDir",
+      "configDir",
+      "dataDir",
+      "dependencies",
+      "existsResource",
+      "exportFile",
+      "extractResource",
+      "has",
+      "id",
+      "listOutputs",
+      "listResources",
+      "readResource",
+      "resourceDir",
+      "stats",
+      "tempDir"
+    ],
+    "scoreboard": [
+      "get",
+      "increment",
+      "set"
+    ],
+    "storage": [
+      "atomicAdd",
+      "delete",
+      "flush",
+      "get",
+      "set",
+      "transaction"
+    ],
+    "system": [
+      "call",
+      "notify",
+      "platform",
+      "shell",
+      "shizukuRequest",
+      "shizukuStatus",
+      "vibrate"
+    ],
+    "util": [
+      "cancel",
+      "ceil",
+      "floor",
+      "join",
+      "json_load",
+      "json_write",
+      "listJobs",
+      "monotonicMs",
+      "now",
+      "pauseJob",
+      "pos",
+      "read_file",
+      "resumeJob",
+      "round",
+      "schedule",
+      "scheduleHz",
+      "scheduleSeconds",
+      "scheduleTick",
+      "serverTick",
+      "setTimeout",
+      "split",
+      "strip_color",
+      "time_fmt",
+      "timestamp",
+      "trim",
+      "write_file"
+    ],
+    "web": [
+      "action",
+      "emit",
+      "page",
+      "serve"
+    ],
+    "world": [
+      "block",
+      "blockState",
+      "breakBlock",
+      "containerState",
+      "mineBlock",
+      "placeBlock",
+      "useBlock"
+    ]
+  },
+  "packets": [
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "event_type",
+          "type": "uint8"
+        },
+        {
+          "name": "event_data",
+          "type": "int32"
+        }
+      ],
+      "id": 27,
+      "name": "ActorEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "hot_bar_slot",
+          "type": "uint8"
+        },
+        {
+          "name": "with_data",
+          "type": "bool"
+        }
+      ],
+      "id": 35,
+      "name": "ActorPickRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "entity_type",
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "velocity",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "pitch",
+          "type": "float32"
+        },
+        {
+          "name": "yaw",
+          "type": "float32"
+        },
+        {
+          "name": "head_yaw",
+          "type": "float32"
+        },
+        {
+          "name": "body_yaw",
+          "type": "float32"
+        },
+        {
+          "name": "attributes",
+          "type": "[]protocol.AttributeValue"
+        },
+        {
+          "name": "entity_metadata",
+          "type": "map[uint32]interface {}"
+        },
+        {
+          "name": "entity_properties",
+          "type": "protocol.EntityProperties"
+        },
+        {
+          "name": "entity_links",
+          "type": "[]protocol.EntityLink"
+        }
+      ],
+      "id": 13,
+      "name": "AddActor"
+    },
+    {
+      "fields": [
+        {
+          "name": "behaviour_tree",
+          "type": "string"
+        }
+      ],
+      "id": 89,
+      "name": "AddBehaviourTree"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "item",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "velocity",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "entity_metadata",
+          "type": "map[uint32]interface {}"
+        },
+        {
+          "name": "from_fishing",
+          "type": "bool"
+        }
+      ],
+      "id": 15,
+      "name": "AddItemActor"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "direction",
+          "type": "int32"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        }
+      ],
+      "id": 22,
+      "name": "AddPainting"
+    },
+    {
+      "fields": [
+        {
+          "name": "uuid",
+          "type": "uuid.UUID"
+        },
+        {
+          "name": "username",
+          "type": "string"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "platform_chat_id",
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "velocity",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "pitch",
+          "type": "float32"
+        },
+        {
+          "name": "yaw",
+          "type": "float32"
+        },
+        {
+          "name": "head_yaw",
+          "type": "float32"
+        },
+        {
+          "name": "held_item",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "game_type",
+          "type": "int32"
+        },
+        {
+          "name": "entity_metadata",
+          "type": "map[uint32]interface {}"
+        },
+        {
+          "name": "entity_properties",
+          "type": "protocol.EntityProperties"
+        },
+        {
+          "name": "ability_data",
+          "type": "protocol.AbilityData"
+        },
+        {
+          "name": "entity_links",
+          "type": "[]protocol.EntityLink"
+        },
+        {
+          "name": "device_id",
+          "type": "string"
+        },
+        {
+          "name": "build_platform",
+          "type": "int32"
+        }
+      ],
+      "id": 12,
+      "name": "AddPlayer"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "entity_metadata",
+          "type": "map[string]interface {}"
+        },
+        {
+          "name": "encoding_identifier",
+          "type": "string"
+        },
+        {
+          "name": "instance_identifier",
+          "type": "string"
+        },
+        {
+          "name": "bounds",
+          "type": "[2]protocol.BlockPos"
+        },
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "engine_version",
+          "type": "string"
+        }
+      ],
+      "id": 166,
+      "name": "AddVolumeEntity"
+    },
+    {
+      "fields": [
+        {
+          "name": "flags",
+          "type": "uint32"
+        },
+        {
+          "name": "command_permission_level",
+          "type": "uint32"
+        },
+        {
+          "name": "action_permissions",
+          "type": "uint32"
+        },
+        {
+          "name": "permission_level",
+          "type": "uint32"
+        },
+        {
+          "name": "custom_stored_permissions",
+          "type": "uint32"
+        },
+        {
+          "name": "player_unique_id",
+          "type": "int64"
+        }
+      ],
+      "id": 55,
+      "name": "AdventureSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "identifier",
+          "type": "string"
+        },
+        {
+          "name": "action",
+          "type": "int32"
+        },
+        {
+          "name": "response",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 181,
+      "name": "AgentAction"
+    },
+    {
+      "fields": [
+        {
+          "name": "animation",
+          "type": "uint8"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        }
+      ],
+      "id": 304,
+      "name": "AgentAnimation"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "int32"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "data",
+          "type": "float32"
+        },
+        {
+          "name": "boat_rowing_time",
+          "type": "float32"
+        }
+      ],
+      "id": 44,
+      "name": "Animate"
+    },
+    {
+      "fields": [
+        {
+          "name": "animation",
+          "type": "string"
+        },
+        {
+          "name": "next_state",
+          "type": "string"
+        },
+        {
+          "name": "stop_condition",
+          "type": "string"
+        },
+        {
+          "name": "stop_condition_version",
+          "type": "int32"
+        },
+        {
+          "name": "controller",
+          "type": "string"
+        },
+        {
+          "name": "blend_out_time",
+          "type": "float32"
+        },
+        {
+          "name": "entity_runtime_ids",
+          "type": "[]uint64"
+        }
+      ],
+      "id": 158,
+      "name": "AnimateEntity"
+    },
+    {
+      "fields": [
+        {
+          "name": "damage",
+          "type": "uint8"
+        },
+        {
+          "name": "anvil_position",
+          "type": "protocol.BlockPos"
+        }
+      ],
+      "id": 141,
+      "name": "AnvilDamage"
+    },
+    {
+      "fields": [
+        {
+          "name": "server_uri",
+          "type": "string"
+        }
+      ],
+      "id": 95,
+      "name": "AutomationClientConnect"
+    },
+    {
+      "fields": [
+        {
+          "name": "serialised_entity_identifiers",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 119,
+      "name": "AvailableActorIdentifiers"
+    },
+    {
+      "fields": [
+        {
+          "name": "enum_values",
+          "type": "[]string"
+        },
+        {
+          "name": "chained_subcommand_values",
+          "type": "[]string"
+        },
+        {
+          "name": "suffixes",
+          "type": "[]string"
+        },
+        {
+          "name": "enums",
+          "type": "[]protocol.CommandEnum"
+        },
+        {
+          "name": "chained_subcommands",
+          "type": "[]protocol.ChainedSubcommand"
+        },
+        {
+          "name": "commands",
+          "type": "[]protocol.Command"
+        },
+        {
+          "name": "dynamic_enums",
+          "type": "[]protocol.DynamicEnum"
+        },
+        {
+          "name": "constraints",
+          "type": "[]protocol.CommandEnumConstraint"
+        }
+      ],
+      "id": 76,
+      "name": "AvailableCommands"
+    },
+    {
+      "fields": [
+        {
+          "name": "achievement_id",
+          "type": "int32"
+        }
+      ],
+      "id": 309,
+      "name": "AwardAchievement"
+    },
+    {
+      "fields": [
+        {
+          "name": "biome_definitions",
+          "type": "[]protocol.BiomeDefinition"
+        },
+        {
+          "name": "string_list",
+          "type": "[]string"
+        }
+      ],
+      "id": 122,
+      "name": "BiomeDefinitionList"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "nbtdata",
+          "type": "map[string]interface {}"
+        }
+      ],
+      "id": 56,
+      "name": "BlockActorData"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "event_type",
+          "type": "int32"
+        },
+        {
+          "name": "event_data",
+          "type": "int32"
+        }
+      ],
+      "id": 26,
+      "name": "BlockEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "add_block_nbt",
+          "type": "bool"
+        },
+        {
+          "name": "hot_bar_slot",
+          "type": "uint8"
+        }
+      ],
+      "id": 34,
+      "name": "BlockPickRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "inventory_slot",
+          "type": "uint8"
+        },
+        {
+          "name": "page_number",
+          "type": "uint8"
+        },
+        {
+          "name": "secondary_page_number",
+          "type": "uint8"
+        },
+        {
+          "name": "text",
+          "type": "string"
+        },
+        {
+          "name": "photo_name",
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "author",
+          "type": "string"
+        },
+        {
+          "name": "xuid",
+          "type": "string"
+        }
+      ],
+      "id": 97,
+      "name": "BookEdit"
+    },
+    {
+      "fields": [
+        {
+          "name": "boss_entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "event_type",
+          "type": "uint32"
+        },
+        {
+          "name": "player_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "boss_bar_title",
+          "type": "string"
+        },
+        {
+          "name": "filtered_boss_bar_title",
+          "type": "string"
+        },
+        {
+          "name": "health_percentage",
+          "type": "float32"
+        },
+        {
+          "name": "screen_darkening",
+          "type": "uint16"
+        },
+        {
+          "name": "colour",
+          "type": "uint32"
+        },
+        {
+          "name": "overlay",
+          "type": "uint32"
+        }
+      ],
+      "id": 74,
+      "name": "BossEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "camera_entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "target_player_unique_id",
+          "type": "int64"
+        }
+      ],
+      "id": 73,
+      "name": "Camera"
+    },
+    {
+      "fields": [
+        {
+          "name": "preset",
+          "type": "string"
+        },
+        {
+          "name": "angle",
+          "type": "mgl32.Vec2"
+        },
+        {
+          "name": "distance",
+          "type": "float32"
+        },
+        {
+          "name": "target_mode",
+          "type": "uint8"
+        },
+        {
+          "name": "action",
+          "type": "uint8"
+        }
+      ],
+      "id": 316,
+      "name": "CameraAimAssist"
+    },
+    {
+      "fields": [
+        {
+          "name": "categories",
+          "type": "[]protocol.CameraAimAssistCategory"
+        },
+        {
+          "name": "presets",
+          "type": "[]protocol.CameraAimAssistPreset"
+        },
+        {
+          "name": "operation",
+          "type": "uint8"
+        }
+      ],
+      "id": 320,
+      "name": "CameraAimAssistPresets"
+    },
+    {
+      "fields": [
+        {
+          "name": "set",
+          "type": "protocol.Optional[github.com/OmineDev/flowers-for-machines/core/minecraft/protocol.CameraInstructionSet]"
+        },
+        {
+          "name": "clear",
+          "type": "protocol.Optional[bool]"
+        },
+        {
+          "name": "fade",
+          "type": "protocol.Optional[github.com/OmineDev/flowers-for-machines/core/minecraft/protocol.CameraInstructionFade]"
+        },
+        {
+          "name": "target",
+          "type": "protocol.Optional[github.com/OmineDev/flowers-for-machines/core/minecraft/protocol.CameraInstructionTarget]"
+        },
+        {
+          "name": "remove_target",
+          "type": "protocol.Optional[bool]"
+        }
+      ],
+      "id": 300,
+      "name": "CameraInstruction"
+    },
+    {
+      "fields": [
+        {
+          "name": "presets",
+          "type": "[]protocol.CameraPreset"
+        }
+      ],
+      "id": 198,
+      "name": "CameraPresets"
+    },
+    {
+      "fields": [
+        {
+          "name": "intensity",
+          "type": "float32"
+        },
+        {
+          "name": "duration",
+          "type": "float32"
+        },
+        {
+          "name": "type",
+          "type": "uint8"
+        },
+        {
+          "name": "action",
+          "type": "uint8"
+        }
+      ],
+      "id": 159,
+      "name": "CameraShake"
+    },
+    {
+      "fields": [
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "respawn",
+          "type": "bool"
+        },
+        {
+          "name": "loading_screen_id",
+          "type": "protocol.Optional[uint32]"
+        }
+      ],
+      "id": 61,
+      "name": "ChangeDimension"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "property",
+          "type": "string"
+        },
+        {
+          "name": "bool_value",
+          "type": "bool"
+        },
+        {
+          "name": "string_value",
+          "type": "string"
+        },
+        {
+          "name": "int_value",
+          "type": "int32"
+        },
+        {
+          "name": "float_value",
+          "type": "float32"
+        }
+      ],
+      "id": 182,
+      "name": "ChangeMobProperty"
+    },
+    {
+      "fields": [
+        {
+          "name": "chunk_radius",
+          "type": "int32"
+        }
+      ],
+      "id": 70,
+      "name": "ChunkRadiusUpdated"
+    },
+    {
+      "fields": [],
+      "id": 310,
+      "name": "ClientBoundCloseForm"
+    },
+    {
+      "fields": [
+        {
+          "name": "control_scheme",
+          "type": "uint8"
+        }
+      ],
+      "id": 327,
+      "name": "ClientBoundControlSchemeSet"
+    },
+    {
+      "fields": [
+        {
+          "name": "type",
+          "type": "uint32"
+        },
+        {
+          "name": "text",
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "red",
+          "type": "float32"
+        },
+        {
+          "name": "green",
+          "type": "float32"
+        },
+        {
+          "name": "blue",
+          "type": "float32"
+        },
+        {
+          "name": "alpha",
+          "type": "float32"
+        },
+        {
+          "name": "duration",
+          "type": "uint64"
+        }
+      ],
+      "id": 164,
+      "name": "ClientBoundDebugRenderer"
+    },
+    {
+      "fields": [
+        {
+          "name": "map_id",
+          "type": "int64"
+        },
+        {
+          "name": "update_flags",
+          "type": "uint32"
+        },
+        {
+          "name": "dimension",
+          "type": "uint8"
+        },
+        {
+          "name": "locked_map",
+          "type": "bool"
+        },
+        {
+          "name": "origin",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "scale",
+          "type": "uint8"
+        },
+        {
+          "name": "maps_included_in",
+          "type": "[]int64"
+        },
+        {
+          "name": "tracked_objects",
+          "type": "[]protocol.MapTrackedObject"
+        },
+        {
+          "name": "decorations",
+          "type": "[]protocol.MapDecoration"
+        },
+        {
+          "name": "height",
+          "type": "int32"
+        },
+        {
+          "name": "width",
+          "type": "int32"
+        },
+        {
+          "name": "xoffset",
+          "type": "int32"
+        },
+        {
+          "name": "yoffset",
+          "type": "int32"
+        },
+        {
+          "name": "pixels",
+          "type": "[]color.RGBA"
+        }
+      ],
+      "id": 67,
+      "name": "ClientBoundMapItemData"
+    },
+    {
+      "fields": [
+        {
+          "name": "miss_hashes",
+          "type": "[]uint64"
+        },
+        {
+          "name": "hit_hashes",
+          "type": "[]uint64"
+        }
+      ],
+      "id": 135,
+      "name": "ClientCacheBlobStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "blobs",
+          "type": "[]protocol.CacheBlob"
+        }
+      ],
+      "id": 136,
+      "name": "ClientCacheMissResponse"
+    },
+    {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ],
+      "id": 129,
+      "name": "ClientCacheStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "preset_id",
+          "type": "string"
+        },
+        {
+          "name": "action",
+          "type": "uint8"
+        },
+        {
+          "name": "allow_aim_assist",
+          "type": "bool"
+        }
+      ],
+      "id": 321,
+      "name": "ClientCameraAimAssist"
+    },
+    {
+      "fields": [
+        {
+          "name": "ability_data",
+          "type": "protocol.AbilityData"
+        }
+      ],
+      "id": 197,
+      "name": "ClientCheatAbility"
+    },
+    {
+      "fields": [
+        {
+          "name": "actor_flags",
+          "type": "protocol.Bitset"
+        },
+        {
+          "name": "bounding_box_scale",
+          "type": "float32"
+        },
+        {
+          "name": "bounding_box_width",
+          "type": "float32"
+        },
+        {
+          "name": "bounding_box_height",
+          "type": "float32"
+        },
+        {
+          "name": "movement_speed",
+          "type": "float32"
+        },
+        {
+          "name": "underwater_movement_speed",
+          "type": "float32"
+        },
+        {
+          "name": "lava_movement_speed",
+          "type": "float32"
+        },
+        {
+          "name": "jump_strength",
+          "type": "float32"
+        },
+        {
+          "name": "health",
+          "type": "float32"
+        },
+        {
+          "name": "hunger",
+          "type": "float32"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "flying",
+          "type": "bool"
+        }
+      ],
+      "id": 322,
+      "name": "ClientMovementPredictionSync"
+    },
+    {
+      "fields": [
+        {
+          "name": "category",
+          "type": "string"
+        },
+        {
+          "name": "duration",
+          "type": "int32"
+        }
+      ],
+      "id": 176,
+      "name": "ClientStartItemCooldown"
+    },
+    {
+      "fields": [],
+      "id": 4,
+      "name": "ClientToServerHandshake"
+    },
+    {
+      "fields": [
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "should_open_code_builder",
+          "type": "bool"
+        }
+      ],
+      "id": 150,
+      "name": "CodeBuilder"
+    },
+    {
+      "fields": [
+        {
+          "name": "operation",
+          "type": "uint8"
+        },
+        {
+          "name": "category",
+          "type": "uint8"
+        },
+        {
+          "name": "code_status",
+          "type": "uint8"
+        }
+      ],
+      "id": 178,
+      "name": "CodeBuilderSource"
+    },
+    {
+      "fields": [
+        {
+          "name": "block",
+          "type": "bool"
+        },
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "mode",
+          "type": "uint32"
+        },
+        {
+          "name": "needs_redstone",
+          "type": "bool"
+        },
+        {
+          "name": "conditional",
+          "type": "bool"
+        },
+        {
+          "name": "minecart_entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "command",
+          "type": "string"
+        },
+        {
+          "name": "last_output",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "filtered_name",
+          "type": "string"
+        },
+        {
+          "name": "should_track_output",
+          "type": "bool"
+        },
+        {
+          "name": "execute_on_first_tick",
+          "type": "bool"
+        },
+        {
+          "name": "tick_delay",
+          "type": "int32"
+        }
+      ],
+      "id": 78,
+      "name": "CommandBlockUpdate"
+    },
+    {
+      "fields": [
+        {
+          "name": "command_origin",
+          "type": "protocol.CommandOrigin"
+        },
+        {
+          "name": "output_type",
+          "type": "uint8"
+        },
+        {
+          "name": "success_count",
+          "type": "uint32"
+        },
+        {
+          "name": "output_messages",
+          "type": "[]protocol.CommandOutputMessage"
+        },
+        {
+          "name": "data_set",
+          "type": "string"
+        }
+      ],
+      "id": 79,
+      "name": "CommandOutput"
+    },
+    {
+      "fields": [
+        {
+          "name": "command_line",
+          "type": "string"
+        },
+        {
+          "name": "command_origin",
+          "type": "protocol.CommandOrigin"
+        },
+        {
+          "name": "internal",
+          "type": "bool"
+        },
+        {
+          "name": "version",
+          "type": "int32"
+        },
+        {
+          "name": "un_limited",
+          "type": "bool"
+        }
+      ],
+      "id": 77,
+      "name": "CommandRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "used_item_id",
+          "type": "int16"
+        },
+        {
+          "name": "use_method",
+          "type": "int32"
+        }
+      ],
+      "id": 142,
+      "name": "CompletedUsingItem"
+    },
+    {
+      "fields": [
+        {
+          "name": "player_data",
+          "type": "[]protocol.NeteasePlayerData"
+        },
+        {
+          "name": "uids",
+          "type": "[]string"
+        },
+        {
+          "name": "unknown3",
+          "type": "[]string"
+        }
+      ],
+      "id": 232,
+      "name": "ConfirmSkin"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint8"
+        },
+        {
+          "name": "container_type",
+          "type": "uint8"
+        },
+        {
+          "name": "server_side",
+          "type": "bool"
+        }
+      ],
+      "id": 47,
+      "name": "ContainerClose"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint8"
+        },
+        {
+          "name": "container_type",
+          "type": "uint8"
+        },
+        {
+          "name": "container_position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "container_entity_unique_id",
+          "type": "int64"
+        }
+      ],
+      "id": 46,
+      "name": "ContainerOpen"
+    },
+    {
+      "fields": [
+        {
+          "name": "removed_containers",
+          "type": "[]protocol.FullContainerName"
+        }
+      ],
+      "id": 317,
+      "name": "ContainerRegistryCleanup"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint8"
+        },
+        {
+          "name": "key",
+          "type": "int32"
+        },
+        {
+          "name": "value",
+          "type": "int32"
+        }
+      ],
+      "id": 51,
+      "name": "ContainerSetData"
+    },
+    {
+      "fields": [
+        {
+          "name": "prediction_type",
+          "type": "uint8"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "delta",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "rotation",
+          "type": "mgl32.Vec2"
+        },
+        {
+          "name": "vehicle_angular_velocity",
+          "type": "protocol.Optional[float32]"
+        },
+        {
+          "name": "on_ground",
+          "type": "bool"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 161,
+      "name": "CorrectPlayerMovePrediction"
+    },
+    {
+      "fields": [
+        {
+          "name": "recipes",
+          "type": "[]protocol.Recipe"
+        },
+        {
+          "name": "potion_recipes",
+          "type": "[]protocol.PotionRecipe"
+        },
+        {
+          "name": "potion_container_change_recipes",
+          "type": "[]protocol.PotionContainerChangeRecipe"
+        },
+        {
+          "name": "material_reducers",
+          "type": "[]protocol.MaterialReducer"
+        },
+        {
+          "name": "clear_recipes",
+          "type": "bool"
+        }
+      ],
+      "id": 52,
+      "name": "CraftingData"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "photo_name",
+          "type": "string"
+        },
+        {
+          "name": "item_name",
+          "type": "string"
+        }
+      ],
+      "id": 171,
+      "name": "CreatePhoto"
+    },
+    {
+      "fields": [
+        {
+          "name": "groups",
+          "type": "[]protocol.CreativeGroup"
+        },
+        {
+          "name": "items",
+          "type": "[]protocol.CreativeItem"
+        }
+      ],
+      "id": 145,
+      "name": "CreativeContent"
+    },
+    {
+      "fields": [
+        {
+          "name": "current_feature",
+          "type": "string"
+        }
+      ],
+      "id": 314,
+      "name": "CurrentStructureFeature"
+    },
+    {
+      "fields": [
+        {
+          "name": "cause",
+          "type": "string"
+        },
+        {
+          "name": "messages",
+          "type": "[]string"
+        }
+      ],
+      "id": 189,
+      "name": "DeathInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "player_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 155,
+      "name": "DebugInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "definitions",
+          "type": "[]protocol.DimensionDefinition"
+        }
+      ],
+      "id": 180,
+      "name": "DimensionData"
+    },
+    {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "int32"
+        },
+        {
+          "name": "hide_disconnection_screen",
+          "type": "bool"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "filtered_message",
+          "type": "string"
+        }
+      ],
+      "id": 5,
+      "name": "Disconnect"
+    },
+    {
+      "fields": [
+        {
+          "name": "route_to_manager",
+          "type": "bool"
+        },
+        {
+          "name": "payload",
+          "type": "map[string]interface {}"
+        }
+      ],
+      "id": 190,
+      "name": "EditorNetwork"
+    },
+    {
+      "fields": [
+        {
+          "name": "resource",
+          "type": "protocol.EducationSharedResourceURI"
+        }
+      ],
+      "id": 170,
+      "name": "EducationResourceURI"
+    },
+    {
+      "fields": [
+        {
+          "name": "code_builder_default_uri",
+          "type": "string"
+        },
+        {
+          "name": "code_builder_title",
+          "type": "string"
+        },
+        {
+          "name": "can_resize_code_builder",
+          "type": "bool"
+        },
+        {
+          "name": "disable_legacy_title_bar",
+          "type": "bool"
+        },
+        {
+          "name": "post_process_filter",
+          "type": "string"
+        },
+        {
+          "name": "screenshot_border_path",
+          "type": "string"
+        },
+        {
+          "name": "can_modify_blocks",
+          "type": "protocol.Optional[bool]"
+        },
+        {
+          "name": "override_uri",
+          "type": "protocol.Optional[string]"
+        },
+        {
+          "name": "has_quiz",
+          "type": "bool"
+        },
+        {
+          "name": "external_link_settings",
+          "type": "protocol.Optional[github.com/OmineDev/flowers-for-machines/core/minecraft/protocol.EducationExternalLinkSettings]"
+        }
+      ],
+      "id": 137,
+      "name": "EducationSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "emote_length",
+          "type": "uint32"
+        },
+        {
+          "name": "emote_id",
+          "type": "string"
+        },
+        {
+          "name": "xuid",
+          "type": "string"
+        },
+        {
+          "name": "platform_id",
+          "type": "string"
+        },
+        {
+          "name": "flags",
+          "type": "uint8"
+        }
+      ],
+      "id": 138,
+      "name": "Emote"
+    },
+    {
+      "fields": [
+        {
+          "name": "player_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "emote_pieces",
+          "type": "[]uuid.UUID"
+        }
+      ],
+      "id": 152,
+      "name": "EmoteList"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "int64"
+        },
+        {
+          "name": "use_player_id",
+          "type": "uint8"
+        },
+        {
+          "name": "event",
+          "type": "protocol.Event"
+        }
+      ],
+      "id": 65,
+      "name": "Event"
+    },
+    {
+      "fields": [
+        {
+          "name": "features",
+          "type": "[]protocol.GenerationFeature"
+        }
+      ],
+      "id": 191,
+      "name": "FeatureRegistry"
+    },
+    {
+      "fields": [
+        {
+          "name": "text",
+          "type": "string"
+        },
+        {
+          "name": "from_server",
+          "type": "bool"
+        }
+      ],
+      "id": 163,
+      "name": "FilterText"
+    },
+    {
+      "fields": [
+        {
+          "name": "item_name",
+          "type": "string"
+        },
+        {
+          "name": "item_effects",
+          "type": "string"
+        },
+        {
+          "name": "hot_bar_slot",
+          "type": "int32"
+        }
+      ],
+      "id": 54,
+      "name": "GUIDataPickItem"
+    },
+    {
+      "fields": [
+        {
+          "name": "game_rules",
+          "type": "[]protocol.GameRule"
+        }
+      ],
+      "id": 72,
+      "name": "GameRulesChanged"
+    },
+    {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "rotation",
+          "type": "uint8"
+        },
+        {
+          "name": "repetitions",
+          "type": "int32"
+        },
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "stop_on_error",
+          "type": "bool"
+        },
+        {
+          "name": "tests_per_row",
+          "type": "int32"
+        },
+        {
+          "name": "max_tests_per_batch",
+          "type": "int32"
+        }
+      ],
+      "id": 194,
+      "name": "GameTestRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "succeeded",
+          "type": "bool"
+        },
+        {
+          "name": "error",
+          "type": "string"
+        }
+      ],
+      "id": 195,
+      "name": "GameTestResults"
+    },
+    {
+      "fields": [
+        {
+          "name": "cause",
+          "type": "int32"
+        },
+        {
+          "name": "damage",
+          "type": "int32"
+        },
+        {
+          "name": "armour_slots",
+          "type": "int64"
+        }
+      ],
+      "id": 38,
+      "name": "HurtArmour"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "target_entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        }
+      ],
+      "id": 33,
+      "name": "Interact"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint32"
+        },
+        {
+          "name": "content",
+          "type": "[]protocol.ItemInstance"
+        },
+        {
+          "name": "container",
+          "type": "protocol.FullContainerName"
+        },
+        {
+          "name": "storage_item",
+          "type": "protocol.ItemInstance"
+        }
+      ],
+      "id": 49,
+      "name": "InventoryContent"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint32"
+        },
+        {
+          "name": "slot",
+          "type": "uint32"
+        },
+        {
+          "name": "container",
+          "type": "protocol.FullContainerName"
+        },
+        {
+          "name": "storage_item",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "new_item",
+          "type": "protocol.ItemInstance"
+        }
+      ],
+      "id": 50,
+      "name": "InventorySlot"
+    },
+    {
+      "fields": [
+        {
+          "name": "legacy_request_id",
+          "type": "int32"
+        },
+        {
+          "name": "legacy_set_item_slots",
+          "type": "[]protocol.LegacySetItemSlot"
+        },
+        {
+          "name": "actions",
+          "type": "[]protocol.InventoryAction"
+        },
+        {
+          "name": "transaction_data",
+          "type": "protocol.InventoryTransactionData"
+        }
+      ],
+      "id": 30,
+      "name": "InventoryTransaction"
+    },
+    {
+      "fields": [
+        {
+          "name": "items",
+          "type": "[]protocol.ItemEntry"
+        }
+      ],
+      "id": 162,
+      "name": "ItemRegistry"
+    },
+    {
+      "fields": [
+        {
+          "name": "requests",
+          "type": "[]protocol.ItemStackRequest"
+        }
+      ],
+      "id": 147,
+      "name": "ItemStackRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "responses",
+          "type": "[]protocol.ItemStackResponse"
+        }
+      ],
+      "id": 148,
+      "name": "ItemStackResponse"
+    },
+    {
+      "fields": [
+        {
+          "name": "structure_data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 313,
+      "name": "JigsawStructureData"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "reaction_type",
+          "type": "uint8"
+        }
+      ],
+      "id": 109,
+      "name": "LabTable"
+    },
+    {
+      "fields": [
+        {
+          "name": "page",
+          "type": "uint8"
+        },
+        {
+          "name": "page_count",
+          "type": "uint8"
+        },
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        }
+      ],
+      "id": 125,
+      "name": "LecternUpdate"
+    },
+    {
+      "fields": [
+        {
+          "name": "identifier",
+          "type": "string"
+        },
+        {
+          "name": "action",
+          "type": "uint8"
+        },
+        {
+          "name": "score",
+          "type": "int32"
+        }
+      ],
+      "id": 183,
+      "name": "LessonProgress"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.ChunkPos"
+        },
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "highest_sub_chunk",
+          "type": "uint16"
+        },
+        {
+          "name": "sub_chunk_count",
+          "type": "uint32"
+        },
+        {
+          "name": "cache_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "blob_hashes",
+          "type": "[]uint64"
+        },
+        {
+          "name": "raw_payload",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 58,
+      "name": "LevelChunk"
+    },
+    {
+      "fields": [
+        {
+          "name": "event_type",
+          "type": "int32"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "event_data",
+          "type": "int32"
+        }
+      ],
+      "id": 25,
+      "name": "LevelEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "event_id",
+          "type": "int32"
+        },
+        {
+          "name": "serialised_event_data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 124,
+      "name": "LevelEventGeneric"
+    },
+    {
+      "fields": [
+        {
+          "name": "sound_type",
+          "type": "uint32"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "extra_data",
+          "type": "int32"
+        },
+        {
+          "name": "entity_type",
+          "type": "string"
+        },
+        {
+          "name": "baby_mob",
+          "type": "bool"
+        },
+        {
+          "name": "disable_relative_volume",
+          "type": "bool"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        }
+      ],
+      "id": 123,
+      "name": "LevelSoundEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "client_protocol",
+          "type": "int32"
+        },
+        {
+          "name": "connection_request",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 1,
+      "name": "Login"
+    },
+    {
+      "fields": [
+        {
+          "name": "original_map_id",
+          "type": "int64"
+        },
+        {
+          "name": "new_map_id",
+          "type": "int64"
+        }
+      ],
+      "id": 131,
+      "name": "MapCreateLockedCopy"
+    },
+    {
+      "fields": [
+        {
+          "name": "map_id",
+          "type": "int64"
+        },
+        {
+          "name": "client_pixels",
+          "type": "[]protocol.PixelRequest"
+        }
+      ],
+      "id": 68,
+      "name": "MapInfoRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "helmet",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "chestplate",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "leggings",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "boots",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "body",
+          "type": "protocol.ItemInstance"
+        }
+      ],
+      "id": 32,
+      "name": "MobArmourEquipment"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "operation",
+          "type": "uint8"
+        },
+        {
+          "name": "effect_type",
+          "type": "int32"
+        },
+        {
+          "name": "amplifier",
+          "type": "int32"
+        },
+        {
+          "name": "particles",
+          "type": "bool"
+        },
+        {
+          "name": "duration",
+          "type": "int32"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 28,
+      "name": "MobEffect"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "new_item",
+          "type": "protocol.ItemInstance"
+        },
+        {
+          "name": "inventory_slot",
+          "type": "uint8"
+        },
+        {
+          "name": "hot_bar_slot",
+          "type": "uint8"
+        },
+        {
+          "name": "window_id",
+          "type": "uint8"
+        }
+      ],
+      "id": 31,
+      "name": "MobEquipment"
+    },
+    {
+      "fields": [
+        {
+          "name": "form_id",
+          "type": "uint32"
+        },
+        {
+          "name": "form_data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 100,
+      "name": "ModalFormRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "form_id",
+          "type": "uint32"
+        },
+        {
+          "name": "response_data",
+          "type": "protocol.Optional[[]uint8]"
+        },
+        {
+          "name": "cancel_reason",
+          "type": "protocol.Optional[uint8]"
+        }
+      ],
+      "id": 101,
+      "name": "ModalFormResponse"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "velocity",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "on_ground",
+          "type": "bool"
+        }
+      ],
+      "id": 157,
+      "name": "MotionPredictionHints"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "flags",
+          "type": "uint8"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "rotation",
+          "type": "mgl32.Vec3"
+        }
+      ],
+      "id": 18,
+      "name": "MoveActorAbsolute"
+    },
+    {
+      "fields": [
+        {
+          "name": "flags",
+          "type": "uint16"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "rotation",
+          "type": "mgl32.Vec3"
+        }
+      ],
+      "id": 111,
+      "name": "MoveActorDelta"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "pitch",
+          "type": "float32"
+        },
+        {
+          "name": "yaw",
+          "type": "float32"
+        },
+        {
+          "name": "head_yaw",
+          "type": "float32"
+        },
+        {
+          "name": "mode",
+          "type": "uint8"
+        },
+        {
+          "name": "on_ground",
+          "type": "bool"
+        },
+        {
+          "name": "ridden_entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "teleport_cause",
+          "type": "int32"
+        },
+        {
+          "name": "teleport_source_entity_type",
+          "type": "int32"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 19,
+      "name": "MovePlayer"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "type",
+          "type": "int32"
+        },
+        {
+          "name": "duration",
+          "type": "int32"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 318,
+      "name": "MovementEffect"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "int32"
+        }
+      ],
+      "id": 139,
+      "name": "MultiPlayerSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "uint64"
+        },
+        {
+          "name": "action_type",
+          "type": "int32"
+        },
+        {
+          "name": "dialogue",
+          "type": "string"
+        },
+        {
+          "name": "scene_name",
+          "type": "string"
+        },
+        {
+          "name": "npcname",
+          "type": "string"
+        },
+        {
+          "name": "action_json",
+          "type": "string"
+        }
+      ],
+      "id": 169,
+      "name": "NPCDialogue"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "request_type",
+          "type": "uint8"
+        },
+        {
+          "name": "command_string",
+          "type": "string"
+        },
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "scene_name",
+          "type": "string"
+        }
+      ],
+      "id": 98,
+      "name": "NPCRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 203,
+      "name": "NeteaseJson"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "radius",
+          "type": "uint32"
+        },
+        {
+          "name": "saved_chunks",
+          "type": "[]protocol.ChunkPos"
+        }
+      ],
+      "id": 121,
+      "name": "NetworkChunkPublisherUpdate"
+    },
+    {
+      "fields": [
+        {
+          "name": "compression_threshold",
+          "type": "uint16"
+        },
+        {
+          "name": "compression_algorithm",
+          "type": "uint16"
+        },
+        {
+          "name": "client_throttle",
+          "type": "bool"
+        },
+        {
+          "name": "client_throttle_threshold",
+          "type": "uint8"
+        },
+        {
+          "name": "client_throttle_scalar",
+          "type": "float32"
+        }
+      ],
+      "id": 143,
+      "name": "NetworkSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "timestamp",
+          "type": "int64"
+        },
+        {
+          "name": "needs_response",
+          "type": "bool"
+        }
+      ],
+      "id": 115,
+      "name": "NetworkStackLatency"
+    },
+    {
+      "fields": [
+        {
+          "name": "animation_type",
+          "type": "int32"
+        }
+      ],
+      "id": 130,
+      "name": "OnScreenTextureAnimation"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "front_side",
+          "type": "bool"
+        }
+      ],
+      "id": 303,
+      "name": "OpenSign"
+    },
+    {
+      "fields": [
+        {
+          "name": "type",
+          "type": "int32"
+        },
+        {
+          "name": "severity",
+          "type": "int32"
+        },
+        {
+          "name": "packet_id",
+          "type": "int32"
+        },
+        {
+          "name": "violation_context",
+          "type": "string"
+        }
+      ],
+      "id": 156,
+      "name": "PacketViolationWarning"
+    },
+    {
+      "fields": [
+        {
+          "name": "photo_id",
+          "type": "int64"
+        }
+      ],
+      "id": 173,
+      "name": "PhotoInfoRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "photo_name",
+          "type": "string"
+        },
+        {
+          "name": "photo_data",
+          "type": "[]uint8"
+        },
+        {
+          "name": "book_id",
+          "type": "string"
+        },
+        {
+          "name": "photo_type",
+          "type": "uint8"
+        },
+        {
+          "name": "source_type",
+          "type": "uint8"
+        },
+        {
+          "name": "owner_entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "new_photo_name",
+          "type": "string"
+        }
+      ],
+      "id": 99,
+      "name": "PhotoTransfer"
+    },
+    {
+      "fields": [
+        {
+          "name": "sound_name",
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "volume",
+          "type": "float32"
+        },
+        {
+          "name": "pitch",
+          "type": "float32"
+        }
+      ],
+      "id": 86,
+      "name": "PlaySound"
+    },
+    {
+      "fields": [
+        {
+          "name": "status",
+          "type": "int32"
+        }
+      ],
+      "id": 2,
+      "name": "PlayStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "action_type",
+          "type": "int32"
+        },
+        {
+          "name": "block_position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "result_position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "block_face",
+          "type": "int32"
+        }
+      ],
+      "id": 36,
+      "name": "PlayerAction"
+    },
+    {
+      "fields": [
+        {
+          "name": "bitset",
+          "type": "uint8"
+        },
+        {
+          "name": "helmet_damage",
+          "type": "int32"
+        },
+        {
+          "name": "chestplate_damage",
+          "type": "int32"
+        },
+        {
+          "name": "leggings_damage",
+          "type": "int32"
+        },
+        {
+          "name": "boots_damage",
+          "type": "int32"
+        },
+        {
+          "name": "body_damage",
+          "type": "int32"
+        }
+      ],
+      "id": 149,
+      "name": "PlayerArmourDamage"
+    },
+    {
+      "fields": [
+        {
+          "name": "pitch",
+          "type": "float32"
+        },
+        {
+          "name": "yaw",
+          "type": "float32"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "move_vector",
+          "type": "mgl32.Vec2"
+        },
+        {
+          "name": "head_yaw",
+          "type": "float32"
+        },
+        {
+          "name": "input_data",
+          "type": "protocol.Bitset"
+        },
+        {
+          "name": "input_mode",
+          "type": "uint32"
+        },
+        {
+          "name": "play_mode",
+          "type": "uint32"
+        },
+        {
+          "name": "interaction_model",
+          "type": "uint32"
+        },
+        {
+          "name": "interact_pitch",
+          "type": "float32"
+        },
+        {
+          "name": "interact_yaw",
+          "type": "float32"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        },
+        {
+          "name": "delta",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "item_interaction_data",
+          "type": "protocol.UseItemTransactionData"
+        },
+        {
+          "name": "item_stack_request",
+          "type": "protocol.ItemStackRequest"
+        },
+        {
+          "name": "block_actions",
+          "type": "[]protocol.PlayerBlockAction"
+        },
+        {
+          "name": "vehicle_rotation",
+          "type": "mgl32.Vec2"
+        },
+        {
+          "name": "client_predicted_vehicle",
+          "type": "int64"
+        },
+        {
+          "name": "analogue_move_vector",
+          "type": "mgl32.Vec2"
+        },
+        {
+          "name": "camera_orientation",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "raw_move_vector",
+          "type": "mgl32.Vec2"
+        },
+        {
+          "name": "unknown1",
+          "type": "float32"
+        },
+        {
+          "name": "unknown2",
+          "type": "float32"
+        },
+        {
+          "name": "unknown3",
+          "type": "bool"
+        },
+        {
+          "name": "unknown4",
+          "type": "bool"
+        },
+        {
+          "name": "unknown5",
+          "type": "bool"
+        },
+        {
+          "name": "unknown6",
+          "type": "bool"
+        },
+        {
+          "name": "unknown7",
+          "type": "float32"
+        }
+      ],
+      "id": 144,
+      "name": "PlayerAuthInput"
+    },
+    {
+      "fields": [
+        {
+          "name": "options",
+          "type": "[]protocol.EnchantmentOption"
+        }
+      ],
+      "id": 146,
+      "name": "PlayerEnchantOptions"
+    },
+    {
+      "fields": [
+        {
+          "name": "stack",
+          "type": "[]string"
+        }
+      ],
+      "id": 160,
+      "name": "PlayerFog"
+    },
+    {
+      "fields": [
+        {
+          "name": "selected_hot_bar_slot",
+          "type": "uint32"
+        },
+        {
+          "name": "window_id",
+          "type": "uint8"
+        },
+        {
+          "name": "select_hot_bar_slot",
+          "type": "bool"
+        }
+      ],
+      "id": 48,
+      "name": "PlayerHotBar"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "entries",
+          "type": "[]protocol.PlayerListEntry"
+        },
+        {
+          "name": "unknown1",
+          "type": "[]protocol.NeteaseUnknownPlayerListEntry"
+        },
+        {
+          "name": "unknown2",
+          "type": "[]protocol.NeteaseUnknownPlayerListEntry"
+        },
+        {
+          "name": "unknown3",
+          "type": "[]string"
+        },
+        {
+          "name": "growth_levels",
+          "type": "[]uint32"
+        },
+        {
+          "name": "unknown4",
+          "type": "[]bool"
+        }
+      ],
+      "id": 63,
+      "name": "PlayerList"
+    },
+    {
+      "fields": [
+        {
+          "name": "type",
+          "type": "int32"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        }
+      ],
+      "id": 326,
+      "name": "PlayerLocation"
+    },
+    {
+      "fields": [
+        {
+          "name": "uuid",
+          "type": "uuid.UUID"
+        },
+        {
+          "name": "skin",
+          "type": "protocol.Skin"
+        },
+        {
+          "name": "new_skin_name",
+          "type": "string"
+        },
+        {
+          "name": "old_skin_name",
+          "type": "string"
+        }
+      ],
+      "id": 93,
+      "name": "PlayerSkin"
+    },
+    {
+      "fields": [
+        {
+          "name": "pos_x",
+          "type": "int32"
+        },
+        {
+          "name": "pos_y",
+          "type": "int32"
+        },
+        {
+          "name": "pos_z",
+          "type": "int32"
+        },
+        {
+          "name": "slot",
+          "type": "uint8"
+        },
+        {
+          "name": "disabled",
+          "type": "bool"
+        }
+      ],
+      "id": 306,
+      "name": "PlayerToggleCrafterSlotRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "property_index",
+          "type": "uint32"
+        },
+        {
+          "name": "type",
+          "type": "uint8"
+        },
+        {
+          "name": "int_value",
+          "type": "int32"
+        },
+        {
+          "name": "float_value",
+          "type": "float32"
+        }
+      ],
+      "id": 325,
+      "name": "PlayerUpdateEntityOverrides"
+    },
+    {
+      "fields": [
+        {
+          "name": "action",
+          "type": "uint8"
+        },
+        {
+          "name": "frame_rate",
+          "type": "int32"
+        },
+        {
+          "name": "file_prefix",
+          "type": "string"
+        }
+      ],
+      "id": 324,
+      "name": "PlayerVideoCapture"
+    },
+    {
+      "fields": [
+        {
+          "name": "request_action",
+          "type": "uint8"
+        },
+        {
+          "name": "tracking_id",
+          "type": "int32"
+        }
+      ],
+      "id": 154,
+      "name": "PositionTrackingDBClientRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "broadcast_action",
+          "type": "uint8"
+        },
+        {
+          "name": "tracking_id",
+          "type": "int32"
+        },
+        {
+          "name": "payload",
+          "type": "map[string]interface {}"
+        }
+      ],
+      "id": 153,
+      "name": "PositionTrackingDBServerBroadcast"
+    },
+    {
+      "fields": [
+        {
+          "name": "receipts",
+          "type": "[]string"
+        }
+      ],
+      "id": 92,
+      "name": "PurchaseReceipt"
+    },
+    {
+      "fields": [
+        {
+          "name": "value",
+          "type": "interface {}"
+        },
+        {
+          "name": "operation_type",
+          "type": "uint32"
+        }
+      ],
+      "id": 200,
+      "name": "PyRpc"
+    },
+    {
+      "fields": [],
+      "id": 305,
+      "name": "RefreshEntitlements"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        }
+      ],
+      "id": 14,
+      "name": "RemoveActor"
+    },
+    {
+      "fields": [
+        {
+          "name": "objective_name",
+          "type": "string"
+        }
+      ],
+      "id": 106,
+      "name": "RemoveObjective"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "dimension",
+          "type": "int32"
+        }
+      ],
+      "id": 167,
+      "name": "RemoveVolumeEntity"
+    },
+    {
+      "fields": [
+        {
+          "name": "ability",
+          "type": "int32"
+        },
+        {
+          "name": "value",
+          "type": "interface {}"
+        }
+      ],
+      "id": 184,
+      "name": "RequestAbility"
+    },
+    {
+      "fields": [
+        {
+          "name": "chunk_radius",
+          "type": "int32"
+        },
+        {
+          "name": "max_chunk_radius",
+          "type": "int32"
+        }
+      ],
+      "id": 69,
+      "name": "RequestChunkRadius"
+    },
+    {
+      "fields": [
+        {
+          "name": "client_protocol",
+          "type": "int32"
+        }
+      ],
+      "id": 193,
+      "name": "RequestNetworkSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "permission_level",
+          "type": "uint8"
+        },
+        {
+          "name": "requested_permissions",
+          "type": "uint16"
+        }
+      ],
+      "id": 185,
+      "name": "RequestPermissions"
+    },
+    {
+      "fields": [
+        {
+          "name": "uuid",
+          "type": "string"
+        },
+        {
+          "name": "chunk_index",
+          "type": "uint32"
+        },
+        {
+          "name": "data_offset",
+          "type": "uint64"
+        },
+        {
+          "name": "data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 83,
+      "name": "ResourcePackChunkData"
+    },
+    {
+      "fields": [
+        {
+          "name": "uuid",
+          "type": "string"
+        },
+        {
+          "name": "chunk_index",
+          "type": "uint32"
+        }
+      ],
+      "id": 84,
+      "name": "ResourcePackChunkRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "response",
+          "type": "uint8"
+        },
+        {
+          "name": "packs_to_download",
+          "type": "[]string"
+        }
+      ],
+      "id": 8,
+      "name": "ResourcePackClientResponse"
+    },
+    {
+      "fields": [
+        {
+          "name": "uuid",
+          "type": "string"
+        },
+        {
+          "name": "data_chunk_size",
+          "type": "uint32"
+        },
+        {
+          "name": "chunk_count",
+          "type": "uint32"
+        },
+        {
+          "name": "size",
+          "type": "uint64"
+        },
+        {
+          "name": "hash",
+          "type": "[]uint8"
+        },
+        {
+          "name": "premium",
+          "type": "bool"
+        },
+        {
+          "name": "pack_type",
+          "type": "uint8"
+        }
+      ],
+      "id": 82,
+      "name": "ResourcePackDataInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "texture_pack_required",
+          "type": "bool"
+        },
+        {
+          "name": "behaviour_packs",
+          "type": "[]protocol.StackResourcePack"
+        },
+        {
+          "name": "texture_packs",
+          "type": "[]protocol.StackResourcePack"
+        },
+        {
+          "name": "base_game_version",
+          "type": "string"
+        },
+        {
+          "name": "experiments",
+          "type": "[]protocol.ExperimentData"
+        },
+        {
+          "name": "experiments_previously_toggled",
+          "type": "bool"
+        },
+        {
+          "name": "include_editor_packs",
+          "type": "bool"
+        }
+      ],
+      "id": 7,
+      "name": "ResourcePackStack"
+    },
+    {
+      "fields": [
+        {
+          "name": "texture_pack_required",
+          "type": "bool"
+        },
+        {
+          "name": "has_addons",
+          "type": "bool"
+        },
+        {
+          "name": "has_scripts",
+          "type": "bool"
+        },
+        {
+          "name": "force_disable_vibrant_visuals",
+          "type": "bool"
+        },
+        {
+          "name": "world_template_uuid",
+          "type": "uuid.UUID"
+        },
+        {
+          "name": "world_template_version",
+          "type": "string"
+        },
+        {
+          "name": "texture_packs",
+          "type": "[]protocol.TexturePackInfo"
+        }
+      ],
+      "id": 6,
+      "name": "ResourcePacksInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "state",
+          "type": "uint8"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        }
+      ],
+      "id": 45,
+      "name": "Respawn"
+    },
+    {
+      "fields": [
+        {
+          "name": "event_name",
+          "type": "string"
+        },
+        {
+          "name": "event_data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 117,
+      "name": "ScriptCustomEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "identifier",
+          "type": "string"
+        },
+        {
+          "name": "data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 177,
+      "name": "ScriptMessage"
+    },
+    {
+      "fields": [
+        {
+          "name": "average_frames_per_second",
+          "type": "float32"
+        },
+        {
+          "name": "average_server_sim_tick_time",
+          "type": "float32"
+        },
+        {
+          "name": "average_client_sim_tick_time",
+          "type": "float32"
+        },
+        {
+          "name": "average_begin_frame_time",
+          "type": "float32"
+        },
+        {
+          "name": "average_input_time",
+          "type": "float32"
+        },
+        {
+          "name": "average_render_time",
+          "type": "float32"
+        },
+        {
+          "name": "average_end_frame_time",
+          "type": "float32"
+        },
+        {
+          "name": "average_remainder_time_percent",
+          "type": "float32"
+        },
+        {
+          "name": "average_unaccounted_time_percent",
+          "type": "float32"
+        }
+      ],
+      "id": 315,
+      "name": "ServerBoundDiagnostics"
+    },
+    {
+      "fields": [
+        {
+          "name": "type",
+          "type": "int32"
+        },
+        {
+          "name": "loading_screen_id",
+          "type": "protocol.Optional[uint32]"
+        }
+      ],
+      "id": 312,
+      "name": "ServerBoundLoadingScreen"
+    },
+    {
+      "fields": [
+        {
+          "name": "shapes",
+          "type": "[]packet.DebugDrawerShape"
+        }
+      ],
+      "id": 328,
+      "name": "ServerScriptDebugDrawer"
+    },
+    {
+      "fields": [],
+      "id": 102,
+      "name": "ServerSettingsRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "form_id",
+          "type": "uint32"
+        },
+        {
+          "name": "form_data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 103,
+      "name": "ServerSettingsResponse"
+    },
+    {
+      "fields": [
+        {
+          "name": "server_time",
+          "type": "float32"
+        },
+        {
+          "name": "network_time",
+          "type": "float32"
+        }
+      ],
+      "id": 192,
+      "name": "ServerStats"
+    },
+    {
+      "fields": [
+        {
+          "name": "jwt",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 3,
+      "name": "ServerToClientHandshake"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "entity_metadata",
+          "type": "map[uint32]interface {}"
+        },
+        {
+          "name": "entity_properties",
+          "type": "protocol.EntityProperties"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 39,
+      "name": "SetActorData"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_link",
+          "type": "protocol.EntityLink"
+        }
+      ],
+      "id": 41,
+      "name": "SetActorLink"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "velocity",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 40,
+      "name": "SetActorMotion"
+    },
+    {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ],
+      "id": 59,
+      "name": "SetCommandsEnabled"
+    },
+    {
+      "fields": [
+        {
+          "name": "game_type",
+          "type": "int32"
+        }
+      ],
+      "id": 105,
+      "name": "SetDefaultGameType"
+    },
+    {
+      "fields": [
+        {
+          "name": "difficulty",
+          "type": "uint32"
+        }
+      ],
+      "id": 60,
+      "name": "SetDifficulty"
+    },
+    {
+      "fields": [
+        {
+          "name": "display_slot",
+          "type": "string"
+        },
+        {
+          "name": "objective_name",
+          "type": "string"
+        },
+        {
+          "name": "display_name",
+          "type": "string"
+        },
+        {
+          "name": "criteria_name",
+          "type": "string"
+        },
+        {
+          "name": "sort_order",
+          "type": "int32"
+        }
+      ],
+      "id": 107,
+      "name": "SetDisplayObjective"
+    },
+    {
+      "fields": [
+        {
+          "name": "health",
+          "type": "int32"
+        }
+      ],
+      "id": 42,
+      "name": "SetHealth"
+    },
+    {
+      "fields": [
+        {
+          "name": "elements",
+          "type": "[]int32"
+        },
+        {
+          "name": "visibility",
+          "type": "int32"
+        }
+      ],
+      "id": 308,
+      "name": "SetHud"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_type",
+          "type": "int32"
+        }
+      ],
+      "id": 96,
+      "name": "SetLastHurtBy"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        }
+      ],
+      "id": 113,
+      "name": "SetLocalPlayerAsInitialised"
+    },
+    {
+      "fields": [
+        {
+          "name": "game_type",
+          "type": "int32"
+        }
+      ],
+      "id": 62,
+      "name": "SetPlayerGameType"
+    },
+    {
+      "fields": [
+        {
+          "name": "left_inventory_tab",
+          "type": "uint8"
+        },
+        {
+          "name": "right_inventory_tab",
+          "type": "uint8"
+        },
+        {
+          "name": "filtering",
+          "type": "bool"
+        },
+        {
+          "name": "inventory_layout",
+          "type": "uint8"
+        },
+        {
+          "name": "crafting_layout",
+          "type": "uint8"
+        }
+      ],
+      "id": 307,
+      "name": "SetPlayerInventoryOptions"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "entries",
+          "type": "[]protocol.ScoreboardEntry"
+        }
+      ],
+      "id": 108,
+      "name": "SetScore"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "uint8"
+        },
+        {
+          "name": "entries",
+          "type": "[]protocol.ScoreboardIdentityEntry"
+        }
+      ],
+      "id": 112,
+      "name": "SetScoreboardIdentity"
+    },
+    {
+      "fields": [
+        {
+          "name": "spawn_type",
+          "type": "int32"
+        },
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "spawn_position",
+          "type": "protocol.BlockPos"
+        }
+      ],
+      "id": 43,
+      "name": "SetSpawnPosition"
+    },
+    {
+      "fields": [
+        {
+          "name": "time",
+          "type": "int32"
+        }
+      ],
+      "id": 10,
+      "name": "SetTime"
+    },
+    {
+      "fields": [
+        {
+          "name": "action_type",
+          "type": "int32"
+        },
+        {
+          "name": "text",
+          "type": "string"
+        },
+        {
+          "name": "fade_in_duration",
+          "type": "int32"
+        },
+        {
+          "name": "remain_duration",
+          "type": "int32"
+        },
+        {
+          "name": "fade_out_duration",
+          "type": "int32"
+        },
+        {
+          "name": "xuid",
+          "type": "string"
+        },
+        {
+          "name": "platform_online_id",
+          "type": "string"
+        },
+        {
+          "name": "filtered_message",
+          "type": "string"
+        }
+      ],
+      "id": 88,
+      "name": "SetTitle"
+    },
+    {
+      "fields": [
+        {
+          "name": "command_line",
+          "type": "string"
+        },
+        {
+          "name": "suppress_output",
+          "type": "bool"
+        }
+      ],
+      "id": 140,
+      "name": "SettingsCommand"
+    },
+    {
+      "fields": [
+        {
+          "name": "player_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "status_type",
+          "type": "int32"
+        }
+      ],
+      "id": 75,
+      "name": "ShowCredits"
+    },
+    {
+      "fields": [
+        {
+          "name": "xuid",
+          "type": "string"
+        }
+      ],
+      "id": 104,
+      "name": "ShowProfile"
+    },
+    {
+      "fields": [
+        {
+          "name": "offer_id",
+          "type": "string"
+        },
+        {
+          "name": "type",
+          "type": "uint8"
+        }
+      ],
+      "id": 91,
+      "name": "ShowStoreOffer"
+    },
+    {
+      "fields": [
+        {
+          "name": "event_type",
+          "type": "int16"
+        }
+      ],
+      "id": 64,
+      "name": "SimpleEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "simulation_type",
+          "type": "uint8"
+        }
+      ],
+      "id": 168,
+      "name": "SimulationType"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "experience_amount",
+          "type": "int32"
+        }
+      ],
+      "id": 66,
+      "name": "SpawnExperienceOrb"
+    },
+    {
+      "fields": [
+        {
+          "name": "dimension",
+          "type": "uint8"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "particle_name",
+          "type": "string"
+        },
+        {
+          "name": "mo_lang_variables",
+          "type": "protocol.Optional[[]uint8]"
+        }
+      ],
+      "id": 118,
+      "name": "SpawnParticleEffect"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "player_game_mode",
+          "type": "int32"
+        },
+        {
+          "name": "player_position",
+          "type": "mgl32.Vec3"
+        },
+        {
+          "name": "pitch",
+          "type": "float32"
+        },
+        {
+          "name": "yaw",
+          "type": "float32"
+        },
+        {
+          "name": "world_seed",
+          "type": "int64"
+        },
+        {
+          "name": "spawn_biome_type",
+          "type": "int16"
+        },
+        {
+          "name": "user_defined_biome_name",
+          "type": "string"
+        },
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "generator",
+          "type": "int32"
+        },
+        {
+          "name": "world_game_mode",
+          "type": "int32"
+        },
+        {
+          "name": "hardcore",
+          "type": "bool"
+        },
+        {
+          "name": "difficulty",
+          "type": "int32"
+        },
+        {
+          "name": "world_spawn",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "achievements_disabled",
+          "type": "bool"
+        },
+        {
+          "name": "editor_world_type",
+          "type": "int32"
+        },
+        {
+          "name": "created_in_editor",
+          "type": "bool"
+        },
+        {
+          "name": "exported_from_editor",
+          "type": "bool"
+        },
+        {
+          "name": "day_cycle_lock_time",
+          "type": "int32"
+        },
+        {
+          "name": "education_edition_offer",
+          "type": "int32"
+        },
+        {
+          "name": "education_features_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "education_product_id",
+          "type": "string"
+        },
+        {
+          "name": "rain_level",
+          "type": "float32"
+        },
+        {
+          "name": "lightning_level",
+          "type": "float32"
+        },
+        {
+          "name": "confirmed_platform_locked_content",
+          "type": "bool"
+        },
+        {
+          "name": "multi_player_game",
+          "type": "bool"
+        },
+        {
+          "name": "lanbroadcast_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "xblbroadcast_mode",
+          "type": "int32"
+        },
+        {
+          "name": "platform_broadcast_mode",
+          "type": "int32"
+        },
+        {
+          "name": "commands_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "texture_pack_required",
+          "type": "bool"
+        },
+        {
+          "name": "game_rules",
+          "type": "[]protocol.GameRule"
+        },
+        {
+          "name": "experiments",
+          "type": "[]protocol.ExperimentData"
+        },
+        {
+          "name": "experiments_previously_toggled",
+          "type": "bool"
+        },
+        {
+          "name": "bonus_chest_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "start_with_map_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "player_permissions",
+          "type": "int32"
+        },
+        {
+          "name": "server_chunk_tick_radius",
+          "type": "int32"
+        },
+        {
+          "name": "has_locked_behaviour_pack",
+          "type": "bool"
+        },
+        {
+          "name": "has_locked_texture_pack",
+          "type": "bool"
+        },
+        {
+          "name": "from_locked_world_template",
+          "type": "bool"
+        },
+        {
+          "name": "msagamer_tags_only",
+          "type": "bool"
+        },
+        {
+          "name": "from_world_template",
+          "type": "bool"
+        },
+        {
+          "name": "world_template_settings_locked",
+          "type": "bool"
+        },
+        {
+          "name": "only_spawn_v1_villagers",
+          "type": "bool"
+        },
+        {
+          "name": "persona_disabled",
+          "type": "bool"
+        },
+        {
+          "name": "custom_skins_disabled",
+          "type": "bool"
+        },
+        {
+          "name": "emote_chat_muted",
+          "type": "bool"
+        },
+        {
+          "name": "base_game_version",
+          "type": "string"
+        },
+        {
+          "name": "limited_world_width",
+          "type": "int32"
+        },
+        {
+          "name": "limited_world_depth",
+          "type": "int32"
+        },
+        {
+          "name": "new_nether",
+          "type": "bool"
+        },
+        {
+          "name": "education_shared_resource_uri",
+          "type": "protocol.EducationSharedResourceURI"
+        },
+        {
+          "name": "force_experimental_gameplay",
+          "type": "protocol.Optional[bool]"
+        },
+        {
+          "name": "level_id",
+          "type": "string"
+        },
+        {
+          "name": "world_name",
+          "type": "string"
+        },
+        {
+          "name": "template_content_identity",
+          "type": "string"
+        },
+        {
+          "name": "trial",
+          "type": "bool"
+        },
+        {
+          "name": "player_movement_settings",
+          "type": "protocol.PlayerMovementSettings"
+        },
+        {
+          "name": "time",
+          "type": "int64"
+        },
+        {
+          "name": "enchantment_seed",
+          "type": "int32"
+        },
+        {
+          "name": "blocks",
+          "type": "[]protocol.BlockEntry"
+        },
+        {
+          "name": "multi_player_correlation_id",
+          "type": "string"
+        },
+        {
+          "name": "server_authoritative_inventory",
+          "type": "bool"
+        },
+        {
+          "name": "game_version",
+          "type": "string"
+        },
+        {
+          "name": "property_data",
+          "type": "map[string]interface {}"
+        },
+        {
+          "name": "server_block_state_checksum",
+          "type": "uint64"
+        },
+        {
+          "name": "client_side_generation",
+          "type": "bool"
+        },
+        {
+          "name": "world_template_id",
+          "type": "uuid.UUID"
+        },
+        {
+          "name": "chat_restriction_level",
+          "type": "uint8"
+        },
+        {
+          "name": "disable_player_interactions",
+          "type": "bool"
+        },
+        {
+          "name": "server_id",
+          "type": "string"
+        },
+        {
+          "name": "world_id",
+          "type": "string"
+        },
+        {
+          "name": "scenario_id",
+          "type": "string"
+        },
+        {
+          "name": "owner_id",
+          "type": "string"
+        },
+        {
+          "name": "use_block_network_idhashes",
+          "type": "bool"
+        },
+        {
+          "name": "server_authoritative_sound",
+          "type": "bool"
+        }
+      ],
+      "id": 11,
+      "name": "StartGame"
+    },
+    {
+      "fields": [
+        {
+          "name": "sound_name",
+          "type": "string"
+        },
+        {
+          "name": "stop_all",
+          "type": "bool"
+        },
+        {
+          "name": "stop_music_legacy",
+          "type": "bool"
+        }
+      ],
+      "id": 87,
+      "name": "StopSound"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "structure_name",
+          "type": "string"
+        },
+        {
+          "name": "filtered_structure_name",
+          "type": "string"
+        },
+        {
+          "name": "data_field",
+          "type": "string"
+        },
+        {
+          "name": "include_players",
+          "type": "bool"
+        },
+        {
+          "name": "show_bounding_box",
+          "type": "bool"
+        },
+        {
+          "name": "structure_block_type",
+          "type": "int32"
+        },
+        {
+          "name": "settings",
+          "type": "protocol.StructureSettings"
+        },
+        {
+          "name": "redstone_save_mode",
+          "type": "int32"
+        },
+        {
+          "name": "should_trigger",
+          "type": "bool"
+        },
+        {
+          "name": "waterlogged",
+          "type": "bool"
+        }
+      ],
+      "id": 90,
+      "name": "StructureBlockUpdate"
+    },
+    {
+      "fields": [
+        {
+          "name": "structure_name",
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "settings",
+          "type": "protocol.StructureSettings"
+        },
+        {
+          "name": "request_type",
+          "type": "uint8"
+        }
+      ],
+      "id": 132,
+      "name": "StructureTemplateDataRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "structure_name",
+          "type": "string"
+        },
+        {
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "name": "response_type",
+          "type": "uint8"
+        },
+        {
+          "name": "structure_template",
+          "type": "map[string]interface {}"
+        }
+      ],
+      "id": 133,
+      "name": "StructureTemplateDataResponse"
+    },
+    {
+      "fields": [
+        {
+          "name": "cache_enabled",
+          "type": "bool"
+        },
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "position",
+          "type": "protocol.SubChunkPos"
+        },
+        {
+          "name": "sub_chunk_entries",
+          "type": "[]protocol.SubChunkEntry"
+        },
+        {
+          "name": "block_entities",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 174,
+      "name": "SubChunk"
+    },
+    {
+      "fields": [
+        {
+          "name": "dimension",
+          "type": "int32"
+        },
+        {
+          "name": "position",
+          "type": "protocol.SubChunkPos"
+        },
+        {
+          "name": "offsets",
+          "type": "[]protocol.SubChunkOffset"
+        }
+      ],
+      "id": 175,
+      "name": "SubChunkRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "connection_request",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 94,
+      "name": "SubClientLogin"
+    },
+    {
+      "fields": [
+        {
+          "name": "property_data",
+          "type": "map[string]interface {}"
+        }
+      ],
+      "id": 165,
+      "name": "SyncActorProperty"
+    },
+    {
+      "fields": [
+        {
+          "name": "player_data",
+          "type": "[]protocol.NeteasePlayerData"
+        },
+        {
+          "name": "player_uids",
+          "type": "[]string"
+        },
+        {
+          "name": "unknown",
+          "type": "[]string"
+        },
+        {
+          "name": "skin_item_ids",
+          "type": "[]string"
+        },
+        {
+          "name": "skin",
+          "type": "protocol.Skin"
+        }
+      ],
+      "id": 240,
+      "name": "SyncSkin"
+    },
+    {
+      "fields": [
+        {
+          "name": "item_entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "taker_entity_runtime_id",
+          "type": "uint64"
+        }
+      ],
+      "id": 17,
+      "name": "TakeItemActor"
+    },
+    {
+      "fields": [
+        {
+          "name": "text_type",
+          "type": "uint8"
+        },
+        {
+          "name": "needs_translation",
+          "type": "bool"
+        },
+        {
+          "name": "source_name",
+          "type": "string"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "parameters",
+          "type": "[]string"
+        },
+        {
+          "name": "xuid",
+          "type": "string"
+        },
+        {
+          "name": "platform_chat_id",
+          "type": "string"
+        },
+        {
+          "name": "filtered_message",
+          "type": "string"
+        },
+        {
+          "name": "unknown1",
+          "type": "[]string"
+        },
+        {
+          "name": "unknown2",
+          "type": "string"
+        }
+      ],
+      "id": 9,
+      "name": "Text"
+    },
+    {
+      "fields": [
+        {
+          "name": "preload",
+          "type": "bool"
+        }
+      ],
+      "id": 179,
+      "name": "TickingAreasLoadStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ],
+      "id": 186,
+      "name": "ToastRequest"
+    },
+    {
+      "fields": [
+        {
+          "name": "address",
+          "type": "string"
+        },
+        {
+          "name": "port",
+          "type": "uint16"
+        },
+        {
+          "name": "reload_world",
+          "type": "bool"
+        }
+      ],
+      "id": 85,
+      "name": "Transfer"
+    },
+    {
+      "fields": [
+        {
+          "name": "patterns",
+          "type": "[]protocol.TrimPattern"
+        },
+        {
+          "name": "materials",
+          "type": "[]protocol.TrimMaterial"
+        }
+      ],
+      "id": 302,
+      "name": "TrimData"
+    },
+    {
+      "fields": [
+        {
+          "name": "unlock_type",
+          "type": "uint32"
+        },
+        {
+          "name": "recipes",
+          "type": "[]string"
+        }
+      ],
+      "id": 199,
+      "name": "UnlockedRecipes"
+    },
+    {
+      "fields": [
+        {
+          "name": "ability_data",
+          "type": "protocol.AbilityData"
+        }
+      ],
+      "id": 187,
+      "name": "UpdateAbilities"
+    },
+    {
+      "fields": [
+        {
+          "name": "no_pv_m",
+          "type": "bool"
+        },
+        {
+          "name": "no_mv_p",
+          "type": "bool"
+        },
+        {
+          "name": "immutable_world",
+          "type": "bool"
+        },
+        {
+          "name": "show_name_tags",
+          "type": "bool"
+        },
+        {
+          "name": "auto_jump",
+          "type": "bool"
+        }
+      ],
+      "id": 188,
+      "name": "UpdateAdventureSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "entity_runtime_id",
+          "type": "uint64"
+        },
+        {
+          "name": "attributes",
+          "type": "[]protocol.Attribute"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 29,
+      "name": "UpdateAttributes"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "new_block_runtime_id",
+          "type": "uint32"
+        },
+        {
+          "name": "flags",
+          "type": "uint32"
+        },
+        {
+          "name": "layer",
+          "type": "uint32"
+        }
+      ],
+      "id": 21,
+      "name": "UpdateBlock"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.BlockPos"
+        },
+        {
+          "name": "new_block_runtime_id",
+          "type": "uint32"
+        },
+        {
+          "name": "flags",
+          "type": "uint32"
+        },
+        {
+          "name": "layer",
+          "type": "uint32"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "uint64"
+        },
+        {
+          "name": "transition_type",
+          "type": "uint64"
+        }
+      ],
+      "id": 110,
+      "name": "UpdateBlockSynced"
+    },
+    {
+      "fields": [
+        {
+          "name": "locks",
+          "type": "uint32"
+        },
+        {
+          "name": "position",
+          "type": "mgl32.Vec3"
+        }
+      ],
+      "id": 196,
+      "name": "UpdateClientInputLocks"
+    },
+    {
+      "fields": [
+        {
+          "name": "graphics_mode",
+          "type": "protocol.Optional[uint8]"
+        }
+      ],
+      "id": 323,
+      "name": "UpdateClientOptions"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint8"
+        },
+        {
+          "name": "window_type",
+          "type": "uint8"
+        },
+        {
+          "name": "size",
+          "type": "int32"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "serialised_inventory_data",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 81,
+      "name": "UpdateEquip"
+    },
+    {
+      "fields": [
+        {
+          "name": "game_type",
+          "type": "int32"
+        },
+        {
+          "name": "player_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "tick",
+          "type": "uint64"
+        }
+      ],
+      "id": 151,
+      "name": "UpdatePlayerGameType"
+    },
+    {
+      "fields": [
+        {
+          "name": "enum_type",
+          "type": "string"
+        },
+        {
+          "name": "options",
+          "type": "[]string"
+        },
+        {
+          "name": "action_type",
+          "type": "uint8"
+        }
+      ],
+      "id": 114,
+      "name": "UpdateSoftEnum"
+    },
+    {
+      "fields": [
+        {
+          "name": "position",
+          "type": "protocol.SubChunkPos"
+        },
+        {
+          "name": "blocks",
+          "type": "[]protocol.BlockChangeEntry"
+        },
+        {
+          "name": "extra",
+          "type": "[]protocol.BlockChangeEntry"
+        }
+      ],
+      "id": 172,
+      "name": "UpdateSubChunkBlocks"
+    },
+    {
+      "fields": [
+        {
+          "name": "window_id",
+          "type": "uint8"
+        },
+        {
+          "name": "window_type",
+          "type": "uint8"
+        },
+        {
+          "name": "size",
+          "type": "int32"
+        },
+        {
+          "name": "trade_tier",
+          "type": "int32"
+        },
+        {
+          "name": "villager_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "entity_unique_id",
+          "type": "int64"
+        },
+        {
+          "name": "display_name",
+          "type": "string"
+        },
+        {
+          "name": "new_trade_ui",
+          "type": "bool"
+        },
+        {
+          "name": "demand_based_prices",
+          "type": "bool"
+        },
+        {
+          "name": "serialised_offers",
+          "type": "[]uint8"
+        }
+      ],
+      "id": 80,
+      "name": "UpdateTrade"
+    }
+  ],
+  "resources": {
+    "plugin.codeDir": "无参数，当前插件源码根目录。Lua模块可require，模块只在该常驻VM首次require时加载。",
+    "plugin.configDir": "无参数，当前插件配置目录。",
+    "plugin.dataDir": "无参数，当前插件持久数据目录；SDK按账号隔离。旧game.dataDir保持兼容。",
+    "plugin.existsResource": "relative_path，检查资源是否存在；非法路径报错。",
+    "plugin.exportFile": "relative_file；取得当前插件生成文件的下载信息，保持原格式/原字节，不是备份整个插件。文件须已写入plugin.dataDir。链接需登录当前账号，snapshot=false表示下载当前文件版本。",
+    "plugin.extractResource": "source_relative,destination_relative默认同源；将资源原字节复制至plugin.dataDir中的目标，创建父目录。不是解压ZIP，不写任意外部路径。",
+    "plugin.listOutputs": "relative_dir默认.；列出当前插件数据目录内生成的文件，返回path/name/bytes/modified_at/download_url，不返回文件内容。",
+    "plugin.listResources": "relative_path默认.，递归列出目录和文件，含path/dir/size；不跟随符号链接。",
+    "plugin.readResource": "relative_path,encoding=utf8；读取资源字符串；二进制跨JSON使用encoding=base64。拒绝绝对路径、越界与符号链接。",
+    "plugin.resourceDir": "无参数；有resources子目录则使用该目录，否则兼容使用代码目录。",
+    "plugin.tempDir": "无参数；插件数据目录下.tmp，可自行删除临时文件。"
+  },
+  "scheduler": {
+    "util.listJobs": "无参数，当前插件任务列表：id/handler/paused/calls/missed/failures/last_ms/max_ms/total_ms/last_error；耗时为墙钟含VM排队及回调，不是CPU时间。",
+    "util.pauseJob": "id，暂停该插件任务后续触发；已经执行/入队的一次不强制中断。",
+    "util.resumeJob": "id，恢复后续触发；不会补发暂停期间的积压轮次。",
+    "util.scheduleHz": "hz,handler；本地完整回调的频率，有限正数，无人为1000Hz上限。慢回调不重入、不补积压轮次；查看listJobs的missed。请求亚毫秒频率会提高CPU占用，实际完成频率受回调/系统影响；不是服务端同步Tick。",
+    "util.scheduleSeconds": "seconds,handler；schedule别名，正数秒，可小于0.001秒；必须能表示为正的宿主时间间隔，最长一年。",
+    "util.scheduleTick": "ticks,handler；ticks\u003e=1，统一宿主Tick Loop；本地名义Tick=50ms，不宣称服务端同Tick同步。"
+  }
+}

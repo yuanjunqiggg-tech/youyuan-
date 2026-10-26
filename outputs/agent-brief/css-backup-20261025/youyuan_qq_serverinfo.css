@@ -1,0 +1,411 @@
+/* 互通端信息面板（youyuan_qq_serverinfo.js）
+ * 前缀 .yysi-，只服务这一块折叠区；配色/圆角全部沿用 console 的主题变量，
+ * 不新增颜色，自动跟随浅色与深色主题。
+ * 手机优先：375px 下不横向滚动（所有子项 min-width:0 + overflow-wrap:anywhere）。
+ *
+ * 2026-10-23 整改（用户截图反馈「点进去头像/显示坏了」）：
+ *   - 补上整块缺失的样式：玩家详情抽屉（.yysi-d*）、角色徽章、分页、tab 计数、
+ *     行内状态点——这些 class 此前在 JS 里渲染但全项目没有任何 CSS 定义，
+ *     抽屉因此是「无遮罩、无定位、820px 原尺寸玩家卡直接溢出」的状态。
+ *   - 头像统一「首字母垫底 + img 覆盖」结构：代理/直连/渲染全失败时移除 img，
+ *     露出底层首字母色块，不留破图不留空白。 */
+
+/* ---------- 顶部服务器名片 ---------- */
+
+.yysi-skel { padding: 10px 0; font-size: 11px; color: var(--phx-text-secondary); }
+
+.yysi-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  margin: 4px 0 10px;
+  border-radius: 12px;
+  background: var(--phx-bg-secondary);
+}
+/* hero 机器人头像：复用 .yysi-face 的垫底结构，放大到 40px。
+   QQ 头像不是像素画，不做 pixelated 放大。 */
+.yysi-face-hero { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px; }
+.yysi-face-hero i { font-size: 15px; }
+.yysi-face-hero img { image-rendering: auto; }
+.yysi-hero-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.yysi-hero-txt strong {
+  font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.yysi-hero-txt small {
+  font-size: 10px; color: var(--phx-text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.yysi-hero-txt em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--phx-text-secondary);
+}
+.yysi-hero-txt em[data-on="1"] { color: var(--phx-success); }
+.yysi-refresh { flex: 0 0 auto; min-height: 30px; height: 30px; padding: 0 10px; }
+
+.yysi-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.yysi-card {
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--phx-bg-secondary);
+}
+.yysi-card span { font-size: 10px; color: var(--phx-text-secondary); }
+.yysi-card strong {
+  font-size: 12px; font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 通用提示 ---------- */
+
+.yysi-hint { margin: 6px 0 0; font-size: 10px; line-height: 1.6; color: var(--phx-text-secondary); }
+.yysi-warn {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px; line-height: 1.6;
+  background: color-mix(in srgb, var(--phx-danger, #e5484d) 12%, transparent);
+  color: var(--phx-danger, #e5484d);
+  overflow-wrap: anywhere;
+}
+.yysi-msg { margin: 8px 0 0; font-size: 11px; color: var(--phx-primary); }
+.yysi-msg[data-bad="1"] { color: var(--phx-danger, #e5484d); }
+
+.yysi-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px;
+  padding: 22px 14px;
+  text-align: center;
+  border-radius: 12px;
+  background: var(--phx-bg-secondary);
+}
+.yysi-empty .yy-icon { width: 20px; height: 20px; color: var(--phx-text-disabled); margin-bottom: 2px; }
+.yysi-empty strong { font-size: 12px; font-weight: 600; }
+.yysi-empty span { font-size: 11px; line-height: 1.6; color: var(--phx-text-secondary); overflow-wrap: anywhere; }
+
+/* ---------- 玩家 ---------- */
+
+.yysi-search {
+  display: flex; align-items: center; gap: 8px;
+  margin: 8px 0;
+  min-width: 0;
+}
+.yysi-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font: 12px/1.4 inherit;
+  color: var(--phx-text-primary);
+  background: var(--phx-bg-secondary);
+  border: 1px solid var(--phx-border-light);
+  border-radius: 9px;
+}
+.yysi-search input:focus { outline: 2px solid var(--phx-primary); outline-offset: -1px; }
+
+.yysi-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.yysi-person {
+  display: flex; align-items: center; gap: 9px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--phx-bg-secondary);
+  border-left: 3px solid var(--phx-border-light);
+}
+.yysi-person[data-online="on"] { border-left-color: var(--phx-success); }
+.yysi-person[data-online="unknown"] { border-left-color: var(--phx-warning); }
+
+.yysi-face {
+  position: relative;
+  flex: 0 0 36px;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--phx-primary) 12%, transparent);
+}
+.yysi-face i {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-style: normal; font-size: 14px; font-weight: 600;
+  color: var(--phx-primary);
+}
+.yysi-face img {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated; /* 皮肤头像是 16x16 放大，保持像素感 */
+}
+/* 进出记录行内小头像：同一套垫底结构，缩到 28px */
+.yysi-face-ev { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 8px; }
+.yysi-face-ev i { font-size: 12px; }
+
+.yysi-person-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.yysi-person-txt strong {
+  font-size: 12px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.yysi-person-txt small { font-size: 10px; color: var(--phx-text-secondary); }
+
+/* 名字行：名字 + 权限徽章 */
+.yysi-name-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.yysi-name-line strong { min-width: 0; flex: 0 1 auto; }
+/* 副行：在线状态点 + 最近一句 */
+.yysi-sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.yysi-sub small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 时间轴的 .yysi-dot 带 -19px 定位，在玩家行里必须复位，否则被拽到头像上 */
+.yysi-sub .yysi-dot { margin: 0; flex: 0 0 8px; width: 8px; height: 8px; box-shadow: none; }
+.yysi-sub .yysi-dot[data-online="on"] { background: var(--phx-success); }
+.yysi-sub .yysi-dot[data-online="unknown"] { background: var(--phx-warning); }
+
+/* 权限徽章：成员不渲染；管理员/超管各一色 */
+.yysi-role {
+  flex: 0 0 auto;
+  font-style: normal; font-size: 9px; line-height: 1.4;
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+  background: var(--phx-bg-primary); color: var(--phx-text-secondary);
+}
+.yysi-role[data-role="1"] { background: color-mix(in srgb, var(--phx-primary) 14%, transparent); color: var(--phx-primary); }
+.yysi-role[data-role="2"] { background: color-mix(in srgb, var(--phx-danger, #e5484d) 14%, transparent); color: var(--phx-danger, #e5484d); }
+
+/* 分页 */
+.yysi-pager { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 10px; margin-top: 10px; }
+.yysi-page-btn {
+  flex: 0 0 auto; min-height: 34px; padding: 6px 14px;
+  font-size: 11px; cursor: pointer;
+  border: 1px solid var(--phx-border-light); border-radius: 8px;
+  background: var(--phx-bg-card); color: var(--phx-text-primary);
+}
+.yysi-page-btn:hover:not(:disabled) { border-color: var(--phx-primary); color: var(--phx-primary); }
+.yysi-page-btn:disabled { opacity: .45; cursor: default; }
+.yysi-page-info { font-size: 10px; color: var(--phx-text-secondary); white-space: nowrap; }
+
+/* tab 右侧小字（在线 1 · 共 3 人） */
+.yysi-tabmeta {
+  margin-left: auto; flex: 0 0 auto;
+  align-self: center;
+  font-size: 10px; color: var(--phx-text-secondary); white-space: nowrap;
+}
+
+/* ---------- 进出记录（时间轴） ---------- */
+
+.yysi-timeline {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--phx-border-light);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.yysi-ev {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 8px;
+  min-width: 0;
+}
+.yysi-dot {
+  flex: 0 0 8px;
+  width: 8px; height: 8px;
+  margin-left: -19px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--phx-text-disabled);
+  box-shadow: 0 0 0 2px var(--phx-bg-card);
+}
+.yysi-ev[data-kind="join"] .yysi-dot,
+.yysi-ev[data-kind="first"] .yysi-dot { background: var(--phx-success); }
+.yysi-log[data-ok="1"] .yysi-dot { background: var(--phx-success); }
+.yysi-log[data-ok="0"] .yysi-dot { background: var(--phx-danger, #e5484d); }
+
+.yysi-ev-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.yysi-ev-txt strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.yysi-ev-txt span { font-size: 10px; color: var(--phx-text-secondary); overflow-wrap: anywhere; }
+.yysi-ev[data-kind="leave"] .yysi-ev-txt span { color: var(--phx-text-disabled); }
+.yysi-ev time { flex: 0 0 auto; font-size: 10px; color: var(--phx-text-secondary); white-space: nowrap; }
+
+/* ---------- 日志 ---------- */
+
+.yysi-logs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.yysi-log {
+  display: flex; align-items: flex-start; gap: 8px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: var(--phx-bg-secondary);
+}
+.yysi-log .yysi-dot { margin: 4px 0 0; flex: 0 0 7px; width: 7px; height: 7px; box-shadow: none; }
+.yysi-log-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.yysi-log-txt strong { font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.yysi-log-txt strong em { font-style: normal; font-size: 9px; color: var(--phx-text-secondary); }
+.yysi-log-txt span { font-size: 10px; color: var(--phx-text-secondary); overflow-wrap: anywhere; }
+.yysi-log-txt p {
+  margin: 1px 0 0;
+  font-size: 10px; line-height: 1.5;
+  color: var(--phx-text-disabled);
+  overflow-wrap: anywhere;
+}
+.yysi-log[data-ok="0"] .yysi-log-txt p { color: var(--phx-danger, #e5484d); }
+.yysi-log time { flex: 0 0 auto; font-size: 10px; color: var(--phx-text-secondary); white-space: nowrap; }
+
+/* ---------- 说话 ---------- */
+
+.yysi-say { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; min-width: 0; }
+.yysi-say textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  font: 12px/1.6 inherit;
+  color: var(--phx-text-primary);
+  background: var(--phx-bg-secondary);
+  border: 1px solid var(--phx-border-light);
+  border-radius: 10px;
+  resize: vertical;
+}
+.yysi-say textarea:focus { outline: 2px solid var(--phx-primary); outline-offset: -2px; }
+
+.yysi-say-row { display: flex; gap: 8px; }
+.yysi-say-row .btn-s { flex: 1 1 0; min-width: 0; }
+
+.yysi-danger {
+  margin: 0;
+  font-size: 10px; line-height: 1.6;
+  color: var(--phx-danger, #e5484d);
+  overflow-wrap: anywhere;
+}
+
+.yysi-sent { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.yysi-sent li {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--phx-bg-secondary);
+  font-size: 11px;
+}
+.yysi-sent-tag {
+  flex: 0 0 auto;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--phx-primary) 14%, transparent);
+  color: var(--phx-primary);
+}
+.yysi-sent-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.yysi-sent-err { flex: 1 1 100%; font-size: 10px; color: var(--phx-danger, #e5484d); overflow-wrap: anywhere; }
+.yysi-sent time { flex: 0 0 auto; font-size: 9px; color: var(--phx-text-secondary); }
+
+/* ---------- 玩家详情抽屉（点玩家行弹出） ---------- */
+
+.yysi-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 999;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(10, 14, 18, .55);
+}
+.yysi-dsheet {
+  position: relative;
+  width: 100%; max-width: 460px; max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 18px 18px 0 0;
+  background: var(--phx-bg-card);
+  border: 1px solid var(--phx-border);
+  box-shadow: 0 -12px 40px -18px rgba(15, 32, 40, .5);
+}
+.yysi-dx {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: var(--phx-bg-secondary); color: var(--phx-text-secondary);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+.yysi-dx:hover { color: var(--phx-text-primary); }
+
+/* 形象预览：服务端渲染的整张玩家卡是 820x560 横图，必须限宽，
+   否则原尺寸直接撑破抽屉。首字母占位垫底，is-bad 时露出。 */
+.yysi-dtop { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.yysi-dart-box {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 140px;
+  border-radius: 12px; overflow: hidden;
+  background: color-mix(in srgb, var(--phx-primary) 12%, transparent);
+}
+.yysi-dart-box > i {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-style: normal; font-size: 44px; font-weight: 600;
+  color: var(--phx-primary);
+}
+.yysi-dart { position: relative; display: block; width: 100%; height: auto; }
+.yysi-dart.is-bad { display: none; } /* 渲染失败：隐藏破图，露出底层首字母占位 */
+
+.yysi-did { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.yysi-did strong { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.yysi-dmeta { display: flex; flex-wrap: wrap; gap: 6px; }
+.yysi-live {
+  font-style: normal; font-size: 10px; line-height: 1.4;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  background: var(--phx-bg-primary); color: var(--phx-text-secondary);
+}
+.yysi-live[data-online="on"] { background: color-mix(in srgb, var(--phx-success) 16%, transparent); color: var(--phx-success); }
+.yysi-live[data-online="unknown"] { background: color-mix(in srgb, var(--phx-warning) 16%, transparent); color: var(--phx-warning); }
+
+.yysi-dload { margin: 10px 2px 0; font-size: 12px; color: var(--phx-text-secondary); }
+.yysi-dact { margin-top: 10px; }
+
+.yysi-dgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.yysi-dcell { min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--phx-bg-secondary); }
+.yysi-dcell span { display: block; font-size: 10px; color: var(--phx-text-secondary); }
+.yysi-dcell strong { display: block; margin-top: 3px; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+
+.yysi-dsec { margin-top: 14px; }
+.yysi-dsec h4 { margin: 0 0 8px; font-size: 12px; font-weight: 650; }
+.yysi-dkv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.yysi-dkv span { min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--phx-bg-secondary); }
+.yysi-dkv em { display: block; font-style: normal; font-size: 10px; color: var(--phx-text-secondary); }
+.yysi-dkv b { display: block; margin-top: 3px; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+
+.yysi-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.yysi-tag {
+  font-size: 10px; line-height: 1.4;
+  padding: 2px 9px; border-radius: 999px;
+  background: var(--phx-bg-primary); color: var(--phx-text-secondary);
+  overflow-wrap: anywhere;
+}
+.yysi-tag.is-empty {
+  background: transparent;
+  border: 1px dashed var(--phx-border-light);
+  color: var(--phx-text-disabled);
+}
+
+/* ---------- 手机（≤640px） ---------- */
+
+@media (max-width: 640px) {
+  .yysi-hero { padding: 9px; gap: 8px; }
+  .yysi-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .yysi-card { padding: 7px 9px; }
+
+  /* 玩家行：名字允许换行，副行省略号跟上，避免 390px 挤压。 */
+  .yysi-person { flex-wrap: wrap; padding: 8px; }
+  .yysi-person-txt strong { white-space: normal; overflow-wrap: anywhere; }
+  .yysi-page-btn { min-height: 40px; }
+  .yysi-tabmeta { font-size: 9px; }
+  .yysi-say-row .btn-s { min-height: 40px; }
+  .yysi-ev time, .yysi-log time { font-size: 9px; }
+
+  /* 抽屉贴底成 bottom sheet，圆角只留上方 */
+  .yysi-dsheet { max-height: 90vh; }
+}
+
+/* 桌面端抽屉居中成对话框 */
+@media (min-width: 641px) {
+  .yysi-drawer { align-items: center; padding: 24px; }
+  .yysi-dsheet { border-radius: 18px; max-height: 84vh; }
+}

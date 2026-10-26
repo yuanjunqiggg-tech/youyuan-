@@ -1,0 +1,177 @@
+{
+ "boot": {
+  "ms": 99440,
+  "reqs": [
+   "/api/youyuan/events?after=0",
+   "/api/config",
+   "/api/youyuan/appearance",
+   "/api/identity/me",
+   "/api/youyuan/accounts?view=summary",
+   "/api/youyuan/snapshot",
+   "/api/identity/turnstile-config",
+   "/api/bot/status",
+   "/api/youyuan/remote",
+   "/api/youyuan/runtime/list",
+   "/api/task/list",
+   "/api/plugin/list",
+   "/api/qq/status",
+   "/api/youyuan/connection-diagnostics",
+   "/api/version/check",
+   "/api/youyuan/events?after=0"
+  ]
+ },
+ "results": [
+  {
+   "tab": "工具总览",
+   "ms": 2200,
+   "reqs": [
+    "/api/bot/status",
+    "/api/youyuan/remote",
+    "/api/youyuan/runtime/list",
+    "/api/task/list",
+    "/api/plugin/list",
+    "/api/qq/status",
+    "/api/youyuan/connection-diagnostics",
+    "/api/youyuan/events?after=0"
+   ],
+   "reqCount": 8,
+   "scrollH": 900,
+   "viewH": 900,
+   "overflowX": false,
+   "title": "工作台",
+   "crumb": "工具总览",
+   "activeNav": "工具总览",
+   "textLen": 972,
+   "textHead": "游园\nYOUYUAN TOOLBOX\n主账号\n工作空间\n工具总览\n插件中心\n终端\n快捷操作\n导入建筑\n导出建筑\n命令链\n连接与资料\n连接与设置\n游戏账号\n群服互通\n远程设备\n把想法，放进世界\n游园工具箱\nAPK 内置运行环境\n工具总览\n未连接\n工作台\n\n从创作到管理，把所有工具放在顺手的位置。\n\n10月25日周日\nYOUR CREATIVE SPACE\n让创作，更有条理。\n\n建筑、插件与服务器，在这里有序管理。\n\n连接游戏\n‹\n自定义封面\n›\n游戏连接\n设备离线\n连接服务器后开始作业\n公网远控\n设备离线\n独立的设备连接状态\n运行中的插件\n—\nPython / C++ / Lua\n进行中的任务\n—\n建筑与创作任务\n常用工具\n点击星标调整\n建筑导入\n地图画\n音乐工坊\n命令链条\n全局抓包\n全部工具\n15\n调整顺序\n按分类排序\n按名称排序\n按最近使用\n自定义顺序\n全部\n建筑工具\n创意工坊\n插件与自动化\n实用工具\n种子与地图\n建筑工具 · 4\n建筑导入\n导入结构与建筑文件\n建筑导出\n保存选区中的建筑\n建筑文件\n文件管理与批量预览\n结构与指令转换\n格式转换、结构分析与命令生成\n创意工坊 · 4\n地图画\n把图片变成方块画\n视频方块化\n图片与视频 → 世界方块动画\n音乐工坊\nMIDI 播放与钢琴\n皮肤雕像\n从皮肤生成立体雕像\n插件与自动化 · 2\n命令链条\nTXT 实例与条件链调度\n插件市场\n浏览、安装与发布插件\n实用工具 · 4\n云端资料库\n插件、建筑与音乐文件\n更多工具\n位置、背包与其他操作\n服务器搜索\n查找服务器与管理投放队列\n全局抓包\n观测在线玩家周围的服务器事件\n种子与地图 · 1\n种子查询\n地图式看史莱姆与结构，全部本机计算\n连接状态\n游戏服务器\n等待连接\n公网设备\n设备离线\n群服互通\n等待配置\n管理账号与连接\n最近使用\n使用过的工具会显示在这里。\n 小提示\n\n点亮工具右上角的星标，可以加入常用工具。\n\n调整顺序后会自动保存，下次打开仍然在原来的位置。\n\n最近任务\n还没有任务记录\n查看全部任务\n游园 · 自己的创作空间\n登录游园\n\n平台账号管理你的设备和云端资料；游戏令牌在",
+   "smallCount": 50,
+   "smallSample": [
+    {
+     "h": 43,
+     "w": 158,
+     "txt": "主账号"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "工具总览"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "插件中心"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "终端"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "导入建筑"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "导出建筑"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "命令链"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "连接与设置"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "游戏账号"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "群服互通"
+    },
+    {
+     "h": 42,
+     "w": 190,
+     "txt": "远程设备"
+    },
+    {
+     "h": 34,
+     "w": 38,
+     "txt": "切换明暗主题"
+    }
+   ],
+   "fonts": {
+    "14px": 245,
+    "17px": 1,
+    "9px": 2,
+    "10px": 35,
+    "13px": 48,
+    "11px": 71,
+    "12px": 27,
+    "16px": 2,
+    "27px": 1,
+    "25px": 1,
+    "18px": 2,
+    "23px": 2,
+    "30px": 1
+   },
+   "shifts": 0,
+   "shiftCount": 0,
+   "loadingText": false,
+   "errorText": false,
+   "toast": []
+  },
+  {
+   "tab": "插件中心",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "终端",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "导入建筑",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "导出建筑",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "命令链",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "连接与设置",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "游戏账号",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "群服互通",
+   "error": "入口找不到"
+  },
+  {
+   "tab": "远程设备",
+   "error": "入口找不到"
+  }
+ ],
+ "nav": [
+  {
+   "ev": "NAV",
+   "url": "https://toolbox.youyuanqi.dpdns.org/"
+  },
+  {
+   "ev": "NAV",
+   "url": "https://toolbox.youyuanqi.dpdns.org/?device=linux-server"
+  }
+ ]
+}

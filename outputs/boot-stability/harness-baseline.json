@@ -1,0 +1,240 @@
+{
+  "tag": "baseline",
+  "mode": "local-harness",
+  "url": "http://127.0.0.1:54034/",
+  "domContentLoadedMs": 500,
+  "cls": 0,
+  "clsEntries": [],
+  "scrollHeightJumps": [
+    {
+      "t": 385,
+      "from": 853,
+      "to": 3343,
+      "delta": 2490
+    },
+    {
+      "t": 740,
+      "from": 3343,
+      "to": 3732,
+      "delta": 389
+    }
+  ],
+  "jumpCount": 2,
+  "contentHeightJumps": [
+    {
+      "t": 385,
+      "from": 853,
+      "to": 3343,
+      "delta": 2490
+    },
+    {
+      "t": 740,
+      "from": 3343,
+      "to": 3732,
+      "delta": 389
+    }
+  ],
+  "pushedBlocks": [
+    {
+      "t": 740,
+      "block": "tasks",
+      "from": 3200,
+      "to": 3369,
+      "delta": 169
+    }
+  ],
+  "pushCount": 1,
+  "finalContentHeight": 3732,
+  "homeInnerHtmlRewrites": [
+    {
+      "t": 381,
+      "len": 4488
+    },
+    {
+      "t": 662,
+      "len": 4488
+    }
+  ],
+  "homeInnerHtmlRewriteCount": 2,
+  "apiRequestCount": 10,
+  "apiRequests": [
+    {
+      "url": "/api/config",
+      "start": 269,
+      "ms": 260
+    },
+    {
+      "url": "/api/youyuan/appearance",
+      "start": 377,
+      "ms": 188
+    },
+    {
+      "url": "/api/youyuan/identity",
+      "start": 377,
+      "ms": 265
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 385,
+      "ms": 146
+    },
+    {
+      "url": "/api/youyuan/accounts?view=summary",
+      "start": 387,
+      "ms": 210
+    },
+    {
+      "url": "/api/youyuan/snapshot",
+      "start": 403,
+      "ms": 324
+    },
+    {
+      "url": "/api/bot/status",
+      "start": 533,
+      "ms": 154
+    },
+    {
+      "url": "/api/youyuan/accounts?view=summary",
+      "start": 644,
+      "ms": 214
+    },
+    {
+      "url": "/api/version/check",
+      "start": 3261,
+      "ms": 167
+    },
+    {
+      "url": "/api/youyuan/events?after=0",
+      "start": 3534,
+      "ms": 144
+    }
+  ],
+  "duplicateRequests": [
+    {
+      "url": "/api/youyuan/events",
+      "count": 2
+    },
+    {
+      "url": "/api/youyuan/accounts",
+      "count": 2
+    }
+  ],
+  "qqPage": {
+    "clickToContentMs": 222,
+    "apiCount": 22,
+    "apis": [
+      {
+        "url": "/api/qq/config",
+        "start": 8,
+        "ms": 161
+      },
+      {
+        "url": "/api/qq/status",
+        "start": 8,
+        "ms": 162
+      },
+      {
+        "url": "/api/qq/login",
+        "start": 9,
+        "ms": 161
+      },
+      {
+        "url": "/api/qq/caps",
+        "start": 9,
+        "ms": 161
+      },
+      {
+        "url": "/api/qq/actions",
+        "start": 10,
+        "ms": 160
+      },
+      {
+        "url": "/api/qq/ai/selfcheck",
+        "start": 187,
+        "ms": 239
+      },
+      {
+        "url": "/api/qq/triggers",
+        "start": 190,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/image",
+        "start": 190,
+        "ms": 236
+      },
+      {
+        "url": "/api/ai/models",
+        "start": 190,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/assistant",
+        "start": 191,
+        "ms": 235
+      },
+      {
+        "url": "/api/qq/groups",
+        "start": 191,
+        "ms": 235
+      },
+      {
+        "url": "/api/qq/assistant/skills",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/proactive",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/server/info",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/server/players?limit=200",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/server/events?limit=60",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/server/logs?limit=120",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/roles",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/guard",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/moderation",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/qq/bot/profile",
+        "start": 191,
+        "ms": 236
+      },
+      {
+        "url": "/api/youyuan/events?after=0",
+        "start": 1788,
+        "ms": 137
+      }
+    ]
+  },
+  "gateShown": false,
+  "homeTextSample": "工作台\n\n从创作到管理，把所有工具放在顺手的位置。\n\n10月25日周日\nYOUR CREATIVE SPACE\n让创作，更有条理。\n\n建筑、插件与服务器，在这里有序管理。\n\n连接游戏\n游戏连接\n已连接\n我的世界 · 生存服 #4821\n公网远控\n已连接\n独立的设备连接状态\n运行中的插件\n2\nPython / C++ / Lua\n进行中的任务\n1\n建筑与创作任务\n常用工具\n点击星标调整\n建筑导入\n地图画\n音乐工坊\n命令链条\n全局抓包\n全部工具\n15\n调整顺序\n按分类排序\n按名称排序\n按最近使用\n自定义顺序\n全部\n建筑工具\n创意工坊\n插件与自动化\n实用工具\n种子与地图\n建筑工具 · 4\n建筑导入\n"
+}

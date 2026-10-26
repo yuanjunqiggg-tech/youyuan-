@@ -1,0 +1,160 @@
+/* 游园终端 · 整屏真终端观感（视觉基准：outputs/ui-redesign-0.10.76-prototype.html） */
+/* 容器改为相对定位锚点：工作台绝对撑满，不再依赖 height:100% 链，避免内容超出被裁且无法滚动 */
+#tab-terminal.content{position:relative;padding:0!important;overflow:hidden;background:#0f1115}
+#tab-terminal .content-inner.yy-terminal-workbench{
+  --yyt-bg:#0f1115;--yyt-bar:#1a1d24;--yyt-bar2:#20242e;--yyt-line:#2a2f3a;
+  --yyt-ink:#e8ebf0;--yyt-muted:#8b93a3;--yyt-green:#2ecc71;--yyt-amber:#f5a623;
+  --yyt-red:#ff5f56;--yyt-blue:#7dd3fc;
+  --yyt-mono:ui-monospace,'Cascadia Mono','JetBrains Mono',Consolas,'SF Mono',monospace;
+  box-sizing:border-box;display:flex;flex-direction:column;gap:0;
+  position:absolute;inset:0;width:auto;max-width:none;margin:0;height:auto;min-height:0;padding:0;
+  overflow:hidden;
+  background:var(--yyt-bg);color:var(--yyt-ink);font-family:var(--yyt-mono);
+}
+/* ── 顶部窄条：状态点 + 主机名 + 账号 + 连接徽标 ── */
+.yy-terminal-heading{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--yyt-bar);border-bottom:1px solid var(--yyt-line);min-width:0}
+.yy-terminal-heading .yy-terminal-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;padding:0;margin:0;border:0}
+.yy-terminal-heading .yy-terminal-dot:nth-child(1){background:var(--yyt-red)}
+.yy-terminal-heading .yy-terminal-dot:nth-child(2){background:var(--yyt-amber)}
+.yy-terminal-heading .yy-terminal-dot:nth-child(3){background:var(--yyt-green)}
+.yy-terminal-kicker{font:700 11px/1 var(--yyt-mono);letter-spacing:1px;color:var(--yyt-green);flex-shrink:0}
+.yy-terminal-sep{color:#3a4150;flex-shrink:0}
+#yy-terminal-account{font:500 11px/1.4 var(--yyt-mono);color:var(--yyt-muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#yy-terminal-connection{margin-left:auto;flex-shrink:0;font:700 10px/1.4 var(--yyt-mono);padding:4px 9px;border-radius:99px;color:var(--yyt-muted);background:var(--yyt-bar2);white-space:nowrap}
+#yy-terminal-connection[data-state=online]{color:var(--yyt-green);background:rgba(46,204,113,.12)}
+#yy-terminal-connection[data-state=offline]{color:var(--yyt-red);background:rgba(255,95,86,.12)}
+/* ── 日志主体 ── */
+.yy-terminal-board{flex:1;display:flex;flex-direction:column;min-height:0;border:0;border-radius:0;background:transparent;overflow:hidden}
+.yy-terminal-board-head{flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px 0}
+#yy-terminal-count{margin-right:auto;font:10px/1.6 var(--yyt-mono);color:var(--yyt-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.yy-terminal-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.yy-terminal-workbench button{font:600 11px/1.4 var(--yyt-mono);border:1px solid var(--yyt-line);border-radius:8px;min-height:30px;padding:4px 10px;margin:0;width:auto;box-shadow:none;background:var(--yyt-bar2);color:var(--yyt-ink);cursor:pointer;white-space:nowrap}
+.yy-terminal-workbench button:hover{border-color:var(--yyt-green);color:var(--yyt-green)}
+.yy-terminal-workbench button:disabled{opacity:.5;cursor:wait}
+.yy-terminal-workbench button:focus-visible,.yy-terminal-workbench input:focus-visible,.yy-terminal-workbench select:focus-visible,.yy-terminal-workbench textarea:focus-visible,.yy-terminal-log:focus-visible{outline:2px solid var(--yyt-green);outline-offset:2px}
+/* 紧凑工具条：搜索 / 类型 / 跟随 */
+.yy-terminal-filters{flex-shrink:0;display:flex;gap:8px;align-items:center;padding:6px 14px}
+.yy-terminal-filters label{display:flex;min-width:0;flex:1;margin:0}
+.yy-terminal-filters label:last-of-type{flex:0 0 104px}
+.yy-terminal-filters label>span{display:none}
+.yy-terminal-filters input,.yy-terminal-filters select{box-sizing:border-box;width:100%;min-width:0;min-height:30px;padding:5px 9px;border:1px solid var(--yyt-line);border-radius:8px;background:var(--yyt-bar2);color:var(--yyt-ink);font:11px/1.5 var(--yyt-mono);box-shadow:none;margin:0}
+.yy-terminal-filters input::placeholder{color:#5b6472}
+.yy-terminal-filters #yy-terminal-follow{flex-shrink:0;min-height:30px;padding:4px 9px}
+.yy-terminal-filters #yy-terminal-follow[aria-pressed=true]{color:var(--yyt-green);border-color:rgba(46,204,113,.5)}
+/* 全屏日志区：flex 子项必须 min-height:0 才能真正收缩并出现内部滚动条 */
+#tab-terminal .yy-terminal-log{flex:1 1 0;min-height:0;height:auto;border:0;border-radius:0;background:var(--yyt-bg);color:#d7e3ed;padding:10px 14px;min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-gutter:stable;font:12px/1.9 var(--yyt-mono)}
+.yy-terminal-log::-webkit-scrollbar{width:6px}
+.yy-terminal-log::-webkit-scrollbar-thumb{background:var(--yyt-line);border-radius:3px}
+.yy-terminal-line{display:flex;gap:10px;padding:1px 0;border:0;min-width:0}
+.yy-terminal-line:hover{background:rgba(255,255,255,.03)}
+.yy-terminal-level{flex-shrink:0;min-width:26px;font-family:inherit;font-size:10px;line-height:1.9;color:var(--yyt-muted);align-self:start;padding:0}
+.yy-terminal-message{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;color:#d7e3ed}
+.yy-terminal-message img{max-width:100%}
+.yy-terminal-line[data-kind=command] .yy-terminal-level{color:#e6c486}
+.yy-terminal-line[data-kind=result] .yy-terminal-level{color:#97d6f4}
+.yy-terminal-line[data-kind=chat] .yy-terminal-level{color:#c9d4de}
+.yy-terminal-line[data-kind=error] .yy-terminal-level{color:#ff8d8a}
+.yy-terminal-line[data-kind=command] .yy-terminal-message{color:#e6c486}
+.yy-terminal-line[data-kind=result] .yy-terminal-message{color:#97d6f4}
+.yy-terminal-line[data-kind=chat] .yy-terminal-message{color:#c9d4de}
+.yy-terminal-line[data-kind=error] .yy-terminal-message{color:#ff8d8a}
+.yy-terminal-line .yy-terminal-message .cl-ok,.yy-terminal-line .yy-terminal-message .cl-err{color:inherit}
+.yy-terminal-empty{padding:64px 20px;text-align:center;font:12px/2 var(--yyt-mono);color:var(--yyt-muted)}
+.yy-terminal-log::after{content:"";display:inline-block;width:8px;height:14px;margin:2px 0 0 2px;background:var(--yyt-green);vertical-align:-2px;animation:yyt-blink 1.1s steps(2) infinite}
+@keyframes yyt-blink{50%{opacity:0}}
+/* 日志脚条：容量说明 + 回最新 */
+.yy-terminal-log-foot{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 14px;min-height:30px;background:var(--yyt-bar);border-top:1px solid var(--yyt-line)}
+.yy-terminal-log-foot>span{font:10px/1.6 var(--yyt-mono);color:var(--yyt-muted)}
+.yy-terminal-log-foot button{background:transparent;color:var(--yyt-green);border-color:rgba(46,204,113,.4);min-height:24px;padding:2px 9px;font-size:10px}
+.yy-terminal-workbench [hidden]{display:none!important}
+/* ── 底部输入行：❯ + 无框输入 + 发送 ── */
+.yy-terminal-composer{flex-shrink:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:end;padding:10px 14px;background:var(--yyt-bar);border-top:1px solid var(--yyt-line)}
+.yy-terminal-prompt{font:16px/40px var(--yyt-mono);color:var(--yyt-green)}
+.yy-terminal-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#tab-terminal #console-input{display:block;box-sizing:border-box;resize:none;width:100%;min-width:0;min-height:40px;max-height:120px;border:1px solid var(--yyt-line);background:var(--yyt-bg);color:var(--yyt-ink);padding:9px 12px;border-radius:8px;font:13px/22px var(--yyt-mono);box-shadow:none;margin:0;overflow-y:auto}
+#tab-terminal #console-input::placeholder{color:#5b6472}
+#tab-terminal #console-input:focus{outline:none;border-color:rgba(46,204,113,.6)}
+.yy-terminal-send-row{display:flex}
+#tab-terminal #console-send{min-width:64px;min-height:40px;background:var(--yyt-green);color:#0d2e1c;border-color:transparent;font-weight:700;font-size:12px}
+#tab-terminal #console-send:hover{background:#35d983;color:#0d2e1c}
+#tab-terminal #console-send:disabled{opacity:.55;cursor:wait}
+.yy-terminal-status-line{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:16px}
+#yy-terminal-input-kind{flex-shrink:0;font:700 10px/1.6 var(--yyt-mono);color:var(--yyt-green);padding:2px 7px;border-radius:6px;background:rgba(46,204,113,.12)}
+.yy-terminal-composer #yy-terminal-notice{margin:0;flex:1;min-width:0;font:10.5px/1.6 var(--yyt-mono);color:var(--yyt-muted);overflow-wrap:anywhere}
+.yy-terminal-hint{margin:0;font:10px/1.6 var(--yyt-mono);color:#5b6472;white-space:nowrap}
+/* ── 布局收尾：移动端让位悬浮底栏，桌面端无底栏 ── */
+@media(max-width:1023px){#tab-terminal .content-inner.yy-terminal-workbench{padding-bottom:calc(82px + env(safe-area-inset-bottom))}}
+@media(min-width:1024px){#tab-terminal .content-inner.yy-terminal-workbench{padding-bottom:10px}}
+@media(max-width:600px){
+  .yy-terminal-heading{padding:8px 12px}
+  .yy-terminal-kicker{font-size:10px}
+  #yy-terminal-connection{padding:3px 8px;font-size:9px}
+  .yy-terminal-board-head{padding:6px 12px 0}
+  .yy-terminal-filters{padding:5px 12px}
+  .yy-terminal-filters label:last-of-type{flex-basis:92px}
+  #tab-terminal .yy-terminal-log{padding:8px 12px}
+  .yy-terminal-log-foot{padding:4px 12px;min-height:28px}
+  .yy-terminal-composer{padding:8px 12px;gap:7px}
+  .yy-terminal-hint{display:none}
+  #yy-terminal-input-kind{padding:2px 6px;font-size:9px}
+}
+/* ── 真终端增强：快捷程序条 + 命令建议 + 触屏 ── */
+.yy-terminal-quick{flex-shrink:0;display:flex;gap:6px;padding:7px 14px 6px;overflow-x:auto;overflow-y:hidden;background:var(--yyt-bar);border-top:1px solid var(--yyt-line);-webkit-overflow-scrolling:touch;scrollbar-width:thin;touch-action:pan-x;overscroll-behavior-x:contain}
+.yy-terminal-quick::-webkit-scrollbar{display:none}
+.yy-terminal-quick button{flex-shrink:0;min-height:30px;padding:4px 12px;border-radius:15px;border:1px solid var(--yyt-line);background:var(--yyt-bar2);color:var(--yyt-ink);font:11px/1.4 var(--yyt-mono);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.yy-terminal-quick button:hover,.yy-terminal-quick button:active{border-color:rgba(46,204,113,.65);color:var(--yyt-green);background:rgba(46,204,113,.1)}
+.yy-terminal-suggest{flex-shrink:0;display:flex;flex-direction:column;max-height:190px;overflow-y:auto;background:var(--yyt-bar2);border-top:1px solid var(--yyt-line);padding:4px 0;-webkit-overflow-scrolling:touch}
+.yy-terminal-suggest[hidden]{display:none!important}
+.yy-terminal-suggest-item{display:flex;align-items:baseline;gap:10px;width:100%;min-height:36px;padding:7px 14px;border:0;background:transparent;color:var(--yyt-ink);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.yy-terminal-suggest-item code{flex-shrink:0;font:700 12px/1.5 var(--yyt-mono);color:var(--yyt-green)}
+.yy-terminal-suggest-item span{min-width:0;font:11px/1.5 var(--yyt-mono);color:var(--yyt-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yy-terminal-suggest-item:hover,.yy-terminal-suggest-item.is-active{background:rgba(46,204,113,.1)}
+.yy-terminal-suggest-item.is-active code{color:#7dffb0}
+/* 触屏：输入框 16px 防 iOS 自动放大；按钮触控区加大 */
+@media(max-width:600px){
+  #tab-terminal #console-input{font-size:16px;line-height:24px;min-height:44px;padding:10px 12px}
+  #tab-terminal #console-send{min-height:44px;min-width:68px}
+  .yy-terminal-quick{padding:6px 12px 0}
+  .yy-terminal-quick button{min-height:34px;padding:5px 13px;font-size:12px}
+  .yy-terminal-suggest-item{min-height:44px;padding:9px 12px}
+  .yy-terminal-suggest-item code{font-size:13px}
+  .yy-terminal-suggest-item span{font-size:11.5px}
+  .yy-terminal-prompt{font-size:17px;line-height:44px}
+}
+/* 建议条高度自适应视口：手机上不吞掉整个日志区 */
+.yy-terminal-suggest{max-height:min(190px,32vh)}
+/* ── 360px 窄屏（小屏安卓 / iPhone SE）整体融洽性 ── */
+@media(max-width:380px){
+  .yy-terminal-heading{padding:7px 10px;gap:6px}
+  .yy-terminal-kicker{display:none}
+  .yy-terminal-heading .yy-terminal-dot{width:8px;height:8px}
+  #yy-terminal-account{font-size:10px;max-width:96px}
+  #yy-terminal-connection{font-size:9px;padding:3px 7px;margin-left:auto}
+  .yy-terminal-board-head{padding:6px 10px 0;gap:6px}
+  #yy-terminal-count{font-size:9.5px}
+  .yy-terminal-actions{gap:5px}
+  .yy-terminal-workbench button{min-height:28px;padding:3px 8px;font-size:10.5px}
+  .yy-terminal-filters{flex-wrap:wrap;gap:5px;padding:5px 10px}
+  .yy-terminal-filters label{flex:1 1 100%}
+  .yy-terminal-filters label:last-of-type{flex:1 1 calc(50% - 22px)}
+  .yy-terminal-filters input,.yy-terminal-filters select{min-height:28px;font-size:10.5px}
+  .yy-terminal-filters #yy-terminal-follow{flex:1 1 auto;min-height:28px;font-size:10.5px}
+  #tab-terminal .yy-terminal-log{padding:8px 10px;font-size:11.5px;line-height:1.8}
+  .yy-terminal-level{min-width:22px;font-size:9px}
+  .yy-terminal-log-foot{padding:4px 10px;min-height:26px}
+  .yy-terminal-log-foot>span{font-size:9px}
+  .yy-terminal-quick{padding:5px 10px 0;gap:5px}
+  .yy-terminal-quick button{min-height:32px;padding:4px 11px;font-size:11px}
+  .yy-terminal-suggest{max-height:min(160px,26vh)}
+  .yy-terminal-suggest-item{min-height:42px;padding:8px 10px;gap:8px}
+  .yy-terminal-suggest-item code{font-size:12.5px}
+  .yy-terminal-suggest-item span{font-size:11px}
+  .yy-terminal-composer{padding:7px 10px;gap:6px}
+  .yy-terminal-prompt{font-size:16px;line-height:42px}
+  #tab-terminal #console-input{font-size:16px;line-height:24px;min-height:42px;padding:9px 10px;border-radius:7px}
+  #tab-terminal #console-send{min-width:58px;min-height:42px;font-size:11.5px;padding:0 10px}
+  .yy-terminal-status-line{gap:6px;min-height:14px}
+  #yy-terminal-input-kind{font-size:9px;padding:2px 5px}
+  .yy-terminal-composer #yy-terminal-notice{font-size:9.5px}
+  .yy-terminal-hint{display:none}
+}

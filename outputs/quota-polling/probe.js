@@ -1,0 +1,14 @@
+const http=require('http'),fs=require('fs'),path=require('path');
+const ROOT='C:/Users/Lenovo/Documents/Codex/2026-09-28/apk/project/upstream/frontend';
+const MIME={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css'};
+const server=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.split('?')[0]);if(p==='/')p='/index.html';fs.readFile(path.join(ROOT,p),(e,b)=>{if(e){res.writeHead(404);return res.end('nf')}res.writeHead(200,{'Content-Type':MIME[path.extname(p)]||'application/octet-stream'});res.end(b)})});
+(async()=>{await new Promise(r=>server.listen(8124,r));
+const {chromium}=require('playwright-core');
+const b=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--no-sandbox']});
+const p=await b.newPage();
+p.on('request',r=>{if(r.url().includes('/api/'))console.log('REQ',r.method(),r.url().replace('http://127.0.0.1:8124',''))});
+await p.route('**/api/**',async r=>{await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,snapshot:true,cursor:0,events:[],accounts:[],config:{},tasks:[],plugins:[],instances:[]})})});
+await p.goto('http://127.0.0.1:8124/index.html',{waitUntil:'domcontentloaded'});
+await p.waitForTimeout(6000);
+console.log('unsupported=',await p.evaluate(()=>typeof yySnapshotUnsupported!=='undefined'?yySnapshotUnsupported:'undef'));
+await b.close();server.close()})();
