@@ -374,6 +374,48 @@ func TestYYThemePluginsOnlyRecord(t *testing.T) {
 	}
 }
 
+// TestYYThemeScanPluginsSkipsLua 守住「Lua 插件不冒充坏 JS 插件」。
+//
+// 线上真实形态：<dataDir>/plugins/ 这一层同时躺着游戏内 Lua 插件（ds-r20a-original、
+// ds-r20a-youyuan，各有 1.1MB main.lua，没有 plugin.json）和浏览器端 JS 插件。
+// 修之前 yyThemeScanPlugins 会把每个 Lua 目录都报成「缺少 plugin.json」，
+// 于是 /api/mcort/plugins 上永远挂着两条假错误，用户以为插件体系坏了。
+func TestYYThemeScanPluginsSkipsLua(t *testing.T) {
+	dir := t.TempDir()
+
+	// 两个真实形态的 Lua 插件：只有 main.lua，没有 plugin.json
+	for _, name := range []string{"ds-r20a-original", "ds-r20a-youyuan"} {
+		yyThemeTestWrite(t, filepath.Join(dir, "plugins", name, "main.lua"), `-- 1.1MB 游戏内脚本的替身`)
+	}
+	// 一个正常 JS 插件，用来证明「跳过 Lua」没有把该发现的也跳掉
+	yyThemeTestWrite(t, filepath.Join(dir, "plugins", "timer", "plugin.json"),
+		`{"id":"timer","name":"计时器","version":"0.1.0","author":"社区","entry":"main.js","mcort_plugin_api":1}`)
+	yyThemeTestWrite(t, filepath.Join(dir, "plugins", "timer", "main.js"), `console.log('x')`)
+	// 一个真的坏插件：既没有 main.lua 也没有 plugin.json —— 仍然必须报出来
+	yyThemeTestWrite(t, filepath.Join(dir, "plugins", "really-broken", "README.md"), `no manifest`)
+
+	plugins := yyThemeScanPlugins(dir, map[string]bool{})
+	got := map[string]yyPluginInfo{}
+	for _, p := range plugins {
+		got[p.ID] = p
+	}
+
+	for _, lua := range []string{"ds-r20a-original", "ds-r20a-youyuan"} {
+		if p, ok := got[lua]; ok {
+			t.Errorf("Lua 插件 %q 不应出现在浏览器插件列表里，却得到 %+v", lua, p)
+		}
+	}
+	if !got["timer"].OK {
+		t.Errorf("正常 JS 插件应被发现且可用，得到 %+v", got["timer"])
+	}
+	if p, ok := got["really-broken"]; !ok || p.OK || !strings.Contains(p.Error, "plugin.json") {
+		t.Errorf("真正缺 plugin.json 的目录仍应报错，得到 ok=%v %+v", ok, p)
+	}
+	if len(plugins) != 2 {
+		t.Errorf("应只剩 timer + really-broken 两条，得到 %d：%+v", len(plugins), plugins)
+	}
+}
+
 // ── 首页注入 ──
 
 func TestYYThemeInjectIndex(t *testing.T) {

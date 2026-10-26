@@ -516,6 +516,14 @@ func yyThemeScanPlugins(dataDir string, enabled map[string]bool) []yyPluginInfo 
 			continue
 		}
 		dir := filepath.Join(root, e.Name())
+		// 游戏内 Lua 插件和 MCORT 浏览器 JS 插件共用 <dataDir>/plugins/ 这一层，
+		// 但两者完全无关：Lua 插件有 main.lua、跑在游戏里、归插件中心管；这里扫的
+		// 是浏览器端 main.js + plugin.json。不跳过的话，每个 Lua 插件目录都会被
+		// 当成「缺少 plugin.json」的坏插件报出来（线上实测 ds-r20a-original 与
+		// ds-r20a-youyuan 两条假错误就是这么来的）。
+		if _, statErr := os.Stat(filepath.Join(dir, "main.lua")); statErr == nil {
+			continue
+		}
 		info := yyPluginInfo{Dir: dir}
 		raw, err := os.ReadFile(filepath.Join(dir, "plugin.json"))
 		if err != nil {
