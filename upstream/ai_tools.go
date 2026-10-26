@@ -192,7 +192,7 @@ func aiToolDefs() []ToolDef {
 
 // aiToolDefs 返回全部工具定义（基础 + 文件工具 + 用户询问）。
 func aiToolDefsAll() []ToolDef {
-	return append(append(aiToolDefs(), ToolDef{Name: "api_call", Description: "直接调用游园工具箱所有已注册 API。可操作音乐、导入导出、多机器人、飞行、群服互通等；通过 /api/youyuan/catalog 查询路径。", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": map[string]any{"type": "string"}, "method": map[string]any{"type": "string", "enum": []string{"GET", "POST"}}, "body": map[string]any{"type": "object"}}, "required": []string{"path"}}}), append(aiFileToolDefs(), ToolDef{
+	return append(append(aiToolDefs(), ToolDef{Name: "api_call", Description: "直接调用 " + yyBrandShort + " 所有已注册 API。可操作音乐、导入导出、多机器人、飞行、群服互通等；通过 /api/youyuan/catalog 查询路径。", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": map[string]any{"type": "string"}, "method": map[string]any{"type": "string", "enum": []string{"GET", "POST"}}, "body": map[string]any{"type": "object"}}, "required": []string{"path"}}}), append(aiFileToolDefs(), ToolDef{
 		Name:        "user_question",
 		Description: "向用户提问（带选项），让用户快速确认意图/选择方案。用于需求不清、有多个做法、或需要用户拍板时。问题简短，选项 2-4 个。",
 		Parameters: map[string]any{

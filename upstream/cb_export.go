@@ -515,8 +515,8 @@ func generateCBProject(chains []CBlockChain) string {
 	// 收集积分板和标签
 	sb.WriteString("//工程:命令方块工程\n")
 	sb.WriteString("//版本:1.0\n")
-	sb.WriteString("//作者:游园工具箱\n")
-	sb.WriteString("//说明:由 游园工具箱自动导出\n")
+	sb.WriteString("//作者:" + yyBrandAuthor + "\n")
+	sb.WriteString("//说明:由 " + yyBrandShort + " 自动导出\n")
 
 	sb.WriteString("\n")
 

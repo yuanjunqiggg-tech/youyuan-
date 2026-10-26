@@ -430,6 +430,22 @@ function yyQQView() {
              hint: "QQ 已掉线超过 5 分钟，自动恢复没成功：请用手机 QQ 扫描二维码重新登录" };
   }
   var s = st.state || "unconfigured";
+  // 假在线：socket 还开着（state=open）但后端探活已经拿不到 QQ 会话。
+  // 后端 /api/qq/status 专门给了 live / last_ok_seconds 说真话（youyuan_qq.go:239），
+  // 而这里以前只认 state —— 半开 TCP 不会发 FIN/RST，state 会永远停在 open，
+  // 面板就一直显示「已连接」，这就是「掉线了还显示在线」的根因。
+  if (s === "open" && st.live === false) {
+    var offSec = st.offline_seconds || 0;
+    return { key: "reconnecting", label: "QQ 已掉线", tone: "bad",
+             hint: "连接还在但 QQ 会话已经没了（" + (st.live_error || st.detail || "探测失败") + "）" +
+                   (offSec > 0 ? "，已掉线 " + Math.round(offSec / 60) + " 分钟" : "") +
+                   "，系统正在自动重连" };
+  }
+  // 状态接口本身连续几次读不到：不能装作还连着，但也不能谎报掉线。
+  if (s === "open" && st.stale) {
+    return { key: "connecting", label: "状态读取失败", tone: "busy",
+             hint: "连续几次没读到机器人状态，可能是网络断了，正在重试" };
+  }
   if (s === "open") return { key: "open", label: "已连接", tone: "ok", hint: "" };
   if (s === "connecting") return { key: "connecting", label: "正在接入", tone: "busy", hint: yyQQHuman(st.detail) || "正在与 OneBot 建立连接" };
   if (s === "reconnecting") return { key: "reconnecting", label: "重连中", tone: "busy", hint: yyQQHuman(st.detail) || "连接断开，正在自动重试" };
@@ -454,6 +470,14 @@ function yyQQStatusBar() {
   var meta = [cfg.adapter === "qqofficial" ? "QQ 官方" : "NapCat"];
   var last = yyQQLastMsgAt();
   if (last) meta.push("最近消息 " + yyQQAgo(last));
+  // 掉线时把「会不会自己回来」直接写在状态带上：
+  // 用户不用翻到下面找「掉线自愈」，一眼就知道要不要自己动手。
+  if (v.tone !== "ok" && yyQQC.login && yyQQC.login.watchdog) {
+    var wd = yyQQC.login.watchdog;
+    meta.push(wd.enabled
+      ? "自动重连已开启，每 " + (wd.interval_seconds || 60) + " 秒重试"
+      : "自动重连已关闭");
+  }
   var drop = yyQQDropBanner();
   return '<div class="yyq-status" id="yyq-status" data-state="' + yyQQE(v.tone) + '" data-drop="' + (drop ? "1" : "0") + '">' +
     '<span class="yyq-dot" aria-hidden="true"></span>' +
@@ -462,10 +486,10 @@ function yyQQStatusBar() {
     (v.key === "need_login" || v.key === "unconfigured" || v.key === "error" || v.key === "off"
       ? '<button type="button" class="yyq-status-cta" onclick="yyQQOpenAccess()">去接入</button>'
       : "") +
-    '<button type="button" class="yyq-iconbtn" onclick="yyQQRefreshAll()" aria-label="刷新状态" title="刷新状态">' + yyQQIcon("refresh") + "</button>" +
+    '<button type="button" class="yyq-iconbtn" onclick="yyQQRefreshAll(0,this)" aria-label="刷新状态" title="刷新状态">' + yyQQIcon("refresh") + "</button>" +
     '<button type="button" class="yyq-iconbtn" onclick="yyQQToggleMenu(event)" aria-label="更多操作" title="更多">' + yyQQIcon("more") + "</button>" +
     (yyQQC.menu ? '<div class="yyq-menu" role="menu">' +
-      '<button type="button" role="menuitem" onclick="yyQQRefreshAll(1)">刷新全部数据</button>' +
+      '<button type="button" role="menuitem" onclick="yyQQRefreshAll(1,this)">刷新全部数据</button>' +
       '<button type="button" role="menuitem" onclick="yyQQMenuFaces()">读取收藏表情</button>' +
       "</div>" : "") +
     yyQQDropBanner() +
@@ -608,11 +632,14 @@ function yyQQQRCode(lg) {
       ? '二维码 <b id="yyq-qr-age">' + (q.age_seconds || 0) + "</b> 秒前生成" + (q.stale ? "，<span class=\"yyq-qr-stale\">可能已过期</span>" : "")
       : (lg && lg.qr_missing ? "协议端还没生成二维码，点下面「重新生成二维码」" : "等待 NapCat 生成二维码")) + "</p>" +
     '<ol class="yyq-qr-steps"><li class="is-on">手机 QQ 扫一扫</li><li>在手机上确认登录</li><li>机器人自动上线</li></ol>' +
-    (q.stale || !has
-      ? '<div class="yyq-qr-actions"><button type="button" class="btn-p" onclick="yyQQQrRefresh(this)">重新生成二维码</button>' +
-        '<button type="button" class="btn-s" onclick="yyQQPollLogin(1)">重新读取</button></div>' +
-        '<p class="yyq-qr-tip" id="yyq-qr-tip"></p>'
-      : "") +
+    // 出码按钮必须一直在。以前只在 q.stale 或没图时才渲染，
+    // 而 NapCat 不会定时重写 qrcode.png、fresh 永远 false 但 stale 也可能 false，
+    // 结果「登录态过期」时用户根本找不到重新生成二维码的入口。
+    // 后端 /api/qq/login/refresh 是真实存在的（youyuan_qq_login.go:264），
+    // 没配 YY_NAPCAT_RESTART_CMD 时它会明确回错误，这里原样显示，不做假按钮。
+    '<div class="yyq-qr-actions"><button type="button" class="btn-p" onclick="yyQQQrRefresh(this)">重新生成二维码</button>' +
+      '<button type="button" class="btn-s" onclick="yyQQPollLogin(1)">重新读取</button></div>' +
+      '<p class="yyq-qr-tip" id="yyq-qr-tip"></p>' +
     yyQQLoginModes(lg) +
     "</div>";
 }
@@ -1535,7 +1562,7 @@ function yyQQAccess() {
       '<label class="yyq-switchrow"><span class="yyq-switchrow-text"><strong>把群聊消息转发进游戏</strong></span>' +
         '<span class="yyq-sw"><input type="checkbox"' + (as.relay_chat ? " checked" : "") + ' id="yyq-relay-chat" aria-label="转发群聊进游戏"><span></span></span></label>' +
       '<div class="yyq-fold-actions"><button type="button" class="btn" data-busy="' + (yyQQC.busy.access ? "1" : "0") + '" onclick="yyQQSaveAccess(this)">保存并重连</button>' +
-        '<button type="button" class="btn-s" onclick="yyQQRefreshAll(1)">刷新状态</button></div>' +
+        '<button type="button" class="btn-s" onclick="yyQQRefreshAll(1,this)">刷新状态</button></div>' +
     "</div>";
 }
 
@@ -2731,7 +2758,10 @@ async function yyQQLoadCore() {
   yyQQC.actions = (actR && actR.actions) || [];
   yyQQC.adapter = yyQQC.cfg.adapter === "qqofficial" ? "qqofficial" : "onebot";
   // 掉线感知：state 离开 open 就算断。以前这里什么都不做，所以掉线了页面一直显示旧状态。
-  var nowConnected = yyQQC.status.state === "open" || !!(yyQQC.login && yyQQC.login.logged_in);
+  // 另外 state=open 但 live=false 也是断（半开 TCP 时 state 不会变），必须一起判。
+  var stNow = yyQQC.status || {}, lgNow = yyQQC.login || {};
+  var nowConnected = (stNow.state === "open" && stNow.live !== false) ||
+    !!(lgNow.logged_in && lgNow.live !== false);
   yyQQCheckDrop(nowConnected, (yyQQC.status && yyQQC.status.detail) || "");
   if (!yyQQC.picked) {
     var on = yyQQEnabledGroups();
@@ -2857,13 +2887,41 @@ async function yyQQRefreshStream() {
   yyQQLoadSummary();
 }
 
-async function yyQQRefreshAll(deep) {
-  await yyQQLoadCore();
-  await yyQQLoadMessages();
-  yyQQRenderAll();
-  yyQQLoadProfile();
-  yyQQLoadSummary();
-  if (deep) yyQQPollLogin(1);
+// btn 传进来才有 loading 态。以前这个按钮点了什么都不显示：
+// 请求在后台跑，成功没提示、失败被吞掉，用户看到的就是「假按钮」。
+async function yyQQRefreshAll(deep, btn) {
+  if (yyQQC.refreshing) return;
+  yyQQC.refreshing = 1;
+  var busy = function (on) {
+    if (!btn || !btn.style) return;
+    btn.disabled = !!on;
+    btn.style.opacity = on ? "0.45" : "";
+    btn.style.cursor = on ? "progress" : "";
+    if (on) btn.setAttribute("aria-busy", "true");
+    else btn.removeAttribute("aria-busy");
+  };
+  busy(1);
+  try {
+    await yyQQLoadCore();
+    await yyQQLoadMessages();
+    // 用户正在配置区编辑时，yyQQRenderAll 会被 focus 守卫整体跳过。
+    // 这时至少把状态带画出来，否则点了刷新看起来毫无反应。
+    if (window.__yyQQEditing) {
+      yyQQRender("status");
+      if (typeof T === "function") T("正在编辑，只刷新了状态栏", "s");
+    } else {
+      yyQQRenderAll();
+    }
+    yyQQLoadProfile();
+    yyQQLoadSummary();
+    if (deep) yyQQPollLogin(1);
+    if (typeof T === "function") T("已刷新", "s");
+  } catch (e) {
+    if (typeof T === "function") T("刷新失败：" + ((e && e.message) || e || "未知错误"), "e");
+  } finally {
+    yyQQC.refreshing = 0;
+    busy(0);
+  }
 }
 
 // ---------- 轮询 ----------
@@ -2887,13 +2945,13 @@ function yyQQStartTimers() {
     if (!document.getElementById("yyq-stream")) return;
     yyQQRefreshStream();
   }, 30000));
-  // 每 10 秒轻量探一次连接状态：只刷状态栏，不动别的区域，
-  // 这样掉线能在 10 秒内被看见，又不会打断正在输入的框。
+  // 每 5 秒轻量探一次连接状态：只刷状态栏，不动别的区域，
+  // 这样掉线能在 5 秒内被看见，又不会打断正在输入的框。
   yyQQC.timers.push(setInterval(function () {
     if (document.hidden) return;
     if (!document.getElementById("yyq-root")) return;
     yyQQPollStatusLight();
-  }, 30000));
+  }, 5000));
   // 每 10 分钟整页状态重刷一次：用户要求「停在那个界面也要自己发现掉线」。
   // 页面不可见时跳过，省电也省接口。
   yyQQC.timers.push(setInterval(function () {
@@ -2908,6 +2966,8 @@ function yyQQStartTimers() {
   yyQQC.visHandler = function () {
     if (document.hidden) return;
     if (!document.getElementById("yyq-root")) return;
+    // 先打一发轻量状态，切回前台第一眼就是真状态，不用等整页数据拉完。
+    yyQQPollStatusLight();
     yyQQRefreshAll();
   };
   document.addEventListener("visibilitychange", yyQQC.visHandler);
@@ -2939,7 +2999,7 @@ function yyQQTickQr() {
 }
 
 // 轻量状态探活：只打 /api/qq/status，拿到就判断掉线并重绘状态栏。
-// 10 秒一次，正常时开销就是一个小 JSON，不会像整页刷新那样把输入框冲掉。
+// 5 秒一次，正常时开销就是一个 ~200B 的 JSON，不会像整页刷新那样把输入框冲掉。
 var yyQQStatusPolling = false;
 async function yyQQPollStatusLight() {
   if (yyQQStatusPolling) return;
@@ -2947,11 +3007,24 @@ async function yyQQPollStatusLight() {
   try {
     var r = await A("GET", "/api/qq/status");
     if (r && r.ok !== false) {
+      yyQQC.statusFails = 0;
       var before = yyQQC.status && yyQQC.status.state;
+      var beforeLive = yyQQC.status && yyQQC.status.live;
+      r.stale = false;
       yyQQC.status = r;
-      var nowConnected = r.state === "open";
+      var nowConnected = r.state === "open" && r.live !== false;
       yyQQCheckDrop(nowConnected, r.detail || "");
-      if (before !== r.state || yyQQC.dropAt) yyQQRender("status");
+      if (before !== r.state || beforeLive !== r.live || yyQQC.dropAt) yyQQRender("status");
+      return;
+    }
+    // 探测失败必须说话。以前这里直接 return，掉线+接口打不通时面板会永远停在「已连接」。
+    yyQQC.statusFails = (yyQQC.statusFails || 0) + 1;
+    if (yyQQC.statusFails >= 4) {
+      yyQQC.status = Object.assign({}, yyQQC.status || {}, {
+        stale: true, detail: (r && r.error) || "状态接口无响应"
+      });
+      yyQQCheckDrop(false, (r && r.error) || "状态接口无响应");
+      yyQQRender("status");
     }
   } finally {
     yyQQStatusPolling = false;

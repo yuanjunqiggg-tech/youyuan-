@@ -166,7 +166,7 @@ func handleAIChat(w http.ResponseWriter, r *http.Request) {
 // buildAISystem 构建系统提示：按正在编辑的插件注入开发文档 + 当前插件源码/配置 + 工具说明 + 工作模式。
 func buildAISystem(pluginID, mode, sessionName string) string {
 	var sb strings.Builder
-	sb.WriteString("你是《我的世界》基岩版租赁服「游园工具箱」的插件开发助手，帮助用户编写和修改 Lua 插件或词库插件。")
+	sb.WriteString("你是《我的世界》基岩版租赁服「" + yyBrandShort + "」的插件开发助手，帮助用户编写和修改 Lua 插件或词库插件。")
 	sb.WriteString("\n你可以用工具：网络请求、DuckDuckGo 网络搜索、读取/列出插件、读写插件文件、机器人连接时调用游戏内 game API。")
 	sb.WriteString("\n写 Lua 代码时：调用游戏能力一律用 game.* 全局 API；要给出完整、可直接运行的代码，不要用省略号占位；")
 	sb.WriteString("写完后应主动用 write_plugin_file 工具（scope=code）把代码直接保存进插件文件。")

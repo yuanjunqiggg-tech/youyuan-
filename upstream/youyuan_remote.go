@@ -330,7 +330,7 @@ func yyMCP(w http.ResponseWriter, r *http.Request) {
 		if !yyMCPVersionSupported(version) {
 			version = "2025-06-18"
 		}
-		result = map[string]any{"protocolVersion": version, "capabilities": map[string]any{"tools": map[string]any{"listChanged": false}, "resources": map[string]any{"subscribe": false, "listChanged": false}}, "serverInfo": map[string]any{"name": "游园工具箱 MCP", "version": yyAppVersion}}
+		result = map[string]any{"protocolVersion": version, "capabilities": map[string]any{"tools": map[string]any{"listChanged": false}, "resources": map[string]any{"subscribe": false, "listChanged": false}}, "serverInfo": map[string]any{"name": yyBrandShort + " MCP", "version": yyAppVersion}}
 	case "ping":
 		result = map[string]any{}
 	case "resources/list":
