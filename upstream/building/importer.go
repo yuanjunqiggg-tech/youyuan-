@@ -501,6 +501,18 @@ func (t *ImportTask) Run() error {
 				continue
 			}
 
+			// 整批全空（纯空气）直接跳过：解析期 countBlock 已经按 IsAir 丢弃了
+			// 空气块，regionSolid 就是本批次的实心方块数，这里 O(1) 判断即可。
+			// 不加这一步的话，空白批次照样会 TP 过去、分配 visited 三维数组、
+			// 把整个 setblock 循环跑一遍，只是每格都 continue——纯浪费。
+			// 用户要求「导入跳过无实际内容的空白区域」，落点就在这里。
+			if t.regionSolid[[2]int{rx, rz}] == 0 {
+				skippedRegions++
+				processedChunks += (chunkEndX - chunkStartX) * (chunkEndZ - chunkStartZ)
+				t.liveSubmitted, t.liveChunks = blocksPlaced, processedChunks
+				continue
+			}
+
 			// TP 到小区中心
 			regionCX := chunkStartX*ChunkSize + (chunkEndX-chunkStartX)*ChunkSize/2
 			regionCZ := chunkStartZ*ChunkSize + (chunkEndZ-chunkStartZ)*ChunkSize/2
