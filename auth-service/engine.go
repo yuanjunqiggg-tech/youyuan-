@@ -355,7 +355,14 @@ func currentAccountSkin(cli *g79.Client) (auth.SkinInfo, error) {
 	}
 	id := s.Entity.SkinData.ItemID
 	if id == "" || strings.HasPrefix(id, "-") {
-		return auth.SkinInfo{}, nil
+		// 这里原来返回 (空 SkinInfo, nil)。因为 err 是 nil，engine.go:200 的守卫
+		// `if err != nil && skin.ItemID == ""` 判不出来，于是带着空的
+		// SkinDownloadURL 一路进 skinPreview，最终报「当前皮肤没有受支持的官方
+		// 资源地址」——这个文案看不出真正原因（账号压根没选过皮肤）。
+		// 改成显式报错，让前端能直接说人话。
+		// 注意：game_login / tan_lobby_login 只把 err 写进 skin_error 字段、
+		// 不中断登录，所以这里改成报错不影响进服。
+		return auth.SkinInfo{}, fmt.Errorf("这个账号还没选过皮肤：请先在游戏里选一款，或在下方填入已拥有的皮肤组件码")
 	}
 	d, e := cli.GetDownloadInfo(id)
 	if e != nil {

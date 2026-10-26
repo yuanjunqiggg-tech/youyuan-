@@ -181,9 +181,20 @@ async function yyGameAccountSkin(row) {
     }
   };
   const result = await yyGameAuthAPI("POST", { action: "skin_preview", id: row.id });
+  const title = "\u6682\u65F6\u8BFB\u4E0D\u5230\u8FD9\u4E2A\u8D26\u53F7\u7684\u76AE\u80A4";
+  const hint = "\u53EF\u4EE5\u5728\u4E0B\u65B9\u76F4\u63A5\u586B\u5165\u300C\u5DF2\u62E5\u6709\u7684\u76AE\u80A4\u7EC4\u4EF6\u7801\u300D\uFF0C\u518D\u70B9\u300C\u5E94\u7528\u76AE\u80A4\u300D";
   if (!stage.isConnected) return;
   if (!result.ok) {
     status.textContent = result.error || "\u672A\u80FD\u8BFB\u53D6\u76AE\u80A4\uFF0C\u4ECD\u53EF\u586B\u5199\u5DF2\u6709\u7EC4\u4EF6\u7801";
+    // 失败时舞台会留一块 340px 的空白，用户看到的就是「皮肤不显示」。
+    // 这里放可见占位，并说清下一步能做什么。
+    const why = result.error ? '<div style="font-size:13px;line-height:1.7;opacity:.8">' + yyEscape(result.error) + '</div>' : '';
+    stage.innerHTML =
+      '<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center">' +
+      '<div style="font-size:15px;font-weight:600">' + title + '</div>' +
+      why +
+      '<div style="font-size:13px;line-height:1.7;opacity:.65">' + hint + '</div>' +
+      '</div>';
     return;
   }
   const viewer = new YYSkinViewer(stage, result.texture, (_a = result.skin_info) == null ? void 0 : _a.SkinIsSlim);
